@@ -1,0 +1,9 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "vma",
+    hdrs = ["include/vk_mem_alloc.h"],
+    deps = ["@vulkan_headers//:vulkan_headers"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)

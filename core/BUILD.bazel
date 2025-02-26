@@ -1,0 +1,83 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "types",
+    hdrs = [
+        "types.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "platform",
+    hdrs = [
+        "platform.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "assert",
+    hdrs = [
+        "assert.h",
+    ],
+    srcs = [
+        "assert.cpp",
+    ],
+    deps = [
+        ":types",
+        ":platform",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "memory_osx",
+    hdrs = [
+        "memory.h",
+    ],
+    srcs = [
+        "memory_osx.cpp",
+    ],
+    target_compatible_with = [
+        "@platforms//os:osx",
+    ],
+    deps = [
+        ":types",
+    ],
+)
+
+cc_library(
+    name = "memory_windows",
+    hdrs = [
+        "memory.h",
+    ],
+    srcs = [
+        "memory_windows.cpp",
+    ],
+    target_compatible_with = [
+        "@platforms//os:windows",
+    ],
+    deps = [
+        ":types",
+    ],
+)
+
+cc_library(
+    name = "memory",
+    hdrs = [
+        "arena.h",
+    ],
+    srcs = [
+        "arena.cpp",
+    ],
+    deps = [
+        ":assert",
+    ] + select({
+        "@platforms//os:osx": [ ":memory_osx" ],
+	    "@platforms//os:windows": [ ":memory_windows" ],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//visibility:public"],
+)
+

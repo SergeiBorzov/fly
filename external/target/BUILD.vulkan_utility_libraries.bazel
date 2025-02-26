@@ -1,0 +1,108 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# cc_library(
+#     name = "vulkan_layer_settings_",
+#     hdrs = [
+#         "include/vulkan/layer/vk_layer_settings.h",
+#         "include/vulkan/layer/vk_layer_settings.hpp",
+#     ],
+#     includes = [
+#         "include",
+#     ],
+#     visibility = ["//visibility:public"],
+# )
+
+# cc_library(
+#     name = "vulkan_safe_struct",
+#     hdrs = [
+#         "include/vulkan/utility/vk_safe_struct.hpp",
+#         "include/vulkan/utility/vk_safe_struct_utils.hpp",
+#     ],
+#     includes = [
+#         "include",
+#     ],
+#     visibility = ["//visibility:public"],
+# )
+
+cc_library(
+    name = "vulkan_layer_settings",
+    hdrs = [
+        "include/vulkan/layer/vk_layer_settings.h",
+        "include/vulkan/layer/vk_layer_settings.hpp",
+        "src/layer/layer_settings_manager.hpp",
+        "src/layer/layer_settings_util.hpp",
+    ],
+    srcs = [
+        "src/layer/vk_layer_settings.cpp",
+        "src/layer/vk_layer_settings_helper.cpp",
+        "src/layer/layer_settings_manager.cpp",
+        "src/layer/layer_settings_util.cpp",
+    ],
+    includes = [
+        "include",
+        "src/layer",
+    ],
+    defines = [
+        "VK_USE_PLATFORM_WIN32_KHR",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN",
+    ],
+    deps = [
+        "@vulkan_headers//:vulkan_headers"
+    ],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:advapi32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"]
+)   
+
+cc_library(
+    name = "vulkan_utility_headers",
+    hdrs = [
+        "include/vulkan/vk_enum_string_helper.h",
+        "include/vulkan/utility/vk_concurrent_unordered_map.hpp",
+        "include/vulkan/utility/vk_dispatch_table.h",
+        "include/vulkan/utility/vk_format_utils.h",
+        "include/vulkan/utility/vk_small_containers.hpp",
+        "include/vulkan/utility/vk_sparse_range_map.hpp",
+        "include/vulkan/utility/vk_struct_helper.hpp",
+    ],
+    includes = [
+        "include",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@vulkan_headers//:vulkan_headers",
+    ],
+)
+
+cc_library(
+    name = "vulkan_safe_struct",
+    hdrs = [
+    ],
+    srcs = [
+        "src/vulkan/vk_safe_struct_core.cpp",
+        "src/vulkan/vk_safe_struct_ext.cpp",
+        "src/vulkan/vk_safe_struct_khr.cpp",
+        "src/vulkan/vk_safe_struct_utils.cpp",
+        "src/vulkan/vk_safe_struct_vendor.cpp",
+        "src/vulkan/vk_safe_struct_manual.cpp",
+    ],
+    includes = [
+        "include",
+        "src/layer",
+    ],
+    deps = [
+        ":vulkan_utility_headers",
+    ],
+    defines = [
+        "VK_USE_PLATFORM_WIN32_KHR",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN",
+    ],
+    visibility = ["//visibility:public"]
+)
+

@@ -1,0 +1,72 @@
+module(name = "helios", version = "0.1")
+
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "rules_cc", version = "0.1.1")
+
+external_git_repository = use_extension(
+    "@helios//external/extensions:external_git_repository.bzl",
+    "external_git_repository",
+)
+
+external_git_repository.base(
+    name = "glfw",
+    build_file = "//external/target:BUILD.glfw.bazel",
+    commit = "7b6aead9fb88b3623e3b3725ebb42670cbe4c579",
+    remote = "https://github.com/glfw/glfw.git",
+)
+use_repo(external_git_repository, "glfw")
+
+external_git_repository.base(
+    name = "vulkan_headers",
+    build_file = "//external/target:BUILD.vulkan_headers.bazel",
+    commit = "39f924b810e561fd86b2558b6711ca68d4363f68",
+    remote = "https://github.com/KhronosGroup/Vulkan-Headers.git",
+)
+use_repo(external_git_repository, "vulkan_headers")
+
+external_git_repository.base(
+    name = "spirv_headers",
+    commit = "3f17b2af6784bfa2c5aa5dbb8e0e74a607dd8b3b",
+    remote = "https://github.com/KhronosGroup/SPIRV-Headers.git",
+)
+use_repo(external_git_repository, "spirv_headers")
+
+external_git_repository.base(
+    name = "spirv_tools",
+    commit = "4d2f0b40bfe290dea6c6904dafdf7fd8328ba346",
+    remote = "https://github.com/KhronosGroup/SPIRV-Tools.git"
+)
+use_repo(external_git_repository, "spirv_tools")
+
+external_git_repository.base(
+    name = "vulkan_utility_libraries",
+    build_file = "//external/target:BUILD.vulkan_utility_libraries.bazel",
+    commit = "5a88b6042edb8f03eefc8de73bd73a899989373f",
+    remote = "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git",
+)
+use_repo(external_git_repository, "vulkan_utility_libraries")
+
+external_git_repository.base(
+    name = "vulkan_validation_layers",
+    build_file = "//external/target:BUILD.vulkan_validation_layers.bazel",
+    commit = "f95d8a2e7d95999a25f3ab4b0264848e32d88e04",
+    remote = "https://github.com/KhronosGroup/Vulkan-ValidationLayers.git",
+)
+use_repo(external_git_repository, "vulkan_validation_layers")
+
+external_git_repository.base(
+    name = "volk",
+    build_file = "//external/target:BUILD.volk.bazel",
+    commit = "0b17a763ba5643e32da1b2152f8140461b3b7345",
+    remote = "https://github.com/zeux/volk.git",
+)
+use_repo(external_git_repository, "volk")
+
+external_git_repository.base(
+    name = "vma",
+    build_file = "//external/target:BUILD.vma.bazel",
+    commit = "c788c52156f3ef7bc7ab769cb03c110a53ac8fcb",
+    remote = "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
+)
+use_repo(external_git_repository, "vma")
