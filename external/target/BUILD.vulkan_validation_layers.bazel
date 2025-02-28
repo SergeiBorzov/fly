@@ -410,7 +410,7 @@ cc_library(
         "layers/profiling/profiling.h",
     ],
     defines = [
-         #"VK_ENABLE_BETA_EXTENSIONS",
+         "VK_ENABLE_BETA_EXTENSIONS",
          "VK_USE_PLATFORM_WIN32_KHR",
           "_CRT_SECURE_NO_WARNINGS",
           "NOMINMAX",
@@ -422,7 +422,6 @@ cc_library(
         "layers/external",
     ],
     copts = ["/bigobj"],
-    #linkopts = ["/DEF:$(location layers/VkLayer_khronos_validation.def)"],  # Pass .def file to linker
     deps = [
         "@spirv_tools//:spirv_tools_opt",
         "@vulkan_utility_libraries//:vulkan_safe_struct",
@@ -431,30 +430,24 @@ cc_library(
     ],
 )
 
-cc_binary(
-    name = "VkLayer_khronos_validation",
+cc_shared_library(
+    name = "VK_LAYER_KHRONOS_validation",
     deps = [
         ":vvl",
+        "@volk//:volk",
     ],
-    linkshared = True,
+    win_def_file = "layers/VkLayer_khronos_validation.def",
     visibility = ["//visibility:public"],
 )
 
 expand_template(
-    name = "VkLayer_khronos_validation_json",
+    name = "VK_LAYER_KHRONOS_validation_json",
     template = "layers/VkLayer_khronos_validation.json.in",
     out = "VkLayer_khronos_validation.json",
     substitutions = {
         "@JSON_LAYER_NAME@": "VK_LAYER_KHRONOS_validation",
         "@JSON_LIBRARY_PATH@": ".\\\\VK_LAYER_KHRONOS_validation.dll",
     },
-)
-
-filegroup(
-    name = "vulkan_validation_layers",
-    srcs = [
-        ":VkLayer_khronos_validation",
-        ":VkLayer_khronos_validation_json",
-    ],
+    visibility = ["//visibility:public"]
 )
 

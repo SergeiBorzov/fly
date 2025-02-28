@@ -50,7 +50,7 @@ use_repo(external_git_repository, "vulkan_utility_libraries")
 external_git_repository.base(
     name = "vulkan_validation_layers",
     build_file = "//external/target:BUILD.vulkan_validation_layers.bazel",
-    commit = "f95d8a2e7d95999a25f3ab4b0264848e32d88e04",
+    commit = "90851ef5b77757556217122061672dc52e21629c",
     remote = "https://github.com/KhronosGroup/Vulkan-ValidationLayers.git",
 )
 use_repo(external_git_repository, "vulkan_validation_layers")
@@ -70,3 +70,11 @@ external_git_repository.base(
     remote = "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
 )
 use_repo(external_git_repository, "vma")
+
+external_git_repository.base(
+    name = "optparse",
+    build_file = "//external/target:BUILD.optparse.bazel",
+    commit = "a86877ed301d89a4eb64feb08f23af395aede2ed",
+    remote = "https://github.com/skeeto/optparse.git",
+)
+use_repo(external_git_repository, "optparse")

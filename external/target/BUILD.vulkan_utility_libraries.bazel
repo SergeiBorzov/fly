@@ -1,29 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
-# cc_library(
-#     name = "vulkan_layer_settings_",
-#     hdrs = [
-#         "include/vulkan/layer/vk_layer_settings.h",
-#         "include/vulkan/layer/vk_layer_settings.hpp",
-#     ],
-#     includes = [
-#         "include",
-#     ],
-#     visibility = ["//visibility:public"],
-# )
-
-# cc_library(
-#     name = "vulkan_safe_struct",
-#     hdrs = [
-#         "include/vulkan/utility/vk_safe_struct.hpp",
-#         "include/vulkan/utility/vk_safe_struct_utils.hpp",
-#     ],
-#     includes = [
-#         "include",
-#     ],
-#     visibility = ["//visibility:public"],
-# )
-
 cc_library(
     name = "vulkan_layer_settings",
     hdrs = [
@@ -40,9 +16,9 @@ cc_library(
     ],
     includes = [
         "include",
-        "src/layer",
     ],
     defines = [
+        "VK_ENABLE_BETA_EXTENSIONS",
         "VK_USE_PLATFORM_WIN32_KHR",
         "NOMINMAX",
         "WIN32_LEAN_AND_MEAN",
@@ -82,23 +58,22 @@ cc_library(
 cc_library(
     name = "vulkan_safe_struct",
     hdrs = [
+        "include/vulkan/utility/vk_safe_struct.hpp",
+        "include/vulkan/utility/vk_safe_struct_utils.hpp",
     ],
     srcs = [
+        "src/vulkan/vk_safe_struct_vendor.cpp",
         "src/vulkan/vk_safe_struct_core.cpp",
         "src/vulkan/vk_safe_struct_ext.cpp",
         "src/vulkan/vk_safe_struct_khr.cpp",
         "src/vulkan/vk_safe_struct_utils.cpp",
-        "src/vulkan/vk_safe_struct_vendor.cpp",
         "src/vulkan/vk_safe_struct_manual.cpp",
-    ],
-    includes = [
-        "include",
-        "src/layer",
     ],
     deps = [
         ":vulkan_utility_headers",
     ],
     defines = [
+        "VK_ENABLE_BETA_EXTENSIONS",
         "VK_USE_PLATFORM_WIN32_KHR",
         "NOMINMAX",
         "WIN32_LEAN_AND_MEAN",
