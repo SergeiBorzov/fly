@@ -95,3 +95,25 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "log",
+    hdrs = [
+        "log.h",
+    ],
+    srcs = [
+        "log.cpp",
+    ],
+    deps = [
+        ":assert",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "core",
+    deps = [
+        ":filesystem",
+        ":log",
+    ],
+    visibility = ["//visibility:public"],
+)
