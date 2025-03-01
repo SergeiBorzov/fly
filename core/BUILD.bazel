@@ -81,3 +81,17 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "filesystem",
+    hdrs = [
+        "filesystem.h",
+    ],
+    srcs = [
+        "filesystem.cpp",
+    ],
+    deps = [
+        ":memory"
+    ],
+    visibility = ["//visibility:public"],
+)
+

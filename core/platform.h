@@ -47,7 +47,7 @@
 
 // POSIX
 #if defined(_POSIX_VERSION)
-#    define HLS_PLATFORM_PLATFORM_POSIX
+#    define HLS_PLATFORM_POSIX
 #endif
 
 // Architecture
