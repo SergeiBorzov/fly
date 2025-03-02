@@ -4,14 +4,20 @@
 #include "core/types.h"
 #include <volk.h>
 
-#define HLS_PHYSICAL_DEVICE_MAX_COUNT 4
+#define HLS_PHYSICAL_DEVICE_MAX_COUNT 8
 
 struct Arena;
+
+struct HlsDevice
+{
+    VkPhysicalDevice physicalDevice;
+};
 
 struct HlsContext
 {
     VkInstance instance = VK_NULL_HANDLE;
-    VkPhysicalDevice physicalDevices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
+    HlsDevice devices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
+    u32 deviceCount = 0;
 };
 
 bool HlsCreateContext(Arena* arena, const char** instanceLayers,
