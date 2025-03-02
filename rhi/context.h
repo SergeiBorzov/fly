@@ -2,11 +2,13 @@
 #define HLS_CONTEXT_H
 
 #include "core/types.h"
+
 #include <volk.h>
 
 #define HLS_PHYSICAL_DEVICE_MAX_COUNT 8
 
 struct Arena;
+struct GLFWwindow;
 
 struct HlsPhysicalDeviceInfo
 {
@@ -37,8 +39,9 @@ struct HlsDevice
 
 struct HlsContext
 {
-    VkInstance instance = VK_NULL_HANDLE;
     HlsDevice devices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
+    VkInstance instance = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
     u32 deviceCount = 0;
 };
 
@@ -48,11 +51,11 @@ struct HlsContextSettings
     const char** instanceLayers = nullptr;
     const char** instanceExtensions = nullptr;
     const char** deviceExtensions = nullptr;
+    GLFWwindow* windowPtr = nullptr;
     HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback = nullptr;
     u32 instanceLayerCount = 0;
     u32 instanceExtensionCount = 0;
     u32 deviceExtensionCount = 0;
-    bool renderOffscreen = false;
 };
 
 bool HlsIsExtensionSupported(VkExtensionProperties* extensionProperties,

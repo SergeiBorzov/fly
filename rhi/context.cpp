@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "context.h"
+#include "context.h" // volk should be included prior to glfw
+#include <GLFW/glfw3.h>
+
 #include "core/arena.h"
 #include "core/assert.h"
 #include "core/log.h"
@@ -64,12 +66,6 @@ static bool CreateInstance(Arena& arena, const char** instanceLayers,
                            u32 instanceExtensionCount, HlsContext& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
-
-    VkResult res = volkInitialize();
-    if (res != VK_SUCCESS)
-    {
-        return false;
-    }
 
     // Fill available instance layers
     u32 availableInstanceLayerCount = 0;
@@ -536,6 +532,7 @@ static bool FindPhysicalDevices(
 
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
+        const VkPhysicalDevice physicalDevice = physicalDevices[i];
         const HlsPhysicalDeviceInfo& info = physicalDeviceInfos[i];
 
         if (!PhysicalDeviceSupportsRequiredExtensions(
@@ -549,12 +546,6 @@ static bool FindPhysicalDevices(
             continue;
         }
 
-        if (isPhysicalDeviceSuitableCallback != nullptr &&
-            !isPhysicalDeviceSuitableCallback(info))
-        {
-            continue;
-        }
-
         i32 graphicsComputeQueueFamilyIndex = -1;
         for (u32 j = 0; j < info.queueFamilyCount; j++)
         {
@@ -563,6 +554,7 @@ static bool FindPhysicalDevices(
                 queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
             {
                 graphicsComputeQueueFamilyIndex = j;
+                break;
             }
         }
         if (graphicsComputeQueueFamilyIndex == -1)
@@ -570,8 +562,26 @@ static bool FindPhysicalDevices(
             continue;
         }
 
+        i32 presentQueueFamilyIndex = -1;
         if (!renderOffscreen)
         {
+            for (u32 j = 0; j < info.queueFamilyCount; j++)
+            {
+                VkBool32 presentSupport = false;
+                vkGetPhysicalDeviceSurfaceSupportKHR(
+                    physicalDevices[i], j, context.surface, &presentSupport);
+                if (presentSupport)
+                {
+                    presentQueueFamilyIndex = j;
+                    break;
+                }
+            }
+        }
+
+        if (isPhysicalDeviceSuitableCallback != nullptr &&
+            !isPhysicalDeviceSuitableCallback(info))
+        {
+            continue;
         }
 
         suitableDeviceIndices[suitableDeviceCount] = i;
@@ -579,6 +589,11 @@ static bool FindPhysicalDevices(
             physicalDevices[i];
         suitableDevices[suitableDeviceCount].graphicsComputeQueueFamilyIndex =
             graphicsComputeQueueFamilyIndex;
+        if (!renderOffscreen)
+        {
+            suitableDevices[suitableDeviceCount].presentQueueFamilyIndex =
+                presentQueueFamilyIndex;
+        }
         suitableDeviceCount++;
     }
 
@@ -598,6 +613,20 @@ static bool FindPhysicalDevices(
     ArenaPopToMarker(arena, marker);
 
     return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// Surface
+/////////////////////////////////////////////////////////////////////////////
+static bool CreateSurface(GLFWwindow* window, HlsContext& context)
+{
+    return glfwCreateWindowSurface(context.instance, window, nullptr,
+                                   &context.surface) == VK_SUCCESS;
+}
+
+static void DestroySurface(HlsContext& context)
+{
+    vkDestroySurfaceKHR(context.instance, context.surface, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -688,17 +717,24 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
         return false;
     }
 
+    bool renderOffscreen = settings.windowPtr == nullptr;
+
+    if (!renderOffscreen && !CreateSurface(settings.windowPtr, context))
+    {
+        return false;
+    }
+
     if (!FindPhysicalDevices(
             arena, settings.deviceExtensions, settings.deviceExtensionCount,
             settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
-            settings.renderOffscreen, context))
+            renderOffscreen, context))
     {
         return false;
     }
 
     if (!CreateLogicalDevices(
             arena, settings.deviceExtensions, settings.deviceExtensionCount,
-            settings.deviceFeatures2, settings.renderOffscreen, context))
+            settings.deviceFeatures2, renderOffscreen, context))
     {
         return false;
     }
@@ -712,5 +748,6 @@ void HlsDestroyContext(HlsContext& context)
     {
         vkDestroyDevice(context.devices[i].logicalDevice, nullptr);
     }
+    DestroySurface(context);
     vkDestroyInstance(context.instance, nullptr);
 }
