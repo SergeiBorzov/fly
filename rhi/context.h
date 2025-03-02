@@ -11,6 +11,7 @@ struct Arena;
 struct HlsDevice
 {
     VkPhysicalDevice physicalDevice;
+    i32 graphicsComputeFamilyIndex = -1;
 };
 
 struct HlsContext
