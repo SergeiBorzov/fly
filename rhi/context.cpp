@@ -503,12 +503,11 @@ PhysicalDeviceSupportsRequiredExtensions(const char** extensions,
     return true;
 }
 
-static bool
-FindPhysicalDevices(Arena& arena, const char** deviceExtensions,
-                    u32 deviceExtensionCount,
-                    const VkPhysicalDeviceFeatures2& deviceFeatures2,
-                    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableFn,
-                    bool renderOffscreen, HlsContext& context)
+static bool FindPhysicalDevices(
+    Arena& arena, const char** deviceExtensions, u32 deviceExtensionCount,
+    const VkPhysicalDeviceFeatures2& deviceFeatures2,
+    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback,
+    bool renderOffscreen, HlsContext& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -550,8 +549,8 @@ FindPhysicalDevices(Arena& arena, const char** deviceExtensions,
             continue;
         }
 
-        if (isPhysicalDeviceSuitableFn != nullptr &&
-            !isPhysicalDeviceSuitableFn(info))
+        if (isPhysicalDeviceSuitableCallback != nullptr &&
+            !isPhysicalDeviceSuitableCallback(info))
         {
             continue;
         }
@@ -691,7 +690,7 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
 
     if (!FindPhysicalDevices(
             arena, settings.deviceExtensions, settings.deviceExtensionCount,
-            settings.deviceFeatures2, settings.isPhysicalDeviceSuitableFn,
+            settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
             settings.renderOffscreen, context))
     {
         return false;

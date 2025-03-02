@@ -48,7 +48,7 @@ struct HlsContextSettings
     const char** instanceLayers = nullptr;
     const char** instanceExtensions = nullptr;
     const char** deviceExtensions = nullptr;
-    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableFn = nullptr;
+    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback = nullptr;
     u32 instanceLayerCount = 0;
     u32 instanceExtensionCount = 0;
     u32 deviceExtensionCount = 0;
