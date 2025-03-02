@@ -21,5 +21,6 @@ typedef bool b8;
 typedef i32 HlsResult;
 
 #define HLS_SUCCESS 0
+#define STACK_ARRAY_SIZE(arr) (sizeof(arr)/sizeof(arr[0]))
 
 #endif /* End of HLS_TYPES_H */

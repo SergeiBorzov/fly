@@ -25,8 +25,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationLayerCallbackFunc(
 }
 #endif
 
-static bool IsLayerSupported(VkLayerProperties* layerProperties,
-                             u32 layerPropertiesCount, const char* layerName)
+bool HlsIsLayerSupported(VkLayerProperties* layerProperties,
+                         u32 layerPropertiesCount, const char* layerName)
 {
     bool isLayerPresent = false;
     for (u32 i = 0; i < layerPropertiesCount; i++)
@@ -41,9 +41,9 @@ static bool IsLayerSupported(VkLayerProperties* layerProperties,
     return isLayerPresent;
 }
 
-static bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
-                                 u32 extensionPropertiesCount,
-                                 const char* extensionName)
+bool HlsIsExtensionSupported(VkExtensionProperties* extensionProperties,
+                             u32 extensionPropertiesCount,
+                             const char* extensionName)
 {
     bool isExtensionPresent = false;
     for (u32 i = 0; i < extensionPropertiesCount; i++)
@@ -58,13 +58,11 @@ static bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
     return isExtensionPresent;
 }
 
-static bool CreateInstance(Arena* arena, const char** instanceLayers,
+static bool CreateInstance(Arena& arena, const char** instanceLayers,
                            u32 instanceLayerCount,
                            const char** instanceExtensions,
-                           u32 instanceExtensionCount, HlsContext* context)
+                           u32 instanceExtensionCount, HlsContext& context)
 {
-    HLS_ASSERT(arena);
-
     ArenaMarker marker = ArenaGetMarker(arena);
 
     VkResult res = volkInitialize();
@@ -116,8 +114,8 @@ static bool CreateInstance(Arena* arena, const char** instanceLayers,
 #endif
     for (u32 i = 0; i < totalLayerCount; i++)
     {
-        if (!IsLayerSupported(availableInstanceLayers,
-                              availableInstanceLayerCount, totalLayers[i]))
+        if (!HlsIsLayerSupported(availableInstanceLayers,
+                                 availableInstanceLayerCount, totalLayers[i]))
         {
             HLS_ERROR("Following required instance layer %s is not present",
                       totalLayers[i]);
@@ -142,9 +140,9 @@ static bool CreateInstance(Arena* arena, const char** instanceLayers,
 #endif
     for (u32 i = 0; i < totalExtensionCount; i++)
     {
-        if (!IsExtensionSupported(availableInstanceExtensions,
-                                  availableInstanceExtensionCount,
-                                  totalExtensions[i]))
+        if (!HlsIsExtensionSupported(availableInstanceExtensions,
+                                     availableInstanceExtensionCount,
+                                     totalExtensions[i]))
         {
             HLS_ERROR("Following required extension %s is not present",
                       totalExtensions[i]);
@@ -199,7 +197,7 @@ static bool CreateInstance(Arena* arena, const char** instanceLayers,
     }
 
     volkLoadInstance(instance);
-    context->instance = instance;
+    context.instance = instance;
 
     return true;
 }
@@ -207,22 +205,6 @@ static bool CreateInstance(Arena* arena, const char** instanceLayers,
 /////////////////////////////////////////////////////////////////////////////
 // PhysicalDevice
 /////////////////////////////////////////////////////////////////////////////
-
-struct HlsPhysicalDeviceInfo
-{
-    VkPhysicalDeviceFeatures features;
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures;
-    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures;
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR
-        accelerationStructureFeatures;
-    VkPhysicalDeviceProperties properties;
-    VkPhysicalDeviceMemoryProperties memoryProperties;
-    VkExtensionProperties* extensions = nullptr;
-    VkQueueFamilyProperties* queueFamilies = nullptr;
-    u32 queueFamilyCount = 0;
-    u32 extensionCount = 0;
-};
-
 static const char* PhysicalDeviceTypeToString(VkPhysicalDeviceType deviceType)
 {
     switch (deviceType)
@@ -250,41 +232,10 @@ static const char* PhysicalDeviceTypeToString(VkPhysicalDeviceType deviceType)
     }
 }
 
-static bool
-HasPhysicalDeviceHardwareRayTracingSupport(const HlsPhysicalDeviceInfo& info)
-{
-    bool isAccelStructureSupported =
-        IsExtensionSupported(info.extensions, info.extensionCount,
-                             VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-
-    bool isRaytracingPipelineSupported =
-        IsExtensionSupported(info.extensions, info.extensionCount,
-                             VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-    bool isRayQuerySupported = IsExtensionSupported(
-        info.extensions, info.extensionCount, VK_KHR_RAY_QUERY_EXTENSION_NAME);
-
-    bool driverSupportsRayTracing = isAccelStructureSupported &&
-                                    isRaytracingPipelineSupported &&
-                                    isRayQuerySupported;
-
-    if (!driverSupportsRayTracing)
-    {
-        return false;
-    }
-
-    bool deviceSupportsRayTracing =
-        info.rayTracingPipelineFeatures.rayTracingPipeline &&
-        info.rayQueryFeatures.rayQuery &&
-        info.accelerationStructureFeatures.accelerationStructure;
-
-    return deviceSupportsRayTracing;
-}
-
-static HlsPhysicalDeviceInfo*
-QueryPhysicalDevicesInformation(Arena* arena, VkPhysicalDevice* physicalDevices,
+static const HlsPhysicalDeviceInfo*
+QueryPhysicalDevicesInformation(Arena& arena, VkPhysicalDevice* physicalDevices,
                                 u32 physicalDeviceCount)
 {
-    HLS_ASSERT(arena);
     HLS_ASSERT(physicalDevices);
 
     if (physicalDeviceCount == 0)
@@ -354,6 +305,159 @@ QueryPhysicalDevicesInformation(Arena* arena, VkPhysicalDevice* physicalDevices,
     return physicalDeviceInfos;
 }
 
+static bool PhysicalDeviceSupportsAccelerationStructureFeatures(
+    const VkPhysicalDeviceAccelerationStructureFeaturesKHR& requested,
+    const VkPhysicalDeviceAccelerationStructureFeaturesKHR& supported)
+{
+    if (requested.accelerationStructure && !supported.accelerationStructure)
+    {
+        return false;
+    }
+
+    if (requested.accelerationStructureCaptureReplay &&
+        !supported.accelerationStructureCaptureReplay)
+    {
+        return false;
+    }
+
+    if (requested.accelerationStructureIndirectBuild &&
+        !supported.accelerationStructureIndirectBuild)
+    {
+        return false;
+    }
+
+    if (requested.accelerationStructureHostCommands &&
+        !supported.accelerationStructureHostCommands)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingAccelerationStructureUpdateAfterBind &&
+        !supported.descriptorBindingAccelerationStructureUpdateAfterBind)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool PhysicalDeviceSupportsRayQueryFeatures(
+    const VkPhysicalDeviceRayQueryFeaturesKHR& requested,
+    const VkPhysicalDeviceRayQueryFeaturesKHR& supported)
+{
+    return !requested.rayQuery || supported.rayQuery;
+}
+
+static bool PhysicalDeviceSupportsRayTracingPipelineFeatures(
+    const VkPhysicalDeviceRayTracingPipelineFeaturesKHR& requested,
+    const VkPhysicalDeviceRayTracingPipelineFeaturesKHR& supported)
+{
+    if (requested.rayTracingPipeline && !supported.rayTracingPipeline)
+    {
+        return false;
+    }
+
+    if (requested.rayTracingPipelineShaderGroupHandleCaptureReplay &&
+        !supported.rayTracingPipelineShaderGroupHandleCaptureReplay)
+    {
+        return false;
+    }
+
+    if (requested.rayTracingPipelineShaderGroupHandleCaptureReplayMixed &&
+        !supported.rayTracingPipelineShaderGroupHandleCaptureReplayMixed)
+    {
+        return false;
+    }
+
+    if (requested.rayTracingPipelineTraceRaysIndirect &&
+        !supported.rayTracingPipelineTraceRaysIndirect)
+    {
+        return false;
+    }
+
+    if (requested.rayTraversalPrimitiveCulling &&
+        !supported.rayTraversalPrimitiveCulling)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool PhysicalDeviceSupportsRequiredFeatures(
+    const VkPhysicalDeviceFeatures2& requested,
+    const HlsPhysicalDeviceInfo& supported)
+{
+    const VkBool32* supportedFeatures =
+        reinterpret_cast<const VkBool32*>(&(supported.features));
+    const VkBool32* requestedFeatures =
+        reinterpret_cast<const VkBool32*>(&(requested.features));
+
+    const u64 featureCount =
+        sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
+
+    for (u64 i = 0; i < featureCount; i++)
+    {
+        if (requestedFeatures[i] && !supportedFeatures[i])
+        {
+            return false;
+        }
+    }
+
+    const VkBaseOutStructure* currRequestedFeaturePtr =
+        reinterpret_cast<const VkBaseOutStructure*>(requested.pNext);
+    while (currRequestedFeaturePtr != nullptr)
+    {
+        switch (currRequestedFeaturePtr->sType)
+        {
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR:
+            {
+                const VkPhysicalDeviceAccelerationStructureFeaturesKHR*
+                    requestedAccelerationStructureFeatures = reinterpret_cast<
+                        const VkPhysicalDeviceAccelerationStructureFeaturesKHR*>(
+                        currRequestedFeaturePtr);
+                if (!PhysicalDeviceSupportsAccelerationStructureFeatures(
+                        *requestedAccelerationStructureFeatures,
+                        supported.accelerationStructureFeatures))
+                {
+                    return false;
+                }
+                break;
+            }
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR:
+            {
+                const VkPhysicalDeviceRayQueryFeaturesKHR*
+                    requestedRayQueryFeatures = reinterpret_cast<
+                        const VkPhysicalDeviceRayQueryFeaturesKHR*>(
+                        currRequestedFeaturePtr);
+                if (!PhysicalDeviceSupportsRayQueryFeatures(
+                        *requestedRayQueryFeatures, supported.rayQueryFeatures))
+                {
+                    return false;
+                }
+                break;
+            }
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR:
+            {
+                const VkPhysicalDeviceRayTracingPipelineFeaturesKHR*
+                    requestedRayTracingPipelineFeatures = reinterpret_cast<
+                        const VkPhysicalDeviceRayTracingPipelineFeaturesKHR*>(
+                        currRequestedFeaturePtr);
+                if (!PhysicalDeviceSupportsRayTracingPipelineFeatures(
+                        *requestedRayTracingPipelineFeatures,
+                        supported.rayTracingPipelineFeatures))
+                {
+                    return false;
+                }
+                break;
+            }
+        }
+        currRequestedFeaturePtr = currRequestedFeaturePtr->pNext;
+    }
+
+    return true;
+}
+
 static void
 LogDetectedPhysicalDevices(const HlsPhysicalDeviceInfo* physicalDeviceInfos,
                            u32 physicalDeviceCount)
@@ -377,23 +481,39 @@ LogDetectedPhysicalDevices(const HlsPhysicalDeviceInfo* physicalDeviceInfos,
         const char* physicalDeviceType =
             PhysicalDeviceTypeToString(info.properties.deviceType);
 
-        bool rt = HasPhysicalDeviceHardwareRayTracingSupport(info);
-        HLS_LOG("[%u] - %s -- %s -- RT %s -- VRAM %llu MB", i + 1,
-                info.properties.deviceName, physicalDeviceType,
-                rt ? "ON" : "OFF", totalMemory);
+        HLS_LOG("[%u] - %s -- %s -- VRAM %llu MB", i + 1,
+                info.properties.deviceName, physicalDeviceType, totalMemory);
     }
 }
 
-static bool FindPhysicalDevices(Arena* arena, const char** deviceExtensions,
-                                u32 deviceExtensionCount, HlsContext* context)
+static bool
+PhysicalDeviceSupportsRequiredExtensions(const char** extensions,
+                                         u32 extensionCount,
+                                         const HlsPhysicalDeviceInfo& info)
 {
-    HLS_ASSERT(arena);
 
+    for (u32 i = 0; i < extensionCount; i++)
+    {
+        if (!HlsIsExtensionSupported(info.extensions, info.extensionCount,
+                                     extensions[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool
+FindPhysicalDevices(Arena& arena, const char** deviceExtensions,
+                    u32 deviceExtensionCount,
+                    const VkPhysicalDeviceFeatures2& deviceFeatures2,
+                    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableFn,
+                    bool renderOffscreen, HlsContext& context)
+{
     ArenaMarker marker = ArenaGetMarker(arena);
 
     u32 physicalDeviceCount = 0;
-    vkEnumeratePhysicalDevices(context->instance, &physicalDeviceCount,
-                               nullptr);
+    vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount, nullptr);
     if (physicalDeviceCount == 0)
     {
         HLS_ERROR("No physical devices detected");
@@ -402,9 +522,9 @@ static bool FindPhysicalDevices(Arena* arena, const char** deviceExtensions,
 
     VkPhysicalDevice* physicalDevices =
         HLS_ALLOC(arena, VkPhysicalDevice, physicalDeviceCount);
-    vkEnumeratePhysicalDevices(context->instance, &physicalDeviceCount,
+    vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount,
                                physicalDevices);
-    HlsPhysicalDeviceInfo* physicalDeviceInfos =
+    const HlsPhysicalDeviceInfo* physicalDeviceInfos =
         QueryPhysicalDevicesInformation(arena, physicalDevices,
                                         physicalDeviceCount);
 
@@ -419,50 +539,59 @@ static bool FindPhysicalDevices(Arena* arena, const char** deviceExtensions,
     {
         const HlsPhysicalDeviceInfo& info = physicalDeviceInfos[i];
 
-        if (!HasPhysicalDeviceHardwareRayTracingSupport(info))
+        if (!PhysicalDeviceSupportsRequiredExtensions(
+                deviceExtensions, deviceExtensionCount, info))
         {
             continue;
         }
 
-        i32 graphicsComputeFamilyIndex = -1;
+        if (!PhysicalDeviceSupportsRequiredFeatures(deviceFeatures2, info))
+        {
+            continue;
+        }
+
+        if (isPhysicalDeviceSuitableFn != nullptr &&
+            !isPhysicalDeviceSuitableFn(info))
+        {
+            continue;
+        }
+
+        i32 graphicsComputeQueueFamilyIndex = -1;
         for (u32 j = 0; j < info.queueFamilyCount; j++)
         {
             const VkQueueFamilyProperties& queueFamily = info.queueFamilies[j];
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT &&
                 queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
             {
-                graphicsComputeFamilyIndex = j;
+                graphicsComputeQueueFamilyIndex = j;
             }
         }
-        if (graphicsComputeFamilyIndex == -1)
+        if (graphicsComputeQueueFamilyIndex == -1)
         {
             continue;
         }
 
-        // TODO: uncomment
-        // if (info.properties.deviceType !=
-        // VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-        // {
-        //     continue;
-        // }
+        if (!renderOffscreen)
+        {
+        }
 
         suitableDeviceIndices[suitableDeviceCount] = i;
         suitableDevices[suitableDeviceCount].physicalDevice =
             physicalDevices[i];
-        suitableDevices[suitableDeviceCount].graphicsComputeFamilyIndex =
-            graphicsComputeFamilyIndex;
+        suitableDevices[suitableDeviceCount].graphicsComputeQueueFamilyIndex =
+            graphicsComputeQueueFamilyIndex;
         suitableDeviceCount++;
     }
 
-    context->deviceCount =
+    context.deviceCount =
         MIN(HLS_PHYSICAL_DEVICE_MAX_COUNT, suitableDeviceCount);
-    for (u32 i = 0; i < context->deviceCount; i++)
+    for (u32 i = 0; i < context.deviceCount; i++)
     {
-        HlsDevice& device = context->devices[i];
+        HlsDevice& device = context.devices[i];
         const HlsPhysicalDeviceInfo& info =
             physicalDeviceInfos[suitableDeviceIndices[i]];
 
-        context->devices[i] = suitableDevices[i];
+        context.devices[i] = suitableDevices[i];
         HLS_LOG("Following physical device is suitable and selected [%u] - %s",
                 i, info.properties.deviceName);
     }
@@ -472,22 +601,105 @@ static bool FindPhysicalDevices(Arena* arena, const char** deviceExtensions,
     return true;
 }
 
-bool HlsCreateContext(Arena* arena, const char** instanceLayers,
-                      u32 instanceLayerCount, const char** instanceExtensions,
-                      u32 instanceExtensionCount, const char** deviceExtensions,
-                      u32 deviceExtensionCount, HlsContext* context)
+/////////////////////////////////////////////////////////////////////////////
+// LogicalDevice
+/////////////////////////////////////////////////////////////////////////////
+static bool
+CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
+                     const VkPhysicalDeviceFeatures2& deviceFeatures2,
+                     bool renderOffscreen, HlsContext& context)
 {
-    HLS_ASSERT(arena);
-    HLS_ASSERT(context);
+    ArenaMarker marker = ArenaGetMarker(arena);
 
-    if (!CreateInstance(arena, instanceLayers, instanceLayerCount,
-                        instanceExtensions, instanceExtensionCount, context))
+    f32 queuePriority = 1.0f;
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        // Queues
+        VkDeviceQueueCreateInfo* queueCreateInfos =
+            HLS_ALLOC(arena, VkDeviceQueueCreateInfo,
+                      1 + static_cast<u32>(!renderOffscreen));
+        queueCreateInfos[0] = {};
+        queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfos[0].queueFamilyIndex =
+            context.devices[i].graphicsComputeQueueFamilyIndex;
+        queueCreateInfos[0].queueCount = 1;
+        queueCreateInfos[0].pQueuePriorities = &queuePriority;
+
+        if (!renderOffscreen)
+        {
+            queueCreateInfos[1] = {};
+            queueCreateInfos[1].sType =
+                VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfos[1].queueFamilyIndex =
+                context.devices[i].presentQueueFamilyIndex;
+            queueCreateInfos[1].queueCount = 1;
+            queueCreateInfos[1].pQueuePriorities = &queuePriority;
+        }
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.enabledExtensionCount = extensionCount;
+        createInfo.ppEnabledExtensionNames = extensions;
+        createInfo.pQueueCreateInfos = queueCreateInfos;
+        if (renderOffscreen ||
+            context.devices[i].graphicsComputeQueueFamilyIndex ==
+                context.devices[i].presentQueueFamilyIndex)
+        {
+            createInfo.queueCreateInfoCount = 1;
+        }
+        else
+        {
+            createInfo.queueCreateInfoCount = 2;
+        }
+        createInfo.pNext = &deviceFeatures2;
+
+        VkResult res =
+            vkCreateDevice(context.devices[i].physicalDevice, &createInfo,
+                           nullptr, &(context.devices[i].logicalDevice));
+        if (res != VK_SUCCESS)
+        {
+            ArenaPopToMarker(arena, marker);
+            return false;
+        }
+
+        vkGetDeviceQueue(context.devices[i].logicalDevice,
+                         context.devices[i].graphicsComputeQueueFamilyIndex, 0,
+                         &(context.devices[i].graphicsComputeQueue));
+        vkGetDeviceQueue(context.devices[i].logicalDevice,
+                         context.devices[i].presentQueueFamilyIndex, 0,
+                         &(context.devices[i].presentQueue));
+    }
+
+    ArenaPopToMarker(arena, marker);
+
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// Context
+/////////////////////////////////////////////////////////////////////////////
+bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
+                      HlsContext& context)
+{
+    if (!CreateInstance(arena, settings.instanceLayers,
+                        settings.instanceLayerCount,
+                        settings.instanceExtensions,
+                        settings.instanceExtensionCount, context))
     {
         return false;
     }
 
-    if (!FindPhysicalDevices(arena, deviceExtensions, deviceExtensionCount,
-                             context))
+    if (!FindPhysicalDevices(
+            arena, settings.deviceExtensions, settings.deviceExtensionCount,
+            settings.deviceFeatures2, settings.isPhysicalDeviceSuitableFn,
+            settings.renderOffscreen, context))
+    {
+        return false;
+    }
+
+    if (!CreateLogicalDevices(
+            arena, settings.deviceExtensions, settings.deviceExtensionCount,
+            settings.deviceFeatures2, settings.renderOffscreen, context))
     {
         return false;
     }
@@ -495,8 +707,11 @@ bool HlsCreateContext(Arena* arena, const char** instanceLayers,
     return true;
 }
 
-void HlsDestroyContext(HlsContext* context)
+void HlsDestroyContext(HlsContext& context)
 {
-    HLS_ASSERT(context);
-    vkDestroyInstance(context->instance, nullptr);
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        vkDestroyDevice(context.devices[i].logicalDevice, nullptr);
+    }
+    vkDestroyInstance(context.instance, nullptr);
 }

@@ -20,7 +20,7 @@ HlsResult SetEnv(const char* name, const char* value)
 #endif
 }
 
-const char* GetBinaryDirectoryPath(Arena* arena)
+const char* GetBinaryDirectoryPath(Arena& arena)
 {
 #ifdef HLS_PLATFORM_OS_WINDOWS
     char buffer[MAX_PATH] = {0};
@@ -32,7 +32,7 @@ const char* GetBinaryDirectoryPath(Arena* arena)
     }
 
     char* lastSlash = strrchr(buffer, '\\'); // Find the last backslash
-    i32 actualLength = lastSlash - buffer + 1;
+    i64 actualLength = lastSlash - buffer + 1;
 
     char* exeDirPath = HLS_ALLOC(arena, char, actualLength + 1);
     memcpy(exeDirPath, buffer, actualLength);

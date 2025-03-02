@@ -8,10 +8,31 @@
 
 struct Arena;
 
+struct HlsPhysicalDeviceInfo
+{
+    VkPhysicalDeviceFeatures features = {};
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures =
+        {};
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR
+        accelerationStructureFeatures = {};
+    VkPhysicalDeviceProperties properties = {};
+    VkPhysicalDeviceMemoryProperties memoryProperties = {};
+    VkExtensionProperties* extensions = nullptr;
+    VkQueueFamilyProperties* queueFamilies = nullptr;
+    u32 queueFamilyCount = 0;
+    u32 extensionCount = 0;
+};
+typedef bool (*HlsIsPhysicalDeviceSuitableFn)(const HlsPhysicalDeviceInfo&);
+
 struct HlsDevice
 {
     VkPhysicalDevice physicalDevice;
-    i32 graphicsComputeFamilyIndex = -1;
+    VkDevice logicalDevice;
+    VkQueue graphicsComputeQueue;
+    VkQueue presentQueue;
+    i32 graphicsComputeQueueFamilyIndex = -1;
+    i32 presentQueueFamilyIndex = -1;
 };
 
 struct HlsContext
@@ -21,10 +42,27 @@ struct HlsContext
     u32 deviceCount = 0;
 };
 
-bool HlsCreateContext(Arena* arena, const char** instanceLayers,
-                      u32 instanceLayerCount, const char** instanceExtensions,
-                      u32 instanceExtensionCount, const char** deviceExtensions,
-                      u32 deviceExtensionCount, HlsContext* outContext);
-void HlsDestroyContext(HlsContext* context);
+struct HlsContextSettings
+{
+    VkPhysicalDeviceFeatures2 deviceFeatures2{};
+    const char** instanceLayers = nullptr;
+    const char** instanceExtensions = nullptr;
+    const char** deviceExtensions = nullptr;
+    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableFn = nullptr;
+    u32 instanceLayerCount = 0;
+    u32 instanceExtensionCount = 0;
+    u32 deviceExtensionCount = 0;
+    bool renderOffscreen = false;
+};
+
+bool HlsIsExtensionSupported(VkExtensionProperties* extensionProperties,
+                             u32 extensionPropertiesCount,
+                             const char* extensionName);
+bool HlsIsLayerSupported(VkLayerProperties* layerProperties,
+                         u32 layerPropertiesCount, const char* layerName);
+
+bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
+                      HlsContext& outContext);
+void HlsDestroyContext(HlsContext& context);
 
 #endif /* HLS_CONTEXT_H */

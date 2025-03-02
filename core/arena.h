@@ -24,21 +24,21 @@ struct ArenaAllocHeader
 
 struct Arena
 {
-    u8* ptr;
-    u64 lastAllocSize;
-    u64 size;
-    u64 capacity;
-    u64 reservedCapacity;
+    u8* ptr = nullptr;
+    u64 lastAllocSize = 0;
+    u64 size = 0;
+    u64 capacity = 0;
+    u64 reservedCapacity = 0;
 };
 
 Arena ArenaCreate(u64 reservedSize, u64 commitedSize);
 Arena ArenaCreateInline(u64 commitedSize, void* ptr);
-void ArenaDestroy(Arena* arena);
-void* ArenaPushAligned(Arena* arena, u64 size, u32 align);
-ArenaMarker ArenaGetMarker(const Arena* arena);
-void ArenaPop(Arena* arena, void* ptr);
-void ArenaPopToMarker(Arena* arena, ArenaMarker marker);
-void ArenaReset(Arena* arena);
+void ArenaDestroy(Arena& arena);
+void* ArenaPushAligned(Arena& arena, u64 size, u32 align);
+ArenaMarker ArenaGetMarker(const Arena& arena);
+void ArenaPop(Arena& arena, void* ptr);
+void ArenaPopToMarker(Arena& arena, ArenaMarker marker);
+void ArenaReset(Arena& arena);
 void* ArenaUnwrapPtr(void* ptr);
 
 #endif /* HLS_MEMORY_ARENA_H */
