@@ -29,10 +29,10 @@ typedef bool (*HlsIsPhysicalDeviceSuitableFn)(const HlsPhysicalDeviceInfo&);
 
 struct HlsDevice
 {
-    VkPhysicalDevice physicalDevice;
-    VkDevice logicalDevice;
-    VkQueue graphicsComputeQueue;
-    VkQueue presentQueue;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkDevice logicalDevice = VK_NULL_HANDLE;
+    VkQueue graphicsComputeQueue = VK_NULL_HANDLE;
+    VkQueue presentQueue = VK_NULL_HANDLE;
     i32 graphicsComputeQueueFamilyIndex = -1;
     i32 presentQueueFamilyIndex = -1;
 };

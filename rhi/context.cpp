@@ -529,6 +529,10 @@ static bool FindPhysicalDevices(
     HlsDevice* suitableDevices =
         HLS_ALLOC(arena, HlsDevice, physicalDeviceCount);
     u32* suitableDeviceIndices = HLS_ALLOC(arena, u32, physicalDeviceCount);
+    for (u32 i = 0; i < physicalDeviceCount; i++)
+    {
+        suitableDevices[i] = {};
+    }
 
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
@@ -693,9 +697,13 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
         vkGetDeviceQueue(context.devices[i].logicalDevice,
                          context.devices[i].graphicsComputeQueueFamilyIndex, 0,
                          &(context.devices[i].graphicsComputeQueue));
-        vkGetDeviceQueue(context.devices[i].logicalDevice,
-                         context.devices[i].presentQueueFamilyIndex, 0,
-                         &(context.devices[i].presentQueue));
+
+        if (!renderOffscreen)
+        {
+            vkGetDeviceQueue(context.devices[i].logicalDevice,
+                             context.devices[i].presentQueueFamilyIndex, 0,
+                             &(context.devices[i].presentQueue));
+        }
     }
 
     ArenaPopToMarker(arena, marker);
@@ -748,6 +756,10 @@ void HlsDestroyContext(HlsContext& context)
     {
         vkDestroyDevice(context.devices[i].logicalDevice, nullptr);
     }
-    DestroySurface(context);
+
+    if (context.surface != VK_NULL_HANDLE)
+    {
+        DestroySurface(context);
+    }
     vkDestroyInstance(context.instance, nullptr);
 }
