@@ -11,6 +11,7 @@ cc_library(
     deps = [
         "@volk//:volk",
         "@glfw//:glfw",
+        "@vma//:vma",
         "//core:core",
     ],
     visibility = ["//visibility:public"],

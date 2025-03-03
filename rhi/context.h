@@ -4,6 +4,7 @@
 #include "core/types.h"
 
 #include <volk.h>
+#include <vk_mem_alloc.h>
 
 #define HLS_PHYSICAL_DEVICE_MAX_COUNT 8
 
@@ -29,6 +30,7 @@ typedef bool (*HlsIsPhysicalDeviceSuitableFn)(const HlsPhysicalDeviceInfo&);
 
 struct HlsDevice
 {
+    VmaAllocator allocator;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
     VkQueue graphicsComputeQueue = VK_NULL_HANDLE;

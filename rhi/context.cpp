@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define VMA_IMPLEMENTATION
+
 #include "context.h" // volk should be included prior to glfw
 #include <GLFW/glfw3.h>
 
@@ -712,6 +714,45 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
 }
 
 /////////////////////////////////////////////////////////////////////////////
+// Vma Allocator
+/////////////////////////////////////////////////////////////////////////////
+
+static bool CreateVmaAllocators(HlsContext& context)
+{
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        VmaVulkanFunctions vulkanFunctions{};
+        vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+        vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+
+        VmaAllocatorCreateInfo createInfo{};
+        createInfo.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
+        createInfo.vulkanApiVersion = VK_API_VERSION_1_4;
+        createInfo.physicalDevice = context.devices[i].physicalDevice;
+        createInfo.device = context.devices[i].logicalDevice;
+        createInfo.instance = context.instance;
+        createInfo.pVulkanFunctions = &vulkanFunctions;
+
+        VkResult res =
+            vmaCreateAllocator(&createInfo, &(context.devices[i].allocator));
+        if (res != VK_SUCCESS)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void DestroyVmaAllocators(HlsContext& context)
+{
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        vmaDestroyAllocator(context.devices[i].allocator);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // Context
 /////////////////////////////////////////////////////////////////////////////
 bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
@@ -747,11 +788,18 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
         return false;
     }
 
+    if (!CreateVmaAllocators(context))
+    {
+        return false;
+    }
+
     return true;
 }
 
 void HlsDestroyContext(HlsContext& context)
 {
+    DestroyVmaAllocators(context);
+
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         vkDestroyDevice(context.devices[i].logicalDevice, nullptr);
