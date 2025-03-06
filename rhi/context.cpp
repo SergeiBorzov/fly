@@ -2,7 +2,6 @@
 #include <string.h>
 
 #define VMA_IMPLEMENTATION
-
 #include "context.h" // volk should be included prior to glfw
 #include <GLFW/glfw3.h>
 
@@ -11,6 +10,8 @@
 #include "core/log.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define CLAMP(v, min, max) MAX(MIN(v, max), min)
 
 /////////////////////////////////////////////////////////////////////////////
 // Instance - start
@@ -230,8 +231,49 @@ static const char* PhysicalDeviceTypeToString(VkPhysicalDeviceType deviceType)
     }
 }
 
+static VkSurfaceFormatKHR
+DefaultDetermineSurfaceFormat(const VkSurfaceFormatKHR* surfaceFormats,
+                              u32 surfaceFormatCount)
+{
+    HLS_ASSERT(surfaceFormats);
+    HLS_ASSERT(surfaceFormatCount > 0);
+
+    VkSurfaceFormatKHR fallbackFormat = surfaceFormats[0];
+
+    for (u32 i = 0; i < surfaceFormatCount; i++)
+    {
+        if (surfaceFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+            surfaceFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB)
+        {
+            return surfaceFormats[i];
+        }
+    }
+
+    return fallbackFormat;
+}
+
+static VkPresentModeKHR
+DefaultDeterminePresentMode(const VkPresentModeKHR* presentModes,
+                            u32 presentModeCount)
+{
+    HLS_ASSERT(presentModes);
+    HLS_ASSERT(presentModeCount > 0);
+
+    VkPresentModeKHR fallbackPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+    for (u32 i = 0; i < presentModeCount; i++)
+    {
+        if (presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+        {
+            return presentModes[i];
+        }
+    }
+
+    return fallbackPresentMode;
+}
+
 static const HlsPhysicalDeviceInfo*
-QueryPhysicalDevicesInformation(Arena& arena, VkPhysicalDevice* physicalDevices,
+QueryPhysicalDevicesInformation(Arena& arena, const HlsContext& context,
+                                VkPhysicalDevice* physicalDevices,
                                 u32 physicalDeviceCount)
 {
     HLS_ASSERT(physicalDevices);
@@ -256,6 +298,7 @@ QueryPhysicalDevicesInformation(Arena& arena, VkPhysicalDevice* physicalDevices,
         vkGetPhysicalDeviceMemoryProperties(physicalDevice,
                                             &info.memoryProperties);
 
+        // Device Extensions
         vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr,
                                              &info.extensionCount, nullptr);
         if (info.extensionCount > 0)
@@ -264,6 +307,39 @@ QueryPhysicalDevicesInformation(Arena& arena, VkPhysicalDevice* physicalDevices,
                 HLS_ALLOC(arena, VkExtensionProperties, info.extensionCount);
             vkEnumerateDeviceExtensionProperties(
                 physicalDevice, nullptr, &info.extensionCount, info.extensions);
+        }
+
+        if (context.windowPtr)
+        {
+            // Surface capabilities
+            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+                physicalDevice, context.surface, &info.surfaceCapabilities);
+
+            // Surface formats
+            vkGetPhysicalDeviceSurfaceFormatsKHR(
+                physicalDevice, context.surface, &info.surfaceFormatCount,
+                nullptr);
+            if (info.surfaceFormatCount > 0)
+            {
+                info.surfaceFormats = HLS_ALLOC(arena, VkSurfaceFormatKHR,
+                                                info.surfaceFormatCount);
+                vkGetPhysicalDeviceSurfaceFormatsKHR(
+                    physicalDevice, context.surface, &info.surfaceFormatCount,
+                    info.surfaceFormats);
+            }
+
+            // Present modes
+            vkGetPhysicalDeviceSurfacePresentModesKHR(
+                physicalDevice, context.surface, &info.presentModeCount,
+                nullptr);
+            if (info.presentModeCount > 0)
+            {
+                info.presentModes =
+                    HLS_ALLOC(arena, VkPresentModeKHR, info.presentModeCount);
+                vkGetPhysicalDeviceSurfacePresentModesKHR(
+                    physicalDevice, context.surface, &info.presentModeCount,
+                    info.presentModes);
+            }
         }
 
         // Device features + ray tracing features
@@ -505,7 +581,8 @@ static bool FindPhysicalDevices(
     Arena& arena, const char** deviceExtensions, u32 deviceExtensionCount,
     const VkPhysicalDeviceFeatures2& deviceFeatures2,
     HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback,
-    bool renderOffscreen, HlsContext& context)
+    HlsDetermineSurfaceFormatFn determineSurfaceFormatCallback,
+    HlsDeterminePresentModeFn determinePresentModeCallback, HlsContext& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -522,7 +599,7 @@ static bool FindPhysicalDevices(
     vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount,
                                physicalDevices);
     const HlsPhysicalDeviceInfo* physicalDeviceInfos =
-        QueryPhysicalDevicesInformation(arena, physicalDevices,
+        QueryPhysicalDevicesInformation(arena, context, physicalDevices,
                                         physicalDeviceCount);
 
     LogDetectedPhysicalDevices(physicalDeviceInfos, physicalDeviceCount);
@@ -569,7 +646,9 @@ static bool FindPhysicalDevices(
         }
 
         i32 presentQueueFamilyIndex = -1;
-        if (!renderOffscreen)
+        VkSurfaceFormatKHR surfaceFormat;
+        VkPresentModeKHR presentMode;
+        if (context.windowPtr)
         {
             for (u32 j = 0; j < info.queueFamilyCount; j++)
             {
@@ -582,10 +661,31 @@ static bool FindPhysicalDevices(
                     break;
                 }
             }
+            if (presentQueueFamilyIndex == -1)
+            {
+                continue;
+            }
+
+            surfaceFormat = DefaultDetermineSurfaceFormat(
+                info.surfaceFormats, info.surfaceFormatCount);
+            presentMode = DefaultDeterminePresentMode(info.presentModes,
+                                                      info.presentModeCount);
+
+            if (determineSurfaceFormatCallback != nullptr &&
+                !determineSurfaceFormatCallback(context, info, surfaceFormat))
+            {
+                continue;
+            }
+
+            if (determinePresentModeCallback != nullptr &&
+                !determinePresentModeCallback(context, info, presentMode))
+            {
+                continue;
+            }
         }
 
         if (isPhysicalDeviceSuitableCallback != nullptr &&
-            !isPhysicalDeviceSuitableCallback(info))
+            !isPhysicalDeviceSuitableCallback(context, info))
         {
             continue;
         }
@@ -595,10 +695,12 @@ static bool FindPhysicalDevices(
             physicalDevices[i];
         suitableDevices[suitableDeviceCount].graphicsComputeQueueFamilyIndex =
             graphicsComputeQueueFamilyIndex;
-        if (!renderOffscreen)
+        if (context.windowPtr)
         {
             suitableDevices[suitableDeviceCount].presentQueueFamilyIndex =
                 presentQueueFamilyIndex;
+            suitableDevices[suitableDeviceCount].surfaceFormat = surfaceFormat;
+            suitableDevices[suitableDeviceCount].presentMode = presentMode;
         }
         suitableDeviceCount++;
     }
@@ -622,11 +724,12 @@ static bool FindPhysicalDevices(
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// Surface
+// Surface & Swapchain
 /////////////////////////////////////////////////////////////////////////////
-static bool CreateSurface(GLFWwindow* window, HlsContext& context)
+static bool CreateSurface(HlsContext& context)
 {
-    return glfwCreateWindowSurface(context.instance, window, nullptr,
+    HLS_ASSERT(context.windowPtr);
+    return glfwCreateWindowSurface(context.instance, context.windowPtr, nullptr,
                                    &context.surface) == VK_SUCCESS;
 }
 
@@ -635,13 +738,93 @@ static void DestroySurface(HlsContext& context)
     vkDestroySurfaceKHR(context.instance, context.surface, nullptr);
 }
 
+static bool CreateSwapchain(HlsContext& context)
+{
+    HLS_ASSERT(context.windowPtr);
+
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        HlsDevice& device = context.devices[i];
+
+        i32 width = 0;
+        i32 height = 0;
+        glfwGetFramebufferSize(context.windowPtr, &width, &height);
+
+        HLS_ASSERT(width > 0);
+        HLS_ASSERT(height > 0);
+
+        VkSurfaceCapabilitiesKHR surfaceCapabilities;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+            device.physicalDevice, context.surface, &surfaceCapabilities);
+
+        VkExtent2D extent;
+        extent.width = CLAMP(static_cast<u32>(width), surfaceCapabilities.minImageExtent.width,
+                             surfaceCapabilities.maxImageExtent.width);
+        extent.height = CLAMP(static_cast<u32>(height), surfaceCapabilities.minImageExtent.height,
+                              surfaceCapabilities.maxImageExtent.height);
+
+        HLS_ASSERT(device.graphicsComputeQueueFamilyIndex != -1);
+        HLS_ASSERT(device.presentQueueFamilyIndex != -1);
+
+        u32 queueFamilyIndices[2] = {
+            static_cast<u32>(device.graphicsComputeQueueFamilyIndex),
+            static_cast<u32>(device.presentQueueFamilyIndex)};
+
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = context.surface;
+        createInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
+        createInfo.imageFormat = device.surfaceFormat.format;
+        createInfo.imageColorSpace = device.surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        createInfo.imageArrayLayers = 1;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        createInfo.preTransform = surfaceCapabilities.currentTransform;
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode = device.presentMode;
+        createInfo.clipped = VK_TRUE;
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+        if (device.graphicsComputeQueueFamilyIndex == device.presentQueueFamilyIndex)
+        {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            createInfo.queueFamilyIndexCount = 0;
+            createInfo.pQueueFamilyIndices = nullptr;
+        }
+        else
+        {
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+
+        VkResult res = vkCreateSwapchainKHR(device.logicalDevice, &createInfo,
+                                            nullptr, &device.swapchain);
+        if (res != VK_SUCCESS)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void DestroySwapchain(HlsContext& context)
+{
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        HlsDevice& device = context.devices[i];
+        vkDestroySwapchainKHR(device.logicalDevice, device.swapchain, nullptr);
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // LogicalDevice
 /////////////////////////////////////////////////////////////////////////////
 static bool
 CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
                      const VkPhysicalDeviceFeatures2& deviceFeatures2,
-                     bool renderOffscreen, HlsContext& context)
+                     HlsContext& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -649,9 +832,9 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         // Queues
-        VkDeviceQueueCreateInfo* queueCreateInfos =
-            HLS_ALLOC(arena, VkDeviceQueueCreateInfo,
-                      1 + static_cast<u32>(!renderOffscreen));
+        VkDeviceQueueCreateInfo* queueCreateInfos = HLS_ALLOC(
+            arena, VkDeviceQueueCreateInfo,
+            1 + static_cast<u32>(static_cast<bool>(context.windowPtr)));
         queueCreateInfos[0] = {};
         queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfos[0].queueFamilyIndex =
@@ -659,7 +842,7 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
         queueCreateInfos[0].queueCount = 1;
         queueCreateInfos[0].pQueuePriorities = &queuePriority;
 
-        if (!renderOffscreen)
+        if (context.windowPtr)
         {
             queueCreateInfos[1] = {};
             queueCreateInfos[1].sType =
@@ -675,7 +858,7 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
         createInfo.enabledExtensionCount = extensionCount;
         createInfo.ppEnabledExtensionNames = extensions;
         createInfo.pQueueCreateInfos = queueCreateInfos;
-        if (renderOffscreen ||
+        if (!context.windowPtr ||
             context.devices[i].graphicsComputeQueueFamilyIndex ==
                 context.devices[i].presentQueueFamilyIndex)
         {
@@ -700,7 +883,7 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
                          context.devices[i].graphicsComputeQueueFamilyIndex, 0,
                          &(context.devices[i].graphicsComputeQueue));
 
-        if (!renderOffscreen)
+        if (context.windowPtr)
         {
             vkGetDeviceQueue(context.devices[i].logicalDevice,
                              context.devices[i].presentQueueFamilyIndex, 0,
@@ -766,9 +949,9 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
         return false;
     }
 
-    bool renderOffscreen = settings.windowPtr == nullptr;
+    context.windowPtr = settings.windowPtr;
 
-    if (!renderOffscreen && !CreateSurface(settings.windowPtr, context))
+    if (context.windowPtr && !CreateSurface(context))
     {
         return false;
     }
@@ -776,14 +959,15 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
     if (!FindPhysicalDevices(
             arena, settings.deviceExtensions, settings.deviceExtensionCount,
             settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
-            renderOffscreen, context))
+            settings.determineSurfaceFormatCallback,
+            settings.determinePresentModeCallback, context))
     {
         return false;
     }
 
-    if (!CreateLogicalDevices(
-            arena, settings.deviceExtensions, settings.deviceExtensionCount,
-            settings.deviceFeatures2, renderOffscreen, context))
+    if (!CreateLogicalDevices(arena, settings.deviceExtensions,
+                              settings.deviceExtensionCount,
+                              settings.deviceFeatures2, context))
     {
         return false;
     }
@@ -793,11 +977,20 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
         return false;
     }
 
+    if (context.windowPtr && !CreateSwapchain(context))
+    {
+        return false;
+    }
+
     return true;
 }
 
 void HlsDestroyContext(HlsContext& context)
 {
+    if (context.windowPtr)
+    {
+        DestroySwapchain(context);
+    }
     DestroyVmaAllocators(context);
 
     for (u32 i = 0; i < context.deviceCount; i++)
@@ -805,7 +998,7 @@ void HlsDestroyContext(HlsContext& context)
         vkDestroyDevice(context.devices[i].logicalDevice, nullptr);
     }
 
-    if (context.surface != VK_NULL_HANDLE)
+    if (context.windowPtr)
     {
         DestroySurface(context);
     }
