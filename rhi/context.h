@@ -10,6 +10,7 @@
 #include <vk_mem_alloc.h>
 
 #define HLS_PHYSICAL_DEVICE_MAX_COUNT 8
+#define HLS_SWAPCHAIN_IMAGE_MAX_COUNT 8
 
 struct Arena;
 struct GLFWwindow;
@@ -47,6 +48,8 @@ typedef bool (*HlsDeterminePresentModeFn)(const HlsContext&,
 struct HlsDevice
 {
     VmaAllocator allocator = {};
+    VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
+    VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     VkSurfaceFormatKHR surfaceFormat = {};
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
@@ -54,6 +57,7 @@ struct HlsDevice
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
+    u32 swapchainImageCount = 0;
     i32 graphicsComputeQueueFamilyIndex = -1;
     i32 presentQueueFamilyIndex = -1;
 };

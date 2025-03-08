@@ -887,96 +887,189 @@ static bool CreateSurface(HlsContext& context)
 
 static void DestroySurface(HlsContext& context)
 {
+    HLS_ASSERT(context.windowPtr);
     vkDestroySurfaceKHR(context.instance, context.surface, nullptr);
 }
 
-static bool CreateSwapchain(HlsContext& context)
+static bool CreateSwapchainImageViews(HlsContext& context, HlsDevice& device)
 {
     HLS_ASSERT(context.windowPtr);
-
-    for (u32 i = 0; i < context.deviceCount; i++)
+    // Create swapchain image views
+    for (u32 i = 0; i < device.swapchainImageCount; i++)
     {
-        HlsDevice& device = context.devices[i];
+        VkImageViewCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = device.swapchainImages[i];
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = device.surfaceFormat.format;
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
 
-        i32 width = 0;
-        i32 height = 0;
-        glfwGetFramebufferSize(context.windowPtr, &width, &height);
-
-        HLS_ASSERT(width > 0);
-        HLS_ASSERT(height > 0);
-
-        VkSurfaceCapabilitiesKHR surfaceCapabilities;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-            device.physicalDevice, context.surface, &surfaceCapabilities);
-
-        VkExtent2D extent;
-        extent.width = CLAMP(static_cast<u32>(width),
-                             surfaceCapabilities.minImageExtent.width,
-                             surfaceCapabilities.maxImageExtent.width);
-        extent.height = CLAMP(static_cast<u32>(height),
-                              surfaceCapabilities.minImageExtent.height,
-                              surfaceCapabilities.maxImageExtent.height);
-
-        HLS_ASSERT(device.graphicsComputeQueueFamilyIndex != -1);
-        HLS_ASSERT(device.presentQueueFamilyIndex != -1);
-
-        u32 queueFamilyIndices[2] = {
-            static_cast<u32>(device.graphicsComputeQueueFamilyIndex),
-            static_cast<u32>(device.presentQueueFamilyIndex)};
-
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = context.surface;
-        createInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
-        createInfo.imageFormat = device.surfaceFormat.format;
-        createInfo.imageColorSpace = device.surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
-        createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        createInfo.preTransform = surfaceCapabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = device.presentMode;
-        createInfo.clipped = VK_TRUE;
-        createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-        if (device.graphicsComputeQueueFamilyIndex ==
-            device.presentQueueFamilyIndex)
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createInfo.queueFamilyIndexCount = 0;
-            createInfo.pQueueFamilyIndices = nullptr;
-        }
-        else
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-        }
-
-        VkResult res = vkCreateSwapchainKHR(device.logicalDevice, &createInfo,
-                                            nullptr, &device.swapchain);
+        VkResult res =
+            vkCreateImageView(device.logicalDevice, &createInfo, nullptr,
+                              &device.swapchainImageViews[i]);
         if (res != VK_SUCCESS)
         {
             return false;
         }
-
-        HLS_LOG("Device[%u] created swapchain, format: %s, color space: %s, "
-                "present mode: %s",
-                i + 1, FormatToString(device.surfaceFormat.format),
-                ColorSpaceToString(device.surfaceFormat.colorSpace),
-                PresentModeToString(device.presentMode));
     }
+    return true;
+}
+
+static void DestroySwapchainImageViews(HlsContext& context, HlsDevice& device)
+{
+    HLS_ASSERT(context.windowPtr);
+
+    for (u32 i = 0; i < device.swapchainImageCount; i++)
+    {
+        vkDestroyImageView(device.logicalDevice, device.swapchainImageViews[i],
+                           nullptr);
+    }
+}
+
+static bool CreateSwapchain(HlsContext& context, HlsDevice& device,
+                            VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE)
+{
+    HLS_ASSERT(context.windowPtr);
+
+    i32 width = 0;
+    i32 height = 0;
+    glfwGetFramebufferSize(context.windowPtr, &width, &height);
+
+    HLS_ASSERT(width > 0);
+    HLS_ASSERT(height > 0);
+
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+        device.physicalDevice, context.surface, &surfaceCapabilities);
+
+    VkExtent2D extent;
+    extent.width =
+        CLAMP(static_cast<u32>(width), surfaceCapabilities.minImageExtent.width,
+              surfaceCapabilities.maxImageExtent.width);
+    extent.height = CLAMP(static_cast<u32>(height),
+                          surfaceCapabilities.minImageExtent.height,
+                          surfaceCapabilities.maxImageExtent.height);
+
+    HLS_ASSERT(device.graphicsComputeQueueFamilyIndex != -1);
+    HLS_ASSERT(device.presentQueueFamilyIndex != -1);
+
+    u32 queueFamilyIndices[2] = {
+        static_cast<u32>(device.graphicsComputeQueueFamilyIndex),
+        static_cast<u32>(device.presentQueueFamilyIndex)};
+
+    VkSwapchainCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.surface = context.surface;
+    createInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
+    createInfo.imageFormat = device.surfaceFormat.format;
+    createInfo.imageColorSpace = device.surfaceFormat.colorSpace;
+    createInfo.imageExtent = extent;
+    createInfo.imageArrayLayers = 1;
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    createInfo.preTransform = surfaceCapabilities.currentTransform;
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.presentMode = device.presentMode;
+    createInfo.clipped = VK_TRUE;
+    createInfo.oldSwapchain = oldSwapchain;
+
+    if (device.graphicsComputeQueueFamilyIndex ==
+        device.presentQueueFamilyIndex)
+    {
+        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        createInfo.queueFamilyIndexCount = 0;
+        createInfo.pQueueFamilyIndices = nullptr;
+    }
+    else
+    {
+        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        createInfo.queueFamilyIndexCount = 2;
+        createInfo.pQueueFamilyIndices = queueFamilyIndices;
+    }
+
+    VkResult res = vkCreateSwapchainKHR(device.logicalDevice, &createInfo,
+                                        nullptr, &device.swapchain);
+    if (res != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    // Get swapchain images
+    res = vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
+                                  &device.swapchainImageCount, nullptr);
+    HLS_ASSERT(device.swapchainImageCount <= HLS_SWAPCHAIN_IMAGE_MAX_COUNT);
+    if (res != VK_SUCCESS)
+    {
+        return false;
+    }
+    vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
+                            &device.swapchainImageCount,
+                            device.swapchainImages);
+
+    if (!CreateSwapchainImageViews(context, device))
+    {
+        return false;
+    }
+
+    HLS_LOG("Swapchain format: %s",
+            FormatToString(device.surfaceFormat.format));
+    HLS_LOG("Color space: %s",
+            ColorSpaceToString(device.surfaceFormat.colorSpace));
+    HLS_LOG("Present mode: %s", PresentModeToString(device.presentMode));
+    HLS_LOG("Swapchain image count: %u", device.swapchainImageCount);
 
     return true;
 }
 
-static void DestroySwapchain(HlsContext& context)
+static void DestroySwapchain(HlsContext& context, HlsDevice& device)
 {
-    for (u32 i = 0; i < context.deviceCount; i++)
+    HLS_ASSERT(context.windowPtr);
+
+    DestroySwapchainImageViews(context, device);
+    vkDestroySwapchainKHR(device.logicalDevice, device.swapchain, nullptr);
+}
+
+static bool RecreateSwapchain(HlsContext& context, HlsDevice& device)
+{
+    HLS_ASSERT(context.windowPtr);
+
+    vkDeviceWaitIdle(device.logicalDevice);
+
+    VkSwapchainKHR oldSwapchain = device.swapchain;
+    VkImageView oldSwapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
+    u32 oldSwapchainImageCount = device.swapchainImageCount;
+    for (u32 i = 0; i < device.swapchainImageCount; i++)
     {
-        HlsDevice& device = context.devices[i];
-        vkDestroySwapchainKHR(device.logicalDevice, device.swapchain, nullptr);
+        oldSwapchainImageViews[i] = device.swapchainImageViews[i];
     }
+    if (!CreateSwapchain(context, device, oldSwapchain))
+    {
+        return false;
+    }
+
+    if (oldSwapchain != VK_NULL_HANDLE)
+    {
+        for (u32 i = 0; i < oldSwapchainImageCount; i++)
+        {
+            vkDestroyImageView(device.logicalDevice, oldSwapchainImageViews[i],
+                               nullptr);
+        }
+        vkDestroySwapchainKHR(device.logicalDevice, oldSwapchain, nullptr);
+    }
+
+    HLS_LOG("Swapchain format: %s",
+            FormatToString(device.surfaceFormat.format));
+    HLS_LOG("Color space: %s",
+            ColorSpaceToString(device.surfaceFormat.colorSpace));
+    HLS_LOG("Present mode: %s", PresentModeToString(device.presentMode));
+    HLS_LOG("Swapchain image count: %u", device.swapchainImageCount);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1138,9 +1231,16 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
         return false;
     }
 
-    if (context.windowPtr && !CreateSwapchain(context))
+    if (context.windowPtr)
     {
-        return false;
+        for (u32 i = 0; i < context.deviceCount; i++)
+        {
+            HLS_LOG("Device[%u] swapchain creation:", i);
+            if (!CreateSwapchain(context, context.devices[i]))
+            {
+                return false;
+            }
+        }
     }
 
     return true;
@@ -1150,7 +1250,10 @@ void HlsDestroyContext(HlsContext& context)
 {
     if (context.windowPtr)
     {
-        DestroySwapchain(context);
+        for (u32 i = 0; i < context.deviceCount; i++)
+        {
+            DestroySwapchain(context, context.devices[i]);
+        }
     }
     DestroyVmaAllocators(context);
 
