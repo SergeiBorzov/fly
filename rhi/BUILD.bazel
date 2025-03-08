@@ -4,9 +4,11 @@ cc_library(
     name = "context",
     hdrs = [
         "context.h",
+        "command_buffer.h",
     ],
     srcs = [
         "context.cpp",
+        "command_buffer.cpp",
     ],
     deps = [
         "@volk//:volk",
