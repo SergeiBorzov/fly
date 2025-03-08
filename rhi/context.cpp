@@ -1190,6 +1190,46 @@ static void DestroyVmaAllocators(HlsContext& context)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+// Command pools and command buffers
+/////////////////////////////////////////////////////////////////////////////
+static bool CreateCommandPools(HlsContext& context)
+{
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        HlsDevice& device = context.devices[i];
+
+        VkCommandPoolCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        createInfo.queueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
+
+        for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
+        {
+            if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
+                                    &device.frameData[j].cmdPool) != VK_SUCCESS)
+            {
+                return false;
+            };
+        }
+    }
+    return true;
+}
+
+static void DestroyCommandPools(HlsContext& context)
+{
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        HlsDevice& device = context.devices[i];
+
+        for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
+        {
+            vkDestroyCommandPool(device.logicalDevice,
+                                 device.frameData[j].cmdPool, nullptr);
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // Context
 /////////////////////////////////////////////////////////////////////////////
 bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
@@ -1231,6 +1271,11 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
         return false;
     }
 
+    if (!CreateCommandPools(context))
+    {
+        return false;
+    }
+
     if (context.windowPtr)
     {
         for (u32 i = 0; i < context.deviceCount; i++)
@@ -1255,6 +1300,7 @@ void HlsDestroyContext(HlsContext& context)
             DestroySwapchain(context, context.devices[i]);
         }
     }
+    DestroyCommandPools(context);
     DestroyVmaAllocators(context);
 
     for (u32 i = 0; i < context.deviceCount; i++)

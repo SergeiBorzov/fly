@@ -12,6 +12,8 @@
 #define HLS_PHYSICAL_DEVICE_MAX_COUNT 8
 #define HLS_SWAPCHAIN_IMAGE_MAX_COUNT 8
 
+#define HLS_FRAME_IN_FLIGHT_COUNT 2
+
 struct Arena;
 struct GLFWwindow;
 struct HlsContext;
@@ -45,11 +47,18 @@ typedef bool (*HlsDeterminePresentModeFn)(const HlsContext&,
                                           const HlsPhysicalDeviceInfo&,
                                           VkPresentModeKHR&);
 
+struct HlsFrameData
+{
+    VkCommandPool cmdPool;
+    VkCommandBuffer cmdBuffer;
+};
+
 struct HlsDevice
 {
     VmaAllocator allocator = {};
     VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
+    HlsFrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
     VkSurfaceFormatKHR surfaceFormat = {};
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
