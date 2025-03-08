@@ -16,9 +16,15 @@
 
 struct Arena;
 struct GLFWwindow;
-struct HlsContext;
 
-struct HlsPhysicalDeviceInfo
+namespace Hls
+{
+struct Context;
+}
+
+namespace Hls
+{
+struct PhysicalDeviceInfo
 {
     VkPhysicalDeviceFeatures features = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures =
@@ -38,27 +44,27 @@ struct HlsPhysicalDeviceInfo
     u32 surfaceFormatCount = 0;
     u32 presentModeCount = 0;
 };
-typedef bool (*HlsIsPhysicalDeviceSuitableFn)(const HlsContext&,
-                                              const HlsPhysicalDeviceInfo&);
-typedef bool (*HlsDetermineSurfaceFormatFn)(const HlsContext&,
-                                            const HlsPhysicalDeviceInfo&,
-                                            VkSurfaceFormatKHR&);
-typedef bool (*HlsDeterminePresentModeFn)(const HlsContext&,
-                                          const HlsPhysicalDeviceInfo&,
-                                          VkPresentModeKHR&);
+typedef bool (*IsPhysicalDeviceSuitableFn)(const Context&,
+                                           const PhysicalDeviceInfo&);
+typedef bool (*DetermineSurfaceFormatFn)(const Context&,
+                                         const PhysicalDeviceInfo&,
+                                         VkSurfaceFormatKHR&);
+typedef bool (*DeterminePresentModeFn)(const Context&,
+                                       const PhysicalDeviceInfo&,
+                                       VkPresentModeKHR&);
 
-struct HlsFrameData
+struct FrameData
 {
     VkCommandPool cmdPool;
     VkCommandBuffer cmdBuffer;
 };
 
-struct HlsDevice
+struct Device
 {
     VmaAllocator allocator = {};
     VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
-    HlsFrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
+    FrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
     VkSurfaceFormatKHR surfaceFormat = {};
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
@@ -71,38 +77,39 @@ struct HlsDevice
     i32 presentQueueFamilyIndex = -1;
 };
 
-struct HlsContext
+struct Context
 {
-    HlsDevice devices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
+    Device devices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     GLFWwindow* windowPtr = nullptr;
     u32 deviceCount = 0;
 };
 
-struct HlsContextSettings
+struct ContextSettings
 {
     VkPhysicalDeviceFeatures2 deviceFeatures2 = {};
     const char** instanceLayers = nullptr;
     const char** instanceExtensions = nullptr;
     const char** deviceExtensions = nullptr;
     GLFWwindow* windowPtr = nullptr;
-    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback = nullptr;
-    HlsDetermineSurfaceFormatFn determineSurfaceFormatCallback = nullptr;
-    HlsDeterminePresentModeFn determinePresentModeCallback = nullptr;
+    IsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback = nullptr;
+    DetermineSurfaceFormatFn determineSurfaceFormatCallback = nullptr;
+    DeterminePresentModeFn determinePresentModeCallback = nullptr;
     u32 instanceLayerCount = 0;
     u32 instanceExtensionCount = 0;
     u32 deviceExtensionCount = 0;
 };
 
-bool HlsIsExtensionSupported(VkExtensionProperties* extensionProperties,
-                             u32 extensionPropertiesCount,
-                             const char* extensionName);
-bool HlsIsLayerSupported(VkLayerProperties* layerProperties,
-                         u32 layerPropertiesCount, const char* layerName);
+bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
+                          u32 extensionPropertiesCount,
+                          const char* extensionName);
+bool IsLayerSupported(VkLayerProperties* layerProperties,
+                      u32 layerPropertiesCount, const char* layerName);
 
-bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
-                      HlsContext& outContext);
-void HlsDestroyContext(HlsContext& context);
+bool CreateContext(Arena& arena, const ContextSettings& settings,
+                   Context& outContext);
+void DestroyContext(Context& context);
+} // namespace Hls
 
 #endif /* HLS_CONTEXT_H */

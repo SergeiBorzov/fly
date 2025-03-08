@@ -30,8 +30,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationLayerCallbackFunc(
 }
 #endif
 
-bool HlsIsLayerSupported(VkLayerProperties* layerProperties,
-                         u32 layerPropertiesCount, const char* layerName)
+namespace Hls
+{
+bool IsLayerSupported(VkLayerProperties* layerProperties,
+                      u32 layerPropertiesCount, const char* layerName)
 {
     bool isLayerPresent = false;
     for (u32 i = 0; i < layerPropertiesCount; i++)
@@ -46,9 +48,9 @@ bool HlsIsLayerSupported(VkLayerProperties* layerProperties,
     return isLayerPresent;
 }
 
-bool HlsIsExtensionSupported(VkExtensionProperties* extensionProperties,
-                             u32 extensionPropertiesCount,
-                             const char* extensionName)
+bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
+                          u32 extensionPropertiesCount,
+                          const char* extensionName)
 {
     bool isExtensionPresent = false;
     for (u32 i = 0; i < extensionPropertiesCount; i++)
@@ -66,7 +68,7 @@ bool HlsIsExtensionSupported(VkExtensionProperties* extensionProperties,
 static bool CreateInstance(Arena& arena, const char** instanceLayers,
                            u32 instanceLayerCount,
                            const char** instanceExtensions,
-                           u32 instanceExtensionCount, HlsContext& context)
+                           u32 instanceExtensionCount, Context& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -113,8 +115,8 @@ static bool CreateInstance(Arena& arena, const char** instanceLayers,
 #endif
     for (u32 i = 0; i < totalLayerCount; i++)
     {
-        if (!HlsIsLayerSupported(availableInstanceLayers,
-                                 availableInstanceLayerCount, totalLayers[i]))
+        if (!IsLayerSupported(availableInstanceLayers,
+                              availableInstanceLayerCount, totalLayers[i]))
         {
             HLS_ERROR("Following required instance layer %s is not present",
                       totalLayers[i]);
@@ -139,9 +141,9 @@ static bool CreateInstance(Arena& arena, const char** instanceLayers,
 #endif
     for (u32 i = 0; i < totalExtensionCount; i++)
     {
-        if (!HlsIsExtensionSupported(availableInstanceExtensions,
-                                     availableInstanceExtensionCount,
-                                     totalExtensions[i]))
+        if (!IsExtensionSupported(availableInstanceExtensions,
+                                  availableInstanceExtensionCount,
+                                  totalExtensions[i]))
         {
             HLS_ERROR("Following required extension %s is not present",
                       totalExtensions[i]);
@@ -418,8 +420,8 @@ DefaultDeterminePresentMode(const VkPresentModeKHR* presentModes,
     return fallbackPresentMode;
 }
 
-static const HlsPhysicalDeviceInfo*
-QueryPhysicalDevicesInformation(Arena& arena, const HlsContext& context,
+static const PhysicalDeviceInfo*
+QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
                                 VkPhysicalDevice* physicalDevices,
                                 u32 physicalDeviceCount)
 {
@@ -430,13 +432,13 @@ QueryPhysicalDevicesInformation(Arena& arena, const HlsContext& context,
         return nullptr;
     }
 
-    HlsPhysicalDeviceInfo* physicalDeviceInfos =
-        HLS_ALLOC(arena, HlsPhysicalDeviceInfo, physicalDeviceCount);
+    PhysicalDeviceInfo* physicalDeviceInfos =
+        HLS_ALLOC(arena, PhysicalDeviceInfo, physicalDeviceCount);
 
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         VkPhysicalDevice physicalDevice = physicalDevices[i];
-        HlsPhysicalDeviceInfo& info = physicalDeviceInfos[i];
+        PhysicalDeviceInfo& info = physicalDeviceInfos[i];
 
         // Properties
         vkGetPhysicalDeviceProperties(physicalDevice, &info.properties);
@@ -607,7 +609,7 @@ static bool PhysicalDeviceSupportsRayTracingPipelineFeatures(
 
 static bool PhysicalDeviceSupportsRequiredFeatures(
     const VkPhysicalDeviceFeatures2& requested,
-    const HlsPhysicalDeviceInfo& supported)
+    const PhysicalDeviceInfo& supported)
 {
     const VkBool32* supportedFeatures =
         reinterpret_cast<const VkBool32*>(&(supported.features));
@@ -680,13 +682,13 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
 }
 
 static void
-LogDetectedPhysicalDevices(const HlsPhysicalDeviceInfo* physicalDeviceInfos,
+LogDetectedPhysicalDevices(const PhysicalDeviceInfo* physicalDeviceInfos,
                            u32 physicalDeviceCount)
 {
     HLS_LOG("List of physical devices detected:");
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
-        const HlsPhysicalDeviceInfo& info = physicalDeviceInfos[i];
+        const PhysicalDeviceInfo& info = physicalDeviceInfos[i];
 
         u64 totalMemory = 0;
         for (u32 i = 0; i < info.memoryProperties.memoryHeapCount; i++)
@@ -707,16 +709,14 @@ LogDetectedPhysicalDevices(const HlsPhysicalDeviceInfo* physicalDeviceInfos,
     }
 }
 
-static bool
-PhysicalDeviceSupportsRequiredExtensions(const char** extensions,
-                                         u32 extensionCount,
-                                         const HlsPhysicalDeviceInfo& info)
+static bool PhysicalDeviceSupportsRequiredExtensions(
+    const char** extensions, u32 extensionCount, const PhysicalDeviceInfo& info)
 {
 
     for (u32 i = 0; i < extensionCount; i++)
     {
-        if (!HlsIsExtensionSupported(info.extensions, info.extensionCount,
-                                     extensions[i]))
+        if (!IsExtensionSupported(info.extensions, info.extensionCount,
+                                  extensions[i]))
         {
             return false;
         }
@@ -727,9 +727,9 @@ PhysicalDeviceSupportsRequiredExtensions(const char** extensions,
 static bool FindPhysicalDevices(
     Arena& arena, const char** deviceExtensions, u32 deviceExtensionCount,
     const VkPhysicalDeviceFeatures2& deviceFeatures2,
-    HlsIsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback,
-    HlsDetermineSurfaceFormatFn determineSurfaceFormatCallback,
-    HlsDeterminePresentModeFn determinePresentModeCallback, HlsContext& context)
+    IsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback,
+    DetermineSurfaceFormatFn determineSurfaceFormatCallback,
+    DeterminePresentModeFn determinePresentModeCallback, Context& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -745,15 +745,14 @@ static bool FindPhysicalDevices(
         HLS_ALLOC(arena, VkPhysicalDevice, physicalDeviceCount);
     vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount,
                                physicalDevices);
-    const HlsPhysicalDeviceInfo* physicalDeviceInfos =
+    const PhysicalDeviceInfo* physicalDeviceInfos =
         QueryPhysicalDevicesInformation(arena, context, physicalDevices,
                                         physicalDeviceCount);
 
     LogDetectedPhysicalDevices(physicalDeviceInfos, physicalDeviceCount);
 
     u32 suitableDeviceCount = 0;
-    HlsDevice* suitableDevices =
-        HLS_ALLOC(arena, HlsDevice, physicalDeviceCount);
+    Device* suitableDevices = HLS_ALLOC(arena, Device, physicalDeviceCount);
     u32* suitableDeviceIndices = HLS_ALLOC(arena, u32, physicalDeviceCount);
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
@@ -763,7 +762,7 @@ static bool FindPhysicalDevices(
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         const VkPhysicalDevice physicalDevice = physicalDevices[i];
-        const HlsPhysicalDeviceInfo& info = physicalDeviceInfos[i];
+        const PhysicalDeviceInfo& info = physicalDeviceInfos[i];
 
         if (!PhysicalDeviceSupportsRequiredExtensions(
                 deviceExtensions, deviceExtensionCount, info))
@@ -861,8 +860,8 @@ static bool FindPhysicalDevices(
         MIN(HLS_PHYSICAL_DEVICE_MAX_COUNT, suitableDeviceCount);
     for (u32 i = 0; i < context.deviceCount; i++)
     {
-        HlsDevice& device = context.devices[i];
-        const HlsPhysicalDeviceInfo& info =
+        Device& device = context.devices[i];
+        const PhysicalDeviceInfo& info =
             physicalDeviceInfos[suitableDeviceIndices[i]];
 
         context.devices[i] = suitableDevices[i];
@@ -878,20 +877,20 @@ static bool FindPhysicalDevices(
 /////////////////////////////////////////////////////////////////////////////
 // Surface & Swapchain
 /////////////////////////////////////////////////////////////////////////////
-static bool CreateSurface(HlsContext& context)
+static bool CreateSurface(Context& context)
 {
     HLS_ASSERT(context.windowPtr);
     return glfwCreateWindowSurface(context.instance, context.windowPtr, nullptr,
                                    &context.surface) == VK_SUCCESS;
 }
 
-static void DestroySurface(HlsContext& context)
+static void DestroySurface(Context& context)
 {
     HLS_ASSERT(context.windowPtr);
     vkDestroySurfaceKHR(context.instance, context.surface, nullptr);
 }
 
-static bool CreateSwapchainImageViews(HlsContext& context, HlsDevice& device)
+static bool CreateSwapchainImageViews(Context& context, Device& device)
 {
     HLS_ASSERT(context.windowPtr);
     // Create swapchain image views
@@ -923,7 +922,7 @@ static bool CreateSwapchainImageViews(HlsContext& context, HlsDevice& device)
     return true;
 }
 
-static void DestroySwapchainImageViews(HlsContext& context, HlsDevice& device)
+static void DestroySwapchainImageViews(Context& context, Device& device)
 {
     HLS_ASSERT(context.windowPtr);
 
@@ -934,7 +933,7 @@ static void DestroySwapchainImageViews(HlsContext& context, HlsDevice& device)
     }
 }
 
-static bool CreateSwapchain(HlsContext& context, HlsDevice& device,
+static bool CreateSwapchain(Context& context, Device& device,
                             VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE)
 {
     HLS_ASSERT(context.windowPtr);
@@ -1028,7 +1027,7 @@ static bool CreateSwapchain(HlsContext& context, HlsDevice& device,
     return true;
 }
 
-static void DestroySwapchain(HlsContext& context, HlsDevice& device)
+static void DestroySwapchain(Context& context, Device& device)
 {
     HLS_ASSERT(context.windowPtr);
 
@@ -1036,7 +1035,7 @@ static void DestroySwapchain(HlsContext& context, HlsDevice& device)
     vkDestroySwapchainKHR(device.logicalDevice, device.swapchain, nullptr);
 }
 
-static bool RecreateSwapchain(HlsContext& context, HlsDevice& device)
+static bool RecreateSwapchain(Context& context, Device& device)
 {
     HLS_ASSERT(context.windowPtr);
 
@@ -1078,7 +1077,7 @@ static bool RecreateSwapchain(HlsContext& context, HlsDevice& device)
 static bool
 CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
                      const VkPhysicalDeviceFeatures2& deviceFeatures2,
-                     HlsContext& context)
+                     Context& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -1154,7 +1153,7 @@ CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
 // Vma Allocator
 /////////////////////////////////////////////////////////////////////////////
 
-static bool CreateVmaAllocators(HlsContext& context)
+static bool CreateVmaAllocators(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
@@ -1181,7 +1180,7 @@ static bool CreateVmaAllocators(HlsContext& context)
     return true;
 }
 
-static void DestroyVmaAllocators(HlsContext& context)
+static void DestroyVmaAllocators(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
@@ -1192,11 +1191,11 @@ static void DestroyVmaAllocators(HlsContext& context)
 /////////////////////////////////////////////////////////////////////////////
 // Command pools and command buffers
 /////////////////////////////////////////////////////////////////////////////
-static bool CreateCommandPools(HlsContext& context)
+static bool CreateCommandPools(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
-        HlsDevice& device = context.devices[i];
+        Device& device = context.devices[i];
 
         VkCommandPoolCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1215,11 +1214,11 @@ static bool CreateCommandPools(HlsContext& context)
     return true;
 }
 
-static void DestroyCommandPools(HlsContext& context)
+static void DestroyCommandPools(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
-        HlsDevice& device = context.devices[i];
+        Device& device = context.devices[i];
 
         for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
         {
@@ -1232,8 +1231,8 @@ static void DestroyCommandPools(HlsContext& context)
 /////////////////////////////////////////////////////////////////////////////
 // Context
 /////////////////////////////////////////////////////////////////////////////
-bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
-                      HlsContext& context)
+bool CreateContext(Arena& arena, const ContextSettings& settings,
+                   Context& context)
 {
     if (!CreateInstance(arena, settings.instanceLayers,
                         settings.instanceLayerCount,
@@ -1291,7 +1290,7 @@ bool HlsCreateContext(Arena& arena, const HlsContextSettings& settings,
     return true;
 }
 
-void HlsDestroyContext(HlsContext& context)
+void DestroyContext(Context& context)
 {
     if (context.windowPtr)
     {
@@ -1314,3 +1313,4 @@ void HlsDestroyContext(HlsContext& context)
     }
     vkDestroyInstance(context.instance, nullptr);
 }
+} // namespace Hls
