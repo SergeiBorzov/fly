@@ -158,6 +158,7 @@ bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
     }
 
     commandBuffer.state = CommandBuffer::State::Submitted;
+    return true;
 }
 
 bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources)
@@ -178,5 +179,6 @@ bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources)
         return false;
     }
     commandBuffer.state = CommandBuffer::State::Idle;
+    return true;
 }
 } // namespace Hls

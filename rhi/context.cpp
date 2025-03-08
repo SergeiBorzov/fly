@@ -972,7 +972,8 @@ static bool CreateSwapchain(Context& context, Device& device,
     createInfo.imageColorSpace = device.surfaceFormat.colorSpace;
     createInfo.imageExtent = extent;
     createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    createInfo.imageUsage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     createInfo.preTransform = surfaceCapabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = device.presentMode;
@@ -1074,12 +1075,27 @@ static bool RecreateSwapchain(Context& context, Device& device)
 /////////////////////////////////////////////////////////////////////////////
 // LogicalDevice
 /////////////////////////////////////////////////////////////////////////////
-static bool
-CreateLogicalDevices(Arena& arena, const char** extensions, u32 extensionCount,
-                     const VkPhysicalDeviceFeatures2& deviceFeatures2,
-                     Context& context)
+static bool CreateLogicalDevices(Arena& arena, const char** extensions,
+                                 u32 extensionCount,
+                                 VkPhysicalDeviceFeatures2& deviceFeatures2,
+                                 Context& context)
 {
     ArenaMarker marker = ArenaGetMarker(arena);
+
+    // Add synchronization2 to the end of device features
+    VkPhysicalDeviceSynchronization2Features synchronization2Features{};
+    synchronization2Features.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+    synchronization2Features.synchronization2 = VK_TRUE;
+
+    VkBaseOutStructure* currRequestedFeaturePtr =
+        reinterpret_cast<VkBaseOutStructure*>(deviceFeatures2.pNext);
+    while (currRequestedFeaturePtr->pNext != nullptr)
+    {
+        currRequestedFeaturePtr = currRequestedFeaturePtr->pNext;
+    }
+    currRequestedFeaturePtr->pNext =
+        reinterpret_cast<VkBaseOutStructure*>(&synchronization2Features);
 
     f32 queuePriority = 1.0f;
     for (u32 i = 0; i < context.deviceCount; i++)
@@ -1191,7 +1207,7 @@ static void DestroyVmaAllocators(Context& context)
 /////////////////////////////////////////////////////////////////////////////
 // Command pools and command buffers
 /////////////////////////////////////////////////////////////////////////////
-static bool CreateCommandPools(Context& context)
+static bool CreateCommandPools(Arena& arena, Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
@@ -1205,10 +1221,51 @@ static bool CreateCommandPools(Context& context)
         for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
         {
             if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
-                                    &device.frameData[j].cmdPool) != VK_SUCCESS)
+                                    &device.frameData[j].commandPool) !=
+                VK_SUCCESS)
             {
                 return false;
             };
+
+            if (!CreateCommandBuffers(arena, device,
+                                      device.frameData[j].commandPool,
+                                      &device.frameData[j].commandBuffer, 1))
+            {
+                return false;
+            }
+
+            VkFenceCreateInfo fenceCreateInfo{};
+            fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+            fenceCreateInfo.pNext = nullptr;
+            fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+            VkResult res =
+                vkCreateFence(device.logicalDevice, &fenceCreateInfo, nullptr,
+                              &device.frameData[j].renderFence);
+            if (res != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            VkSemaphoreCreateInfo semaphoreCreateInfo{};
+            semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            semaphoreCreateInfo.pNext = nullptr;
+            semaphoreCreateInfo.flags = 0;
+
+            res = vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
+                                    nullptr,
+                                    &device.frameData[j].swapchainSemaphore);
+            if (res != VK_SUCCESS)
+            {
+                return false;
+            }
+            res = vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
+                                    nullptr,
+                                    &device.frameData[j].renderSemaphore);
+            if (res != VK_SUCCESS)
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -1222,8 +1279,15 @@ static void DestroyCommandPools(Context& context)
 
         for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
         {
+            vkDestroySemaphore(device.logicalDevice,
+                               device.frameData[j].renderSemaphore, nullptr);
+            vkDestroySemaphore(device.logicalDevice,
+                               device.frameData[j].swapchainSemaphore, nullptr);
+            vkDestroyFence(device.logicalDevice,
+                           device.frameData[j].renderFence, nullptr);
+
             vkDestroyCommandPool(device.logicalDevice,
-                                 device.frameData[j].cmdPool, nullptr);
+                                 device.frameData[j].commandPool, nullptr);
         }
     }
 }
@@ -1231,8 +1295,7 @@ static void DestroyCommandPools(Context& context)
 /////////////////////////////////////////////////////////////////////////////
 // Context
 /////////////////////////////////////////////////////////////////////////////
-bool CreateContext(Arena& arena, const ContextSettings& settings,
-                   Context& context)
+bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
 {
     if (!CreateInstance(arena, settings.instanceLayers,
                         settings.instanceLayerCount,
@@ -1270,7 +1333,7 @@ bool CreateContext(Arena& arena, const ContextSettings& settings,
         return false;
     }
 
-    if (!CreateCommandPools(context))
+    if (!CreateCommandPools(arena, context))
     {
         return false;
     }
@@ -1290,8 +1353,139 @@ bool CreateContext(Arena& arena, const ContextSettings& settings,
     return true;
 }
 
+bool BeginRenderFrame(Context& context, Device& device)
+{
+    vkWaitForFences(device.logicalDevice, 1,
+                    &device.frameData[device.frameIndex].renderFence, VK_TRUE,
+                    UINT64_MAX);
+    vkResetFences(device.logicalDevice, 1,
+                  &device.frameData[device.frameIndex].renderFence);
+
+    if (context.windowPtr)
+    {
+        VkResult res = vkAcquireNextImageKHR(
+            device.logicalDevice, device.swapchain, UINT64_MAX,
+            device.frameData[device.frameIndex].swapchainSemaphore, nullptr,
+            &device.swapchainImageIndex);
+        if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+CommandBuffer& RenderFrameCommandBuffer(Context& context, Device& device)
+{
+    return device.frameData[device.frameIndex].commandBuffer;
+}
+
+static VkImageSubresourceRange
+ImageSubresourceRange(VkImageAspectFlags aspectMask)
+{
+    VkImageSubresourceRange subImage{};
+    subImage.aspectMask = aspectMask;
+    subImage.baseMipLevel = 0;
+    subImage.levelCount = VK_REMAINING_MIP_LEVELS;
+    subImage.baseArrayLayer = 0;
+    subImage.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+    return subImage;
+}
+
+static void TransitionImage(CommandBuffer& cmd, VkImage image,
+                            VkImageLayout currentLayout,
+                            VkImageLayout newLayout)
+{
+    VkImageAspectFlags aspectMask =
+        (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+            ? VK_IMAGE_ASPECT_DEPTH_BIT
+            : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    VkImageMemoryBarrier2 imageBarrier{};
+    imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    imageBarrier.pNext = nullptr;
+    imageBarrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    imageBarrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+    imageBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    imageBarrier.dstAccessMask =
+        VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+    imageBarrier.oldLayout = currentLayout;
+    imageBarrier.newLayout = newLayout;
+    imageBarrier.subresourceRange = ImageSubresourceRange(aspectMask);
+    imageBarrier.image = image;
+
+    VkDependencyInfo dependencyInfo{};
+    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependencyInfo.pNext = nullptr;
+    dependencyInfo.imageMemoryBarrierCount = 1;
+    dependencyInfo.pImageMemoryBarriers = &imageBarrier;
+
+    vkCmdPipelineBarrier2(cmd.handle, &dependencyInfo);
+}
+
+bool EndRenderFrame(Context& context, Device& device)
+{
+    CommandBuffer& cmd = RenderFrameCommandBuffer(context, device);
+    //
+    ResetCommandBuffer(cmd, false);
+    BeginCommandBuffer(cmd, true);
+
+    // Image transition to writeable
+    TransitionImage(cmd, device.swapchainImages[device.swapchainImageIndex],
+                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    VkClearColorValue clearValue;
+    clearValue = {{0.0f, 0.0f, 1.0f, 1.0f}};
+    VkImageSubresourceRange clearRange =
+        ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+    vkCmdClearColorImage(cmd.handle,
+                         device.swapchainImages[device.swapchainImageIndex],
+                         VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+
+    // Image transition to presetable
+    TransitionImage(cmd, device.swapchainImages[device.swapchainImageIndex],
+                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+    // Pipeline bind
+    EndCommandBuffer(cmd);
+
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    SubmitCommandBuffer(cmd, device.graphicsComputeQueue,
+                        &device.frameData[device.frameIndex].swapchainSemaphore,
+                        1, waitStage,
+                        &device.frameData[device.frameIndex].renderSemaphore, 1,
+                        device.frameData[device.frameIndex].renderFence);
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores =
+        &device.frameData[device.frameIndex].renderSemaphore;
+    presentInfo.pSwapchains = &device.swapchain;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pImageIndices = &device.swapchainImageIndex;
+    presentInfo.pResults = nullptr;
+
+    VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
+
+    device.frameIndex = (device.frameIndex + 1) % HLS_FRAME_IN_FLIGHT_COUNT;
+
+    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 void DestroyContext(Context& context)
 {
+    for (u32 i = 0; i < context.deviceCount; i++)
+    {
+        vkDeviceWaitIdle(context.devices[i].logicalDevice);
+    }
+
     if (context.windowPtr)
     {
         for (u32 i = 0; i < context.deviceCount; i++)

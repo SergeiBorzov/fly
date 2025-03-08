@@ -3,7 +3,7 @@
 
 #include "core/types.h"
 
-#include <volk.h>
+#include "command_buffer.h"
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #define VMA_VULKAN_VERSION 1004000 // Vulkan 1.4
@@ -55,8 +55,11 @@ typedef bool (*DeterminePresentModeFn)(const Context&,
 
 struct FrameData
 {
-    VkCommandPool cmdPool;
-    VkCommandBuffer cmdBuffer;
+    VkCommandPool commandPool;
+    CommandBuffer commandBuffer;
+    VkSemaphore swapchainSemaphore;
+    VkSemaphore renderSemaphore;
+    VkFence renderFence;
 };
 
 struct Device
@@ -73,6 +76,8 @@ struct Device
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
     u32 swapchainImageCount = 0;
+    u32 swapchainImageIndex = 0;
+    u32 frameIndex = 0;
     i32 graphicsComputeQueueFamilyIndex = -1;
     i32 presentQueueFamilyIndex = -1;
 };
@@ -107,9 +112,13 @@ bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
 bool IsLayerSupported(VkLayerProperties* layerProperties,
                       u32 layerPropertiesCount, const char* layerName);
 
-bool CreateContext(Arena& arena, const ContextSettings& settings,
+bool CreateContext(Arena& arena, ContextSettings& settings,
                    Context& outContext);
 void DestroyContext(Context& context);
+
+bool BeginRenderFrame(Context& context, Device& device);
+CommandBuffer& RenderFrameCommandBuffer(Context& context, Device& device);
+bool EndRenderFrame(Context& context, Device& device);
 } // namespace Hls
 
 #endif /* HLS_CONTEXT_H */

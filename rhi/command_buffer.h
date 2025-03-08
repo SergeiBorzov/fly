@@ -5,6 +5,8 @@
 
 #include <volk.h>
 
+struct Arena;
+
 namespace Hls
 {
 
@@ -33,12 +35,12 @@ void DestroyCommandBuffers(Arena& arena, const Device& device,
                            CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount);
 bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,
-                        bool renderPassContinue, bool simultaneousUse);
+                        bool renderPassContinue = false, bool simultaneousUse = false);
 bool EndCommandBuffer(CommandBuffer& commandBuffer);
 bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          const VkSemaphore* waitSemaphores,
                          u32 waitSemaphoreCount,
-                         const VkPipelineStageFlags* waitStageMask,
+                         const VkPipelineStageFlags& waitStageMask,
                          const VkSemaphore* signalSemaphores,
                          u32 signalSemaphoreCount, VkFence fence);
 bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources);
