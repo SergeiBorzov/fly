@@ -10,7 +10,7 @@ static struct
     FILE* stream = nullptr;
 } sLogger;
 
-HlsResult InitLogger(const char* filename)
+bool InitLogger(const char* filename)
 {
     // Reinit logger
     if (sLogger.stream != nullptr && sLogger.stream != stdout)
@@ -24,7 +24,7 @@ HlsResult InitLogger(const char* filename)
         if (sLogger.stream == nullptr)
         {
             fprintf(stderr, "Hls logger failed to open file: %s", filename);
-            return -1;
+            return false;
         }
     }
     else
@@ -32,7 +32,7 @@ HlsResult InitLogger(const char* filename)
         sLogger.stream = stdout;
     }
 
-    return HLS_SUCCESS;
+    return true;
 }
 
 void ShutdownLogger()

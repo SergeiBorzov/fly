@@ -25,7 +25,7 @@ enum class LogLevel
 #define HLS_ERROR(fmt, ...)                                                    \
     LogImpl(LogLevel::Error, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
 
-HlsResult InitLogger(const char* filename = nullptr);
+bool InitLogger(const char* filename = nullptr);
 void ShutdownLogger();
 i64 LogImpl(LogLevel lvl, const char* file, i32 line, const char* fmt, ...);
 

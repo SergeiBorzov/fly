@@ -9,14 +9,14 @@
 #include <windows.h>
 #endif
 
-HlsResult SetEnv(const char* name, const char* value)
+bool SetEnv(const char* name, const char* value)
 {
 #ifdef HLS_PLATFORM_OS_WINDOWS
-    return _putenv_s(name, value);
+    return _putenv_s(name, value) == 0;
 #elif defined HLS_PLATFORM_POSIX
-    return setenv(name, value, true);
+    return setenv(name, value, true) == 0;
 #else
-    return -1;
+    return false;
 #endif
 }
 

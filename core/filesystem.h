@@ -6,7 +6,7 @@
 struct Arena;
 
 const char* GetBinaryDirectoryPath(Arena& arena);
-HlsResult SetEnv(const char* name, const char* value);
+bool SetEnv(const char* name, const char* value);
 
 
 #endif /* HLS_FILESYSTEM_H */
