@@ -104,7 +104,7 @@ static bool CreateInstance(Arena& arena, const char** instanceLayers,
     totalLayers = HLS_ALLOC(arena, const char*, totalLayerCount);
     for (u32 i = 0; i < instanceLayerCount; i++)
     {
-        HLS_DEBUG_LOG("Requested instance layer %s", instanceLayers[i]);
+        HLS_LOG("Requested instance layer %s", instanceLayers[i]);
         totalLayers[i] = instanceLayers[i];
     }
     HLS_DEBUG_LOG(
@@ -131,7 +131,7 @@ static bool CreateInstance(Arena& arena, const char** instanceLayers,
     totalExtensions = HLS_ALLOC(arena, const char*, totalExtensionCount);
     for (u32 i = 0; i < instanceExtensionCount; i++)
     {
-        HLS_DEBUG_LOG("Requested instance extension %s", instanceExtensions[i]);
+        HLS_LOG("Requested instance extension %s", instanceExtensions[i]);
         totalExtensions[i] = instanceExtensions[i];
     }
     HLS_DEBUG_LOG("Adding VK_EXT_debug_utils to list of instance extensions");
@@ -227,6 +227,153 @@ static const char* PhysicalDeviceTypeToString(VkPhysicalDeviceType deviceType)
         default:
         {
             return "Unknown";
+        }
+    }
+}
+
+static const char* PresentModeToString(VkPresentModeKHR presentMode)
+{
+    switch (presentMode)
+    {
+        case VK_PRESENT_MODE_IMMEDIATE_KHR:
+        {
+            return "VK_PRESENT_MODE_IMMEDIATE_KHR";
+        }
+        case VK_PRESENT_MODE_MAILBOX_KHR:
+        {
+            return "VK_PRESENT_MODE_MAILBOX_KHR";
+        }
+        case VK_PRESENT_MODE_FIFO_KHR:
+        {
+            return "VK_PRESENT_MODE_FIFO_KHR";
+        }
+        case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+        {
+            return "VK_PRESENT_MODE_FIFO_RELAXED_KHR";
+        }
+        case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
+        {
+            return "VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR";
+        }
+        case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
+        {
+            return "VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR";
+        }
+        default:
+            return "Unknown Present Mode";
+    }
+}
+
+static const char* FormatToString(VkFormat format)
+{
+    switch (format)
+    {
+        case VK_FORMAT_UNDEFINED:
+        {
+            return "VK_FORMAT_UNDEFINED";
+        }
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        {
+            return "VK_FORMAT_B8G8R8A8_UNORM";
+        }
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        {
+            return "VK_FORMAT_R8G8B8A8_UNORM";
+        }
+        case VK_FORMAT_B8G8R8A8_SRGB:
+        {
+            return "VK_FORMAT_B8G8R8A8_SRGB";
+        }
+        case VK_FORMAT_R8G8B8A8_SRGB:
+        {
+            return "VK_FORMAT_R8G8B8A8_SRGB";
+        }
+        case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+        {
+            return "VK_FORMAT_A2B10G10R10_UNORM_PACK32";
+        }
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+        {
+            return "VK_FORMAT_R16G16B16A16_SFLOAT";
+        }
+        case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
+        {
+            return "VK_FORMAT_B10G11R11_UFLOAT_PACK32";
+        }
+        case VK_FORMAT_R5G6B5_UNORM_PACK16:
+        {
+            return "VK_FORMAT_R5G6B5_UNORM_PACK16";
+        }
+        case VK_FORMAT_A1R5G5B5_UNORM_PACK16:
+        {
+            return "VK_FORMAT_A1R5G5B5_UNORM_PACK16";
+        }
+        default:
+        {
+            return "Unknown Format";
+        }
+    }
+}
+
+static const char* ColorSpaceToString(VkColorSpaceKHR colorSpace)
+{
+    switch (colorSpace)
+    {
+        case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
+        {
+            return "VK_COLOR_SPACE_SRGB_NONLINEAR_KHR";
+        }
+        case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_DCI_P3_LINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_DCI_P3_LINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_BT709_LINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_BT709_LINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_BT709_NONLINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_HDR10_ST2084_EXT:
+        {
+            return "VK_COLOR_SPACE_HDR10_ST2084_EXT";
+        }
+        case VK_COLOR_SPACE_DOLBYVISION_EXT:
+        {
+            return "VK_COLOR_SPACE_DOLBYVISION_EXT";
+        }
+        case VK_COLOR_SPACE_HDR10_HLG_EXT:
+        {
+            return "VK_COLOR_SPACE_HDR10_HLG_EXT";
+        }
+        case VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT";
+        }
+        case VK_COLOR_SPACE_PASS_THROUGH_EXT:
+        {
+            return "VK_COLOR_SPACE_PASS_THROUGH_EXT";
+        }
+        case VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT:
+        {
+            return "VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT";
+        }
+        default:
+        {
+            return "Unknown Color Space";
         }
     }
 }
@@ -536,7 +683,7 @@ static void
 LogDetectedPhysicalDevices(const HlsPhysicalDeviceInfo* physicalDeviceInfos,
                            u32 physicalDeviceCount)
 {
-    HLS_LOG("Following physical devices detected:");
+    HLS_LOG("List of physical devices detected:");
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         const HlsPhysicalDeviceInfo& info = physicalDeviceInfos[i];
@@ -622,6 +769,11 @@ static bool FindPhysicalDevices(
                 deviceExtensions, deviceExtensionCount, info))
         {
             continue;
+        }
+
+        for (u32 i = 0; i < deviceExtensionCount; i++)
+        {
+            HLS_LOG("Requested device extension %s", deviceExtensions[i]);
         }
 
         if (!PhysicalDeviceSupportsRequiredFeatures(deviceFeatures2, info))
@@ -714,8 +866,8 @@ static bool FindPhysicalDevices(
             physicalDeviceInfos[suitableDeviceIndices[i]];
 
         context.devices[i] = suitableDevices[i];
-        HLS_LOG("Following physical device is suitable and selected [%u] - %s",
-                i, info.properties.deviceName);
+        HLS_LOG("Following physical device is suitable and selected - %s",
+                info.properties.deviceName);
     }
 
     ArenaPopToMarker(arena, marker);
@@ -758,9 +910,11 @@ static bool CreateSwapchain(HlsContext& context)
             device.physicalDevice, context.surface, &surfaceCapabilities);
 
         VkExtent2D extent;
-        extent.width = CLAMP(static_cast<u32>(width), surfaceCapabilities.minImageExtent.width,
+        extent.width = CLAMP(static_cast<u32>(width),
+                             surfaceCapabilities.minImageExtent.width,
                              surfaceCapabilities.maxImageExtent.width);
-        extent.height = CLAMP(static_cast<u32>(height), surfaceCapabilities.minImageExtent.height,
+        extent.height = CLAMP(static_cast<u32>(height),
+                              surfaceCapabilities.minImageExtent.height,
                               surfaceCapabilities.maxImageExtent.height);
 
         HLS_ASSERT(device.graphicsComputeQueueFamilyIndex != -1);
@@ -785,7 +939,8 @@ static bool CreateSwapchain(HlsContext& context)
         createInfo.clipped = VK_TRUE;
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-        if (device.graphicsComputeQueueFamilyIndex == device.presentQueueFamilyIndex)
+        if (device.graphicsComputeQueueFamilyIndex ==
+            device.presentQueueFamilyIndex)
         {
             createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
             createInfo.queueFamilyIndexCount = 0;
@@ -804,6 +959,12 @@ static bool CreateSwapchain(HlsContext& context)
         {
             return false;
         }
+
+        HLS_LOG("Device[%u] created swapchain, format: %s, color space: %s, "
+                "present mode: %s",
+                i + 1, FormatToString(device.surfaceFormat.format),
+                ColorSpaceToString(device.surfaceFormat.colorSpace),
+                PresentModeToString(device.presentMode));
     }
 
     return true;
