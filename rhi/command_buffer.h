@@ -35,7 +35,8 @@ void DestroyCommandBuffers(Arena& arena, const Device& device,
                            CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount);
 bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,
-                        bool renderPassContinue = false, bool simultaneousUse = false);
+                        bool renderPassContinue = false,
+                        bool simultaneousUse = false);
 bool EndCommandBuffer(CommandBuffer& commandBuffer);
 bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          const VkSemaphore* waitSemaphores,
@@ -45,6 +46,11 @@ bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          u32 signalSemaphoreCount, VkFence fence);
 bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources);
 
+void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
+                                 VkImageLayout currentLayout,
+                                 VkImageLayout newLayout);
+void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
+                      f32 b, f32 a);
 } // namespace Hls
 
 #endif /* End of HLS_COMMAND_BUFFER_H */

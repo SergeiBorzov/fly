@@ -753,7 +753,6 @@ static bool FindPhysicalDevices(
 
     u32 suitableDeviceCount = 0;
     Device* suitableDevices = HLS_ALLOC(arena, Device, physicalDeviceCount);
-    u32* suitableDeviceIndices = HLS_ALLOC(arena, u32, physicalDeviceCount);
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         suitableDevices[i] = {};
@@ -768,11 +767,6 @@ static bool FindPhysicalDevices(
                 deviceExtensions, deviceExtensionCount, info))
         {
             continue;
-        }
-
-        for (u32 i = 0; i < deviceExtensionCount; i++)
-        {
-            HLS_LOG("Requested device extension %s", deviceExtensions[i]);
         }
 
         if (!PhysicalDeviceSupportsRequiredFeatures(deviceFeatures2, info))
@@ -841,11 +835,13 @@ static bool FindPhysicalDevices(
             continue;
         }
 
-        suitableDeviceIndices[suitableDeviceCount] = i;
         suitableDevices[suitableDeviceCount].physicalDevice =
             physicalDevices[i];
         suitableDevices[suitableDeviceCount].graphicsComputeQueueFamilyIndex =
             graphicsComputeQueueFamilyIndex;
+        strncpy(suitableDevices[suitableDeviceCount].name,
+                info.properties.deviceName,
+                VK_MAX_PHYSICAL_DEVICE_NAME_SIZE - 1);
         if (context.windowPtr)
         {
             suitableDevices[suitableDeviceCount].presentQueueFamilyIndex =
@@ -861,12 +857,10 @@ static bool FindPhysicalDevices(
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         Device& device = context.devices[i];
-        const PhysicalDeviceInfo& info =
-            physicalDeviceInfos[suitableDeviceIndices[i]];
 
         context.devices[i] = suitableDevices[i];
         HLS_LOG("Following physical device is suitable and selected - %s",
-                info.properties.deviceName);
+                context.devices[i].name);
     }
 
     ArenaPopToMarker(arena, marker);
@@ -941,9 +935,11 @@ static bool CreateSwapchain(Context& context, Device& device,
     i32 width = 0;
     i32 height = 0;
     glfwGetFramebufferSize(context.windowPtr, &width, &height);
-
-    HLS_ASSERT(width > 0);
-    HLS_ASSERT(height > 0);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(context.windowPtr, &width, &height);
+        glfwWaitEvents();
+    }
 
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -1018,6 +1014,7 @@ static bool CreateSwapchain(Context& context, Device& device,
         return false;
     }
 
+    HLS_LOG("Device %s created new swapchain", device.name);
     HLS_LOG("Swapchain format: %s",
             FormatToString(device.surfaceFormat.format));
     HLS_LOG("Color space: %s",
@@ -1064,12 +1061,7 @@ static bool RecreateSwapchain(Context& context, Device& device)
         vkDestroySwapchainKHR(device.logicalDevice, oldSwapchain, nullptr);
     }
 
-    HLS_LOG("Swapchain format: %s",
-            FormatToString(device.surfaceFormat.format));
-    HLS_LOG("Color space: %s",
-            ColorSpaceToString(device.surfaceFormat.colorSpace));
-    HLS_LOG("Present mode: %s", PresentModeToString(device.presentMode));
-    HLS_LOG("Swapchain image count: %u", device.swapchainImageCount);
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1089,7 +1081,7 @@ static bool CreateLogicalDevices(Arena& arena, const char** extensions,
     synchronization2Features.synchronization2 = VK_TRUE;
 
     VkBaseOutStructure* currRequestedFeaturePtr =
-        reinterpret_cast<VkBaseOutStructure*>(deviceFeatures2.pNext);
+        reinterpret_cast<VkBaseOutStructure*>(&deviceFeatures2);
     while (currRequestedFeaturePtr->pNext != nullptr)
     {
         currRequestedFeaturePtr = currRequestedFeaturePtr->pNext;
@@ -1342,7 +1334,6 @@ bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
     {
         for (u32 i = 0; i < context.deviceCount; i++)
         {
-            HLS_LOG("Device[%u] swapchain creation:", i);
             if (!CreateSwapchain(context, context.devices[i]))
             {
                 return false;
@@ -1358,20 +1349,42 @@ bool BeginRenderFrame(Context& context, Device& device)
     vkWaitForFences(device.logicalDevice, 1,
                     &device.frameData[device.frameIndex].renderFence, VK_TRUE,
                     UINT64_MAX);
-    vkResetFences(device.logicalDevice, 1,
-                  &device.frameData[device.frameIndex].renderFence);
 
     if (context.windowPtr)
     {
-        VkResult res = vkAcquireNextImageKHR(
-            device.logicalDevice, device.swapchain, UINT64_MAX,
-            device.frameData[device.frameIndex].swapchainSemaphore, nullptr,
-            &device.swapchainImageIndex);
-        if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        VkResult res = VK_ERROR_UNKNOWN;
+        while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
         {
-            return false;
+            res = vkAcquireNextImageKHR(
+                device.logicalDevice, device.swapchain, UINT64_MAX,
+                device.frameData[device.frameIndex].swapchainSemaphore, nullptr,
+                &device.swapchainImageIndex);
+
+            if (res == VK_ERROR_OUT_OF_DATE_KHR)
+            {
+                if (!RecreateSwapchain(context, device))
+                {
+                    return false;
+                }
+            }
+            else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+            {
+                return false;
+            }
         }
     }
+
+    vkResetFences(device.logicalDevice, 1,
+                  &device.frameData[device.frameIndex].renderFence);
+
+    CommandBuffer& cmd = RenderFrameCommandBuffer(context, device);
+    ResetCommandBuffer(cmd, false);
+    BeginCommandBuffer(cmd, true);
+
+    // Image transition to writeable
+    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(context, device),
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_GENERAL);
 
     return true;
 }
@@ -1381,73 +1394,21 @@ CommandBuffer& RenderFrameCommandBuffer(Context& context, Device& device)
     return device.frameData[device.frameIndex].commandBuffer;
 }
 
-static VkImageSubresourceRange
-ImageSubresourceRange(VkImageAspectFlags aspectMask)
+VkImage RenderFrameSwapchainImage(const Context& context, const Device& device)
 {
-    VkImageSubresourceRange subImage{};
-    subImage.aspectMask = aspectMask;
-    subImage.baseMipLevel = 0;
-    subImage.levelCount = VK_REMAINING_MIP_LEVELS;
-    subImage.baseArrayLayer = 0;
-    subImage.layerCount = VK_REMAINING_ARRAY_LAYERS;
+    HLS_ASSERT(context.windowPtr);
 
-    return subImage;
-}
-
-static void TransitionImage(CommandBuffer& cmd, VkImage image,
-                            VkImageLayout currentLayout,
-                            VkImageLayout newLayout)
-{
-    VkImageAspectFlags aspectMask =
-        (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
-            ? VK_IMAGE_ASPECT_DEPTH_BIT
-            : VK_IMAGE_ASPECT_COLOR_BIT;
-
-    VkImageMemoryBarrier2 imageBarrier{};
-    imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-    imageBarrier.pNext = nullptr;
-    imageBarrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-    imageBarrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
-    imageBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-    imageBarrier.dstAccessMask =
-        VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
-    imageBarrier.oldLayout = currentLayout;
-    imageBarrier.newLayout = newLayout;
-    imageBarrier.subresourceRange = ImageSubresourceRange(aspectMask);
-    imageBarrier.image = image;
-
-    VkDependencyInfo dependencyInfo{};
-    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dependencyInfo.pNext = nullptr;
-    dependencyInfo.imageMemoryBarrierCount = 1;
-    dependencyInfo.pImageMemoryBarriers = &imageBarrier;
-
-    vkCmdPipelineBarrier2(cmd.handle, &dependencyInfo);
+    return device.swapchainImages[device.swapchainImageIndex];
 }
 
 bool EndRenderFrame(Context& context, Device& device)
 {
     CommandBuffer& cmd = RenderFrameCommandBuffer(context, device);
-    //
-    ResetCommandBuffer(cmd, false);
-    BeginCommandBuffer(cmd, true);
 
-    // Image transition to writeable
-    TransitionImage(cmd, device.swapchainImages[device.swapchainImageIndex],
-                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    VkClearColorValue clearValue;
-    clearValue = {{0.0f, 0.0f, 1.0f, 1.0f}};
-    VkImageSubresourceRange clearRange =
-        ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
-    vkCmdClearColorImage(cmd.handle,
-                         device.swapchainImages[device.swapchainImageIndex],
-                         VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
-
-    // Image transition to presetable
-    TransitionImage(cmd, device.swapchainImages[device.swapchainImageIndex],
-                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-    // Pipeline bind
+    // Image transition to presentable
+    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(context, device),
+                                VK_IMAGE_LAYOUT_GENERAL,
+                                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     EndCommandBuffer(cmd);
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -1457,24 +1418,33 @@ bool EndRenderFrame(Context& context, Device& device)
                         &device.frameData[device.frameIndex].renderSemaphore, 1,
                         device.frameData[device.frameIndex].renderFence);
 
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores =
-        &device.frameData[device.frameIndex].renderSemaphore;
-    presentInfo.pSwapchains = &device.swapchain;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pImageIndices = &device.swapchainImageIndex;
-    presentInfo.pResults = nullptr;
-
-    VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
-
-    device.frameIndex = (device.frameIndex + 1) % HLS_FRAME_IN_FLIGHT_COUNT;
-
-    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+    if (context.windowPtr)
     {
-        return false;
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores =
+            &device.frameData[device.frameIndex].renderSemaphore;
+        presentInfo.pSwapchains = &device.swapchain;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pImageIndices = &device.swapchainImageIndex;
+        presentInfo.pResults = nullptr;
+
+        VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
+
+        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+        {
+            if (!RecreateSwapchain(context, device))
+            {
+                return false;
+            }
+        }
+        else if (res != VK_SUCCESS)
+        {
+            return false;
+        }
     }
+    device.frameIndex = (device.frameIndex + 1) % HLS_FRAME_IN_FLIGHT_COUNT;
 
     return true;
 }

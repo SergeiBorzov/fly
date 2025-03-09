@@ -64,6 +64,7 @@ struct FrameData
 
 struct Device
 {
+    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
     VmaAllocator allocator = {};
     VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
@@ -118,6 +119,7 @@ void DestroyContext(Context& context);
 
 bool BeginRenderFrame(Context& context, Device& device);
 CommandBuffer& RenderFrameCommandBuffer(Context& context, Device& device);
+VkImage RenderFrameSwapchainImage(const Context& context, const Device& device);
 bool EndRenderFrame(Context& context, Device& device);
 } // namespace Hls
 
