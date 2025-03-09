@@ -1,0 +1,163 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@helios//external/rules:glslang.bzl", "glslang_build_info")
+
+# copy_file(
+#     name = "copy_changes_file",
+#     src = "CHANGES.md",
+#     out = "CHANGES.md",
+# )
+py_binary(
+    name = "build_info",
+    srcs = [
+        "build_info.py"
+    ],
+    data = [
+        "CHANGES.md",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+    ],
+)
+
+glslang_build_info(
+    name = "generated_build_info",
+    input_file = "build_info.h.tmpl",
+    output_file = "glslang/build_info.h",
+    directory = "external/+external_git_repository+glslang",
+)
+
+cc_library(
+    name = "glslang",
+    hdrs = [
+        # machine indepent headers
+        "glslang/MachineIndependent/attribute.h",
+        "glslang/MachineIndependent/glslang_tab.cpp.h",
+        "glslang/MachineIndependent/gl_types.h",
+        "glslang/MachineIndependent/Initialize.h",
+        "glslang/MachineIndependent/iomapper.h",
+        "glslang/MachineIndependent/LiveTraverser.h",
+        "glslang/MachineIndependent/localintermediate.h",
+        "glslang/MachineIndependent/ParseHelper.h",
+        "glslang/MachineIndependent/reflection.h",
+        "glslang/MachineIndependent/RemoveTree.h",
+        "glslang/MachineIndependent/Scan.h",
+        "glslang/MachineIndependent/ScanContext.h",
+        "glslang/MachineIndependent/SymbolTable.h",
+        "glslang/MachineIndependent/Versions.h",
+        "glslang/MachineIndependent/parseVersions.h",
+        "glslang/MachineIndependent/propagateNoContraction.h",
+        "glslang/MachineIndependent/preprocessor/PpContext.h",
+        "glslang/MachineIndependent/preprocessor/PpTokens.h",
+        # os dependent headers
+        "glslang/OSDependent/osinclude.h",
+        # glslang headers
+        "glslang/Public/ShaderLang.h",
+        "glslang/Include/arrays.h",
+        "glslang/Include/BaseTypes.h",
+        "glslang/Include/Common.h",
+        "glslang/Include/ConstantUnion.h",
+        "glslang/Include/glslang_c_interface.h",
+        "glslang/Include/glslang_c_shader_types.h",
+        "glslang/Include/InfoSink.h",
+        "glslang/Include/InitializeGlobals.h",
+        "glslang/Include/intermediate.h",
+        "glslang/Include/PoolAlloc.h",
+        "glslang/Include/ResourceLimits.h",
+        "glslang/Include/ShHandle.h",
+        "glslang/Include/SpirvIntrinsics.h",
+        "glslang/Include/Types.h",
+        "glslang/Include/visibility.h",
+        # spirv headers
+        "SPIRV/bitutils.h",
+        "SPIRV/spirv.hpp",
+        "SPIRV/GLSL.std.450.h",
+        "SPIRV/GLSL.ext.EXT.h",
+        "SPIRV/GLSL.ext.KHR.h",
+        "SPIRV/GlslangToSpv.h",
+        "SPIRV/hex_float.h",
+        "SPIRV/Logger.h",
+        "SPIRV/SpvBuilder.h",
+        "SPIRV/spvIR.h",
+        "SPIRV/doc.h",
+        "SPIRV/SpvTools.h",
+        "SPIRV/disassemble.h",
+        "SPIRV/GLSL.ext.AMD.h",
+        "SPIRV/GLSL.ext.NV.h",
+        "SPIRV/GLSL.ext.ARM.h",
+        "SPIRV/GLSL.ext.QCOM.h",
+        "SPIRV/NonSemanticDebugPrintf.h",
+        "SPIRV/NonSemanticShaderDebugInfo100.h",
+        # generated
+        ":glslang/build_info.h",
+        # public headers
+    ],
+    srcs = [
+        # machine independent sources
+        "glslang/MachineIndependent/glslang_tab.cpp",
+        "glslang/MachineIndependent/attribute.cpp",
+        "glslang/MachineIndependent/Constant.cpp",
+        "glslang/MachineIndependent/iomapper.cpp",
+        "glslang/MachineIndependent/InfoSink.cpp",
+        "glslang/MachineIndependent/Initialize.cpp",
+        "glslang/MachineIndependent/IntermTraverse.cpp",
+        "glslang/MachineIndependent/Intermediate.cpp",
+        "glslang/MachineIndependent/ParseContextBase.cpp",
+        "glslang/MachineIndependent/ParseHelper.cpp",
+        "glslang/MachineIndependent/PoolAlloc.cpp",
+        "glslang/MachineIndependent/RemoveTree.cpp",
+        "glslang/MachineIndependent/Scan.cpp",
+        "glslang/MachineIndependent/ShaderLang.cpp",
+        "glslang/MachineIndependent/SpirvIntrinsics.cpp",
+        "glslang/MachineIndependent/SymbolTable.cpp",
+        "glslang/MachineIndependent/Versions.cpp",
+        "glslang/MachineIndependent/intermOut.cpp",
+        "glslang/MachineIndependent/limits.cpp",
+        "glslang/MachineIndependent/linkValidate.cpp",
+        "glslang/MachineIndependent/parseConst.cpp",
+        "glslang/MachineIndependent/reflection.cpp",
+        "glslang/MachineIndependent/preprocessor/Pp.cpp",
+        "glslang/MachineIndependent/preprocessor/PpAtom.cpp",
+        "glslang/MachineIndependent/preprocessor/PpContext.cpp",
+        "glslang/MachineIndependent/preprocessor/PpScanner.cpp",
+        "glslang/MachineIndependent/preprocessor/PpTokens.cpp",
+        "glslang/MachineIndependent/propagateNoContraction.cpp",
+        # generic code gen sources
+        "glslang/GenericCodeGen/CodeGen.cpp",
+        "glslang/GenericCodeGen/Link.cpp",
+        # glslang sources
+        "glslang/CInterface/glslang_c_interface.cpp",
+        # spirv sources
+        "SPIRV/GlslangToSpv.cpp",
+        "SPIRV/InReadableOrder.cpp",
+        "SPIRV/Logger.cpp",
+        "SPIRV/SpvBuilder.cpp",
+        "SPIRV/SpvPostProcess.cpp",
+        "SPIRV/doc.cpp",
+        "SPIRV/SpvTools.cpp",
+        "SPIRV/disassemble.cpp",
+        "SPIRV/CInterface/spirv_c_interface.cpp",
+    ] + select({
+        "@platforms//os:windows": [
+            "glslang/OSDependent/Windows/ossource.cpp",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = [
+        ".",
+        "glslang/MachineIndependent",
+    ],
+    copts = select({
+        "@platforms//os:windows": [
+        ],
+        "//conditions:default": [],
+    }),
+    defines = [
+    ],
+    deps = [
+    ],
+    linkopts = [
+    ],
+    visibility = ["//visibility:public"],
+)
