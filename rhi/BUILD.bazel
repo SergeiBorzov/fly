@@ -5,10 +5,12 @@ cc_library(
     hdrs = [
         "context.h",
         "command_buffer.h",
+        "pipeline.h",
     ],
     srcs = [
         "context.cpp",
         "command_buffer.cpp",
+        "pipeline.cpp",
     ],
     deps = [
         "@volk//:volk",
