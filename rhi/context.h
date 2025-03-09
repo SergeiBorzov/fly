@@ -105,6 +105,11 @@ struct ContextSettings
     u32 instanceLayerCount = 0;
     u32 instanceExtensionCount = 0;
     u32 deviceExtensionCount = 0;
+
+    ContextSettings()
+    {
+        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    }
 };
 
 bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
