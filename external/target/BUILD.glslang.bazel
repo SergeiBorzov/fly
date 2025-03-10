@@ -1,20 +1,29 @@
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@helios//external/rules:glslang.bzl", "glslang_build_info")
+load("@helios//external/rules:glslang.bzl",
+    "glslang_build_info",
+    "glslang_gen_extension_headers",
+)
 
-# copy_file(
-#     name = "copy_changes_file",
-#     src = "CHANGES.md",
-#     out = "CHANGES.md",
-# )
 py_binary(
     name = "build_info",
     srcs = [
         "build_info.py"
     ],
     data = [
-        "CHANGES.md",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+    ],
+)
+
+py_binary(
+    name = "gen_extension_headers",
+    srcs = [
+        "gen_extension_headers.py",
+    ],
+    data = [
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -22,10 +31,16 @@ py_binary(
 )
 
 glslang_build_info(
-    name = "generated_build_info",
+    name = "generate_build_info",
     input_file = "build_info.h.tmpl",
     output_file = "glslang/build_info.h",
     directory = "external/+external_git_repository+glslang",
+)
+
+glslang_gen_extension_headers(
+    name = "generate_extension_headers",
+    input_directory = "external/+external_git_repository+glslang/glslang/ExtensionHeaders",
+    output_file = "glslang/glsl_intrinsic_header.h",
 )
 
 cc_library(
@@ -160,4 +175,46 @@ cc_library(
     linkopts = [
     ],
     visibility = ["//visibility:public"],
+)
+
+cc_library(
+   name = "glslangValidator_headers",
+   hdrs = [
+       "StandAlone/DirStackFileIncluder.h",
+       ":glslang/glsl_intrinsic_header.h",
+   ],
+   visibility = ["//visibility:public"],
+)
+
+cc_library(
+   name = "glslang_resource_limits",
+   hdrs = [
+       "glslang/Public/resource_limits_c.h",
+   ],
+   srcs = [
+   ],
+   visibility = ["//visibility:public"],
+)
+
+cc_binary(
+   name = "glslangValidator",
+   srcs = [
+       "StandAlone/StandAlone.cpp",
+       "StandAlone/DirStackFileIncluder.h",
+       "glslang/ResourceLimits/ResourceLimits.cpp",
+       "glslang/ResourceLimits/resource_limits_c.cpp",
+   ],
+   deps = [
+       ":glslang",
+       ":glslangValidator_headers",
+       ":glslang_resource_limits",
+   ],
+   defines = [
+       "ENABLE_OPT=0",
+   ],
+   linkopts = select({
+       "@platforms//os:windows": ["-lPsapi"],
+       "//conditions:default": [],
+   }),
+   visibility = ["//visibility:public"],
 )

@@ -1,10 +1,5 @@
 
 def _glslang_build_info_impl(ctx):
-    args = ctx.actions.args()
-    
-    args.add(ctx.file.input_file)
-    args.add(ctx.outputs.output_file)
-
     ctx.actions.run(
         inputs = [
             ctx.file.input_file,
@@ -41,6 +36,42 @@ glslang_build_info = rule(
             cfg = "exec",
             executable = True,
             default = Label("@glslang//:build_info"),
+        ),
+    }
+)
+
+def _glslang_gen_extension_headers_impl(ctx):
+    ctx.actions.run(
+        inputs = [
+        ],
+        outputs = [
+            ctx.outputs.output_file,
+        ],
+        executable = ctx.executable._command,
+        arguments = [
+            "-i",
+            ctx.attr.input_directory,
+            "-o",
+            ctx.outputs.output_file.path,
+        ],
+    )
+
+    return [DefaultInfo(files = depset([ctx.outputs.output_file]))]
+
+
+glslang_gen_extension_headers = rule(
+    implementation = _glslang_gen_extension_headers_impl,
+    attrs = {
+        "input_directory": attr.string(
+            mandatory = True,
+        ),
+        "output_file": attr.output(
+            mandatory = True,
+        ),
+        "_command": attr.label(
+            cfg = "exec",
+            executable = True,
+            default = Label("@glslang//:gen_extension_headers"),
         ),
     }
 )
