@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -42,4 +43,41 @@ const char* GetBinaryDirectoryPath(Arena& arena)
 #else
     return nullptr;
 #endif
+}
+
+char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align)
+{
+    const char* mode = "rb";
+
+    FILE* file = fopen(filename, mode);
+    if (!file)
+    {
+        printf("shit %s!\n", filename);
+        return nullptr;
+    }
+
+    // Move the file pointer to the end of the file to determine its size
+    fseek(file, 0, SEEK_END);
+    i64 fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
+
+    // Allocate memory for the string (plus one for the null terminator)
+    char* content = HLS_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
+
+    if (!content)
+    {
+        fclose(file);
+        return nullptr;
+    }
+
+    // Read the file into the string
+    fread(content, 1, fileSize, file);
+    content[fileSize] = '\0'; // Null-terminate the string
+
+    fclose(file);
+    if (size)
+    {
+        *size = fileSize;
+    }
+    return content;
 }
