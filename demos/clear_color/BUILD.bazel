@@ -21,9 +21,9 @@ config_setting(
 )
 
 cc_binary(
-    name = "clear_color",
+    name = "app",
     srcs = [
-        "clear_color.cpp",
+        "main.cpp",
     ],
     deps = [
         "//rhi:context",
@@ -36,4 +36,3 @@ cc_binary(
         ],
     })
 )
-
