@@ -241,4 +241,45 @@ void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                          &clearValue, 1, &clearRange);
 }
 
+VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
+                                              VkImageLayout imageLayout)
+{
+    VkRenderingAttachmentInfo attachmentInfo{};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.pNext = nullptr;
+    attachmentInfo.imageView = imageView;
+    attachmentInfo.imageLayout = imageLayout;
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentInfo.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    return attachmentInfo;
+}
+
+VkRenderingInfo
+RenderingInfo(const VkRect2D& renderArea,
+              const VkRenderingAttachmentInfo* colorAttachments,
+              u32 colorAttachmentCount,
+              const VkRenderingAttachmentInfo* depthAttachment,
+              const VkRenderingAttachmentInfo* stencilAttachment)
+{
+    HLS_ASSERT(colorAttachments);
+    HLS_ASSERT(colorAttachmentCount > 0);
+
+    VkRenderingInfo renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = nullptr;
+    renderInfo.flags = 0;
+    renderInfo.viewMask = 0;
+    renderInfo.layerCount = 1; // will be different for texture arrays and cube maps
+    renderInfo.renderArea = renderArea;
+    renderInfo.colorAttachmentCount = colorAttachmentCount;
+    renderInfo.pColorAttachments = colorAttachments;
+    renderInfo.pDepthAttachment = depthAttachment;
+    renderInfo.pStencilAttachment = stencilAttachment;
+
+    return renderInfo;
+}
+
 } // namespace Hls

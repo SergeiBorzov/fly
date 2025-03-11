@@ -70,6 +70,7 @@ struct Device
     VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     FrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
     VkSurfaceFormatKHR surfaceFormat = {};
+    VkExtent2D swapchainExtent = {0, 0};
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
     VkQueue graphicsComputeQueue = VK_NULL_HANDLE;
@@ -123,9 +124,13 @@ bool CreateContext(Arena& arena, ContextSettings& settings,
 void DestroyContext(Context& context);
 
 bool BeginRenderFrame(Context& context, Device& device);
-CommandBuffer& RenderFrameCommandBuffer(Context& context, Device& device);
-VkImage RenderFrameSwapchainImage(const Context& context, const Device& device);
 bool EndRenderFrame(Context& context, Device& device);
+void WaitAllDevicesIdle(Context& context);
+
+CommandBuffer& RenderFrameCommandBuffer(Device& device);
+VkImage RenderFrameSwapchainImage(Device& device);
+VkImageView RenderFrameSwapchainImageView(Device& device);
+VkRect2D SwapchainRect2D(const Device& device);
 } // namespace Hls
 
 #endif /* HLS_CONTEXT_H */

@@ -51,6 +51,16 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout newLayout);
 void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                       f32 b, f32 a);
+
+VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
+                                              VkImageLayout imageLayout);
+
+VkRenderingInfo
+RenderingInfo(const VkRect2D& renderArea,
+              const VkRenderingAttachmentInfo* colorAttachments,
+              u32 colorAttachmentCount,
+              const VkRenderingAttachmentInfo* depthAttachment = nullptr,
+              const VkRenderingAttachmentInfo* stencilAttachment = nullptr);
 } // namespace Hls
 
 #endif /* End of HLS_COMMAND_BUFFER_H */

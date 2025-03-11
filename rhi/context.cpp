@@ -997,6 +997,8 @@ static bool CreateSwapchain(Context& context, Device& device,
         return false;
     }
 
+    device.swapchainExtent = extent;
+
     // Get swapchain images
     res = vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
                                   &device.swapchainImageCount, nullptr);
@@ -1377,37 +1379,25 @@ bool BeginRenderFrame(Context& context, Device& device)
     vkResetFences(device.logicalDevice, 1,
                   &device.frameData[device.frameIndex].renderFence);
 
-    CommandBuffer& cmd = RenderFrameCommandBuffer(context, device);
+    CommandBuffer& cmd = RenderFrameCommandBuffer(device);
     ResetCommandBuffer(cmd, false);
     BeginCommandBuffer(cmd, true);
 
     // Image transition to writeable
-    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(context, device),
+    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(device),
                                 VK_IMAGE_LAYOUT_UNDEFINED,
-                                VK_IMAGE_LAYOUT_GENERAL);
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     return true;
 }
 
-CommandBuffer& RenderFrameCommandBuffer(Context& context, Device& device)
-{
-    return device.frameData[device.frameIndex].commandBuffer;
-}
-
-VkImage RenderFrameSwapchainImage(const Context& context, const Device& device)
-{
-    HLS_ASSERT(context.windowPtr);
-
-    return device.swapchainImages[device.swapchainImageIndex];
-}
-
 bool EndRenderFrame(Context& context, Device& device)
 {
-    CommandBuffer& cmd = RenderFrameCommandBuffer(context, device);
+    CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
     // Image transition to presentable
-    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(context, device),
-                                VK_IMAGE_LAYOUT_GENERAL,
+    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(device),
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     EndCommandBuffer(cmd);
 
@@ -1449,13 +1439,35 @@ bool EndRenderFrame(Context& context, Device& device)
     return true;
 }
 
-void DestroyContext(Context& context)
+CommandBuffer& RenderFrameCommandBuffer(Device& device)
+{
+    return device.frameData[device.frameIndex].commandBuffer;
+}
+
+VkImage RenderFrameSwapchainImage(Device& device)
+{
+    return device.swapchainImages[device.swapchainImageIndex];
+}
+
+VkImageView RenderFrameSwapchainImageView(Device& device)
+{
+    return device.swapchainImageViews[device.swapchainImageIndex];
+}
+
+VkRect2D SwapchainRect2D(const Device& device)
+{
+    return {{0, 0}, device.swapchainExtent};
+}
+
+void WaitAllDevicesIdle(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         vkDeviceWaitIdle(context.devices[i].logicalDevice);
     }
-
+}
+void DestroyContext(Context& context)
+{
     if (context.windowPtr)
     {
         for (u32 i = 0; i < context.deviceCount; i++)
