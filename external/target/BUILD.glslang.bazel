@@ -221,7 +221,7 @@ cc_binary(
        "ENABLE_SPIRV=1",
    ],
    linkopts = select({
-       "@platforms//os:windows": ["-lPsapi"],
+       "@platforms//os:windows": [],
        "//conditions:default": [],
    }),
    visibility = ["//visibility:public"],
