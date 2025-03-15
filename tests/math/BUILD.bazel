@@ -1,0 +1,14 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "test_vec2",
+    size = "small",
+    srcs = [
+        "test_vec2.cpp",
+    ],
+    deps = [
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "//math:math",
+    ],
+)
