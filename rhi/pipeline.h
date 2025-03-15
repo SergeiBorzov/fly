@@ -3,16 +3,59 @@
 
 #include <volk.h>
 
+#include "core/assert.h"
 #include "core/types.h"
 
 #define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
+#define HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT 8
+
+struct Arena;
 
 namespace Hls
 {
 
 struct Device;
 
-struct GraphicsPipelineFixedStateSettings
+struct ShaderModule
+{
+    VkDescriptorSetLayout
+        descriptorSets[HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT] = {
+            VK_NULL_HANDLE};
+    VkShaderModule handle = VK_NULL_HANDLE;
+    u32 descriptorSetCount = 0;
+};
+
+enum class ShaderType
+{
+    Vertex = 0,
+    Fragment = 1,
+    Geometry = 2,
+    Task = 3,
+    Mesh = 4,
+    Count
+};
+
+struct GraphicsPipelineProgrammableStage
+{
+    inline ShaderModule& operator[](ShaderType type)
+    {
+        u32 index = static_cast<u32>(type);
+        HLS_ASSERT(index < static_cast<u32>(ShaderType::Count));
+        return stages[index];
+    }
+
+    inline const ShaderModule& operator[](ShaderType type) const
+    {
+        u32 index = static_cast<u32>(type);
+        HLS_ASSERT(index < static_cast<u32>(ShaderType::Count));
+        return stages[index];
+    }
+
+private:
+    ShaderModule stages[ShaderType::Count] = {};
+};
+
+struct GraphicsPipelineFixedStateStage
 {
     struct
     {
@@ -71,20 +114,26 @@ struct GraphicsPipelineFixedStateSettings
     } pipelineRendering;
 };
 
+struct GraphicsPipeline
+{
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline handle = VK_NULL_HANDLE;
+};
+
 bool CreateGraphicsPipeline(
-    Device& device,
-    const GraphicsPipelineFixedStateSettings& fixedStateSettings,
-    const VkPipelineShaderStageCreateInfo* stages, u32 stageCount,
-    VkPipelineLayout layout, VkPipeline& graphicsPipeline);
+    Arena& arena, Device& device,
+    const GraphicsPipelineFixedStateStage& fixedStateStage,
+    const GraphicsPipelineProgrammableStage& programmableStage,
+    GraphicsPipeline& graphicsPipeline);
 
-void DestroyGraphicsPipeline(Device& device, VkPipeline graphicsPipeline);
+void DestroyGraphicsPipeline(Device& device,
+                             GraphicsPipeline& graphicsPipeline);
 
-bool CreateShaderModule(VkDevice device, const char* spvSource, u64 codeSize,
-                        VkShaderModule& shaderModule);
-void DestroyShaderModule(VkDevice device, VkShaderModule shaderModule);
-
-bool CreatePipelineLayout(Device& device, VkPipelineLayout& pipelineLayout);
-void DestroyPipelineLayout(Device& device, VkPipelineLayout pipelineLayout);
+bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
+                        u64 codeSize, ShaderModule& shaderModule);
+void DestroyShaderModule(Device& device, ShaderModule& shaderModule);
+void DestroyGraphicsPipelineProgrammableStage(
+    Device& device, GraphicsPipelineProgrammableStage& programmableStage);
 
 } // namespace Hls
 

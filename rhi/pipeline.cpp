@@ -1,7 +1,13 @@
+#include "core/arena.h"
 #include "core/assert.h"
 
 #include "context.h"
 #include "pipeline.h"
+
+#include <spirv_reflect.h>
+
+namespace Hls
+{
 
 static VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo(
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -188,34 +194,172 @@ VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     return pipelineRendering;
 }
 
-namespace Hls
+static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
+                                                   const char* spvSource,
+                                                   u64 codeSize,
+                                                   ShaderModule& shaderModule)
 {
+    HLS_ASSERT(spvSource);
+    HLS_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
 
-bool CreatePipelineLayout(Device& device, VkPipelineLayout& pipelineLayout)
-{
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
-    pipelineLayoutCreateInfo.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutCreateInfo.setLayoutCount = 0;
-    pipelineLayoutCreateInfo.pSetLayouts = nullptr;
-    pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-    pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
-
-    if (vkCreatePipelineLayout(device.logicalDevice, &pipelineLayoutCreateInfo,
-                               nullptr, &pipelineLayout) != VK_SUCCESS)
+    SpvReflectShaderModule reflectModule;
+    SpvReflectResult res = spvReflectCreateShaderModule(
+        codeSize, reinterpret_cast<const u32*>(spvSource), &reflectModule);
+    if (res != SPV_REFLECT_RESULT_SUCCESS)
     {
         return false;
     }
+
+    u32 descriptorSetCount = 0;
+    res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
+                                            nullptr);
+    if (descriptorSetCount == 0)
+    {
+        shaderModule.descriptorSetCount = 0;
+        return true;
+    }
+
+    HLS_ASSERT(descriptorSetCount <=
+               HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT);
+
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    SpvReflectDescriptorSet** reflDescriptorSets =
+        HLS_ALLOC(arena, SpvReflectDescriptorSet*, descriptorSetCount);
+
+    res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
+                                            reflDescriptorSets);
+    if (res != SPV_REFLECT_RESULT_SUCCESS)
+    {
+        return false;
+    }
+
+    for (u32 i = 0; i < descriptorSetCount; i++)
+    {
+        SpvReflectDescriptorSet* reflDescriptorSet = reflDescriptorSets[i];
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+        VkDescriptorSetLayoutBinding* layoutBindings =
+            HLS_ALLOC(arena, VkDescriptorSetLayoutBinding,
+                      reflDescriptorSet->binding_count);
+        for (u32 j = 0; j < reflDescriptorSet->binding_count; j++)
+        {
+            SpvReflectDescriptorBinding* reflBinding =
+                reflDescriptorSet->bindings[j];
+            VkDescriptorSetLayoutBinding& layoutBinding = layoutBindings[j];
+            layoutBinding.binding = reflBinding->binding;
+            layoutBinding.descriptorType =
+                static_cast<VkDescriptorType>(reflBinding->descriptor_type);
+            layoutBinding.descriptorCount = 1;
+            for (u32 k = 0; k < reflBinding->array.dims_count; k++)
+            {
+                layoutBinding.descriptorCount *= reflBinding->array.dims[k];
+            }
+            layoutBinding.stageFlags =
+                static_cast<VkShaderStageFlagBits>(reflectModule.shader_stage);
+            layoutBinding.pImmutableSamplers = nullptr;
+        }
+
+        createInfo.bindingCount = reflDescriptorSet->binding_count;
+        createInfo.pBindings = layoutBindings;
+
+        if (vkCreateDescriptorSetLayout(
+                device.logicalDevice, &createInfo, nullptr,
+                &shaderModule.descriptorSets[i]) != VK_SUCCESS)
+        {
+            return false;
+        }
+    }
+
+    ArenaPopToMarker(arena, marker);
+
     return true;
 }
 
-void DestroyPipelineLayout(Device& device, VkPipelineLayout pipelineLayout)
+static bool
+CreatePipelineLayout(Arena& arena, Device& device,
+                     const GraphicsPipelineProgrammableStage& programmableState,
+                     VkPipelineLayout& pipelineLayout)
 {
-    vkDestroyPipelineLayout(device.logicalDevice, pipelineLayout, nullptr);
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    VkPipelineLayoutCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+    u32 totalDescriptorSetCount = 0;
+    for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
+    {
+        ShaderType shaderType = static_cast<ShaderType>(i);
+        totalDescriptorSetCount +=
+            programmableState[shaderType].descriptorSetCount;
+    }
+
+    VkDescriptorSetLayout* totalDescriptorSets = nullptr;
+    if (totalDescriptorSetCount > 0)
+    {
+
+        totalDescriptorSets =
+            HLS_ALLOC(arena, VkDescriptorSetLayout, totalDescriptorSetCount);
+        u32 k = 0;
+        for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
+        {
+            ShaderType shaderType = static_cast<ShaderType>(i);
+            for (u32 j = 0;
+                 j < programmableState[shaderType].descriptorSetCount; j++)
+            {
+                totalDescriptorSets[k++] =
+                    programmableState[shaderType].descriptorSets[j];
+            }
+        }
+    }
+
+    createInfo.setLayoutCount = totalDescriptorSetCount;
+    createInfo.pSetLayouts = totalDescriptorSets;
+    createInfo.pushConstantRangeCount = 0;
+    createInfo.pPushConstantRanges = nullptr;
+
+    VkResult res = vkCreatePipelineLayout(device.logicalDevice, &createInfo,
+                                          nullptr, &pipelineLayout);
+    ArenaPopToMarker(arena, marker);
+    return res == VK_SUCCESS;
 }
 
-bool CreateShaderModule(VkDevice device, const char* spvSource, u64 codeSize,
-                        VkShaderModule& shaderModule)
+static VkShaderStageFlagBits ShaderTypeToVkShaderStage(ShaderType shaderType)
+{
+    switch (shaderType)
+    {
+        case ShaderType::Vertex:
+        {
+            return VK_SHADER_STAGE_VERTEX_BIT;
+        }
+        case ShaderType::Fragment:
+        {
+            return VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
+        case ShaderType::Geometry:
+        {
+            return VK_SHADER_STAGE_GEOMETRY_BIT;
+        }
+        case ShaderType::Task:
+        {
+            return VK_SHADER_STAGE_TASK_BIT_EXT;
+        }
+        case ShaderType::Mesh:
+        {
+            return VK_SHADER_STAGE_MESH_BIT_EXT;
+        }
+        default:
+        {
+            HLS_ASSERT(false);
+            return static_cast<VkShaderStageFlagBits>(0);
+        }
+    }
+}
+
+bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
+                        u64 codeSize, ShaderModule& shaderModule)
 {
     HLS_ASSERT(spvSource);
     HLS_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
@@ -225,73 +369,134 @@ bool CreateShaderModule(VkDevice device, const char* spvSource, u64 codeSize,
     createInfo.codeSize = codeSize;
     createInfo.pCode = reinterpret_cast<const u32*>(spvSource);
 
-    return vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) ==
-           VK_SUCCESS;
+    if (vkCreateShaderModule(device.logicalDevice, &createInfo, nullptr,
+                             &shaderModule.handle) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    if (!CreateShaderModuleDescriptorSetLayouts(arena, device, spvSource,
+                                                codeSize, shaderModule))
+    {
+        return false;
+    }
+
+    return true;
 }
 
-void DestroyShaderModule(VkDevice device, VkShaderModule shaderModule)
+void DestroyShaderModule(Device& device, ShaderModule& shaderModule)
 {
-    vkDestroyShaderModule(device, shaderModule, nullptr);
+    for (u32 i = 0; i < shaderModule.descriptorSetCount; i++)
+    {
+        vkDestroyDescriptorSetLayout(device.logicalDevice,
+                                     shaderModule.descriptorSets[i], nullptr);
+        shaderModule.descriptorSets[i] = VK_NULL_HANDLE;
+    }
+    vkDestroyShaderModule(device.logicalDevice, shaderModule.handle, nullptr);
+    shaderModule.handle = VK_NULL_HANDLE;
+}
+
+void DestroyGraphicsPipelineProgrammableStage(
+    Device& device, GraphicsPipelineProgrammableStage& programmableStage)
+{
+    for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
+    {
+        ShaderType shaderType = static_cast<ShaderType>(i);
+
+        ShaderModule& shaderModule = programmableStage[shaderType];
+
+        if (shaderModule.handle != VK_NULL_HANDLE)
+        {
+            DestroyShaderModule(device, shaderModule);
+        }
+    }
 }
 
 bool CreateGraphicsPipeline(
-    Device& device,
-    const GraphicsPipelineFixedStateSettings& fixedStateSettings,
-    const VkPipelineShaderStageCreateInfo* stages, u32 stageCount,
-    VkPipelineLayout layout, VkPipeline& graphicsPipeline)
+    Arena& arena, Device& device,
+    const GraphicsPipelineFixedStateStage& fixedState,
+    const GraphicsPipelineProgrammableStage& programmableState,
+    GraphicsPipeline& graphicsPipeline)
 {
-    HLS_ASSERT(stages);
-    HLS_ASSERT(stageCount > 0);
-    HLS_ASSERT(fixedStateSettings.colorBlendState.attachmentCount ==
-               fixedStateSettings.pipelineRendering.colorAttachmentCount);
+    HLS_ASSERT(fixedState.colorBlendState.attachmentCount ==
+               fixedState.pipelineRendering.colorAttachmentCount);
 
+    // Programmable state
+    if (!CreatePipelineLayout(arena, device, programmableState,
+                              graphicsPipeline.layout))
+    {
+        return false;
+    }
+
+    u32 stageCount = 0;
+    VkPipelineShaderStageCreateInfo stages[ShaderType::Count];
+
+    for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
+    {
+        ShaderType shaderType = static_cast<ShaderType>(i);
+        VkShaderModule shaderModule = programmableState[shaderType].handle;
+        if (shaderModule == VK_NULL_HANDLE)
+        {
+            continue;
+        }
+        stages[stageCount].sType =
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[stageCount].pNext = nullptr;
+        stages[stageCount].flags = 0;
+        stages[stageCount].stage = ShaderTypeToVkShaderStage(shaderType);
+        stages[stageCount].module = shaderModule;
+        stages[stageCount].pName = "main";
+        stages[stageCount].pSpecializationInfo = nullptr;
+        stageCount++;
+    }
+    HLS_ASSERT(stageCount > 0);
+
+    // Fixed state
     VkPipelineViewportStateCreateInfo viewportState =
-        ViewportStateCreateInfo(fixedStateSettings.viewportState.viewportCount);
+        ViewportStateCreateInfo(fixedState.viewportState.viewportCount);
 
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
         InputAssemblyStateCreateInfo(
-            fixedStateSettings.inputAssemblyState.topology,
-            fixedStateSettings.inputAssemblyState.primitiveRestartEnable);
+            fixedState.inputAssemblyState.topology,
+            fixedState.inputAssemblyState.primitiveRestartEnable);
 
     VkPipelineVertexInputStateCreateInfo vertexInputState =
         VertexInputStateCreateInfo();
 
     VkPipelineColorBlendStateCreateInfo colorBlendState =
-        ColorBlendStateCreateInfo(
-            fixedStateSettings.colorBlendState.attachments,
-            fixedStateSettings.colorBlendState.attachmentCount,
-            fixedStateSettings.colorBlendState.flags,
-            fixedStateSettings.colorBlendState.blendConstants, 4);
+        ColorBlendStateCreateInfo(fixedState.colorBlendState.attachments,
+                                  fixedState.colorBlendState.attachmentCount,
+                                  fixedState.colorBlendState.flags,
+                                  fixedState.colorBlendState.blendConstants, 4);
 
     VkPipelineRasterizationStateCreateInfo rasterizationState =
         RasterizationStateCreateInfo(
-            fixedStateSettings.rasterizationState.polygonMode,
-            fixedStateSettings.rasterizationState.cullMode,
-            fixedStateSettings.rasterizationState.frontFace,
-            fixedStateSettings.rasterizationState.rasterizerDiscardEnable);
+            fixedState.rasterizationState.polygonMode,
+            fixedState.rasterizationState.cullMode,
+            fixedState.rasterizationState.frontFace,
+            fixedState.rasterizationState.rasterizerDiscardEnable);
 
     VkPipelineMultisampleStateCreateInfo multisampleState =
-        MultisampleStateCreateInfo(
-            fixedStateSettings.multisampleState.sampleCount);
+        MultisampleStateCreateInfo(fixedState.multisampleState.sampleCount);
 
     VkPipelineDepthStencilStateCreateInfo depthStencilState =
         DepthStencilStateCreateInfo(
-            fixedStateSettings.depthStencilState.depthTestEnable,
-            fixedStateSettings.depthStencilState.depthCompareOp,
-            fixedStateSettings.depthStencilState.depthWriteEnable,
-            fixedStateSettings.depthStencilState.stencilTestEnable,
-            fixedStateSettings.depthStencilState.stencilFront,
-            fixedStateSettings.depthStencilState.stencilBack);
+            fixedState.depthStencilState.depthTestEnable,
+            fixedState.depthStencilState.depthCompareOp,
+            fixedState.depthStencilState.depthWriteEnable,
+            fixedState.depthStencilState.stencilTestEnable,
+            fixedState.depthStencilState.stencilFront,
+            fixedState.depthStencilState.stencilBack);
 
     VkPipelineDynamicStateCreateInfo dynamicState = DynamicStateCreateInfo();
 
     // Vulkan 1.3 dynamic rendering is used so attachments are described here
     VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo =
         PipelineRenderingCreateInfo(
-            fixedStateSettings.pipelineRendering.colorAttachments,
-            fixedStateSettings.pipelineRendering.colorAttachmentCount,
-            fixedStateSettings.pipelineRendering.depthAttachmentFormat,
-            fixedStateSettings.pipelineRendering.stencilAttachmentFormat);
+            fixedState.pipelineRendering.colorAttachments,
+            fixedState.pipelineRendering.colorAttachmentCount,
+            fixedState.pipelineRendering.depthAttachmentFormat,
+            fixedState.pipelineRendering.stencilAttachmentFormat);
 
     VkGraphicsPipelineCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -312,7 +517,7 @@ bool CreateGraphicsPipeline(
 
     createInfo.pDynamicState = &dynamicState;
 
-    createInfo.layout = layout;
+    createInfo.layout = graphicsPipeline.layout;
     createInfo.renderPass = nullptr;  // using dynamic rendering vulkan 1.3+
     createInfo.subpass = 0;           // using dynamic rendering vulkan 1.3+
     createInfo.basePipelineIndex = 0; // not used
@@ -320,7 +525,7 @@ bool CreateGraphicsPipeline(
 
     if (vkCreateGraphicsPipelines(device.logicalDevice, VK_NULL_HANDLE, 1,
                                   &createInfo, nullptr,
-                                  &graphicsPipeline) != VK_SUCCESS)
+                                  &graphicsPipeline.handle) != VK_SUCCESS)
     {
         return false;
     }
@@ -328,9 +533,13 @@ bool CreateGraphicsPipeline(
     return true;
 }
 
-void DestroyGraphicsPipeline(Device& device, VkPipeline graphicsPipeline)
+void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 {
-    vkDestroyPipeline(device.logicalDevice, graphicsPipeline, nullptr);
+    vkDestroyPipeline(device.logicalDevice, graphicsPipeline.handle, nullptr);
+    vkDestroyPipelineLayout(device.logicalDevice, graphicsPipeline.layout,
+                            nullptr);
+    graphicsPipeline.handle = VK_NULL_HANDLE;
+    graphicsPipeline.layout = VK_NULL_HANDLE;
 }
 
 } // namespace Hls
