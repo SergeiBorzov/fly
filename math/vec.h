@@ -30,10 +30,30 @@ struct Vec2
     explicit Vec2(const Vec3& vec3);
     explicit Vec2(const Vec4& vec4);
 
-    inline Vec2& operator+=(Vec2 rhs) { return Vec2(x + rhs.x, y + rhs.y); }
-    inline Vec2& operator-=(Vec2 rhs) { return Vec2(x - rhs.x, y - rhs.y); }
-    inline Vec2& operator*=(Vec2 rhs) { return Vec2(x * rhs.x, y * rhs.y); }
-    inline Vec2& operator/=(Vec2 rhs) { return Vec2(x / rhs.x, y / rhs.y); }
+    inline Vec2& operator+=(Vec2 rhs)
+    {
+        x += rhs.x;
+        y += rhs.y;
+        return *this;
+    }
+    inline Vec2& operator-=(Vec2 rhs)
+    {
+        x -= rhs.x;
+        y -= rhs.y;
+        return *this;
+    }
+    inline Vec2& operator*=(Vec2 rhs)
+    {
+        x *= rhs.x;
+        y *= rhs.y;
+        return *this;
+    }
+    inline Vec2& operator/=(Vec2 rhs)
+    {
+        x /= rhs.x;
+        y /= rhs.y;
+        return *this;
+    }
 
     inline f32& operator[](i32 i)
     {
@@ -74,19 +94,31 @@ struct Vec3
 
     inline Vec3& operator+=(Vec3 rhs)
     {
-        return Vec3(x + rhs.x, y + rhs.y, z + rhs.z);
+        x += rhs.x;
+        y += rhs.y;
+        z += rhs.z;
+        return *this;
     }
     inline Vec3& operator-=(Vec3 rhs)
     {
-        return Vec3(x - rhs.x, y - rhs.y, z - rhs.z);
+        x -= rhs.x;
+        y -= rhs.y;
+        z -= rhs.z;
+        return *this;
     }
     inline Vec3& operator*=(Vec3 rhs)
     {
-        return Vec3(x * rhs.x, y * rhs.y, z * rhs.z);
+        x *= rhs.x;
+        y *= rhs.y;
+        z *= rhs.z;
+        return *this;
     }
     inline Vec3& operator/=(Vec3 rhs)
     {
-        return Vec3(x / rhs.x, y / rhs.y, z / rhs.z);
+        x /= rhs.x;
+        y /= rhs.y;
+        z /= rhs.z;
+        return *this;
     }
 
     inline f32& operator[](i32 i)
@@ -145,19 +177,35 @@ struct Vec4
 
     inline Vec4& operator+=(Vec4 rhs)
     {
-        return Vec4(x + rhs.x, y + rhs.y, z + rhs.z, w + rhs.w);
+        x += rhs.x;
+        y += rhs.y;
+        z += rhs.z;
+        w += rhs.w;
+        return *this;
     }
     inline Vec4& operator-=(Vec4 rhs)
     {
-        return Vec4(x - rhs.x, y - rhs.y, z - rhs.z, w - rhs.w);
+        x -= rhs.x;
+        y -= rhs.y;
+        z -= rhs.z;
+        w -= rhs.w;
+        return *this;
     }
     inline Vec4& operator*=(Vec4 rhs)
     {
-        return Vec4(x * rhs.x, y * rhs.y, z * rhs.z, w * rhs.w);
+        x *= rhs.x;
+        y *= rhs.y;
+        z *= rhs.z;
+        w *= rhs.w;
+        return *this;
     }
     inline Vec4& operator/=(Vec4 rhs)
     {
-        return Vec4(x / rhs.x, y / rhs.y, z / rhs.z, w / rhs.w);
+        x /= rhs.x;
+        y /= rhs.y;
+        z /= rhs.z;
+        w /= rhs.w;
+        return *this;
     }
 
     inline f32& operator[](i32 i)
