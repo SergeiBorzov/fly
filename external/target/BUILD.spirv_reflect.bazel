@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "spirv_reflect",
+    hdrs = [
+        "spirv_reflect.h",
+    ],
+    srcs = [
+        "spirv_reflect.c",
+    ],
+    deps = [
+        "@spirv_headers//:spirv_c_headers",
+    ],
+    defines = [
+        "SPIRV_REFLECT_USE_SYSTEM_SPIRV_H",
+    ],
+    visibility = ["//visibility:public"]
+)

@@ -103,6 +103,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "glslang")
 
 external_git_repository.base(
+    name = "spirv_reflect",
+    build_file = "//external/target:BUILD.spirv_reflect.bazel",
+    commit = "281b55edb67b1f2e61e1dc92fdc42a650da05d83",
+    remote = "https://github.com/KhronosGroup/SPIRV-Reflect.git",
+)
+use_repo(external_git_repository, "spirv_reflect")
+
+external_git_repository.base(
     name = "optparse",
     build_file = "//external/target:BUILD.optparse.bazel",
     commit = "a86877ed301d89a4eb64feb08f23af395aede2ed",
