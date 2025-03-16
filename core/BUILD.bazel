@@ -110,10 +110,26 @@ cc_library(
 )
 
 cc_library(
+    name = "clock",
+    hdrs = [
+        "clock.h",
+    ],
+    srcs = [
+        "clock.cpp",
+    ],
+    deps = [
+        ":types",
+        ":platform",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "core",
     deps = [
         ":filesystem",
         ":log",
+        ":clock",
     ],
     visibility = ["//visibility:public"],
 )
