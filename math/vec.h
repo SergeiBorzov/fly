@@ -89,7 +89,7 @@ struct Vec3
     inline Vec3(f32 v = 0.0f) : x(v), y(v), z(v) {}
     inline Vec3(f32 inX, f32 inY, f32 inZ) : x(inX), y(inY), z(inZ) {}
     inline Vec3(Vec2 xy, f32 inZ) : x(xy.x), y(xy.y), z(inZ) {}
-    inline Vec3(f32 inX, Vec3 yz) : x(inX), y(yz.y), z(yz.z) {}
+    inline Vec3(f32 inX, Vec2 yz) : x(inX), y(yz.x), z(yz.y) {}
     inline explicit Vec3(const Vec4& vec4);
 
     inline Vec3& operator+=(Vec3 rhs)
@@ -143,7 +143,7 @@ inline Vec3 operator-(Vec3 a, Vec3 b)
 }
 inline Vec3 operator*(Vec3 a, Vec3 b)
 {
-    return Vec3(a.x - b.x, a.y - b.y, a.z - b.z);
+    return Vec3(a.x * b.x, a.y * b.y, a.z * b.z);
 }
 inline Vec3 operator/(Vec3 a, Vec3 b)
 {

@@ -1,0 +1,118 @@
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include "math/vec.h"
+
+using namespace Hls::Math;
+
+TEST(Vec3, Constructors)
+{
+    Vec3 zeroVector;
+    EXPECT_FLOAT_EQ(0.0f, zeroVector.x);
+    EXPECT_FLOAT_EQ(0.0f, zeroVector.y);
+    EXPECT_FLOAT_EQ(0.0f, zeroVector.z);
+
+    Vec3 singleValueVector(12345.0f);
+    EXPECT_FLOAT_EQ(12345.0f, singleValueVector.x);
+    EXPECT_FLOAT_EQ(12345.0f, singleValueVector.y);
+    EXPECT_FLOAT_EQ(12345.0f, singleValueVector.z);
+
+    Vec3 a({1.0f, 2.0f}, 3.0f);
+    EXPECT_FLOAT_EQ(1.0f, a.x);
+    EXPECT_FLOAT_EQ(2.0f, a.y);
+    EXPECT_FLOAT_EQ(3.0f, a.z);
+
+    Vec3 b(4.0f, {5.0f, 6.0f});
+    EXPECT_FLOAT_EQ(4.0f, b.x);
+    EXPECT_FLOAT_EQ(5.0f, b.y);
+    EXPECT_FLOAT_EQ(6.0f, b.z);
+
+    Vec3 c(-1.0f, 1.0f, -1.0f);
+    EXPECT_FLOAT_EQ(-1.0f, c.x);
+    EXPECT_FLOAT_EQ(1.0f, c.y);
+    EXPECT_FLOAT_EQ(-1.0f, c.z);
+
+    Vec3 d = Vec3(Vec4(4.0f, 3.0f, 2.0f, 1.0f));
+    EXPECT_FLOAT_EQ(4.0f, d.x);
+    EXPECT_FLOAT_EQ(3.0f, d.y);
+    EXPECT_FLOAT_EQ(2.0f, d.z);
+}
+
+TEST(Vec3, Add)
+{
+    Vec3 a = {1.0f, 2.0f, 3.0f};
+    Vec3 b = {2.0f, 1.0f, 3.0f};
+    Vec3 c = a + b;
+    EXPECT_FLOAT_EQ(3.0f, c.x);
+    EXPECT_FLOAT_EQ(3.0f, c.y);
+    EXPECT_FLOAT_EQ(6.0f, c.z);
+
+    a += b;
+    EXPECT_FLOAT_EQ(3.0f, a.x);
+    EXPECT_FLOAT_EQ(3.0f, a.y);
+    EXPECT_FLOAT_EQ(6.0f, c.z);
+}
+
+TEST(Vec3, Subtract)
+{
+    Vec3 a = {1.0f, 2.0f, 4.0f};
+    Vec3 b = {3.0f, 4.0f, 2.0f};
+    Vec3 c = b - a;
+    EXPECT_FLOAT_EQ(2.0f, c.x);
+    EXPECT_FLOAT_EQ(2.0f, c.y);
+    EXPECT_FLOAT_EQ(-2.0f, c.z);
+
+    c -= c;
+    EXPECT_FLOAT_EQ(0.0f, c.x);
+    EXPECT_FLOAT_EQ(0.0f, c.y);
+    EXPECT_FLOAT_EQ(0.0f, c.z);
+}
+
+TEST(Vec3, Multiply)
+{
+    Vec3 a = {2.0f, 0.0f, 4.0f};
+    Vec3 b = {9.0f, 127.0f, 0.5f};
+    Vec3 c = a * b;
+    EXPECT_FLOAT_EQ(18.0f, c.x);
+    EXPECT_FLOAT_EQ(0.0f, c.y);
+    EXPECT_FLOAT_EQ(2.0f, c.z);
+
+    c *= c;
+    EXPECT_FLOAT_EQ(324.0f, c.x);
+    EXPECT_FLOAT_EQ(0.0f, c.y);
+    EXPECT_FLOAT_EQ(4.0f, c.z);
+}
+
+TEST(Vec3, Divide)
+{
+    Vec3 a = {8.0f, 4.0f, 0.5f};
+    Vec3 b = {2.0f, 0.5f, 0.25f};
+    Vec3 c = a / b;
+    EXPECT_FLOAT_EQ(4.0f, c.x);
+    EXPECT_FLOAT_EQ(8.0f, c.y);
+    EXPECT_FLOAT_EQ(2.0f, c.z);
+
+    c /= c;
+    EXPECT_FLOAT_EQ(1.0f, c.x);
+    EXPECT_FLOAT_EQ(1.0f, c.y);
+    EXPECT_FLOAT_EQ(1.0f, c.z);
+}
+
+TEST(Vec3, Subscript)
+{
+    Vec3 a = {1.0f, 2.0f, 3.0f};
+    EXPECT_FLOAT_EQ(a.x, a[0]);
+    EXPECT_FLOAT_EQ(a.y, a[1]);
+    EXPECT_FLOAT_EQ(a.z, a[2]);
+}
+
+TEST(Vec3, Dot)
+{
+    Vec3 a = {3.0f, -6.0f, 1.0f};
+    Vec3 b = {6.0f, 3.0f, -1.0f};
+    Vec3 c = {1.0f, 1.0f, 2.0f};
+
+    EXPECT_FLOAT_EQ(-1.0f, Dot(a, b));
+    EXPECT_FLOAT_EQ(-1.0f, Dot(a, c));
+    EXPECT_FLOAT_EQ(7.0f, Dot(b, c));
+}
