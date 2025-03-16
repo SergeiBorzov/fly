@@ -18,6 +18,22 @@ inline f32 Radians(f32 degrees) { return degrees / 180.0f * HLS_MATH_PI; }
 f32 Sin(f32 radians);
 f32 Cos(f32 radians);
 
+void SetRandomSeed(u32 seed);
+u32 Rand();
+
+i8 RandomI8(i8 min, i8 max);
+i16 RandomI16(i16 min, i16 max);
+i32 RandomI32(i32 min, i32 max);
+i64 RandomI64(i64 min, i64 max);
+
+u8 RandomU8(u8 min, u8 max);
+u16 RandomU16(u16 min, u16 max);
+u32 RandomU32(u32 min, u32 max);
+u64 RandomU64(u64 min, u64 max);
+
+f32 RandomF32(f32 min, f32 max);
+f64 RandomF64(f64 min, f64 max);
+
 } // namespace Math
 } // namespace Hls
 

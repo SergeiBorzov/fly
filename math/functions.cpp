@@ -1,7 +1,10 @@
 #include "functions.h"
+#include "core/assert.h"
 
 #define LUT_TABLE_SIZE 1024
 #define LUT_VALUE_SCALE LUT_TABLE_SIZE / HLS_MATH_TWO_PI
+
+thread_local u32 stSeed = 2025;
 
 static alignas(64) const f32 sSinTable[1024] = {
     0.000000f,  0.006136f,  0.012272f,  0.018407f,  0.024541f,  0.030675f,
@@ -197,7 +200,89 @@ f32 Sin(f32 radians)
 
 f32 Cos(f32 radians)
 {
-    return Sin(radians + HLS_MATH_HALF_PI);
+    radians += HLS_MATH_HALF_PI;
+    f32 norm =
+        radians - static_cast<i32>(radians / HLS_MATH_TWO_PI) * HLS_MATH_TWO_PI;
+    norm += (norm < 0.0f) * (HLS_MATH_TWO_PI);
+
+    f32 index = LUT_VALUE_SCALE * norm;
+    i32 i0 = static_cast<i32>(index) % LUT_TABLE_SIZE;
+    i32 i1 = (i0 + 1) % LUT_TABLE_SIZE;
+
+    f32 t = index - i0;
+    return (1 - t) * sSinTable[i0] + t * sSinTable[i1];
+}
+
+void SetRandomSeed(u32 seed) { stSeed = seed; }
+
+u32 Rand()
+{
+    // xorshift32
+    u32 x = stSeed;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return stSeed = x;
+}
+
+i8 RandomI8(i8 min, i8 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+i16 RandomI16(i16 min, i16 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+i32 RandomI32(i32 min, i32 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+i64 RandomI64(i64 min, i64 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+u8 RandomU8(u8 min, u8 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+u16 RandomU16(u16 min, u16 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+u32 RandomU32(u32 min, u32 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+u64 RandomU64(u64 min, u64 max)
+{
+    HLS_ASSERT(min <= max);
+    return Rand() % (max - min + 1) + min;
+}
+
+f32 RandomF32(f32 min, f32 max)
+{
+    HLS_ASSERT(min <= max);
+    return (max - min) * (static_cast<f32>(Rand()) / 0xFFFFFFFFu) + min;
+}
+
+f64 RandomF64(f64 min, f64 max)
+{
+    HLS_ASSERT(min <= max);
+    return (max - min) * (static_cast<f32>(Rand()) / 0xFFFFFFFFu) + min;
 }
 
 } // namespace Math
