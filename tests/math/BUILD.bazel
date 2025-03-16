@@ -38,3 +38,16 @@ cc_test(
         "//math:math",
     ],
 )
+
+cc_test(
+    name = "test_functions",
+    size = "small",
+    srcs = [
+        "test_functions.cpp",
+    ],
+    deps = [
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "//math:math",
+    ]
+)

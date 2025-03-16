@@ -4,6 +4,10 @@ cc_library(
     name = "math",
     hdrs = [
         "vec.h",
+        "functions.h",
+    ],
+    srcs = [
+        "functions.cpp",
     ],
     deps = [
         "//core:assert",
