@@ -25,3 +25,16 @@ cc_test(
         "//math:math",
     ],
 )
+
+cc_test(
+    name = "test_vec4",
+    size = "small",
+    srcs = [
+        "test_vec4.cpp",
+    ],
+    deps = [
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "//math:math",
+    ],
+)

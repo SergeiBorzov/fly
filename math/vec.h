@@ -172,6 +172,7 @@ struct Vec4
     inline Vec4(Vec2 xy, f32 inZ, f32 inW) : x(xy.x), y(xy.y), z(inZ), w(inW) {}
     inline Vec4(f32 inX, Vec2 yz, f32 inW) : x(inX), y(yz.x), z(yz.y), w(inW) {}
     inline Vec4(f32 inX, f32 inY, Vec2 zw) : x(inX), y(inY), z(zw.x), w(zw.y) {}
+    inline Vec4(Vec2 xy, Vec2 zw) : x(xy.x), y(xy.y), z(zw.x), w(zw.y) {}
     inline Vec4(Vec3 xyz, f32 inW) : x(xyz.x), y(xyz.y), z(xyz.z), w(inW) {}
     inline Vec4(f32 inX, Vec3 yzw) : x(inX), y(yzw.x), z(yzw.y), w(yzw.z) {}
 
@@ -222,7 +223,7 @@ struct Vec4
 
 inline Vec4 operator+(Vec4 a, Vec4 b)
 {
-    return Vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.z);
+    return Vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
 }
 inline Vec4 operator-(Vec4 a, Vec4 b)
 {
