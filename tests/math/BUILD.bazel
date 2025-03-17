@@ -40,6 +40,19 @@ cc_test(
 )
 
 cc_test(
+    name = "test_mat4",
+    size = "small",
+    srcs = [
+        "test_mat4.cpp",
+    ],
+    deps = [
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "//math:math",
+    ],
+)
+
+cc_test(
     name = "test_functions",
     size = "small",
     srcs = [

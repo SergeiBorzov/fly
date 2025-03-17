@@ -37,4 +37,4 @@ f64 RandomF64(f64 min, f64 max);
 } // namespace Math
 } // namespace Hls
 
-#endif /* End of HLS_MATH_MATH_H */
+#endif /* HLS_MATH_MATH_H */

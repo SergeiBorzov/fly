@@ -4,9 +4,11 @@ cc_library(
     name = "math",
     hdrs = [
         "vec.h",
+        "mat.h",
         "functions.h",
     ],
     srcs = [
+        "mat.cpp",
         "functions.cpp",
     ],
     deps = [
