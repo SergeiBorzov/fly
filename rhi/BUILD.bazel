@@ -6,12 +6,14 @@ cc_library(
         "context.h",
         "command_buffer.h",
         "pipeline.h",
+        "buffer.h",
         "utils.h",
     ],
     srcs = [
         "context.cpp",
         "command_buffer.cpp",
         "pipeline.cpp",
+        "buffer.cpp",
         "utils.cpp",
     ],
     deps = [
