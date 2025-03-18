@@ -1287,6 +1287,31 @@ static void DestroyCommandPools(Context& context)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+// Descriptor Pool
+/////////////////////////////////////////////////////////////////////////////
+bool CreateDescriptorPool(Device& device)
+{
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = 8;
+
+    VkDescriptorPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    createInfo.poolSizeCount = 1;
+    createInfo.pPoolSizes = &poolSize;
+    createInfo.maxSets = 8;
+
+    return vkCreateDescriptorPool(device.logicalDevice, &createInfo, nullptr,
+                                  &device.descriptorPool) == VK_SUCCESS;
+}
+
+void DestroyDescriptorPool(Device& device)
+{
+    vkDestroyDescriptorPool(device.logicalDevice, device.descriptorPool,
+                            nullptr);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // Context
 /////////////////////////////////////////////////////////////////////////////
 bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
@@ -1332,9 +1357,13 @@ bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
         return false;
     }
 
-    if (context.windowPtr)
+    for (u32 i = 0; i < context.deviceCount; i++)
     {
-        for (u32 i = 0; i < context.deviceCount; i++)
+        if (!CreateDescriptorPool(context.devices[i]))
+        {
+            return false;
+        }
+        if (context.windowPtr)
         {
             if (!CreateSwapchain(context, context.devices[i]))
             {
@@ -1468,12 +1497,13 @@ void WaitAllDevicesIdle(Context& context)
 }
 void DestroyContext(Context& context)
 {
-    if (context.windowPtr)
+    for (u32 i = 0; i < context.deviceCount; i++)
     {
-        for (u32 i = 0; i < context.deviceCount; i++)
+        if (context.windowPtr)
         {
             DestroySwapchain(context, context.devices[i]);
         }
+        DestroyDescriptorPool(context.devices[i]);
     }
     DestroyCommandPools(context);
     DestroyVmaAllocators(context);

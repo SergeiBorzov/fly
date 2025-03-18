@@ -55,11 +55,11 @@ typedef bool (*DeterminePresentModeFn)(const Context&,
 
 struct FrameData
 {
-    VkCommandPool commandPool;
     CommandBuffer commandBuffer;
-    VkSemaphore swapchainSemaphore;
-    VkSemaphore renderSemaphore;
-    VkFence renderFence;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkSemaphore swapchainSemaphore = VK_NULL_HANDLE;
+    VkSemaphore renderSemaphore = VK_NULL_HANDLE;
+    VkFence renderFence = VK_NULL_HANDLE;
 };
 
 struct Device
@@ -76,6 +76,7 @@ struct Device
     VkQueue graphicsComputeQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
     u32 swapchainImageCount = 0;
     u32 swapchainImageIndex = 0;
