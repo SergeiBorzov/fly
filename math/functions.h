@@ -15,8 +15,12 @@ namespace Math
 inline f32 Degrees(f32 radians) { return radians / HLS_MATH_PI * 180.0f; }
 inline f32 Radians(f32 degrees) { return degrees / 180.0f * HLS_MATH_PI; }
 
+f32 Sqrt(f32 value);
+f32 InvSqrt(f32 value);
+
 f32 Sin(f32 radians);
 f32 Cos(f32 radians);
+f32 Tan(f32 radians);
 
 void SetRandomSeed(u32 seed);
 u32 Rand();

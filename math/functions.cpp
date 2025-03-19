@@ -1,5 +1,6 @@
 #include "functions.h"
 #include "core/assert.h"
+#include <math.h>
 
 #define LUT_TABLE_SIZE 1024
 #define LUT_VALUE_SCALE LUT_TABLE_SIZE / HLS_MATH_TWO_PI
@@ -184,6 +185,10 @@ namespace Hls
 namespace Math
 {
 
+f32 Sqrt(f32 value) { return sqrtf(value); }
+
+f32 InvSqrt(f32 value) { return 1.0f / sqrtf(value); }
+
 f32 Sin(f32 radians)
 {
     f32 norm =
@@ -212,6 +217,8 @@ f32 Cos(f32 radians)
     f32 t = index - i0;
     return (1 - t) * sSinTable[i0] + t * sSinTable[i1];
 }
+
+f32 Tan(f32 radians) { return tanf(radians); }
 
 void SetRandomSeed(u32 seed) { stSeed = seed; }
 

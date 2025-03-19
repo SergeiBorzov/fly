@@ -1,4 +1,5 @@
 #include "mat.h"
+#include "functions.h"
 
 namespace Hls
 {
@@ -97,7 +98,7 @@ Mat4 operator*(const Mat4& lhs, const Mat4& rhs)
     return result;
 }
 
-Vec4 operator*(const Mat4& lhs, const Vec4& rhs)
+Vec4 operator*(const Mat4& lhs, Vec4 rhs)
 {
     Vec4 res;
     for (i32 r = 0; r < 4; r++)
@@ -109,6 +110,52 @@ Vec4 operator*(const Mat4& lhs, const Vec4& rhs)
         }
         res.data[r] = sum;
     }
+    return res;
+}
+
+Mat4 Perspective(f32 fovy_degrees, f32 aspect, float near, float far)
+{
+    Mat4 res(0.0f);
+
+    f32 htan = Tan(Radians(fovy_degrees) * 0.5f);
+    f32 f = 1.0f / htan;
+    f32 a = far / (far - near);
+
+    res.data[0] = f / aspect;
+    res.data[5] = -f;
+    res.data[10] = a;
+    res.data[11] = 1.0f;
+    res.data[14] = -near * a;
+
+    return res;
+}
+
+Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
+{
+    Mat4 res(0.0f);
+
+    Vec3 z = Normalize(eye - target);
+    Vec3 y = worldUp;
+    Vec3 x = Normalize(Cross(y, z));
+    y = Normalize(Cross(z, x));
+
+    res.data[0] = x.x;
+    res.data[1] = y.x;
+    res.data[2] = z.x;
+
+    res.data[4] = x.y;
+    res.data[5] = y.y;
+    res.data[6] = z.y;
+
+    res.data[8] = x.z;
+    res.data[9] = y.z;
+    res.data[10] = z.z;
+
+    res.data[12] = -Dot(x, target);
+    res.data[13] = -Dot(y, target);
+    res.data[14] = -Dot(z, target);
+    res.data[15] = 1.0f;
+
     return res;
 }
 

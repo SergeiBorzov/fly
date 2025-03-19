@@ -2,6 +2,7 @@
 #define HLS_MATH_VEC_H
 
 #include "core/assert.h"
+#include "functions.h"
 
 namespace Hls
 {
@@ -55,12 +56,24 @@ struct Vec2
         return *this;
     }
 
+    inline Vec2& operator*=(f32 rhs)
+    {
+        x *= rhs;
+        y *= rhs;
+        return *this;
+    }
+    inline Vec2& operator/=(f32 rhs)
+    {
+        x /= rhs;
+        y /= rhs;
+        return *this;
+    }
+
     inline f32& operator[](i32 i)
     {
         HLS_ASSERT(i >= 0 && i < 2);
         return data[i];
     }
-
     inline const f32& operator[](i32 i) const
     {
         HLS_ASSERT(i >= 0 && i < 2);
@@ -72,6 +85,10 @@ inline Vec2 operator+(Vec2 a, Vec2 b) { return Vec2(a.x + b.x, a.y + b.y); }
 inline Vec2 operator-(Vec2 a, Vec2 b) { return Vec2(a.x - b.x, a.y - b.y); }
 inline Vec2 operator*(Vec2 a, Vec2 b) { return Vec2(a.x * b.x, a.y * b.y); }
 inline Vec2 operator/(Vec2 a, Vec2 b) { return Vec2(a.x / b.x, a.y / b.y); }
+
+inline Vec2 operator*(Vec2 a, f32 b) { return Vec2(a.x * b, a.y * b); }
+inline Vec2 operator*(f32 a, Vec2 b) { return Vec2(a * b.x, a * b.y); }
+inline Vec2 operator/(Vec2 a, f32 b) { return Vec2(a.x / b, a.y / b); }
 
 struct Vec3
 {
@@ -121,6 +138,21 @@ struct Vec3
         return *this;
     }
 
+    inline Vec3& operator*=(f32 rhs)
+    {
+        x *= rhs;
+        y *= rhs;
+        z *= rhs;
+        return *this;
+    }
+    inline Vec3& operator/=(f32 rhs)
+    {
+        x /= rhs;
+        y /= rhs;
+        z /= rhs;
+        return *this;
+    }
+
     inline f32& operator[](i32 i)
     {
         HLS_ASSERT(i >= 0 && i < 3);
@@ -149,6 +181,10 @@ inline Vec3 operator/(Vec3 a, Vec3 b)
 {
     return Vec3(a.x / b.x, a.y / b.y, a.z / b.z);
 }
+
+inline Vec3 operator*(Vec3 a, f32 b) { return Vec3(a.x * b, a.y * b, a.z * b); }
+inline Vec3 operator*(f32 a, Vec3 b) { return Vec3(a * b.x, a * b.y, a * b.z); }
+inline Vec3 operator/(Vec3 a, f32 b) { return Vec3(a.x / b, a.y / b, a.z / b); }
 
 struct Vec4
 {
@@ -209,6 +245,23 @@ struct Vec4
         return *this;
     }
 
+    inline Vec4& operator*=(f32 rhs)
+    {
+        x *= rhs;
+        y *= rhs;
+        z *= rhs;
+        w *= rhs;
+        return *this;
+    }
+    inline Vec4& operator/=(f32 rhs)
+    {
+        x /= rhs;
+        y /= rhs;
+        z /= rhs;
+        w /= rhs;
+        return *this;
+    }
+
     inline f32& operator[](i32 i)
     {
         HLS_ASSERT(i >= 0 && i < 4);
@@ -238,15 +291,66 @@ inline Vec4 operator/(Vec4 a, Vec4 b)
     return Vec4(a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w);
 }
 
+inline Vec4 operator*(Vec4 a, f32 b)
+{
+    return Vec4(a.x * b, a.y * b, a.z * b, a.w * b);
+}
+inline Vec4 operator*(f32 a, Vec4 b)
+{
+    return Vec4(a * b.x, a * b.y, a * b.z, a * b.w);
+}
+inline Vec4 operator/(Vec4 a, f32 b)
+{
+    return Vec4(a.x / b, a.y / b, a.z / b, a.w / b);
+}
+
 inline Vec2::Vec2(const Vec3& vec3) : x(vec3.x), y(vec3.y) {}
 inline Vec2::Vec2(const Vec4& vec4) : x(vec4.x), y(vec4.y) {}
 inline Vec3::Vec3(const Vec4& vec4) : x(vec4.x), y(vec4.y), z(vec4.z) {}
+
+inline f32 LengthSqr(Vec2 v) { return v.x * v.x + v.y * v.y; }
+inline f32 LengthSqr(Vec3 v) { return v.x * v.x + v.y * v.y + v.z * v.z; }
+inline f32 LengthSqr(Vec4 v)
+{
+    return v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w;
+}
+
+inline f32 Length(Vec2 v) { return Sqrt(v.x * v.x + v.y * v.y); }
+inline f32 Length(Vec3 v) { return Sqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
+inline f32 Length(Vec4 v)
+{
+    return Sqrt(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
+}
+
+inline Vec2 Normalize(Vec2 v)
+{
+    f32 invLength = InvSqrt(v.x * v.x + v.y * v.y);
+    return invLength * v;
+}
+
+inline Vec3 Normalize(Vec3 v)
+{
+    f32 invLength = InvSqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    return invLength * v;
+}
+
+inline Vec4 Normalize(Vec4 v)
+{
+    f32 invLength = InvSqrt(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
+    return invLength * v;
+}
 
 inline f32 Dot(Vec2 a, Vec2 b) { return a.x * b.x + a.y * b.y; }
 inline f32 Dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 inline f32 Dot(Vec4 a, Vec4 b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+inline Vec3 Cross(Vec3 a, Vec3 b)
+{
+    return Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z,
+                a.x * b.y - a.y * b.x);
 }
 
 } // namespace Math

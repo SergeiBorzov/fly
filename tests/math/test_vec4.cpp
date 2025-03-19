@@ -111,6 +111,24 @@ TEST(Vec4, Multiply)
     EXPECT_FLOAT_EQ(0.0f, c.y);
     EXPECT_FLOAT_EQ(4.0f, c.z);
     EXPECT_FLOAT_EQ(4.0f, c.w);
+
+    a *= 3.0f;
+    EXPECT_FLOAT_EQ(6.0f, a.x);
+    EXPECT_FLOAT_EQ(0.0f, a.y);
+    EXPECT_FLOAT_EQ(12.0f, a.z);
+    EXPECT_FLOAT_EQ(6.0f, a.w);
+
+    Vec4 d = 3.0f * a;
+    EXPECT_FLOAT_EQ(18.0f, d.x);
+    EXPECT_FLOAT_EQ(0.0f, d.y);
+    EXPECT_FLOAT_EQ(36.0f, d.z);
+    EXPECT_FLOAT_EQ(18.0f, d.w);
+
+    d = d * 0.5f;
+    EXPECT_FLOAT_EQ(9.0f, d.x);
+    EXPECT_FLOAT_EQ(0.0f, d.y);
+    EXPECT_FLOAT_EQ(18.0f, d.z);
+    EXPECT_FLOAT_EQ(9.0f, d.w);
 }
 
 TEST(Vec4, Divide)
@@ -128,6 +146,18 @@ TEST(Vec4, Divide)
     EXPECT_FLOAT_EQ(1.0f, c.y);
     EXPECT_FLOAT_EQ(1.0f, c.z);
     EXPECT_FLOAT_EQ(1.0f, c.w);
+
+    a /= 2.0f;
+    EXPECT_FLOAT_EQ(4.0f, a.x);
+    EXPECT_FLOAT_EQ(2.0f, a.y);
+    EXPECT_FLOAT_EQ(0.25f, a.z);
+    EXPECT_FLOAT_EQ(0.5f, a.w);
+
+    Vec4 d = a / 2.0f;
+    EXPECT_FLOAT_EQ(2.0f, d.x);
+    EXPECT_FLOAT_EQ(1.0f, d.y);
+    EXPECT_FLOAT_EQ(0.125f, d.z);
+    EXPECT_FLOAT_EQ(0.25f, d.w);
 }
 
 TEST(Vec4, Subscript)
@@ -148,4 +178,30 @@ TEST(Vec4, Dot)
     EXPECT_FLOAT_EQ(-1.0f, Dot(a, b));
     EXPECT_FLOAT_EQ(-1.0f, Dot(a, c));
     EXPECT_FLOAT_EQ(12.0f, Dot(b, c));
+}
+
+TEST(Vec4, Length)
+{
+    Vec4 a(23.0f, 0.0f, 0.0f, 0.0f);
+    EXPECT_FLOAT_EQ(23.0f, Length(a));
+    EXPECT_FLOAT_EQ(23.0f * 23.0f, LengthSqr(a));
+
+    Vec4 b(1.0f, 4.0f, 4.0f, 4.0f);
+    EXPECT_FLOAT_EQ(7.0f, Length(b));
+    EXPECT_FLOAT_EQ(49.0f, LengthSqr(b));
+}
+
+TEST(Vec4, Normalize)
+{
+    Vec4 a = Normalize(Vec4(23.0f, 0.0f, 0.0f, 0.0f));
+    EXPECT_FLOAT_EQ(1.0f, a.x);
+    EXPECT_FLOAT_EQ(0.0f, a.y);
+    EXPECT_FLOAT_EQ(0.0f, a.z);
+    EXPECT_FLOAT_EQ(0.0f, a.w);
+
+    Vec4 b = Normalize(Vec4(1.0f, 4.0f, 4.0f, 4.0f));
+    EXPECT_FLOAT_EQ(1.0f / 7.0f, b.x);
+    EXPECT_FLOAT_EQ(4.0f / 7.0f, b.y);
+    EXPECT_FLOAT_EQ(4.0f / 7.0f, b.z);
+    EXPECT_FLOAT_EQ(4.0f / 7.0f, b.w);
 }
