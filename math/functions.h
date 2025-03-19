@@ -3,6 +3,7 @@
 
 #include "core/types.h"
 
+#define HLS_MATH_EPSILON 1e-5
 #define HLS_MATH_PI (3.1415926f)
 #define HLS_MATH_TWO_PI (6.2831853f)
 #define HLS_MATH_HALF_PI (1.5707963f)
@@ -15,6 +16,7 @@ namespace Math
 inline f32 Degrees(f32 radians) { return radians / HLS_MATH_PI * 180.0f; }
 inline f32 Radians(f32 degrees) { return degrees / 180.0f * HLS_MATH_PI; }
 
+f32 Abs(f32 value);
 f32 Sqrt(f32 value);
 f32 InvSqrt(f32 value);
 

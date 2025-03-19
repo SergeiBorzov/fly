@@ -324,18 +324,34 @@ inline f32 Length(Vec4 v)
 
 inline Vec2 Normalize(Vec2 v)
 {
+    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON)
+    {
+        return Vec2(0.0f);
+    }
+
     f32 invLength = InvSqrt(v.x * v.x + v.y * v.y);
     return invLength * v;
 }
 
 inline Vec3 Normalize(Vec3 v)
 {
+    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON &&
+        Abs(v.z) < HLS_MATH_EPSILON)
+    {
+        return Vec3(0.0f);
+    }
+
     f32 invLength = InvSqrt(v.x * v.x + v.y * v.y + v.z * v.z);
     return invLength * v;
 }
 
 inline Vec4 Normalize(Vec4 v)
 {
+    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON &&
+        Abs(v.z) < HLS_MATH_EPSILON && Abs(v.w))
+    {
+        return Vec4(0.0f);
+    }
     f32 invLength = InvSqrt(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
     return invLength * v;
 }

@@ -185,6 +185,7 @@ namespace Hls
 namespace Math
 {
 
+f32 Abs(f32 value) { return fabsf(value); }
 f32 Sqrt(f32 value) { return sqrtf(value); }
 
 f32 InvSqrt(f32 value) { return 1.0f / sqrtf(value); }

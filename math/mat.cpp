@@ -134,7 +134,7 @@ Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
 {
     Mat4 res(0.0f);
 
-    Vec3 z = Normalize(eye - target);
+    Vec3 z = Normalize(target - eye);
     Vec3 y = worldUp;
     Vec3 x = Normalize(Cross(y, z));
     y = Normalize(Cross(z, x));
@@ -151,9 +151,9 @@ Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
     res.data[9] = y.z;
     res.data[10] = z.z;
 
-    res.data[12] = -Dot(x, target);
-    res.data[13] = -Dot(y, target);
-    res.data[14] = -Dot(z, target);
+    res.data[12] = -Dot(x, eye);
+    res.data[13] = -Dot(y, eye);
+    res.data[14] = -Dot(z, eye);
     res.data[15] = 1.0f;
 
     return res;
