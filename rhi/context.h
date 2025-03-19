@@ -76,7 +76,6 @@ struct Device
     VkQueue graphicsComputeQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
     u32 swapchainImageCount = 0;
     u32 swapchainImageIndex = 0;
@@ -132,6 +131,16 @@ CommandBuffer& RenderFrameCommandBuffer(Device& device);
 VkImage RenderFrameSwapchainImage(Device& device);
 VkImageView RenderFrameSwapchainImageView(Device& device);
 VkRect2D SwapchainRect2D(const Device& device);
+
+bool CreateDescriptorPool(Device& device, const VkDescriptorPoolSize* poolSizes,
+                          u32 poolSizeCount, u32 maxSets,
+                          VkDescriptorPool& descriptorPool);
+VkResult AllocateDescriptorSets(Device& device, VkDescriptorPool descriptorPool,
+                                const VkDescriptorSetLayout* layouts,
+                                VkDescriptorSet* descriptorSets,
+                                u32 descriptorSetCount);
+void DestroyDescriptorPool(Device& device, VkDescriptorPool descriptorPool);
+
 } // namespace Hls
 
 #endif /* HLS_CONTEXT_H */

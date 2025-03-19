@@ -213,9 +213,9 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
     u32 descriptorSetCount = 0;
     res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
                                             nullptr);
+    shaderModule.descriptorSetLayoutCount = descriptorSetCount;
     if (descriptorSetCount == 0)
     {
-        shaderModule.descriptorSetCount = 0;
         return true;
     }
 
@@ -267,7 +267,7 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
 
         if (vkCreateDescriptorSetLayout(
                 device.logicalDevice, &createInfo, nullptr,
-                &shaderModule.descriptorSets[i]) != VK_SUCCESS)
+                &shaderModule.descriptorSetLayouts[i]) != VK_SUCCESS)
         {
             return false;
         }
@@ -293,7 +293,7 @@ CreatePipelineLayout(Arena& arena, Device& device,
     {
         ShaderType shaderType = static_cast<ShaderType>(i);
         totalDescriptorSetCount +=
-            programmableState[shaderType].descriptorSetCount;
+            programmableState[shaderType].descriptorSetLayoutCount;
     }
 
     VkDescriptorSetLayout* totalDescriptorSets = nullptr;
@@ -307,10 +307,11 @@ CreatePipelineLayout(Arena& arena, Device& device,
         {
             ShaderType shaderType = static_cast<ShaderType>(i);
             for (u32 j = 0;
-                 j < programmableState[shaderType].descriptorSetCount; j++)
+                 j < programmableState[shaderType].descriptorSetLayoutCount;
+                 j++)
             {
                 totalDescriptorSets[k++] =
-                    programmableState[shaderType].descriptorSets[j];
+                    programmableState[shaderType].descriptorSetLayouts[j];
             }
         }
     }
@@ -386,11 +387,12 @@ bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
 
 void DestroyShaderModule(Device& device, ShaderModule& shaderModule)
 {
-    for (u32 i = 0; i < shaderModule.descriptorSetCount; i++)
+    for (u32 i = 0; i < shaderModule.descriptorSetLayoutCount; i++)
     {
         vkDestroyDescriptorSetLayout(device.logicalDevice,
-                                     shaderModule.descriptorSets[i], nullptr);
-        shaderModule.descriptorSets[i] = VK_NULL_HANDLE;
+                                     shaderModule.descriptorSetLayouts[i],
+                                     nullptr);
+        shaderModule.descriptorSetLayouts[i] = VK_NULL_HANDLE;
     }
     vkDestroyShaderModule(device.logicalDevice, shaderModule.handle, nullptr);
     shaderModule.handle = VK_NULL_HANDLE;

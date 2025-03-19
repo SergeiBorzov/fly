@@ -46,13 +46,13 @@ bool MapBuffer(Device& device, Buffer& buffer)
                         &buffer.mappedPtr) == VK_SUCCESS;
 }
 
-void CopyDataToBuffer(Device& device, Buffer& buffer, const void* source,
-                      u64 size)
+void CopyDataToBuffer(Device& device, Buffer& buffer, u64 offset,
+                      const void* source, u64 size)
 {
     HLS_ASSERT(source);
     HLS_ASSERT(size > 0);
-    HLS_ASSERT(size <= buffer.allocationInfo.size);
-    memcpy(buffer.mappedPtr, source, size);
+    HLS_ASSERT(size + offset <= buffer.allocationInfo.size);
+    memcpy(static_cast<u8*>(buffer.mappedPtr) + offset, source, size);
 }
 
 void UnmapBuffer(Device& device, Buffer& buffer)

@@ -19,10 +19,10 @@ struct Device;
 struct ShaderModule
 {
     VkDescriptorSetLayout
-        descriptorSets[HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT] = {
+        descriptorSetLayouts[HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT] = {
             VK_NULL_HANDLE};
     VkShaderModule handle = VK_NULL_HANDLE;
-    u32 descriptorSetCount = 0;
+    u32 descriptorSetLayoutCount = 0;
 };
 
 enum class ShaderType

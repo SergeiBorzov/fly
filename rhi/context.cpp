@@ -1289,26 +1289,42 @@ static void DestroyCommandPools(Context& context)
 /////////////////////////////////////////////////////////////////////////////
 // Descriptor Pool
 /////////////////////////////////////////////////////////////////////////////
-bool CreateDescriptorPool(Device& device)
+bool CreateDescriptorPool(Device& device, const VkDescriptorPoolSize* poolSizes,
+                          u32 poolSizeCount, u32 maxSets,
+                          VkDescriptorPool& descriptorPool)
 {
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = 8;
+    HLS_ASSERT(poolSizes);
+    HLS_ASSERT(poolSizeCount > 0);
+    HLS_ASSERT(maxSets > 0);
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    createInfo.poolSizeCount = 1;
-    createInfo.pPoolSizes = &poolSize;
-    createInfo.maxSets = 8;
+    createInfo.poolSizeCount = poolSizeCount;
+    createInfo.pPoolSizes = poolSizes;
+    createInfo.maxSets = maxSets;
 
     return vkCreateDescriptorPool(device.logicalDevice, &createInfo, nullptr,
-                                  &device.descriptorPool) == VK_SUCCESS;
+                                  &descriptorPool) == VK_SUCCESS;
 }
 
-void DestroyDescriptorPool(Device& device)
+VkResult AllocateDescriptorSets(Device& device, VkDescriptorPool descriptorPool,
+                                const VkDescriptorSetLayout* layouts,
+                                VkDescriptorSet* descriptorSets,
+                                u32 descriptorSetCount)
 {
-    vkDestroyDescriptorPool(device.logicalDevice, device.descriptorPool,
-                            nullptr);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = descriptorSetCount;
+    allocInfo.pSetLayouts = layouts;
+
+    return vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
+                                    descriptorSets);
+}
+
+void DestroyDescriptorPool(Device& device, VkDescriptorPool descriptorPool)
+{
+    vkDestroyDescriptorPool(device.logicalDevice, descriptorPool, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1359,10 +1375,6 @@ bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
 
     for (u32 i = 0; i < context.deviceCount; i++)
     {
-        if (!CreateDescriptorPool(context.devices[i]))
-        {
-            return false;
-        }
         if (context.windowPtr)
         {
             if (!CreateSwapchain(context, context.devices[i]))
@@ -1503,7 +1515,6 @@ void DestroyContext(Context& context)
         {
             DestroySwapchain(context, context.devices[i]);
         }
-        DestroyDescriptorPool(context.devices[i]);
     }
     DestroyCommandPools(context);
     DestroyVmaAllocators(context);

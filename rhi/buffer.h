@@ -23,7 +23,8 @@ void DestroyBuffer(Device& device, Buffer& buffer);
 bool MapBuffer(Device& device, Buffer& buffer);
 void UnmapBuffer(Device& device, Buffer& buffer);
 
-void CopyDataToBuffer(Device& device, Buffer& buffer, const void* source, u64 size);
+void CopyDataToBuffer(Device& device, Buffer& buffer, u64 offset,
+                      const void* source, u64 size);
 
 } // namespace Hls
 
