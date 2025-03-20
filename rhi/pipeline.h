@@ -9,12 +9,10 @@
 #define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
 #define HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT 8
 
-struct Arena;
-
 namespace Hls
 {
 
-struct Device;
+struct Device; 
 
 struct ShaderModule
 {
@@ -121,7 +119,7 @@ struct GraphicsPipeline
 };
 
 bool CreateGraphicsPipeline(
-    Arena& arena, Device& device,
+    Device& device,
     const GraphicsPipelineFixedStateStage& fixedStateStage,
     const GraphicsPipelineProgrammableStage& programmableStage,
     GraphicsPipeline& graphicsPipeline);
@@ -129,7 +127,7 @@ bool CreateGraphicsPipeline(
 void DestroyGraphicsPipeline(Device& device,
                              GraphicsPipeline& graphicsPipeline);
 
-bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
+bool CreateShaderModule(Device& device, const char* spvSource,
                         u64 codeSize, ShaderModule& shaderModule);
 void DestroyShaderModule(Device& device, ShaderModule& shaderModule);
 void DestroyGraphicsPipelineProgrammableStage(

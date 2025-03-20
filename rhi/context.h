@@ -14,7 +14,6 @@
 
 #define HLS_FRAME_IN_FLIGHT_COUNT 2
 
-struct Arena;
 struct GLFWwindow;
 
 namespace Hls
@@ -119,7 +118,7 @@ bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
 bool IsLayerSupported(VkLayerProperties* layerProperties,
                       u32 layerPropertiesCount, const char* layerName);
 
-bool CreateContext(Arena& arena, ContextSettings& settings,
+bool CreateContext(ContextSettings& settings,
                    Context& outContext);
 void DestroyContext(Context& context);
 

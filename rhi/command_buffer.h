@@ -5,8 +5,6 @@
 
 #include <volk.h>
 
-struct Arena;
-
 namespace Hls
 {
 
@@ -27,11 +25,11 @@ struct CommandBuffer
     State state = State::NotAllocated;
 };
 
-bool CreateCommandBuffers(Arena& arena, const Device& device,
+bool CreateCommandBuffers(const Device& device,
                           VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary = true);
-void DestroyCommandBuffers(Arena& arena, const Device& device,
+void DestroyCommandBuffers(const Device& device,
                            CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount);
 bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,

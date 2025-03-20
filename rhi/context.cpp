@@ -5,9 +5,9 @@
 #include "context.h" // volk should be included prior to glfw
 #include <GLFW/glfw3.h>
 
-#include "core/arena.h"
 #include "core/assert.h"
 #include "core/log.h"
+#include "core/thread_context.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -65,11 +65,11 @@ bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
     return isExtensionPresent;
 }
 
-static bool CreateInstance(Arena& arena, const char** instanceLayers,
-                           u32 instanceLayerCount,
+static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
                            const char** instanceExtensions,
                            u32 instanceExtensionCount, Context& context)
 {
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     // Fill available instance layers
@@ -724,13 +724,15 @@ static bool PhysicalDeviceSupportsRequiredExtensions(
     return true;
 }
 
-static bool FindPhysicalDevices(
-    Arena& arena, const char** deviceExtensions, u32 deviceExtensionCount,
-    const VkPhysicalDeviceFeatures2& deviceFeatures2,
-    IsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback,
-    DetermineSurfaceFormatFn determineSurfaceFormatCallback,
-    DeterminePresentModeFn determinePresentModeCallback, Context& context)
+static bool
+FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
+                    const VkPhysicalDeviceFeatures2& deviceFeatures2,
+                    IsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback,
+                    DetermineSurfaceFormatFn determineSurfaceFormatCallback,
+                    DeterminePresentModeFn determinePresentModeCallback,
+                    Context& context)
 {
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     u32 physicalDeviceCount = 0;
@@ -864,7 +866,6 @@ static bool FindPhysicalDevices(
     }
 
     ArenaPopToMarker(arena, marker);
-
     return true;
 }
 
@@ -1069,11 +1070,11 @@ static bool RecreateSwapchain(Context& context, Device& device)
 /////////////////////////////////////////////////////////////////////////////
 // LogicalDevice
 /////////////////////////////////////////////////////////////////////////////
-static bool CreateLogicalDevices(Arena& arena, const char** extensions,
-                                 u32 extensionCount,
+static bool CreateLogicalDevices(const char** extensions, u32 extensionCount,
                                  VkPhysicalDeviceFeatures2& deviceFeatures2,
                                  Context& context)
 {
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     // Add synchronization2 to the end of device features
@@ -1201,7 +1202,7 @@ static void DestroyVmaAllocators(Context& context)
 /////////////////////////////////////////////////////////////////////////////
 // Command pools and command buffers
 /////////////////////////////////////////////////////////////////////////////
-static bool CreateCommandPools(Arena& arena, Context& context)
+static bool CreateCommandPools(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
@@ -1221,8 +1222,7 @@ static bool CreateCommandPools(Arena& arena, Context& context)
                 return false;
             };
 
-            if (!CreateCommandBuffers(arena, device,
-                                      device.frameData[j].commandPool,
+            if (!CreateCommandBuffers(device, device.frameData[j].commandPool,
                                       &device.frameData[j].commandBuffer, 1))
             {
                 return false;
@@ -1330,10 +1330,9 @@ void DestroyDescriptorPool(Device& device, VkDescriptorPool descriptorPool)
 /////////////////////////////////////////////////////////////////////////////
 // Context
 /////////////////////////////////////////////////////////////////////////////
-bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
+bool CreateContext(ContextSettings& settings, Context& context)
 {
-    if (!CreateInstance(arena, settings.instanceLayers,
-                        settings.instanceLayerCount,
+    if (!CreateInstance(settings.instanceLayers, settings.instanceLayerCount,
                         settings.instanceExtensions,
                         settings.instanceExtensionCount, context))
     {
@@ -1348,7 +1347,7 @@ bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
     }
 
     if (!FindPhysicalDevices(
-            arena, settings.deviceExtensions, settings.deviceExtensionCount,
+            settings.deviceExtensions, settings.deviceExtensionCount,
             settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
             settings.determineSurfaceFormatCallback,
             settings.determinePresentModeCallback, context))
@@ -1356,7 +1355,7 @@ bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
         return false;
     }
 
-    if (!CreateLogicalDevices(arena, settings.deviceExtensions,
+    if (!CreateLogicalDevices(settings.deviceExtensions,
                               settings.deviceExtensionCount,
                               settings.deviceFeatures2, context))
     {
@@ -1368,7 +1367,7 @@ bool CreateContext(Arena& arena, ContextSettings& settings, Context& context)
         return false;
     }
 
-    if (!CreateCommandPools(arena, context))
+    if (!CreateCommandPools(context))
     {
         return false;
     }

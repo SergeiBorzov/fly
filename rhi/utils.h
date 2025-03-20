@@ -3,7 +3,6 @@
 
 #include "pipeline.h"
 
-struct Arena;
 namespace Hls
 {
 
@@ -30,7 +29,7 @@ private:
 };
 
 bool LoadProgrammableStage(
-    Arena& arena, Device& device, const ShaderPathMap& shaderPathMap,
+    Device& device, const ShaderPathMap& shaderPathMap,
     GraphicsPipelineProgrammableStage& programmableStage);
 
 } // namespace Hls

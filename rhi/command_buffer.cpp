@@ -1,4 +1,4 @@
-#include "core/arena.h"
+#include "core/thread_context.h"
 #include "core/assert.h"
 #include "core/log.h"
 
@@ -7,7 +7,7 @@
 
 namespace Hls
 {
-bool CreateCommandBuffers(Arena& arena, const Hls::Device& device,
+bool CreateCommandBuffers(const Hls::Device& device,
                           VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary)
@@ -15,6 +15,7 @@ bool CreateCommandBuffers(Arena& arena, const Hls::Device& device,
     HLS_ASSERT(commandBuffers);
     HLS_ASSERT(commandBufferCount > 0);
 
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     VkCommandBufferAllocateInfo allocInfo{};
@@ -54,13 +55,14 @@ bool CreateCommandBuffers(Arena& arena, const Hls::Device& device,
     return res == VK_SUCCESS;
 }
 
-void DestroyCommandBuffers(Arena& arena, const Hls::Device& device,
+void DestroyCommandBuffers(const Hls::Device& device,
                            CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount)
 {
     HLS_ASSERT(commandBuffers);
     HLS_ASSERT(commandBufferCount > 0);
 
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     VkCommandBuffer* handles =

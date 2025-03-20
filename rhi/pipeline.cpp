@@ -1,5 +1,5 @@
-#include "core/arena.h"
 #include "core/assert.h"
+#include "core/thread_context.h"
 
 #include "context.h"
 #include "pipeline.h"
@@ -194,13 +194,16 @@ VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     return pipelineRendering;
 }
 
-static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
+static bool CreateShaderModuleDescriptorSetLayouts(Device& device,
                                                    const char* spvSource,
                                                    u64 codeSize,
                                                    ShaderModule& shaderModule)
 {
     HLS_ASSERT(spvSource);
     HLS_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
 
     SpvReflectShaderModule reflectModule;
     SpvReflectResult res = spvReflectCreateShaderModule(
@@ -221,8 +224,6 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
 
     HLS_ASSERT(descriptorSetCount <=
                HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT);
-
-    ArenaMarker marker = ArenaGetMarker(arena);
 
     SpvReflectDescriptorSet** reflDescriptorSets =
         HLS_ALLOC(arena, SpvReflectDescriptorSet*, descriptorSetCount);
@@ -279,10 +280,11 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
 }
 
 static bool
-CreatePipelineLayout(Arena& arena, Device& device,
+CreatePipelineLayout(Device& device,
                      const GraphicsPipelineProgrammableStage& programmableState,
                      VkPipelineLayout& pipelineLayout)
 {
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     VkPipelineLayoutCreateInfo createInfo{};
@@ -359,7 +361,7 @@ static VkShaderStageFlagBits ShaderTypeToVkShaderStage(ShaderType shaderType)
     }
 }
 
-bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
+bool CreateShaderModule(Device& device, const char* spvSource,
                         u64 codeSize, ShaderModule& shaderModule)
 {
     HLS_ASSERT(spvSource);
@@ -376,7 +378,7 @@ bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
         return false;
     }
 
-    if (!CreateShaderModuleDescriptorSetLayouts(arena, device, spvSource,
+    if (!CreateShaderModuleDescriptorSetLayouts(device, spvSource,
                                                 codeSize, shaderModule))
     {
         return false;
@@ -415,7 +417,7 @@ void DestroyGraphicsPipelineProgrammableStage(
 }
 
 bool CreateGraphicsPipeline(
-    Arena& arena, Device& device,
+    Device& device,
     const GraphicsPipelineFixedStateStage& fixedState,
     const GraphicsPipelineProgrammableStage& programmableState,
     GraphicsPipeline& graphicsPipeline)
@@ -424,7 +426,7 @@ bool CreateGraphicsPipeline(
                fixedState.pipelineRendering.colorAttachmentCount);
 
     // Programmable state
-    if (!CreatePipelineLayout(arena, device, programmableState,
+    if (!CreatePipelineLayout(device, programmableState,
                               graphicsPipeline.layout))
     {
         return false;

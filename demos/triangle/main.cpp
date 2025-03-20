@@ -1,20 +1,21 @@
-#include "core/arena.h"
 #include "core/assert.h"
 #include "core/filesystem.h"
 #include "core/log.h"
+#include "core/thread_context.h"
 
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 #include "rhi/utils.h"
 #include <GLFW/glfw3.h>
 
-static void SetVulkanLayerPathEnvVariable(Arena& arena)
+static void SetVulkanLayerPathEnvVariable()
 {
-    ArenaMarker marker = ArenaGetMarker(arena);
-    const char* binaryPath = GetBinaryDirectoryPath(arena);
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    const char* binaryPath = GetBinaryDirectoryPath(scratch);
     HLS_ASSERT(binaryPath);
     HLS_ENSURE(SetEnv("VK_LAYER_PATH", binaryPath));
-    ArenaPopToMarker(arena, marker);
+    ArenaPopToMarker(scratch, marker);
 }
 
 static void ErrorCallbackGLFW(i32 error, const char* description)
@@ -57,13 +58,14 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
 
 int main(int argc, char* argv[])
 {
+    InitThreadContext();
+
     if (!InitLogger())
     {
         return -1;
     }
 
-    Arena arena = ArenaCreate(HLS_SIZE_GB(1), HLS_SIZE_MB(16));
-    SetVulkanLayerPathEnvVariable(arena);
+    SetVulkanLayerPathEnvVariable();
 
     if (volkInitialize() != VK_SUCCESS)
     {
@@ -105,12 +107,11 @@ int main(int argc, char* argv[])
     settings.windowPtr = window;
 
     Hls::Context context;
-    if (!Hls::CreateContext(arena, settings, context))
+    if (!Hls::CreateContext(settings, context))
     {
         HLS_ERROR("Failed to create context");
         return -1;
     }
-    HLS_ASSERT(ArenaGetMarker(arena).value == 0);
 
     Hls::Device& device = context.devices[0];
 
@@ -118,7 +119,7 @@ int main(int argc, char* argv[])
     Hls::ShaderPathMap shaderPathMap{};
     shaderPathMap[Hls::ShaderType::Vertex] = "triangle.vert.spv";
     shaderPathMap[Hls::ShaderType::Fragment] = "triangle.frag.spv";
-    if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
+    if (!Hls::LoadProgrammableStage(device, shaderPathMap,
                                     programmableState))
     {
         HLS_ERROR("Failed to load and create shader modules");
@@ -131,7 +132,7 @@ int main(int argc, char* argv[])
     fixedState.colorBlendState.attachmentCount = 1;
 
     Hls::GraphicsPipeline graphicsPipeline{};
-    if (!Hls::CreateGraphicsPipeline(arena, device, fixedState,
+    if (!Hls::CreateGraphicsPipeline(device, fixedState,
                                      programmableState, graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
@@ -155,8 +156,9 @@ int main(int argc, char* argv[])
 
     glfwDestroyWindow(window);
     glfwTerminate();
-    ArenaDestroy(arena);
     HLS_LOG("Shutdown successful");
     ShutdownLogger();
+
+    ReleaseThreadContext();
     return 0;
 }

@@ -82,6 +82,20 @@ cc_library(
 )
 
 cc_library(
+    name = "thread_context",
+    hdrs = [
+        "thread_context.h",
+    ],
+    srcs = [
+        "thread_context.cpp",
+    ],
+    deps = [
+        ":memory",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "filesystem",
     hdrs = [
         "filesystem.h",
@@ -90,7 +104,7 @@ cc_library(
         "filesystem.cpp",
     ],
     deps = [
-        ":memory"
+        ":memory",
     ],
     visibility = ["//visibility:public"],
 )
@@ -130,6 +144,7 @@ cc_library(
         ":filesystem",
         ":log",
         ":clock",
+        ":thread_context",
     ],
     visibility = ["//visibility:public"],
 )

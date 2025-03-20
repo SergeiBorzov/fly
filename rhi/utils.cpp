@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "core/arena.h"
+#include "core/thread_context.h"
 #include "core/filesystem.h"
 #include "core/platform.h"
 
@@ -10,10 +10,11 @@
 namespace Hls
 {
 
-bool LoadProgrammableStage(Arena& arena, Device& device,
+bool LoadProgrammableStage(Device& device,
                            const ShaderPathMap& shaderPathMap,
                            GraphicsPipelineProgrammableStage& programmableStage)
 {
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
     const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
     u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
@@ -43,7 +44,7 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
             ArenaPopToMarker(arena, marker);
             return false;
         }
-        if (!Hls::CreateShaderModule(arena, device, spvSource, codeSize,
+        if (!Hls::CreateShaderModule(device, spvSource, codeSize,
                                      programmableStage[shaderType]))
         {
             ArenaPopToMarker(arena, marker);
