@@ -15,6 +15,15 @@ namespace Math
 
 inline f32 Degrees(f32 radians) { return radians / HLS_MATH_PI * 180.0f; }
 inline f32 Radians(f32 degrees) { return degrees / 180.0f * HLS_MATH_PI; }
+inline f32 Min(f32 a, f32 b) { return (a < b) ? a : b; }
+inline f32 Max(f32 a, f32 b) { return (a > b) ? a : b; }
+inline f32 Clamp(f32 value, f32 min, f32 max)
+{
+    return Max(min, Min(value, max));
+}
+
+f32 Min(f32 a, f32 b);
+f32 Clamp(f32 value, f32 min, f32 max);
 
 f32 Abs(f32 value);
 f32 Sqrt(f32 value);
