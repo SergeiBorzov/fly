@@ -1,0 +1,16 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "simple_camera_fps",
+    hdrs = [
+        "simple_camera_fps.h"
+    ],
+    srcs = [
+        "simple_camera_fps.cpp"
+    ],
+    deps = [
+        "//math:math",
+        "@glfw//:glfw",
+    ],
+    visibility = ["//visibility:public"],
+)
