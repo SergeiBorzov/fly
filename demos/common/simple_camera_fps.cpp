@@ -1,7 +1,6 @@
 #include <GLFW/glfw3.h>
 
 #include "simple_camera_fps.h"
-#include <stdio.h>
 
 namespace Hls
 {
