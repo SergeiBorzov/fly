@@ -1,8 +1,8 @@
 #include <string.h>
 
-#include "core/thread_context.h"
 #include "core/filesystem.h"
 #include "core/platform.h"
+#include "core/thread_context.h"
 
 #include "context.h"
 #include "utils.h"
@@ -10,20 +10,20 @@
 namespace Hls
 {
 
-bool LoadProgrammableStage(Device& device,
+bool LoadProgrammableStage(Arena& arena, Device& device,
                            const ShaderPathMap& shaderPathMap,
                            GraphicsPipelineProgrammableStage& programmableStage)
 {
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-    const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    const char* binDirectoryPath = GetBinaryDirectoryPath(scratch);
     u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
 
-    char* buffer = HLS_ALLOC(arena, char, 4096);
+    char* buffer = HLS_ALLOC(scratch, char, 4096);
 
     for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
     {
-        ArenaMarker loopMarker = ArenaGetMarker(arena);
+        ArenaMarker loopMarker = ArenaGetMarker(scratch);
 
         ShaderType shaderType = static_cast<ShaderType>(i);
 
@@ -38,23 +38,23 @@ bool LoadProgrammableStage(Device& device,
 
         u64 codeSize = 0;
         const char* spvSource =
-            ReadFileToString(arena, buffer, &codeSize, sizeof(u32));
+            ReadFileToString(scratch, buffer, &codeSize, sizeof(u32));
         if (!spvSource)
         {
-            ArenaPopToMarker(arena, marker);
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
-        if (!Hls::CreateShaderModule(device, spvSource, codeSize,
+        if (!Hls::CreateShaderModule(arena, device, spvSource, codeSize,
                                      programmableStage[shaderType]))
         {
-            ArenaPopToMarker(arena, marker);
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
 
-        ArenaPopToMarker(arena, loopMarker);
+        ArenaPopToMarker(scratch, loopMarker);
     }
 
-    ArenaPopToMarker(arena, marker);
+    ArenaPopToMarker(scratch, marker);
     return true;
 }
 

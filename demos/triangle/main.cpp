@@ -59,6 +59,7 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
 int main(int argc, char* argv[])
 {
     InitThreadContext();
+    Arena& arena = GetScratchArena();
 
     if (!InitLogger())
     {
@@ -119,7 +120,8 @@ int main(int argc, char* argv[])
     Hls::ShaderPathMap shaderPathMap{};
     shaderPathMap[Hls::ShaderType::Vertex] = "triangle.vert.spv";
     shaderPathMap[Hls::ShaderType::Fragment] = "triangle.frag.spv";
-    if (!Hls::LoadProgrammableStage(device, shaderPathMap,
+
+    if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableState))
     {
         HLS_ERROR("Failed to load and create shader modules");
@@ -132,8 +134,8 @@ int main(int argc, char* argv[])
     fixedState.colorBlendState.attachmentCount = 1;
 
     Hls::GraphicsPipeline graphicsPipeline{};
-    if (!Hls::CreateGraphicsPipeline(device, fixedState,
-                                     programmableState, graphicsPipeline))
+    if (!Hls::CreateGraphicsPipeline(device, fixedState, programmableState,
+                                     graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;

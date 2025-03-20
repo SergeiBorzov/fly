@@ -29,7 +29,7 @@ private:
 };
 
 bool LoadProgrammableStage(
-    Device& device, const ShaderPathMap& shaderPathMap,
+    Arena& arena, Device& device, const ShaderPathMap& shaderPathMap,
     GraphicsPipelineProgrammableStage& programmableStage);
 
 } // namespace Hls

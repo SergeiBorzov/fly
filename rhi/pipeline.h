@@ -7,20 +7,20 @@
 #include "core/types.h"
 
 #define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
-#define HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT 8
+
+struct Arena;
 
 namespace Hls
 {
 
-struct Device; 
+struct Device;
 
-struct ShaderModule
+struct DescriptorSetLayout
 {
-    VkDescriptorSetLayout
-        descriptorSetLayouts[HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT] = {
-            VK_NULL_HANDLE};
-    VkShaderModule handle = VK_NULL_HANDLE;
-    u32 descriptorSetLayoutCount = 0;
+    VkDescriptorSetLayoutBinding* bindings = nullptr;
+    VkDescriptorSetLayout handle = VK_NULL_HANDLE;
+    u32 bindingCount = 0;
+    u32 setIndex = 0;
 };
 
 enum class ShaderType
@@ -32,6 +32,17 @@ enum class ShaderType
     Mesh = 4,
     Count
 };
+
+struct ShaderModule
+{
+    DescriptorSetLayout* descriptorSetLayouts = nullptr;
+    VkShaderModule handle = VK_NULL_HANDLE;
+    u32 descriptorSetLayoutCount = 0;
+};
+
+bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
+                        u64 codeSize, ShaderModule& shaderModule);
+void DestroyShaderModule(Device& device, ShaderModule& shaderModule);
 
 struct GraphicsPipelineProgrammableStage
 {
@@ -119,17 +130,13 @@ struct GraphicsPipeline
 };
 
 bool CreateGraphicsPipeline(
-    Device& device,
-    const GraphicsPipelineFixedStateStage& fixedStateStage,
+    Device& device, const GraphicsPipelineFixedStateStage& fixedStateStage,
     const GraphicsPipelineProgrammableStage& programmableStage,
     GraphicsPipeline& graphicsPipeline);
 
 void DestroyGraphicsPipeline(Device& device,
                              GraphicsPipeline& graphicsPipeline);
 
-bool CreateShaderModule(Device& device, const char* spvSource,
-                        u64 codeSize, ShaderModule& shaderModule);
-void DestroyShaderModule(Device& device, ShaderModule& shaderModule);
 void DestroyGraphicsPipelineProgrammableStage(
     Device& device, GraphicsPipelineProgrammableStage& programmableStage);
 

@@ -194,7 +194,7 @@ VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     return pipelineRendering;
 }
 
-static bool CreateShaderModuleDescriptorSetLayouts(Device& device,
+static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
                                                    const char* spvSource,
                                                    u64 codeSize,
                                                    ShaderModule& shaderModule)
@@ -202,8 +202,8 @@ static bool CreateShaderModuleDescriptorSetLayouts(Device& device,
     HLS_ASSERT(spvSource);
     HLS_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
 
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker marker = ArenaGetMarker(scratch);
 
     SpvReflectShaderModule reflectModule;
     SpvReflectResult res = spvReflectCreateShaderModule(
@@ -216,40 +216,45 @@ static bool CreateShaderModuleDescriptorSetLayouts(Device& device,
     u32 descriptorSetCount = 0;
     res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
                                             nullptr);
-    shaderModule.descriptorSetLayoutCount = descriptorSetCount;
     if (descriptorSetCount == 0)
     {
         return true;
     }
 
-    HLS_ASSERT(descriptorSetCount <=
-               HLS_SHADER_MODULE_DESCRIPTOR_SET_MAX_COUNT);
-
     SpvReflectDescriptorSet** reflDescriptorSets =
-        HLS_ALLOC(arena, SpvReflectDescriptorSet*, descriptorSetCount);
-
+        HLS_ALLOC(scratch, SpvReflectDescriptorSet*, descriptorSetCount);
     res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
                                             reflDescriptorSets);
     if (res != SPV_REFLECT_RESULT_SUCCESS)
     {
+        ArenaPopToMarker(scratch, marker);
         return false;
     }
+
+    shaderModule.descriptorSetLayouts =
+        HLS_ALLOC(arena, DescriptorSetLayout, descriptorSetCount);
+    shaderModule.descriptorSetLayoutCount = descriptorSetCount;
 
     for (u32 i = 0; i < descriptorSetCount; i++)
     {
         SpvReflectDescriptorSet* reflDescriptorSet = reflDescriptorSets[i];
+        DescriptorSetLayout& descriptorSetLayout =
+            shaderModule.descriptorSetLayouts[i];
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 
-        VkDescriptorSetLayoutBinding* layoutBindings =
+        descriptorSetLayout.bindings =
             HLS_ALLOC(arena, VkDescriptorSetLayoutBinding,
                       reflDescriptorSet->binding_count);
+        descriptorSetLayout.bindingCount = reflDescriptorSet->binding_count;
         for (u32 j = 0; j < reflDescriptorSet->binding_count; j++)
         {
             SpvReflectDescriptorBinding* reflBinding =
                 reflDescriptorSet->bindings[j];
-            VkDescriptorSetLayoutBinding& layoutBinding = layoutBindings[j];
+            VkDescriptorSetLayoutBinding& layoutBinding =
+                descriptorSetLayout.bindings[j];
+
             layoutBinding.binding = reflBinding->binding;
             layoutBinding.descriptorType =
                 static_cast<VkDescriptorType>(reflBinding->descriptor_type);
@@ -264,17 +269,18 @@ static bool CreateShaderModuleDescriptorSetLayouts(Device& device,
         }
 
         createInfo.bindingCount = reflDescriptorSet->binding_count;
-        createInfo.pBindings = layoutBindings;
+        createInfo.pBindings = descriptorSetLayout.bindings;
 
-        if (vkCreateDescriptorSetLayout(
-                device.logicalDevice, &createInfo, nullptr,
-                &shaderModule.descriptorSetLayouts[i]) != VK_SUCCESS)
+        if (vkCreateDescriptorSetLayout(device.logicalDevice, &createInfo,
+                                        nullptr,
+                                        &descriptorSetLayout.handle) != VK_SUCCESS)
         {
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
     }
 
-    ArenaPopToMarker(arena, marker);
+    ArenaPopToMarker(scratch, marker);
 
     return true;
 }
@@ -313,7 +319,7 @@ CreatePipelineLayout(Device& device,
                  j++)
             {
                 totalDescriptorSets[k++] =
-                    programmableState[shaderType].descriptorSetLayouts[j];
+                    programmableState[shaderType].descriptorSetLayouts[j].handle;
             }
         }
     }
@@ -353,15 +359,10 @@ static VkShaderStageFlagBits ShaderTypeToVkShaderStage(ShaderType shaderType)
         {
             return VK_SHADER_STAGE_MESH_BIT_EXT;
         }
-        default:
-        {
-            HLS_ASSERT(false);
-            return static_cast<VkShaderStageFlagBits>(0);
-        }
     }
 }
 
-bool CreateShaderModule(Device& device, const char* spvSource,
+bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
                         u64 codeSize, ShaderModule& shaderModule)
 {
     HLS_ASSERT(spvSource);
@@ -378,7 +379,7 @@ bool CreateShaderModule(Device& device, const char* spvSource,
         return false;
     }
 
-    if (!CreateShaderModuleDescriptorSetLayouts(device, spvSource,
+    if (!CreateShaderModuleDescriptorSetLayouts(arena, device, spvSource,
                                                 codeSize, shaderModule))
     {
         return false;
@@ -392,9 +393,9 @@ void DestroyShaderModule(Device& device, ShaderModule& shaderModule)
     for (u32 i = 0; i < shaderModule.descriptorSetLayoutCount; i++)
     {
         vkDestroyDescriptorSetLayout(device.logicalDevice,
-                                     shaderModule.descriptorSetLayouts[i],
+                                     shaderModule.descriptorSetLayouts[i].handle,
                                      nullptr);
-        shaderModule.descriptorSetLayouts[i] = VK_NULL_HANDLE;
+        shaderModule.descriptorSetLayouts[i].handle = VK_NULL_HANDLE;
     }
     vkDestroyShaderModule(device.logicalDevice, shaderModule.handle, nullptr);
     shaderModule.handle = VK_NULL_HANDLE;
@@ -417,8 +418,7 @@ void DestroyGraphicsPipelineProgrammableStage(
 }
 
 bool CreateGraphicsPipeline(
-    Device& device,
-    const GraphicsPipelineFixedStateStage& fixedState,
+    Device& device, const GraphicsPipelineFixedStateStage& fixedState,
     const GraphicsPipelineProgrammableStage& programmableState,
     GraphicsPipeline& graphicsPipeline)
 {
