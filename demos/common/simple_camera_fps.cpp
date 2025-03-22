@@ -48,9 +48,12 @@ void SimpleCameraFPS::UpdatePosition(GLFWwindow* window, double deltaTime)
     if (moveX != 0 || moveY != 0 || moveZ != 0)
     {
         Math::Vec3 moveVector =
-            Normalize(GetRightVector() * moveX + GetUpVector() * moveY +
-                      GetForwardVector() * moveZ);
-        position_ += moveVector * deltaTime * speed;
+            Normalize(GetRightVector() * static_cast<f32>(moveX) +
+                      GetUpVector() * static_cast<f32>(moveY) +
+                      GetForwardVector() * static_cast<f32>(moveZ));
+        position_ += moveVector * static_cast<f32>(deltaTime) * speed;
+        view_ = Math::LookAt(position_, position_ + GetForwardVector(),
+                             Math::Vec3(0.0f, 1.0f, 0.0f));
     }
 }
 
@@ -67,14 +70,14 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
         firstFrame_ = false;
     }
 
-    double cursorDiffX = cursorX - prevCursorX_;
-    double cursorDiffY = cursorY - prevCursorY_;
+    f32 cursorDiffX = static_cast<f32>(cursorX - prevCursorX_);
+    f32 cursorDiffY = static_cast<f32>(cursorY - prevCursorY_);
 
     prevCursorX_ = cursorX;
     prevCursorY_ = cursorY;
 
-    yaw_ -= cursorDiffX * sensitivity * deltaTime;
-    pitch_ -= cursorDiffY * sensitivity * deltaTime;
+    yaw_ -= cursorDiffX * sensitivity;
+    pitch_ -= cursorDiffY * sensitivity;
 
     pitch_ = Math::Clamp(pitch_, -89.0f, 89.0f);
 
@@ -83,7 +86,7 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
     Math::Vec3 front(
         Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
         Math::Sin(Math::Radians(pitch_)),
-        Math::Sin(Math::Radians(yaw_) * Math::Cos(Math::Radians(pitch_))));
+        Math::Sin(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)));
     front = Normalize(front);
 
     view_ = Math::LookAt(position_, position_ + front,
@@ -92,8 +95,8 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
 
 void SimpleCameraFPS::Update(GLFWwindow* window, double deltaTime)
 {
-    UpdatePosition(window, deltaTime);
     UpdateRotation(window, deltaTime);
+    UpdatePosition(window, deltaTime);
 }
 
 } // namespace Hls

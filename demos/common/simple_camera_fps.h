@@ -33,12 +33,12 @@ private:
     Hls::Math::Vec3 position_;
     double prevCursorX_ = 0.0;
     double prevCursorY_ = 0.0;
-    double yaw_ = 90.0;
-    double pitch_ = 0.0;
+    f32 yaw_ = 90.0;
+    f32 pitch_ = 0.0;
 
 public:
     f32 speed = 10.0f;
-    f32 sensitivity = 50.0f;
+    f32 sensitivity = 0.1f;
 
 private:
     bool firstFrame_ = true;
