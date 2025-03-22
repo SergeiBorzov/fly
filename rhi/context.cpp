@@ -1202,64 +1202,141 @@ static void DestroyVmaAllocators(Context& context)
 /////////////////////////////////////////////////////////////////////////////
 // Command pools and command buffers
 /////////////////////////////////////////////////////////////////////////////
+
+static bool CreateFrameData(Device& device)
+{
+    VkCommandPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    createInfo.queueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
+
+    VkFenceCreateInfo fenceCreateInfo{};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.pNext = nullptr;
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo{};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = nullptr;
+    semaphoreCreateInfo.flags = 0;
+
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
+                                &device.frameData[i].commandPool) != VK_SUCCESS)
+        {
+            return false;
+        };
+
+        if (!CreateCommandBuffers(device, device.frameData[i].commandPool,
+                                  &device.frameData[i].commandBuffer, 1))
+        {
+            return false;
+        }
+
+        if (vkCreateFence(device.logicalDevice, &fenceCreateInfo, nullptr,
+                          &device.frameData[i].renderFence) != VK_SUCCESS)
+        {
+            return false;
+        }
+
+        if (vkCreateSemaphore(
+                device.logicalDevice, &semaphoreCreateInfo, nullptr,
+                &device.frameData[i].swapchainSemaphore) != VK_SUCCESS)
+        {
+            return false;
+        }
+
+        if (vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
+                              nullptr, &device.frameData[i].renderSemaphore) !=
+            VK_SUCCESS)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void DestroyFrameData(Device& device)
+{
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        vkDestroySemaphore(device.logicalDevice,
+                           device.frameData[i].renderSemaphore, nullptr);
+        vkDestroySemaphore(device.logicalDevice,
+                           device.frameData[i].swapchainSemaphore, nullptr);
+        vkDestroyFence(device.logicalDevice, device.frameData[i].renderFence,
+                       nullptr);
+
+        vkDestroyCommandPool(device.logicalDevice,
+                             device.frameData[i].commandPool, nullptr);
+    }
+}
+
+static bool CreateTransferData(Device& device)
+{
+    VkCommandPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    createInfo.queueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
+
+    VkFenceCreateInfo fenceCreateInfo{};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.pNext = nullptr;
+    fenceCreateInfo.flags = 0;
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo{};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = nullptr;
+    semaphoreCreateInfo.flags = 0;
+
+    if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
+                            &device.transferData.commandPool) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    if (!CreateCommandBuffers(device, device.transferData.commandPool,
+                              &device.transferData.commandBuffer, 1))
+    {
+        return false;
+    }
+
+    if (vkCreateFence(device.logicalDevice, &fenceCreateInfo, nullptr,
+                      &device.transferData.transferFence) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static void DestroyTransferData(Device& device)
+{
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        vkDestroyFence(device.logicalDevice, device.transferData.transferFence,
+                       nullptr);
+
+        vkDestroyCommandPool(device.logicalDevice,
+                             device.transferData.commandPool, nullptr);
+    }
+}
+
 static bool CreateCommandPools(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         Device& device = context.devices[i];
 
-        VkCommandPoolCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        createInfo.queueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
-
-        for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
+        if (!CreateFrameData(device))
         {
-            if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
-                                    &device.frameData[j].commandPool) !=
-                VK_SUCCESS)
-            {
-                return false;
-            };
-
-            if (!CreateCommandBuffers(device, device.frameData[j].commandPool,
-                                      &device.frameData[j].commandBuffer, 1))
-            {
-                return false;
-            }
-
-            VkFenceCreateInfo fenceCreateInfo{};
-            fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-            fenceCreateInfo.pNext = nullptr;
-            fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-            VkResult res =
-                vkCreateFence(device.logicalDevice, &fenceCreateInfo, nullptr,
-                              &device.frameData[j].renderFence);
-            if (res != VK_SUCCESS)
-            {
-                return false;
-            }
-
-            VkSemaphoreCreateInfo semaphoreCreateInfo{};
-            semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-            semaphoreCreateInfo.pNext = nullptr;
-            semaphoreCreateInfo.flags = 0;
-
-            res = vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
-                                    nullptr,
-                                    &device.frameData[j].swapchainSemaphore);
-            if (res != VK_SUCCESS)
-            {
-                return false;
-            }
-            res = vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
-                                    nullptr,
-                                    &device.frameData[j].renderSemaphore);
-            if (res != VK_SUCCESS)
-            {
-                return false;
-            }
+            return false;
+        }
+        if (!CreateTransferData(device))
+        {
+            return false;
         }
     }
     return true;
@@ -1271,18 +1348,8 @@ static void DestroyCommandPools(Context& context)
     {
         Device& device = context.devices[i];
 
-        for (u32 j = 0; j < HLS_FRAME_IN_FLIGHT_COUNT; j++)
-        {
-            vkDestroySemaphore(device.logicalDevice,
-                               device.frameData[j].renderSemaphore, nullptr);
-            vkDestroySemaphore(device.logicalDevice,
-                               device.frameData[j].swapchainSemaphore, nullptr);
-            vkDestroyFence(device.logicalDevice,
-                           device.frameData[j].renderFence, nullptr);
-
-            vkDestroyCommandPool(device.logicalDevice,
-                                 device.frameData[j].commandPool, nullptr);
-        }
+        DestroyTransferData(device);
+        DestroyFrameData(device);
     }
 }
 

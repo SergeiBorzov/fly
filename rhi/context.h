@@ -61,6 +61,13 @@ struct FrameData
     VkFence renderFence = VK_NULL_HANDLE;
 };
 
+struct TransferData
+{
+    CommandBuffer commandBuffer;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkFence transferFence = VK_NULL_HANDLE;
+};
+
 struct Device
 {
     char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
@@ -68,6 +75,7 @@ struct Device
     VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
     FrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
+    TransferData transferData;
     VkSurfaceFormatKHR surfaceFormat = {};
     VkExtent2D swapchainExtent = {0, 0};
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
