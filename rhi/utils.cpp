@@ -235,4 +235,25 @@ void BindBufferToDescriptorSet(Device& device, const Buffer& buffer, u64 offset,
                            nullptr);
 }
 
+void BindTextureToDescriptorSet(Device& device, const Texture& texture,
+                                VkDescriptorSet descriptorSet, u32 bindingIndex)
+{
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = texture.imageView;
+    imageInfo.sampler = texture.sampler;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = descriptorSet;
+    descriptorWrite.dstBinding = bindingIndex;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                           nullptr);
+}
+
 } // namespace Hls

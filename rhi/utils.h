@@ -53,6 +53,9 @@ bool CreatePoolAndAllocateDescriptorsForProgrammableStage(
 void BindBufferToDescriptorSet(Device& device, const Buffer& buffer, u64 offset,
                                u64 range, VkDescriptorSet descriptorSet,
                                VkDescriptorType descriptorType, u32 setBinding);
+void BindTextureToDescriptorSet(Device& device, const Texture& texture,
+                                VkDescriptorSet descriptorSet,
+                                u32 bindingIndex);
 
 } // namespace Hls
 

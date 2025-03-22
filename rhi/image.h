@@ -17,6 +17,8 @@ struct Texture
 {
     VmaAllocationInfo allocationInfo;
     VkImage handle = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    VkSampler sampler = VK_NULL_HANDLE;
     VmaAllocation allocation;
     u32 width = 0;
     u32 height = 0;

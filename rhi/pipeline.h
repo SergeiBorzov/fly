@@ -20,7 +20,6 @@ struct DescriptorSetLayout
     VkDescriptorSetLayoutBinding* bindings = nullptr;
     VkDescriptorSetLayout handle = VK_NULL_HANDLE;
     u32 bindingCount = 0;
-    u32 setIndex = 0;
 };
 
 enum class ShaderType
