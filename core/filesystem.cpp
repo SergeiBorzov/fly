@@ -52,7 +52,6 @@ char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align)
     FILE* file = fopen(filename, mode);
     if (!file)
     {
-        printf("shit %s!\n", filename);
         return nullptr;
     }
 

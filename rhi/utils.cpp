@@ -8,8 +8,48 @@
 #include "context.h"
 #include "utils.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+static char* AppendPathToBinaryDirectory(Arena& arena, const char* filename)
+{
+    u64 filenameStrLength = strlen(filename);
+
+    const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
+    u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
+
+    char* buffer =
+        HLS_ALLOC(arena, char, binDirectoryPathStrLength + filenameStrLength);
+
+    strncpy(buffer, binDirectoryPath, binDirectoryPathStrLength);
+    strncpy(buffer + binDirectoryPathStrLength, filename, filenameStrLength);
+    buffer[binDirectoryPathStrLength + filenameStrLength] = '\0';
+    return buffer;
+}
+
 namespace Hls
 {
+
+u8* LoadImageFromFile(Arena& arena, const char* filename)
+{
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    const char* absolutePath = AppendPathToBinaryDirectory(scratch, filename);
+
+    int x, y, n;
+    unsigned char* data = stbi_load(absolutePath, &x, &y, &n, 0);
+    u8* imageData = HLS_ALLOC(arena, u8, x*y*n);
+    if (!imageData)
+    {
+        return nullptr;
+    }
+    memcpy(imageData, data, sizeof(u8)*x*y*n);
+    stbi_image_free(data);
+
+    ArenaPopToMarker(scratch, marker);
+    return data;
+}
 
 bool LoadProgrammableStage(Arena& arena, Device& device,
                            const ShaderPathMap& shaderPathMap,
@@ -17,10 +57,6 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
 {
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker marker = ArenaGetMarker(scratch);
-    const char* binDirectoryPath = GetBinaryDirectoryPath(scratch);
-    u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
-
-    char* buffer = HLS_ALLOC(scratch, char, 4096);
 
     for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
     {
@@ -33,13 +69,12 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
             continue;
         }
 
-        strncpy(buffer, binDirectoryPath, binDirectoryPathStrLength);
-        strncpy(buffer + binDirectoryPathStrLength, shaderPathMap[shaderType],
-                strlen(shaderPathMap[shaderType]));
+        const char* absolutePath =
+            AppendPathToBinaryDirectory(scratch, shaderPathMap[shaderType]);
 
         u64 codeSize = 0;
         const char* spvSource =
-            ReadFileToString(scratch, buffer, &codeSize, sizeof(u32));
+            ReadFileToString(scratch, absolutePath, &codeSize, sizeof(u32));
         if (!spvSource)
         {
             ArenaPopToMarker(scratch, marker);
