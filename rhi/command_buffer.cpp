@@ -1,14 +1,13 @@
-#include "core/thread_context.h"
 #include "core/assert.h"
 #include "core/log.h"
+#include "core/thread_context.h"
 
 #include "rhi/command_buffer.h"
 #include "rhi/context.h"
 
 namespace Hls
 {
-bool CreateCommandBuffers(const Hls::Device& device,
-                          VkCommandPool commandPool,
+bool CreateCommandBuffers(const Hls::Device& device, VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary)
 {
@@ -149,7 +148,7 @@ bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
     submitInfo.pWaitDstStageMask = &waitStageMask;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer.handle;
-    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.signalSemaphoreCount = signalSemaphoreCount;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     VkResult res = vkQueueSubmit(queue, 1, &submitInfo, fence);
@@ -274,7 +273,8 @@ RenderingInfo(const VkRect2D& renderArea,
     renderInfo.pNext = nullptr;
     renderInfo.flags = 0;
     renderInfo.viewMask = 0;
-    renderInfo.layerCount = 1; // will be different for texture arrays and cube maps
+    renderInfo.layerCount =
+        1; // will be different for texture arrays and cube maps
     renderInfo.renderArea = renderArea;
     renderInfo.colorAttachmentCount = colorAttachmentCount;
     renderInfo.pColorAttachments = colorAttachments;

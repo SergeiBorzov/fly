@@ -26,10 +26,9 @@ bool CreateBuffer(Device& device, VkBufferUsageFlags usage,
     allocCreateInfo.usage = memoryUsage;
     allocCreateInfo.flags = allocationFlags;
 
-    VkResult res = vmaCreateBuffer(device.allocator, &createInfo,
-                                   &allocCreateInfo, &buffer.handle,
-                                   &buffer.allocation, &buffer.allocationInfo);
-    return res == VK_SUCCESS;
+    return vmaCreateBuffer(device.allocator, &createInfo, &allocCreateInfo,
+                           &buffer.handle, &buffer.allocation,
+                           &buffer.allocationInfo) == VK_SUCCESS;
 }
 
 void DestroyBuffer(Device& device, Buffer& buffer)

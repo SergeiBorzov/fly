@@ -1286,11 +1286,6 @@ static bool CreateTransferData(Device& device)
     fenceCreateInfo.pNext = nullptr;
     fenceCreateInfo.flags = 0;
 
-    VkSemaphoreCreateInfo semaphoreCreateInfo{};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreCreateInfo.pNext = nullptr;
-    semaphoreCreateInfo.flags = 0;
-
     if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
                             &device.transferData.commandPool) != VK_SUCCESS)
     {
@@ -1314,14 +1309,11 @@ static bool CreateTransferData(Device& device)
 
 static void DestroyTransferData(Device& device)
 {
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        vkDestroyFence(device.logicalDevice, device.transferData.transferFence,
-                       nullptr);
+    vkDestroyFence(device.logicalDevice, device.transferData.transferFence,
+                   nullptr);
 
-        vkDestroyCommandPool(device.logicalDevice,
-                             device.transferData.commandPool, nullptr);
-    }
+    vkDestroyCommandPool(device.logicalDevice, device.transferData.commandPool,
+                         nullptr);
 }
 
 static bool CreateCommandPools(Context& context)
@@ -1348,8 +1340,8 @@ static void DestroyCommandPools(Context& context)
     {
         Device& device = context.devices[i];
 
-        DestroyTransferData(device);
         DestroyFrameData(device);
+        DestroyTransferData(device);
     }
 }
 
@@ -1544,6 +1536,32 @@ bool EndRenderFrame(Context& context, Device& device)
     device.frameIndex = (device.frameIndex + 1) % HLS_FRAME_IN_FLIGHT_COUNT;
 
     return true;
+}
+
+void BeginTransfer(Device& device)
+{
+    CommandBuffer& cmd = device.transferData.commandBuffer;
+    vkResetFences(device.logicalDevice, 1, &device.transferData.transferFence);
+
+    ResetCommandBuffer(cmd, false);
+    BeginCommandBuffer(cmd, true);
+}
+
+void EndTransfer(Device& device)
+{
+    CommandBuffer& cmd = device.transferData.commandBuffer;
+    EndCommandBuffer(cmd);
+
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, nullptr, 0, waitStage,
+                        nullptr, 0, device.transferData.transferFence);
+    vkWaitForFences(device.logicalDevice, 1, &device.transferData.transferFence,
+                    VK_TRUE, UINT64_MAX);
+}
+
+CommandBuffer& TransferCommandBuffer(Device& device)
+{
+    return device.transferData.commandBuffer;
 }
 
 CommandBuffer& RenderFrameCommandBuffer(Device& device)

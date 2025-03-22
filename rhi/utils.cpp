@@ -6,6 +6,7 @@
 
 #include "buffer.h"
 #include "context.h"
+#include "image.h"
 #include "utils.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -30,21 +31,27 @@ static char* AppendPathToBinaryDirectory(Arena& arena, const char* filename)
 namespace Hls
 {
 
-u8* LoadImageFromFile(Arena& arena, const char* filename)
+bool LoadImageFromFile(Arena& arena, const char* filename, Image& image)
 {
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker marker = ArenaGetMarker(scratch);
 
     const char* absolutePath = AppendPathToBinaryDirectory(scratch, filename);
 
-    int x, y, n;
-    unsigned char* data = stbi_load(absolutePath, &x, &y, &n, 0);
-    u8* imageData = HLS_ALLOC(arena, u8, x*y*n);
-    if (!imageData)
+    int x = 0, y = 0, n = 0;
+    int desiredChannelCount = 4;
+    unsigned char* data =
+        stbi_load(absolutePath, &x, &y, &n, desiredChannelCount);
+    if (!data)
     {
         return nullptr;
     }
-    memcpy(imageData, data, sizeof(u8)*x*y*n);
+
+    image.data = HLS_ALLOC(arena, u8, x * y * desiredChannelCount);
+    memcpy(image.data, data, sizeof(u8) * x * y * desiredChannelCount);
+    image.width = static_cast<u32>(x);
+    image.height = static_cast<u32>(y);
+    image.channelCount = static_cast<u32>(desiredChannelCount);
     stbi_image_free(data);
 
     ArenaPopToMarker(scratch, marker);

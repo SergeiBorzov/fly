@@ -51,6 +51,7 @@ typedef bool (*DetermineSurfaceFormatFn)(const Context&,
 typedef bool (*DeterminePresentModeFn)(const Context&,
                                        const PhysicalDeviceInfo&,
                                        VkPresentModeKHR&);
+typedef void (*RecordCommandsFn)(Device& device, CommandBuffer& cmd);
 
 struct FrameData
 {
@@ -126,13 +127,16 @@ bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
 bool IsLayerSupported(VkLayerProperties* layerProperties,
                       u32 layerPropertiesCount, const char* layerName);
 
-bool CreateContext(ContextSettings& settings,
-                   Context& outContext);
+bool CreateContext(ContextSettings& settings, Context& outContext);
 void DestroyContext(Context& context);
 
 bool BeginRenderFrame(Context& context, Device& device);
 bool EndRenderFrame(Context& context, Device& device);
 void WaitAllDevicesIdle(Context& context);
+
+void BeginTransfer(Device& device);
+void EndTransfer(Device& device);
+CommandBuffer& TransferCommandBuffer(Device& device);
 
 CommandBuffer& RenderFrameCommandBuffer(Device& device);
 VkImage RenderFrameSwapchainImage(Device& device);

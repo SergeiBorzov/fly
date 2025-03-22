@@ -8,9 +8,9 @@ namespace Hls
 
 struct Buffer
 {
+    VmaAllocationInfo allocationInfo;
     VkBuffer handle = VK_NULL_HANDLE;
     VmaAllocation allocation;
-    VmaAllocationInfo allocationInfo;
     void* mappedPtr = nullptr;
 };
 

@@ -4,6 +4,7 @@
 #include "pipeline.h"
 
 struct Arena;
+struct Image;
 
 namespace Hls
 {
@@ -38,7 +39,7 @@ struct DescriptorPool
     u32 descriptorSetCount = 0;
 };
 
-u8* LoadImageFromFile(Arena& arena, const char* filename);
+bool LoadImageFromFile(Arena& arena, const char* filename, Image& image);
 
 bool LoadProgrammableStage(
     Arena& arena, Device& device, const ShaderPathMap& shaderPathMap,
