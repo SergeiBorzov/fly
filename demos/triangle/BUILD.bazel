@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@helios//external/rules:glslang.bzl", "glsl_shader")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
 
 copy_file(
     name = "copy_vulkan_layer_manifest",

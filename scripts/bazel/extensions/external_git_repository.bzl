@@ -1,6 +1,6 @@
 """ external/extensions/external_git_repository.bzl """
 
-load("@helios//external/rules:external_git_repository.bzl", "get_external_git_repository")
+load("@helios//scripts/bazel/rules:external_git_repository.bzl", "get_external_git_repository")
 
 def _external_git_repository_impl(module_ctx):
     for module in module_ctx.modules:

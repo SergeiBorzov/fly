@@ -1,0 +1,9 @@
+filegroup(
+    name = "scene_data",
+    srcs = [
+        "cube.obj",
+        "default.mtl",
+        "default.png",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -1,7 +1,7 @@
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@helios//external/rules:glslang.bzl",
+load("@helios//scripts/bazel/rules:glslang.bzl",
     "glslang_build_info",
     "glslang_gen_extension_headers",
 )

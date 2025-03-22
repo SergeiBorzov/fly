@@ -1,6 +1,7 @@
 module(name = "helios", version = "0.1")
 
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "aspect_bazel_lib", version = "2.14.0")
 bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "rules_python", version = "1.2.0")
@@ -30,13 +31,18 @@ pip.parse(
 use_repo(pip, "pip")
 
 external_git_repository = use_extension(
-    "@helios//external/extensions:external_git_repository.bzl",
+    "@helios//scripts/bazel/extensions:external_git_repository.bzl",
     "external_git_repository",
+)
+
+external_data = use_extension(
+    "@helios//scripts/bazel/extensions:external_data.bzl",
+    "external_data",
 )
 
 external_git_repository.base(
     name = "glfw",
-    build_file = "//external/target:BUILD.glfw.bazel",
+    build_file = "//scripts/bazel/target:BUILD.glfw.bazel",
     commit = "7b6aead9fb88b3623e3b3725ebb42670cbe4c579",
     remote = "https://github.com/glfw/glfw.git",
 )
@@ -44,7 +50,7 @@ use_repo(external_git_repository, "glfw")
 
 external_git_repository.base(
     name = "vulkan_headers",
-    build_file = "//external/target:BUILD.vulkan_headers.bazel",
+    build_file = "//scripts/bazel/target:BUILD.vulkan_headers.bazel",
     commit = "39f924b810e561fd86b2558b6711ca68d4363f68",
     remote = "https://github.com/KhronosGroup/Vulkan-Headers.git",
 )
@@ -66,7 +72,7 @@ use_repo(external_git_repository, "spirv_tools")
 
 external_git_repository.base(
     name = "vulkan_utility_libraries",
-    build_file = "//external/target:BUILD.vulkan_utility_libraries.bazel",
+    build_file = "//scripts/bazel/target:BUILD.vulkan_utility_libraries.bazel",
     commit = "5a88b6042edb8f03eefc8de73bd73a899989373f",
     remote = "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git",
 )
@@ -74,7 +80,7 @@ use_repo(external_git_repository, "vulkan_utility_libraries")
 
 external_git_repository.base(
     name = "vulkan_validation_layers",
-    build_file = "//external/target:BUILD.vulkan_validation_layers.bazel",
+    build_file = "//scripts/bazel/target:BUILD.vulkan_validation_layers.bazel",
     commit = "90851ef5b77757556217122061672dc52e21629c",
     remote = "https://github.com/KhronosGroup/Vulkan-ValidationLayers.git",
 )
@@ -82,7 +88,7 @@ use_repo(external_git_repository, "vulkan_validation_layers")
 
 external_git_repository.base(
     name = "volk",
-    build_file = "//external/target:BUILD.volk.bazel",
+    build_file = "//scripts/bazel/target:BUILD.volk.bazel",
     commit = "0b17a763ba5643e32da1b2152f8140461b3b7345",
     remote = "https://github.com/zeux/volk.git",
 )
@@ -90,7 +96,7 @@ use_repo(external_git_repository, "volk")
 
 external_git_repository.base(
     name = "vma",
-    build_file = "//external/target:BUILD.vma.bazel",
+    build_file = "//scripts/bazel/target:BUILD.vma.bazel",
     commit = "c788c52156f3ef7bc7ab769cb03c110a53ac8fcb",
     remote = "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
 )
@@ -98,7 +104,7 @@ use_repo(external_git_repository, "vma")
 
 external_git_repository.base(
     name = "glslang",
-    build_file = "//external/target:BUILD.glslang.bazel",
+    build_file = "//scripts/bazel/target:BUILD.glslang.bazel",
     commit = "1062752a891c95b2bfeed9e356562d88f9df84ac",
     remote = "https://github.com/KhronosGroup/glslang.git",
 )
@@ -106,7 +112,7 @@ use_repo(external_git_repository, "glslang")
 
 external_git_repository.base(
     name = "spirv_reflect",
-    build_file = "//external/target:BUILD.spirv_reflect.bazel",
+    build_file = "//scripts/bazel/target:BUILD.spirv_reflect.bazel",
     commit = "281b55edb67b1f2e61e1dc92fdc42a650da05d83",
     remote = "https://github.com/KhronosGroup/SPIRV-Reflect.git",
 )
@@ -114,8 +120,16 @@ use_repo(external_git_repository, "spirv_reflect")
 
 external_git_repository.base(
     name = "optparse",
-    build_file = "//external/target:BUILD.optparse.bazel",
+    build_file = "//scripts/bazel/target:BUILD.optparse.bazel",
     commit = "a86877ed301d89a4eb64feb08f23af395aede2ed",
     remote = "https://github.com/skeeto/optparse.git",
 )
 use_repo(external_git_repository, "optparse")
+
+external_data.base(
+    name = "cube_scene",
+    url = "https://casual-effects.com/g3d/data10/common/model/cube/cube.zip",
+    sha256 = "4d5eb265ec88d34119af155ccfa2013ba96135e161cc7661c709d3df88a49d82",
+    build_file = "//scripts/bazel/target:BUILD.cube_scene.bazel",
+)
+use_repo(external_data, "cube_scene")
