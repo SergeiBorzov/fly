@@ -272,8 +272,8 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
         createInfo.pBindings = descriptorSetLayout.bindings;
 
         if (vkCreateDescriptorSetLayout(device.logicalDevice, &createInfo,
-                                        nullptr,
-                                        &descriptorSetLayout.handle) != VK_SUCCESS)
+                                        nullptr, &descriptorSetLayout.handle) !=
+            VK_SUCCESS)
         {
             ArenaPopToMarker(scratch, marker);
             return false;
@@ -318,8 +318,9 @@ CreatePipelineLayout(Device& device,
                  j < programmableState[shaderType].descriptorSetLayoutCount;
                  j++)
             {
-                totalDescriptorSets[k++] =
-                    programmableState[shaderType].descriptorSetLayouts[j].handle;
+                totalDescriptorSets[k++] = programmableState[shaderType]
+                                               .descriptorSetLayouts[j]
+                                               .handle;
             }
         }
     }
@@ -359,6 +360,11 @@ static VkShaderStageFlagBits ShaderTypeToVkShaderStage(ShaderType shaderType)
         {
             return VK_SHADER_STAGE_MESH_BIT_EXT;
         }
+        default:
+        {
+            HLS_ASSERT(false);
+            return VK_SHADER_STAGE_VERTEX_BIT;
+        }
     }
 }
 
@@ -392,9 +398,9 @@ void DestroyShaderModule(Device& device, ShaderModule& shaderModule)
 {
     for (u32 i = 0; i < shaderModule.descriptorSetLayoutCount; i++)
     {
-        vkDestroyDescriptorSetLayout(device.logicalDevice,
-                                     shaderModule.descriptorSetLayouts[i].handle,
-                                     nullptr);
+        vkDestroyDescriptorSetLayout(
+            device.logicalDevice, shaderModule.descriptorSetLayouts[i].handle,
+            nullptr);
         shaderModule.descriptorSetLayouts[i].handle = VK_NULL_HANDLE;
     }
     vkDestroyShaderModule(device.logicalDevice, shaderModule.handle, nullptr);
