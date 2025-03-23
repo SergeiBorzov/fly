@@ -1,7 +1,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "math/vec.h"
+#include "src/math/vec.h"
 
 using namespace Hls::Math;
 

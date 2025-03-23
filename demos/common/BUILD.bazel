@@ -9,7 +9,7 @@ cc_library(
         "simple_camera_fps.cpp"
     ],
     deps = [
-        "//math:math",
+        "//src/math:math",
         "@glfw//:glfw",
     ],
     visibility = ["//visibility:public"],

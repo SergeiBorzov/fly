@@ -34,7 +34,7 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
-        "//rhi:context",
+        "//src/rhi:context",
     ],
     data = [
         ":triangle.frag.spv",

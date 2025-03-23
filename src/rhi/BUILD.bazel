@@ -24,7 +24,7 @@ cc_library(
         "@vma//:vma",
         "@spirv_reflect//:spirv_reflect",
         "@stb//:stb_image",
-        "//core:core",
+        "//src/core:core",
     ],
     visibility = ["//visibility:public"],
 )

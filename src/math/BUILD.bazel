@@ -12,7 +12,7 @@ cc_library(
         "functions.cpp",
     ],
     deps = [
-        "//core:assert",
+        "//src/core:assert",
     ],
     visibility = ["//visibility:public"],
 )

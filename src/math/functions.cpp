@@ -1,5 +1,6 @@
+#include "src/core/assert.h"
 #include "functions.h"
-#include "core/assert.h"
+
 #include <math.h>
 
 #define LUT_TABLE_SIZE 1024

@@ -1,11 +1,11 @@
-#include "core/assert.h"
-#include "core/filesystem.h"
-#include "core/log.h"
-#include "core/thread_context.h"
+#include "src/core/assert.h"
+#include "src/core/filesystem.h"
+#include "src/core/log.h"
+#include "src/core/thread_context.h"
 
-#include "rhi/context.h"
-#include "rhi/pipeline.h"
-#include "rhi/utils.h"
+#include "src/rhi/context.h"
+#include "src/rhi/pipeline.h"
+#include "src/rhi/utils.h"
 #include <GLFW/glfw3.h>
 
 static void SetVulkanLayerPathEnvVariable()

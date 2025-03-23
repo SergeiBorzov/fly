@@ -9,7 +9,7 @@ cc_test(
     deps = [
         "@googletest//:gtest",
         "@googletest//:gtest_main",
-        "//math:math",
+        "//src/math:math",
     ],
 )
 
@@ -22,7 +22,7 @@ cc_test(
     deps = [
         "@googletest//:gtest",
         "@googletest//:gtest_main",
-        "//math:math",
+        "//src/math:math",
     ],
 )
 
@@ -35,7 +35,7 @@ cc_test(
     deps = [
         "@googletest//:gtest",
         "@googletest//:gtest_main",
-        "//math:math",
+        "//src/math:math",
     ],
 )
 
@@ -48,7 +48,7 @@ cc_test(
     deps = [
         "@googletest//:gtest",
         "@googletest//:gtest_main",
-        "//math:math",
+        "//src/math:math",
     ],
 )
 
@@ -61,6 +61,6 @@ cc_test(
     deps = [
         "@googletest//:gtest",
         "@googletest//:gtest_main",
-        "//math:math",
+        "//src/math:math",
     ]
 )

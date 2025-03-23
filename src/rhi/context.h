@@ -1,7 +1,7 @@
 #ifndef HLS_CONTEXT_H
 #define HLS_CONTEXT_H
 
-#include "core/types.h"
+#include "src/core/types.h"
 
 #include "command_buffer.h"
 #define VMA_STATIC_VULKAN_FUNCTIONS 0

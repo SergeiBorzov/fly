@@ -3,8 +3,7 @@
 
 #include <volk.h>
 
-#include "core/assert.h"
-#include "core/types.h"
+#include "src/core/assert.h"
 
 #define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
 

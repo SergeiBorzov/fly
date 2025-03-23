@@ -1,7 +1,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "math/mat.h"
+#include "src/math/mat.h"
 
 using namespace Hls::Math;
 

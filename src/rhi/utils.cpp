@@ -1,8 +1,8 @@
 #include <string.h>
 
-#include "core/filesystem.h"
-#include "core/platform.h"
-#include "core/thread_context.h"
+#include "src/core/filesystem.h"
+#include "src/core/platform.h"
+#include "src/core/thread_context.h"
 
 #include "buffer.h"
 #include "context.h"
@@ -153,7 +153,8 @@ bool CreatePoolAndAllocateDescriptorsForProgrammableStage(
             continue;
         }
         poolSizes[poolSizeIndex].type = static_cast<VkDescriptorType>(i);
-        poolSizes[poolSizeIndex].descriptorCount = descriptorTypeCount[i]*HLS_FRAME_IN_FLIGHT_COUNT;
+        poolSizes[poolSizeIndex].descriptorCount =
+            descriptorTypeCount[i] * HLS_FRAME_IN_FLIGHT_COUNT;
         poolSizeIndex++;
     }
 

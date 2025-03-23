@@ -1,7 +1,7 @@
 #include <string.h>
 
 #include "buffer.h"
-#include "core/assert.h"
+#include "src/core/assert.h"
 
 namespace Hls
 {

@@ -1,9 +1,9 @@
-#include "core/assert.h"
-#include "core/log.h"
-#include "core/thread_context.h"
+#include "src/core/assert.h"
+#include "src/core/log.h"
+#include "src/core/thread_context.h"
 
-#include "rhi/command_buffer.h"
-#include "rhi/context.h"
+#include "command_buffer.h"
+#include "context.h"
 
 namespace Hls
 {

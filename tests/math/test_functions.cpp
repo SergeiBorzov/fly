@@ -3,7 +3,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "math/functions.h"
+#include "src/math/functions.h"
 
 TEST(Trigonometry, Sin)
 {

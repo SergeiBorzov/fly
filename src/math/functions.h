@@ -1,7 +1,7 @@
 #ifndef HLS_MATH_FUNCTIONS_H
 #define HLS_MATH_FUNCTIONS_H
 
-#include "core/types.h"
+#include "src/core/types.h"
 
 #define HLS_MATH_EPSILON 1e-5
 #define HLS_MATH_PI (3.1415926f)

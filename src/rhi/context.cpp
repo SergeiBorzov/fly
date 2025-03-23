@@ -5,9 +5,9 @@
 #include "context.h" // volk should be included prior to glfw
 #include <GLFW/glfw3.h>
 
-#include "core/assert.h"
-#include "core/log.h"
-#include "core/thread_context.h"
+#include "src/core/assert.h"
+#include "src/core/log.h"
+#include "src/core/thread_context.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
