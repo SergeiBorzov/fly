@@ -25,12 +25,10 @@ struct CommandBuffer
     State state = State::NotAllocated;
 };
 
-bool CreateCommandBuffers(const Device& device,
-                          VkCommandPool commandPool,
+bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary = true);
-void DestroyCommandBuffers(const Device& device,
-                           CommandBuffer* commandBuffers,
+void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount);
 bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,
                         bool renderPassContinue = false,
@@ -51,6 +49,8 @@ void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                       f32 b, f32 a);
 
 VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
+                                              VkImageLayout imageLayout);
+VkRenderingAttachmentInfo DepthAttachmentInfo(VkImageView imageView,
                                               VkImageLayout imageLayout);
 
 VkRenderingInfo

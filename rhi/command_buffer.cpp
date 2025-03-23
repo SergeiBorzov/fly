@@ -258,6 +258,23 @@ VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
     return attachmentInfo;
 }
 
+VkRenderingAttachmentInfo DepthAttachmentInfo(VkImageView imageView,
+                                              VkImageLayout imageLayout)
+{
+    VkRenderingAttachmentInfo attachmentInfo{};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.pNext = nullptr;
+    attachmentInfo.imageView = imageView;
+    attachmentInfo.imageLayout = imageLayout;
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentInfo.clearValue.depthStencil.depth = 1.0f;
+    attachmentInfo.clearValue.depthStencil.stencil = 0;
+
+    return attachmentInfo;
+}
+
 VkRenderingInfo
 RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* colorAttachments,
