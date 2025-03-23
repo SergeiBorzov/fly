@@ -11,6 +11,7 @@ namespace Hls
 
 struct Device;
 struct Buffer;
+struct Texture;
 
 struct ShaderPathMap
 {

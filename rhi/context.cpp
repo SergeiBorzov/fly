@@ -310,6 +310,18 @@ static const char* FormatToString(VkFormat format)
         {
             return "VK_FORMAT_A1R5G5B5_UNORM_PACK16";
         }
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        {
+            return "VK_FORMAT_D16_UNORM_S8_UINT";
+        }
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        {
+            return "VK_FORMAT_D24_UNORM_S8_UINT";
+        }
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        {
+            return "VK_FORMAT_D32_UNORM_S8_UINT";
+        }
         default:
         {
             return "Unknown Format";
@@ -418,6 +430,29 @@ DefaultDeterminePresentMode(const VkPresentModeKHR* presentModes,
     }
 
     return fallbackPresentMode;
+}
+
+static bool FindOptimalDepthImageFormat(const Device& device, VkFormat& format)
+{
+    VkFormat depthFormats[] = {VK_FORMAT_D32_SFLOAT_S8_UINT,
+                               VK_FORMAT_D24_UNORM_S8_UINT,
+                               VK_FORMAT_D16_UNORM_S8_UINT};
+
+    for (i32 i = 0; i < STACK_ARRAY_COUNT(depthFormats); i++)
+    {
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(device.physicalDevice,
+                                            depthFormats[i], &properties);
+
+        if (properties.optimalTilingFeatures &
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+        {
+            format = depthFormats[i];
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static const PhysicalDeviceInfo*
@@ -1036,11 +1071,104 @@ static void DestroySwapchain(Context& context, Device& device)
     vkDestroySwapchainKHR(device.logicalDevice, device.swapchain, nullptr);
 }
 
+static bool CreateDepthImage(Context& context, Device& device)
+{
+    HLS_ASSERT(context.windowPtr);
+
+    i32 width = 0;
+    i32 height = 0;
+    glfwGetFramebufferSize(context.windowPtr, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(context.windowPtr, &width, &height);
+        glfwWaitEvents();
+    }
+
+    if (!FindOptimalDepthImageFormat(device, device.depthImage.format))
+    {
+        return false;
+    }
+
+    VkImageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.extent.width = static_cast<u32>(width);
+    createInfo.extent.height = static_cast<u32>(height);
+    createInfo.extent.depth = 1;
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.format = device.depthImage.format;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    createInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.flags = 0;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    allocCreateInfo.requiredFlags =
+        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo,
+                       &device.depthImage.handle, &device.depthImage.allocation,
+                       &device.depthImage.allocationInfo) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    VkImageViewCreateInfo viewCreateInfo{};
+    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewCreateInfo.image = device.depthImage.handle;
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format = device.depthImage.format;
+    viewCreateInfo.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo, nullptr,
+                          &device.depthImage.imageView) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    // Depth image transition to writeable
+    BeginTransfer(device);
+    CommandBuffer& cmd = device.transferData.commandBuffer;
+    RecordTransitionImageLayout(
+        cmd, device.depthImage.handle, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    EndTransfer(device);
+
+    HLS_LOG("Device %s created new depth image", device.name);
+    HLS_LOG("Depth image format %s", FormatToString(device.depthImage.format));
+
+    return true;
+}
+
+static void DestroyDepthImage(Device& device)
+{
+    vkDestroyImageView(device.logicalDevice, device.depthImage.imageView,
+                       nullptr);
+    vmaDestroyImage(device.allocator, device.depthImage.handle,
+                    device.depthImage.allocation);
+    device.depthImage.handle = VK_NULL_HANDLE;
+}
+
 static bool RecreateSwapchain(Context& context, Device& device)
 {
     HLS_ASSERT(context.windowPtr);
 
     vkDeviceWaitIdle(device.logicalDevice);
+
+    DestroyDepthImage(device);
+    if (!CreateDepthImage(context, device))
+    {
+        return false;
+    }
 
     VkSwapchainKHR oldSwapchain = device.swapchain;
     VkImageView oldSwapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
@@ -1066,7 +1194,6 @@ static bool RecreateSwapchain(Context& context, Device& device)
 
     return true;
 }
-
 /////////////////////////////////////////////////////////////////////////////
 // LogicalDevice
 /////////////////////////////////////////////////////////////////////////////
@@ -1433,6 +1560,11 @@ bool CreateContext(ContextSettings& settings, Context& context)
 
     for (u32 i = 0; i < context.deviceCount; i++)
     {
+        if (!CreateDepthImage(context, context.devices[i]))
+        {
+            return false;
+        }
+
         if (context.windowPtr)
         {
             if (!CreateSwapchain(context, context.devices[i]))
@@ -1595,6 +1727,7 @@ void DestroyContext(Context& context)
 {
     for (u32 i = 0; i < context.deviceCount; i++)
     {
+        DestroyDepthImage(context.devices[i]);
         if (context.windowPtr)
         {
             DestroySwapchain(context, context.devices[i]);

@@ -51,11 +51,10 @@ typedef bool (*DetermineSurfaceFormatFn)(const Context&,
 typedef bool (*DeterminePresentModeFn)(const Context&,
                                        const PhysicalDeviceInfo&,
                                        VkPresentModeKHR&);
-typedef void (*RecordCommandsFn)(Device& device, CommandBuffer& cmd);
 
 struct FrameData
 {
-    CommandBuffer commandBuffer;
+    CommandBuffer commandBuffer = {};
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkSemaphore swapchainSemaphore = VK_NULL_HANDLE;
     VkSemaphore renderSemaphore = VK_NULL_HANDLE;
@@ -64,19 +63,30 @@ struct FrameData
 
 struct TransferData
 {
-    CommandBuffer commandBuffer;
+    CommandBuffer commandBuffer = {};
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkFence transferFence = VK_NULL_HANDLE;
+};
+
+struct DepthImage
+{
+    VmaAllocationInfo allocationInfo;
+    VkImage handle = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    VkFormat format = VK_FORMAT_D24_UNORM_S8_UINT;
+    VmaAllocation allocation;
 };
 
 struct Device
 {
     char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
     VmaAllocator allocator = {};
-    VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
-    VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
+    VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {VK_NULL_HANDLE};
+    VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {
+        VK_NULL_HANDLE};
     FrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
-    TransferData transferData;
+    TransferData transferData = {};
+    DepthImage depthImage = {};
     VkSurfaceFormatKHR surfaceFormat = {};
     VkExtent2D swapchainExtent = {0, 0};
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

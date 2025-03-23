@@ -203,8 +203,8 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
     HLS_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
 
     VkImageAspectFlags aspectMask =
-        (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
-            ? VK_IMAGE_ASPECT_DEPTH_BIT
+        (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
             : VK_IMAGE_ASPECT_COLOR_BIT;
 
     VkImageMemoryBarrier2 imageBarrier{};
