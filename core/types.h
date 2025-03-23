@@ -18,6 +18,6 @@ typedef double f64;
 
 typedef bool b8;
 
-#define STACK_ARRAY_SIZE(arr) (sizeof(arr)/sizeof(arr[0]))
+#define STACK_ARRAY_COUNT(arr) (sizeof(arr)/sizeof(arr[0]))
 
 #endif /* End of HLS_TYPES_H */

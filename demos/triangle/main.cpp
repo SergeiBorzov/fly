@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
-    settings.deviceExtensionCount = STACK_ARRAY_SIZE(requiredDeviceExtensions);
+    settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
 
     Hls::Context context;
