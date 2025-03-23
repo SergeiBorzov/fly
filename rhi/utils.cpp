@@ -153,7 +153,7 @@ bool CreatePoolAndAllocateDescriptorsForProgrammableStage(
             continue;
         }
         poolSizes[poolSizeIndex].type = static_cast<VkDescriptorType>(i);
-        poolSizes[poolSizeIndex].descriptorCount = descriptorTypeCount[i];
+        poolSizes[poolSizeIndex].descriptorCount = descriptorTypeCount[i]*HLS_FRAME_IN_FLIGHT_COUNT;
         poolSizeIndex++;
     }
 
@@ -201,8 +201,9 @@ bool CreatePoolAndAllocateDescriptorsForProgrammableStage(
     descriptorPool.descriptorSets =
         HLS_ALLOC(arena, VkDescriptorSet, setCount * HLS_FRAME_IN_FLIGHT_COUNT);
 
-    if (vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
-                                 descriptorPool.descriptorSets) != VK_SUCCESS)
+    VkResult res = vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
+                                            descriptorPool.descriptorSets);
+    if (res != VK_SUCCESS)
     {
         ArenaPopToMarker(scratch, marker);
         return false;

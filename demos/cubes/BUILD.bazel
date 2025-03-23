@@ -1,0 +1,60 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+
+copy_files_to_directory(
+    name = "copy_vulkan_validation_layer",
+    srcs = [
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
+    ],
+    output_directory = ".",
+)
+
+copy_files_to_directory(
+    name = "copy_scene_data",
+    srcs = [
+        "@cube_scene//:scene_data",
+    ],
+    output_directory = ".",
+)
+
+config_setting(
+    name = "release_build",
+    values = {
+        "compilation_mode": "opt",
+    },
+)
+
+glsl_shader(
+    name = "cubes.vert.spv",
+    src = "cubes.vert",
+)
+
+glsl_shader(
+    name = "cubes.frag.spv",
+    src = "cubes.frag",
+)
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        "//rhi:context",
+        "//demos/common:simple_camera_fps",
+    ],
+    data = [
+        ":cubes.frag.spv",
+        ":cubes.vert.spv",
+        ":copy_scene_data",
+    ] + select({
+        ":release_build": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    })
+)
+
