@@ -4,6 +4,7 @@ cc_library(
     name = "context",
     hdrs = [
         "context.h",
+        "device.h",
         "command_buffer.h",
         "pipeline.h",
         "buffer.h",
@@ -12,6 +13,7 @@ cc_library(
     ],
     srcs = [
         "context.cpp",
+        "device.cpp",
         "command_buffer.cpp",
         "pipeline.cpp",
         "buffer.cpp",

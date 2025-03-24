@@ -146,9 +146,9 @@ int main(int argc, char* argv[])
     {
         glfwPollEvents();
 
-        BeginRenderFrame(context, device);
+        Hls::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline);
-        EndRenderFrame(context, device);
+        Hls::EndRenderFrame(device);
     }
 
     Hls::WaitAllDevicesIdle(context);
