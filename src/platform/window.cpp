@@ -1,4 +1,4 @@
-#include "src/core/platform.h"
+#include "core/platform.h"
 
 #include "window.h"
 
@@ -9,7 +9,6 @@
 #define GLFW_EXPOSE_NATIVE_X11
 #endif
 #include <GLFW/glfw3native.h>
-
 
 namespace Hls
 {

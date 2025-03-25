@@ -22,6 +22,7 @@ cc_library(
         "image.cpp",
         "utils.cpp",
     ],
+    includes = [".."],
     deps = [
         "@volk//:volk",
         "@vma//:vma",

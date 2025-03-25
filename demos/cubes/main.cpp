@@ -1,16 +1,16 @@
-#include "src/core/assert.h"
-#include "src/core/clock.h"
-#include "src/core/filesystem.h"
-#include "src/core/log.h"
-#include "src/core/thread_context.h"
+#include "core/assert.h"
+#include "core/clock.h"
+#include "core/filesystem.h"
+#include "core/log.h"
+#include "core/thread_context.h"
 
-#include "src/rhi/buffer.h"
-#include "src/rhi/context.h"
-#include "src/rhi/image.h"
-#include "src/rhi/pipeline.h"
-#include "src/rhi/utils.h"
+#include "rhi/buffer.h"
+#include "rhi/context.h"
+#include "rhi/image.h"
+#include "rhi/pipeline.h"
+#include "rhi/utils.h"
 
-#include "src/platform/window.h"
+#include "platform/window.h"
 
 #include "demos/common/simple_camera_fps.h"
 

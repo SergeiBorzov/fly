@@ -11,6 +11,7 @@ cc_library(
         "mat.cpp",
         "functions.cpp",
     ],
+    includes = [".."],
     deps = [
         "//src/core:assert",
     ],

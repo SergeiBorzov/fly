@@ -1,9 +1,9 @@
 #ifndef HLS_RHI_PIPELINE_H
 #define HLS_RHI_PIPELINE_H
 
-#include <volk.h>
+#include "core/assert.h"
 
-#include "src/core/assert.h"
+#include <volk.h>
 
 #define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
 

@@ -1,8 +1,8 @@
 #include <string.h>
 
-#include "src/core/filesystem.h"
-#include "src/core/platform.h"
-#include "src/core/thread_context.h"
+#include "core/filesystem.h"
+#include "core/platform.h"
+#include "core/thread_context.h"
 
 #include "buffer.h"
 #include "context.h"

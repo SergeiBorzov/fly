@@ -1,5 +1,5 @@
-#include "src/core/assert.h"
 #include "functions.h"
+#include "core/assert.h"
 
 #include <math.h>
 

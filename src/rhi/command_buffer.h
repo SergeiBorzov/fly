@@ -1,7 +1,7 @@
 #ifndef HLS_COMMAND_BUFFER_H
 #define HLS_COMMAND_BUFFER_H
 
-#include "src/core/types.h"
+#include "core/types.h"
 
 #include <volk.h>
 

@@ -1,11 +1,11 @@
 #define VMA_IMPLEMENTATION
 
+#include "core/assert.h"
+#include "core/log.h"
+#include "core/thread_context.h"
+
 #include "context.h"
 #include "surface.h"
-
-#include "src/core/assert.h"
-#include "src/core/log.h"
-#include "src/core/thread_context.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

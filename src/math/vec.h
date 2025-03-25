@@ -1,7 +1,7 @@
 #ifndef HLS_MATH_VEC_H
 #define HLS_MATH_VEC_H
 
-#include "src/core/assert.h"
+#include "core/assert.h"
 #include "functions.h"
 
 namespace Hls

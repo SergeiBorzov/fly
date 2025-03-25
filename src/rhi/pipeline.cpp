@@ -1,5 +1,5 @@
-#include "src/core/assert.h"
-#include "src/core/thread_context.h"
+#include "core/assert.h"
+#include "core/thread_context.h"
 
 #include "context.h"
 #include "pipeline.h"

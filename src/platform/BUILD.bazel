@@ -12,5 +12,6 @@ cc_library(
         "//src/core:assert",
         "@glfw//:glfw",
     ],
+    includes = [".."],
     visibility = ["//visibility:public"],
 )

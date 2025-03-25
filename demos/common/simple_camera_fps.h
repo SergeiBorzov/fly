@@ -1,7 +1,7 @@
 #ifndef HLS_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H
 #define HLS_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H
 
-#include "src/math/mat.h"
+#include "math/mat.h"
 
 struct GLFWwindow;
 

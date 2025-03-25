@@ -1,7 +1,7 @@
 #ifndef HLS_RHI_SURFACE_H
 #define HLS_RHI_SURFACE_H
 
-#include "src/core/types.h"
+#include "core/types.h"
 
 namespace Hls
 {

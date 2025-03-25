@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "src/core/assert.h"
+#include "core/assert.h"
 
 #include "buffer.h"
 #include "command_buffer.h"
