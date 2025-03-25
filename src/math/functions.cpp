@@ -188,7 +188,28 @@ namespace Math
 
 f32 Abs(f32 value) { return fabsf(value); }
 f32 Sqrt(f32 value) { return sqrtf(value); }
-f32 InvSqrt(f32 value) { return 1.0f / sqrtf(value); }
+
+// John Carmack's Quake 3 Fast Inverse Sqrt
+f32 InvSqrt(f32 value)
+{
+    if (value < MinF32())
+    {
+        return InfinityF32();
+    }
+
+    union
+    {
+        f32 f;
+        u32 u;
+    } i, v;
+
+    v.f = value;
+    i.u = 0x5F375A86 - (v.u >> 1);
+
+    i.f = (0.5f * i.f) * (3.0f - value * i.f * i.f);
+    i.f = (0.5f * i.f) * (3.0f - value * i.f * i.f);
+    return i.f;
+}
 
 f32 Sin(f32 radians)
 {

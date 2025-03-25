@@ -6,8 +6,8 @@ cc_binary(
         "benchmark_functions.cpp",
     ],
     deps = [
-        "//core:clock",
-        "//math:math",
+        "//src/core:clock",
+        "//src/math:math",
     ],
 )
 

@@ -31,3 +31,12 @@ TEST(Trigonometry, Tan)
         EXPECT_NEAR(tanf(value), Hls::Math::Tan(value), 1e-4);
     }
 }
+
+TEST(Basic, InvSqrt)
+{
+    for (i32 i = 1; i < 2048; i++)
+    {
+        f32 value = static_cast<f32>(i);
+        EXPECT_NEAR(1.0f / sqrtf(value), Hls::Math::InvSqrt(value), 1e-4);
+    }
+}

@@ -16,8 +16,50 @@ typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
 
-typedef bool b8;
+inline f32 MinF32()
+{
+    union
+    {
+        f32 f;
+        u32 u;
+    } v;
+    v.u = 0x00800000;
+    return v.f;
+}
 
-#define STACK_ARRAY_COUNT(arr) (sizeof(arr)/sizeof(arr[0]))
+inline f32 MaxF32()
+{
+    union
+    {
+        f32 f;
+        u32 u;
+    } v;
+    v.u = 0x7f7fffff;
+    return v.f;
+}
+
+inline f32 InfinityF32()
+{
+    union
+    {
+        f32 f;
+        u32 u;
+    } v;
+    v.u = 0x7f800000;
+    return v.f;
+}
+
+inline f32 MinusInfinityF32()
+{
+    union
+    {
+        f32 f;
+        u32 u;
+    } v;
+    v.u = 0xff800000;
+    return v.f;
+}
+
+#define STACK_ARRAY_COUNT(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #endif /* End of HLS_TYPES_H */

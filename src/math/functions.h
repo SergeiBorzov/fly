@@ -3,7 +3,7 @@
 
 #include "core/types.h"
 
-#define HLS_MATH_EPSILON 1e-5
+#define HLS_MATH_EPSILON (1e-5)
 #define HLS_MATH_PI (3.1415926f)
 #define HLS_MATH_TWO_PI (6.2831853f)
 #define HLS_MATH_HALF_PI (1.5707963f)

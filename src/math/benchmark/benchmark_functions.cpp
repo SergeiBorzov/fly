@@ -109,10 +109,45 @@ void BenchmarkCos()
     }
 }
 
+void BenchmarkInvSqrt()
+{
+    u64 hlsStart = Hls::ClockNow();
+    for (i32 i = 1; i < COUNT; i++)
+    {
+        volatile f32 c = Hls::Math::InvSqrt(static_cast<f32>(i));
+    }
+    u64 hlsEnd = Hls::ClockNow();
+
+    u64 stdlibStart = Hls::ClockNow();
+    for (i32 i = 1; i < COUNT; i++)
+    {
+        volatile f32 c = 1.0f/sqrtf(static_cast<f32>(i));
+    }
+    u64 stdlibEnd = Hls::ClockNow();
+
+    u64 hlsTime = hlsEnd - hlsStart;
+    u64 stdlibTime = stdlibEnd - stdlibStart;
+
+    printf("Hls - InvSqrt() - %f s\n", Hls::ToSeconds(hlsTime));
+    printf("cmath - 1.0f/sqrtf() - %f s\n", Hls::ToSeconds(stdlibTime));
+
+    if (hlsTime < stdlibTime)
+    {
+        printf("Hls InvSqrt() is %f times faster than cmath one\n\n",
+               Hls::ToSeconds(stdlibTime) / Hls::ToSeconds(hlsTime));
+    }
+    else
+    {
+        printf("cmath 1.0f/sqrtf() is %f times faster than Hls one\n\n",
+               Hls::ToSeconds(hlsTime) / Hls::ToSeconds(stdlibTime));
+    }
+}
+
 int main()
 {
     BenchmarkRand();
     BenchmarkSin();
     BenchmarkCos();
+    BenchmarkInvSqrt();
     return 0;
 }
