@@ -180,11 +180,11 @@ static bool CreateSwapchainImageViews(Device& device)
 {
     HLS_ASSERT(device.context->windowPtr);
     // Create swapchain image views
-    for (u32 i = 0; i < device.swapchainImageCount; i++)
+    for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = device.swapchainImages[i];
+        createInfo.image = device.swapchainTextures[i].handle;
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         createInfo.format = device.surfaceFormat.format;
         createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -199,7 +199,7 @@ static bool CreateSwapchainImageViews(Device& device)
 
         VkResult res =
             vkCreateImageView(device.logicalDevice, &createInfo, nullptr,
-                              &device.swapchainImageViews[i]);
+                              &device.swapchainTextures[i].imageView);
         if (res != VK_SUCCESS)
         {
             return false;
@@ -212,14 +212,14 @@ static void DestroySwapchainImageViews(Device& device)
 {
     HLS_ASSERT(device.context->windowPtr);
 
-    for (u32 i = 0; i < device.swapchainImageCount; i++)
+    for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
-        vkDestroyImageView(device.logicalDevice, device.swapchainImageViews[i],
-                           nullptr);
+        vkDestroyImageView(device.logicalDevice,
+                           device.swapchainTextures[i].imageView, nullptr);
     }
 }
 
-static bool CreateDepthImage(Device& device)
+static bool CreateMainDepthTexture(Device& device)
 {
     HLS_ASSERT(device.context);
     HLS_ASSERT(device.context->windowPtr);
@@ -233,50 +233,10 @@ static bool CreateDepthImage(Device& device)
         GetWindowSize(*device.context, width, height);
     }
 
-    device.depthImage.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-
-    VkImageCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    createInfo.imageType = VK_IMAGE_TYPE_2D;
-    createInfo.extent.width = static_cast<u32>(width);
-    createInfo.extent.height = static_cast<u32>(height);
-    createInfo.extent.depth = 1;
-    createInfo.mipLevels = 1;
-    createInfo.arrayLayers = 1;
-    createInfo.format = device.depthImage.format;
-    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    createInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    createInfo.flags = 0;
-
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    allocCreateInfo.requiredFlags =
-        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo,
-                       &device.depthImage.handle, &device.depthImage.allocation,
-                       &device.depthImage.allocationInfo) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    VkImageViewCreateInfo viewCreateInfo{};
-    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewCreateInfo.image = device.depthImage.handle;
-    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewCreateInfo.format = device.depthImage.format;
-    viewCreateInfo.subresourceRange.aspectMask =
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = 1;
-    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 1;
-
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo, nullptr,
-                          &device.depthImage.imageView) != VK_SUCCESS)
+    VkFormat format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    if (!CreateDepthTexture(device, static_cast<u32>(width),
+                            static_cast<u32>(height), format,
+                            device.depthTexture))
     {
         return false;
     }
@@ -285,20 +245,16 @@ static bool CreateDepthImage(Device& device)
     BeginTransfer(device);
     CommandBuffer& cmd = device.transferData.commandBuffer;
     RecordTransitionImageLayout(
-        cmd, device.depthImage.handle, VK_IMAGE_LAYOUT_UNDEFINED,
+        cmd, device.depthTexture.handle, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     EndTransfer(device);
 
     return true;
 }
 
-static void DestroyDepthImage(Device& device)
+static void DestroyMainDepthTexture(Device& device)
 {
-    vkDestroyImageView(device.logicalDevice, device.depthImage.imageView,
-                       nullptr);
-    vmaDestroyImage(device.allocator, device.depthImage.handle,
-                    device.depthImage.allocation);
-    device.depthImage.handle = VK_NULL_HANDLE;
+    DestroyDepthTexture(device, device.depthTexture);
 }
 
 static bool CreateSwapchain(Device& device,
@@ -372,19 +328,24 @@ static bool CreateSwapchain(Device& device,
         return false;
     }
 
-    device.swapchainExtent = extent;
-
     // Get swapchain images
     res = vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
-                                  &device.swapchainImageCount, nullptr);
-    HLS_ASSERT(device.swapchainImageCount <= HLS_SWAPCHAIN_IMAGE_MAX_COUNT);
+                                  &device.swapchainTextureCount, nullptr);
     if (res != VK_SUCCESS)
     {
         return false;
     }
+    HLS_ASSERT(device.swapchainTextureCount <= HLS_SWAPCHAIN_IMAGE_MAX_COUNT);
+
+    VkImage images[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {VK_NULL_HANDLE};
     vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
-                            &device.swapchainImageCount,
-                            device.swapchainImages);
+                            &device.swapchainTextureCount, images);
+    for (u32 i = 0; i < device.swapchainTextureCount; i++)
+    {
+        device.swapchainTextures[i].handle = images[i];
+        device.swapchainTextures[i].width = extent.width;
+        device.swapchainTextures[i].height = extent.height;
+    }
 
     if (!CreateSwapchainImageViews(device))
     {
@@ -394,11 +355,12 @@ static bool CreateSwapchain(Device& device,
     HLS_LOG("Device %s created new swapchain", device.name);
     HLS_LOG("Swapchain format: %s",
             FormatToString(device.surfaceFormat.format));
-    HLS_LOG("Depth image format %s", FormatToString(device.depthImage.format));
+    HLS_LOG("Depth image format %s",
+            FormatToString(device.depthTexture.format));
     HLS_LOG("Color space: %s",
             ColorSpaceToString(device.surfaceFormat.colorSpace));
     HLS_LOG("Present mode: %s", PresentModeToString(device.presentMode));
-    HLS_LOG("Swapchain image count: %u", device.swapchainImageCount);
+    HLS_LOG("Swapchain image count: %u", device.swapchainTextureCount);
 
     return true;
 }
@@ -418,18 +380,18 @@ static bool RecreateSwapchain(Device& device)
 
     vkDeviceWaitIdle(device.logicalDevice);
 
-    DestroyDepthImage(device);
-    if (!CreateDepthImage(device))
+    DestroyMainDepthTexture(device);
+    if (!CreateMainDepthTexture(device))
     {
         return false;
     }
 
     VkSwapchainKHR oldSwapchain = device.swapchain;
     VkImageView oldSwapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
-    u32 oldSwapchainImageCount = device.swapchainImageCount;
-    for (u32 i = 0; i < device.swapchainImageCount; i++)
+    u32 oldSwapchainImageCount = device.swapchainTextureCount;
+    for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
-        oldSwapchainImageViews[i] = device.swapchainImageViews[i];
+        oldSwapchainImageViews[i] = device.swapchainTextures[i].imageView;
     }
     if (!CreateSwapchain(device, oldSwapchain))
     {
@@ -735,8 +697,9 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         return false;
     }
 
-    if (!CreateDepthImage(device))
+    if (!CreateMainDepthTexture(device))
     {
+        HLS_LOG("f");
         return false;
     }
 
@@ -758,7 +721,7 @@ void DestroyLogicalDevice(Device& device)
     {
         DestroySwapchain(device);
     }
-    DestroyDepthImage(device);
+    DestroyMainDepthTexture(device);
     DestroyCommandPool(device);
     DestroyVmaAllocator(device);
 
@@ -770,19 +733,9 @@ CommandBuffer& RenderFrameCommandBuffer(Device& device)
     return device.frameData[device.frameIndex].commandBuffer;
 }
 
-VkImage RenderFrameSwapchainImage(Device& device)
+const SwapchainTexture& RenderFrameSwapchainTexture(const Device& device)
 {
-    return device.swapchainImages[device.swapchainImageIndex];
-}
-
-VkImageView RenderFrameSwapchainImageView(Device& device)
-{
-    return device.swapchainImageViews[device.swapchainImageIndex];
-}
-
-VkRect2D SwapchainRect2D(const Device& device)
-{
-    return {{0, 0}, device.swapchainExtent};
+    return device.swapchainTextures[device.swapchainTextureIndex];
 }
 
 bool BeginRenderFrame(Device& device)
@@ -799,7 +752,7 @@ bool BeginRenderFrame(Device& device)
             res = vkAcquireNextImageKHR(
                 device.logicalDevice, device.swapchain, UINT64_MAX,
                 device.frameData[device.frameIndex].swapchainSemaphore, nullptr,
-                &device.swapchainImageIndex);
+                &device.swapchainTextureIndex);
 
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
@@ -822,10 +775,14 @@ bool BeginRenderFrame(Device& device)
     ResetCommandBuffer(cmd, false);
     BeginCommandBuffer(cmd, true);
 
-    // Image transition to writeable
-    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(device),
-                                VK_IMAGE_LAYOUT_UNDEFINED,
-                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    if (device.swapchain != VK_NULL_HANDLE)
+    {
+        // Swapchain image transition to writeable
+        RecordTransitionImageLayout(
+            cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
 
     return true;
 }
@@ -834,10 +791,14 @@ bool EndRenderFrame(Device& device)
 {
     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    // Image transition to presentable
-    RecordTransitionImageLayout(cmd, RenderFrameSwapchainImage(device),
-                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    if (device.swapchain != VK_NULL_HANDLE)
+    {
+        // Image transition to presentable
+        RecordTransitionImageLayout(
+            cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
     EndCommandBuffer(cmd);
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -856,7 +817,7 @@ bool EndRenderFrame(Device& device)
             &device.frameData[device.frameIndex].renderSemaphore;
         presentInfo.pSwapchains = &device.swapchain;
         presentInfo.swapchainCount = 1;
-        presentInfo.pImageIndices = &device.swapchainImageIndex;
+        presentInfo.pImageIndices = &device.swapchainTextureIndex;
         presentInfo.pResults = nullptr;
 
         VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);

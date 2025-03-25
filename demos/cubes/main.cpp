@@ -6,8 +6,8 @@
 
 #include "rhi/buffer.h"
 #include "rhi/context.h"
-#include "rhi/image.h"
 #include "rhi/pipeline.h"
+#include "rhi/texture.h"
 #include "rhi/utils.h"
 
 #include "platform/window.h"
@@ -56,13 +56,14 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
 {
     Hls::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    VkImage image = RenderFrameSwapchainImage(device);
-    VkImageView imageView = RenderFrameSwapchainImageView(device);
-    VkRect2D renderArea = SwapchainRect2D(device);
+    const Hls::SwapchainTexture& swapchainTexture =
+        RenderFrameSwapchainTexture(device);
+    VkRect2D renderArea = {{0, 0},
+                           {swapchainTexture.width, swapchainTexture.height}};
     VkRenderingAttachmentInfo colorAttachment = Hls::ColorAttachmentInfo(
-        imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo depthAttachment = Hls::DepthAttachmentInfo(
-        device.depthImage.imageView,
+        device.depthTexture.imageView,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo =
         Hls::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
@@ -222,7 +223,7 @@ int main(int argc, char* argv[])
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
     fixedState.pipelineRendering.depthAttachmentFormat =
-        device.depthImage.format;
+        device.depthTexture.format;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;

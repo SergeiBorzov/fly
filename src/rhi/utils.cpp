@@ -6,7 +6,7 @@
 
 #include "buffer.h"
 #include "context.h"
-#include "image.h"
+#include "texture.h"
 #include "utils.h"
 
 #define STB_IMAGE_IMPLEMENTATION

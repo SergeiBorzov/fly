@@ -9,7 +9,7 @@ cc_library(
         "command_buffer.h",
         "pipeline.h",
         "buffer.h",
-        "image.h",
+        "texture.h",
         "utils.h",
     ],
     srcs = [
@@ -19,7 +19,7 @@ cc_library(
         "command_buffer.cpp",
         "pipeline.cpp",
         "buffer.cpp",
-        "image.cpp",
+        "texture.cpp",
         "utils.cpp",
     ],
     includes = [".."],

@@ -2,10 +2,7 @@
 #define HLS_RHI_DEVICE_H
 
 #include "command_buffer.h"
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION 1004000 // Vulkan 1.4
-#include <vk_mem_alloc.h>
+#include "texture.h"
 
 #define HLS_SWAPCHAIN_IMAGE_MAX_COUNT 8
 #define HLS_FRAME_IN_FLIGHT_COUNT 2
@@ -35,27 +32,15 @@ struct TransferData
     VkFence transferFence = VK_NULL_HANDLE;
 };
 
-struct DepthImage
-{
-    VmaAllocationInfo allocationInfo;
-    VkImage handle = VK_NULL_HANDLE;
-    VkImageView imageView = VK_NULL_HANDLE;
-    VkFormat format = VK_FORMAT_D24_UNORM_S8_UINT;
-    VmaAllocation allocation;
-};
-
 struct Device
 {
-    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
+    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] = {0};
     VmaAllocator allocator = {};
-    VkImage swapchainImages[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {VK_NULL_HANDLE};
-    VkImageView swapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {
-        VK_NULL_HANDLE};
+    SwapchainTexture swapchainTextures[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
+    DepthTexture depthTexture = {};
     FrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
     TransferData transferData = {};
-    DepthImage depthImage = {};
     VkSurfaceFormatKHR surfaceFormat = {};
-    VkExtent2D swapchainExtent = {0, 0};
     Context* context = nullptr;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
@@ -63,8 +48,8 @@ struct Device
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
-    u32 swapchainImageCount = 0;
-    u32 swapchainImageIndex = 0;
+    u32 swapchainTextureCount = 0;
+    u32 swapchainTextureIndex = 0;
     u32 frameIndex = 0;
     i32 graphicsComputeQueueFamilyIndex = -1;
     i32 presentQueueFamilyIndex = -1;
@@ -88,9 +73,7 @@ CommandBuffer& TransferCommandBuffer(Device& device);
 void BeginTransfer(Device& device);
 void EndTransfer(Device& device);
 
-VkRect2D SwapchainRect2D(const Device& device);
-VkImage RenderFrameSwapchainImage(Device& device);
-VkImageView RenderFrameSwapchainImageView(Device& device);
+const SwapchainTexture& RenderFrameSwapchainTexture(const Device& device);
 CommandBuffer& RenderFrameCommandBuffer(Device& device);
 bool BeginRenderFrame(Device& device);
 bool EndRenderFrame(Device& device);

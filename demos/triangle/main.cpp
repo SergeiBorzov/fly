@@ -29,11 +29,13 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
 {
     Hls::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    VkImage image = RenderFrameSwapchainImage(device);
-    VkImageView imageView = RenderFrameSwapchainImageView(device);
-    VkRect2D renderArea = SwapchainRect2D(device);
+    const Hls::SwapchainTexture& swapchainTexture =
+        RenderFrameSwapchainTexture(device);
+
+    VkRect2D renderArea = {{0, 0},
+                           {swapchainTexture.width, swapchainTexture.height}};
     VkRenderingAttachmentInfo colorAttachment = Hls::ColorAttachmentInfo(
-        imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo =
         Hls::RenderingInfo(renderArea, &colorAttachment, 1);
 
