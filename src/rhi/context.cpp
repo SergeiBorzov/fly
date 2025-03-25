@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "context.h" // volk should be included prior to glfw
-#include <GLFW/glfw3.h>
+#include "context.h"
+#include "surface.h"
 
 #include "src/core/assert.h"
 #include "src/core/log.h"
@@ -717,22 +717,6 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
 
     ArenaPopToMarker(arena, marker);
     return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// Surface
-/////////////////////////////////////////////////////////////////////////////
-static bool CreateSurface(Context& context)
-{
-    HLS_ASSERT(context.windowPtr);
-    return glfwCreateWindowSurface(context.instance, context.windowPtr, nullptr,
-                                   &context.surface) == VK_SUCCESS;
-}
-
-static void DestroySurface(Context& context)
-{
-    HLS_ASSERT(context.windowPtr);
-    vkDestroySurfaceKHR(context.instance, context.surface, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////

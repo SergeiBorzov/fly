@@ -5,6 +5,7 @@ cc_library(
     hdrs = [
         "context.h",
         "device.h",
+        "surface.h",
         "command_buffer.h",
         "pipeline.h",
         "buffer.h",
@@ -14,6 +15,7 @@ cc_library(
     srcs = [
         "context.cpp",
         "device.cpp",
+        "surface.cpp",
         "command_buffer.cpp",
         "pipeline.cpp",
         "buffer.cpp",
@@ -22,7 +24,6 @@ cc_library(
     ],
     deps = [
         "@volk//:volk",
-        "@glfw//:glfw",
         "@vma//:vma",
         "@spirv_reflect//:spirv_reflect",
         "@stb//:stb_image",

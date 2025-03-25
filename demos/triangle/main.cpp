@@ -1,12 +1,14 @@
 #include "src/core/assert.h"
 #include "src/core/filesystem.h"
 #include "src/core/log.h"
+#include "src/core/platform.h"
 #include "src/core/thread_context.h"
 
 #include "src/rhi/context.h"
 #include "src/rhi/pipeline.h"
 #include "src/rhi/utils.h"
-#include <GLFW/glfw3.h>
+
+#include "src/platform/window.h"
 
 static void SetVulkanLayerPathEnvVariable()
 {
@@ -105,7 +107,7 @@ int main(int argc, char* argv[])
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
-    settings.windowPtr = window;
+    settings.windowPtr = Hls::GetNativeWindowPtr(window);
 
     Hls::Context context;
     if (!Hls::CreateContext(settings, context))

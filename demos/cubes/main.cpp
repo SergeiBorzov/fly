@@ -10,7 +10,7 @@
 #include "src/rhi/pipeline.h"
 #include "src/rhi/utils.h"
 
-#include <GLFW/glfw3.h>
+#include "src/platform/window.h"
 
 #include "demos/common/simple_camera_fps.h"
 
@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
-    settings.windowPtr = window;
+    settings.windowPtr = Hls::GetNativeWindowPtr(window);
 
     Hls::Context context;
     if (!Hls::CreateContext(settings, context))

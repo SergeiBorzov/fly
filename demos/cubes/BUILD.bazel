@@ -42,6 +42,7 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
+        "//src/platform:window",
         "//src/rhi:context",
         "//demos/common:simple_camera_fps",
     ],

@@ -1,0 +1,16 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "window",
+    hdrs = [
+        "window.h",
+    ],
+    srcs = [
+        "window.cpp",
+    ],
+    deps = [
+        "//src/core:assert",
+        "@glfw//:glfw",
+    ],
+    visibility = ["//visibility:public"],
+)

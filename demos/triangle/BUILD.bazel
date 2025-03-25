@@ -34,6 +34,7 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
+        "//src/platform:window",
         "//src/rhi:context",
     ],
     data = [
@@ -45,6 +46,6 @@ cc_binary(
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
         ],
-    })
+    }),
 )
 

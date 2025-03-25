@@ -1,6 +1,7 @@
 #define VMA_IMPLEMENTATION
+
 #include "context.h"
-#include <GLFW/glfw3.h>
+#include "surface.h"
 
 #include "src/core/assert.h"
 #include "src/core/log.h"
@@ -225,11 +226,11 @@ static bool CreateDepthImage(Device& device)
 
     i32 width = 0;
     i32 height = 0;
-    glfwGetFramebufferSize(device.context->windowPtr, &width, &height);
+    GetWindowSize(*device.context, width, height);
     while (width == 0 || height == 0)
     {
-        glfwGetFramebufferSize(device.context->windowPtr, &width, &height);
-        glfwWaitEvents();
+        PollWindowEvents(*device.context);
+        GetWindowSize(*device.context, width, height);
     }
 
     device.depthImage.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
@@ -308,11 +309,11 @@ static bool CreateSwapchain(Device& device,
 
     i32 width = 0;
     i32 height = 0;
-    glfwGetFramebufferSize(device.context->windowPtr, &width, &height);
+    GetWindowSize(*device.context, width, height);
     while (width == 0 || height == 0)
     {
-        glfwGetFramebufferSize(device.context->windowPtr, &width, &height);
-        glfwWaitEvents();
+        PollWindowEvents(*device.context);
+        GetWindowSize(*device.context, width, height);
     }
 
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
