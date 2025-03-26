@@ -193,6 +193,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     {
         return false;
     }
+    HLS_DEBUG_LOG("Created vulkan instance");
 
     volkLoadInstance(instance);
     context.instance = instance;
@@ -787,6 +788,7 @@ void DestroyContext(Context& context)
         DestroySurface(context);
     }
     vkDestroyInstance(context.instance, nullptr);
+    HLS_DEBUG_LOG("Vulkan instance is destroyed");
 }
 
 void WaitAllDevicesIdle(Context& context)

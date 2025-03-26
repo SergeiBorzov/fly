@@ -612,6 +612,7 @@ static bool CreateVmaAllocator(Context& context, Device& device)
     {
         return false;
     }
+    HLS_DEBUG_LOG("Vma allocator created for device %s", device.name);
 
     return true;
 }
@@ -619,6 +620,7 @@ static bool CreateVmaAllocator(Context& context, Device& device)
 static void DestroyVmaAllocator(Device& device)
 {
     vmaDestroyAllocator(device.allocator);
+    HLS_DEBUG_LOG("Vma allocator destroyed for device %s", device.name);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -675,6 +677,7 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         ArenaPopToMarker(arena, marker);
         return false;
     }
+    HLS_DEBUG_LOG("Vulkan logical device created for %s", device.name);
 
     vkGetDeviceQueue(device.logicalDevice,
                      device.graphicsComputeQueueFamilyIndex, 0,
@@ -699,7 +702,6 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     if (!CreateMainDepthTexture(device))
     {
-        HLS_LOG("f");
         return false;
     }
 
@@ -726,6 +728,7 @@ void DestroyLogicalDevice(Device& device)
     DestroyVmaAllocator(device);
 
     vkDestroyDevice(device.logicalDevice, nullptr);
+    HLS_DEBUG_LOG("Vulkan logical device %s destroyed", device.name);
 }
 
 CommandBuffer& RenderFrameCommandBuffer(Device& device)
