@@ -21,4 +21,19 @@ void* PlatformAlloc(u64 reserveSize, u64 commitSize)
     return reserved;
 }
 
+void* PlatformCommitMemory(void* baseAddress, u64 commitSize)
+{
+    baseAddress = VirtualAlloc(baseAddress, commitSize, MEM_COMMIT, PAGE_READWRITE);
+    if (!baseAddress)
+    {
+        return nullptr;
+    }
+    return baseAddress;
+}
+
+bool PlatformDecommitMemory(void* baseAddress)
+{
+    return VirtualFree(baseAddress, 0, MEM_DECOMMIT);
+}
+
 void PlatformFree(void* ptr, u64 size) { VirtualFree(ptr, 0, MEM_RELEASE); }

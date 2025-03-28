@@ -92,10 +92,21 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
     u64 allocSize = size + align + sizeof(ArenaAllocHeader);
 
     u64 total = arena.size + allocSize;
-    if (total > arena.capacity)
+    while (total > arena.capacity)
     {
-        // TODO: Handle arena out of memory situation
-        HLS_ASSERT(false);
+        u64 newCapacity = 2 * arena.capacity;
+        if (newCapacity <= arena.reservedCapacity)
+        {
+            void* res = PlatformCommitMemory(arena.ptr + arena.capacity,
+                                             arena.capacity);
+            HLS_ASSERT(res);
+            arena.capacity = newCapacity;
+        }
+        else
+        {
+            // Out of reserved space of addresses
+            HLS_ASSERT(false);
+        }
     }
 
     u8* unalignedPtr = arena.ptr + arena.size;
