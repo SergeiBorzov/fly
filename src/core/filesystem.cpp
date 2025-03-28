@@ -45,9 +45,13 @@ const char* GetBinaryDirectoryPath(Arena& arena)
 #endif
 }
 
-char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align)
+char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align, bool binaryMode)
 {
     const char* mode = "rb";
+    if (!binaryMode)
+    {
+        mode = "r";
+    }
 
     FILE* file = fopen(filename, mode);
     if (!file)
