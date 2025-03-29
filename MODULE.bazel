@@ -140,3 +140,11 @@ external_data.base(
     build_file = "//scripts/bazel/target:BUILD.cube_scene.bazel",
 )
 use_repo(external_data, "cube_scene")
+
+external_data.base(
+    name = "sponza_scene",
+    url = "https://casual-effects.com/g3d/data10/common/model/crytek_sponza/sponza.zip",
+    sha256 = "da005cbee0be2df2abc8513f3ceb61bcb6f69aac112babcd9c00169a27c2770c",
+    build_file = "//scripts/bazel/target:BUILD.sponza_scene.bazel",
+)
+use_repo(external_data, "sponza_scene")
