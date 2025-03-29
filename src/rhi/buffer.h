@@ -26,6 +26,9 @@ void UnmapBuffer(Device& device, Buffer& buffer);
 void CopyDataToBuffer(Device& device, Buffer& buffer, u64 offset,
                       const void* source, u64 size);
 
+bool TransferDataToBuffer(Device& device, const void* data, u64 size,
+                          Buffer& buffer);
+
 } // namespace Hls
 
 #endif /* HLS_RHI_BUFFER_H */

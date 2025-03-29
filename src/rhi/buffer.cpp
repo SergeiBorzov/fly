@@ -61,4 +61,38 @@ void UnmapBuffer(Device& device, Buffer& buffer)
     vmaUnmapMemory(device.allocator, buffer.allocation);
 }
 
+bool TransferDataToBuffer(Device& device, const void* data, u64 size,
+                          Buffer& buffer)
+{
+    Buffer transferBuffer;
+
+    if (!CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+                      size, transferBuffer))
+    {
+        return false;
+    }
+
+    if (!MapBuffer(device, transferBuffer))
+    {
+        return false;
+    }
+    memcpy(transferBuffer.mappedPtr, data, size);
+
+    BeginTransfer(device);
+    CommandBuffer& cmd = TransferCommandBuffer(device);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = size;
+    vkCmdCopyBuffer(cmd.handle, transferBuffer.handle, buffer.handle, 1, &copyRegion);
+
+    EndTransfer(device);
+
+    UnmapBuffer(device, transferBuffer);
+    DestroyBuffer(device, transferBuffer);
+
+    return true;
+}
+
 } // namespace Hls
