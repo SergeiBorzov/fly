@@ -27,6 +27,7 @@ struct String8
 
     bool operator==(String8 rhs);
 
+    inline const char* Data() const { return data_; }
     inline u64 Size() const { return size_; }
 
     static bool Cut(String8, char sep, String8CutPair& cut);
@@ -34,6 +35,7 @@ struct String8
     static String8 TrimRight(String8 str);
     static bool ParseF64(String8 str, f64& res);
     static bool ParseF32(String8 str, f32& res);
+    static bool ParseU64(String8 str, u64& res);
 
 private:
     char* data_ = nullptr;

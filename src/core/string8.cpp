@@ -141,4 +141,31 @@ bool String8::ParseF32(String8 str, f32& res)
     return true;
 }
 
+bool String8::ParseU64(String8 str, u64& res)
+{
+    if (!str.size_ || !str.data_)
+    {
+        return false;
+    }
+
+    str = TrimLeft(TrimRight(str));
+
+    // Process integer part
+    u64 result = 0;
+    for (u64 i = 0; i < str.size_; i++)
+    {
+        if (CharIsDigit(str.data_[i]))
+        {
+            result = result * 10 + (str.data_[i] - '0');
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    res = result;
+    return true;
+}
+
 } // namespace Hls
