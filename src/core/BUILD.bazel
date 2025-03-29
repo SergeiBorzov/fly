@@ -96,6 +96,20 @@ cc_library(
 )
 
 cc_library(
+    name = "string8",
+    hdrs = [
+        "string8.h",
+    ],
+    srcs = [
+        "string8.cpp",
+    ],
+    deps = [
+        ":assert",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "filesystem",
     hdrs = [
         "filesystem.h",
@@ -104,6 +118,7 @@ cc_library(
         "filesystem.cpp",
     ],
     deps = [
+        ":string8",
         ":memory",
     ],
     visibility = ["//visibility:public"],
