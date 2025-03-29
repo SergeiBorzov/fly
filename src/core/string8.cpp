@@ -95,6 +95,7 @@ bool String8::ParseF64(String8 str, f64& res)
     }
 
     String8CutPair cutPair{};
+    cutPair.head = str;
     Cut(str, '.', cutPair);
 
     // Process integer part
@@ -141,11 +142,54 @@ bool String8::ParseF32(String8 str, f32& res)
     return true;
 }
 
+bool String8::ParseI64(String8 str, i64& res)
+{
+    if (!str.size_ || !str.data_)
+    {
+        return false;
+    }
+
+    // Handle sign
+    i64 sign = 1;
+    if (str.data_[0] == '+' || str.data_[0] == '-')
+    {
+        ++str.data_;
+        --str.size_;
+        sign = (str.data_[0] == '+') * 2 - 1;
+    }
+
+    str = TrimLeft(TrimRight(str));
+
+    // Process integer part
+    i64 result = 0;
+    for (u64 i = 0; i < str.size_; i++)
+    {
+        if (CharIsDigit(str.data_[i]))
+        {
+            result = result * 10 + (str.data_[i] - '0');
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    res = sign * result;
+    return true;
+}
+
 bool String8::ParseU64(String8 str, u64& res)
 {
     if (!str.size_ || !str.data_)
     {
         return false;
+    }
+
+    // Handle sign
+    if (str.data_[0] == '+')
+    {
+        ++str.data_;
+        --str.size_;
     }
 
     str = TrimLeft(TrimRight(str));

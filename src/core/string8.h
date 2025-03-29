@@ -36,6 +36,7 @@ struct String8
     static bool ParseF64(String8 str, f64& res);
     static bool ParseF32(String8 str, f32& res);
     static bool ParseU64(String8 str, u64& res);
+    static bool ParseI64(String8 str, i64& res);
 
 private:
     char* data_ = nullptr;
