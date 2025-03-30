@@ -1,6 +1,10 @@
+#include <stdio.h>
 #include <string.h>
 
+#include "core/clock.h"
 #include "core/filesystem.h"
+#include "core/log.h"
+#include "core/memory.h"
 #include "core/string8.h"
 #include "core/thread_context.h"
 
@@ -8,544 +12,496 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+static const f64 sPowerPos[20] = {
+    1.0e0,  1.0e1,  1.0e2,  1.0e3,  1.0e4,  1.0e5,  1.0e6,
+    1.0e7,  1.0e8,  1.0e9,  1.0e10, 1.0e11, 1.0e12, 1.0e13,
+    1.0e14, 1.0e15, 1.0e16, 1.0e17, 1.0e18, 1.0e19,
+};
+
+static const f64 sPowerNeg[20] = {
+    1.0e0,   1.0e-1,  1.0e-2,  1.0e-3,  1.0e-4,  1.0e-5,  1.0e-6,
+    1.0e-7,  1.0e-8,  1.0e-9,  1.0e-10, 1.0e-11, 1.0e-12, 1.0e-13,
+    1.0e-14, 1.0e-15, 1.0e-16, 1.0e-17, 1.0e-18, 1.0e-19,
+};
+
 namespace Hls
 {
 
-struct Vertex
+static const char* SkipWhitespace(const char* ptr)
 {
-    Math::Vec3 pos;
-    Math::Vec3 norm;
-    Math::Vec2 texCoord;
-};
+    while (Hls::CharIsWhitespace(*ptr))
+        ptr++;
 
-static char* AppendPathToBinaryDirectory(Arena& arena, const char* filename)
-{
-    u64 filenameStrLength = strlen(filename);
-
-    const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
-    u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
-
-    char* buffer =
-        HLS_ALLOC(arena, char, binDirectoryPathStrLength + filenameStrLength);
-
-    strncpy(buffer, binDirectoryPath, binDirectoryPathStrLength);
-    strncpy(buffer + binDirectoryPathStrLength, filename, filenameStrLength);
-    buffer[binDirectoryPathStrLength + filenameStrLength] = '\0';
-    return buffer;
+    return ptr;
 }
 
-static bool ParseTexCoord(String8 values, Math::Vec2& v)
+static const char* SkipLine(const char* ptr)
 {
-    values = String8::TrimLeft(values);
-    String8CutPair cutPair{};
-
-    if (!String8::Cut(values, ' ', cutPair))
+    while (!CharIsNewline(*ptr++))
     {
-        return false;
     }
-
-    if (!String8::ParseF32(cutPair.head, v.x))
-    {
-        return false;
-    }
-
-    // Vertex Coord is usually 2 components, but might have optional 3rd, which
-    // we ignore
-    String8 secondComponent = cutPair.tail;
-
-    char buff[256] = {0};
-    strncpy(buff, cutPair.tail.Data(), cutPair.tail.Size());
-    if (String8::Cut(cutPair.tail, ' ', cutPair))
-    {
-        secondComponent = cutPair.head;
-    }
-    if (!String8::ParseF32(secondComponent, v.y))
-    {
-        return false;
-    }
-
-    return true;
+    return ptr;
 }
 
-static bool ParseVertex(String8 values, Math::Vec3& v)
+static const char* ParseI32(const char* ptr, i32& val)
 {
-    values = String8::TrimLeft(values);
-    String8CutPair cutPair{};
-    if (!String8::Cut(values, ' ', cutPair))
+    i32 sign = 1;
+    ptr = SkipWhitespace(ptr);
+
+    if (*ptr == '+' || *ptr == '-')
     {
-        return false;
+        sign = (*ptr == '+') * 2 - 1;
+        ++ptr;
     }
 
-    if (!String8::ParseF32(cutPair.head, v.x))
-    {
-        return false;
-    }
+    i32 num = 0;
+    while (CharIsDigit(*ptr))
+        num = 10 * num + (*ptr++ - '0');
 
-    if (!String8::Cut(cutPair.tail, ' ', cutPair))
-    {
-        return false;
-    }
-
-    if (!String8::ParseF32(cutPair.head, v.y))
-    {
-        return false;
-    }
-
-    String8::Cut(cutPair.tail, ' ', cutPair);
-
-    // Vertex is usually 3 components, but might have optional 4th, which we
-    // ignore
-    String8 thirdComponent = cutPair.tail;
-    if (String8::Cut(cutPair.tail, ' ', cutPair))
-    {
-        thirdComponent = cutPair.head;
-    }
-    if (!String8::ParseF32(thirdComponent, v.z))
-    {
-        return false;
-    }
-
-    return true;
+    val = sign * num;
+    return ptr;
 }
 
-static bool ParseNormal(String8 values, Math::Vec3& v)
+static const char* ParseF32(const char* ptr, f32& val)
 {
-    values = String8::TrimLeft(values);
-    String8CutPair cutPair{};
-    if (!String8::Cut(values, ' ', cutPair))
+    f64 sign = 1.0;
+    ptr = SkipWhitespace(ptr);
+
+    if (*ptr == '+' || *ptr == '-')
     {
-        return false;
+        sign = (*ptr == '+') * 2 - 1;
+        ++ptr;
     }
 
-    if (!String8::ParseF32(cutPair.head, v.x))
+    f64 num = 0.0;
+    while (CharIsDigit(*ptr))
+        num = 10.0 * num + static_cast<f64>(*ptr++ - '0');
+
+    if (*ptr == '.')
+        ptr++;
+
+    f64 fraction = 0.0;
+    f64 div = 1.0;
+
+    while (CharIsDigit(*ptr))
     {
-        return false;
+        fraction = 10.0 * fraction + (double)(*ptr++ - '0');
+        div *= 10.0;
     }
 
-    if (!String8::Cut(cutPair.tail, ' ', cutPair))
+    num += fraction / div;
+
+    if (CharIsExponent(*ptr))
     {
-        return false;
+        ptr++;
+
+        const f64* powers = sPowerPos;
+        u32 eval = 0;
+
+        if (*ptr == '+')
+        {
+            ptr++;
+        }
+        else if (*ptr == '-')
+        {
+            powers = sPowerNeg;
+            ptr++;
+        }
+
+        while (CharIsDigit(*ptr))
+            eval = 10 * eval + (*ptr++ - '0');
+
+        num *= (eval >= 20) ? 0.0 : powers[eval];
     }
 
-    if (!String8::ParseF32(cutPair.head, v.y))
-    {
-        return false;
-    }
+    val = static_cast<f32>(sign * num);
 
-    // Normal is strictly 3 components
-    if (!String8::ParseF32(cutPair.tail, v.z))
-    {
-        return false;
-    }
-
-    return true;
+    return ptr;
 }
 
-static bool ParseIndex(String8 str, ObjData::Index& index)
+static Math::Vec3& GetNextVertex(ObjData& objData)
 {
-    String8CutPair cutPair{};
-    cutPair.tail = str;
-
-    if (!String8::Cut(cutPair.tail, '/', cutPair))
+    if (objData.vertexCount >= objData.vertexCapacity)
     {
-        return String8::ParseI64(cutPair.tail, index.vertexIndex);
+        PlatformCommitMemory(reinterpret_cast<u8*>(objData.vertices) +
+                                 objData.vertexCommitSize,
+                             objData.vertexCommitSize);
+        objData.vertexCommitSize *= 2;
+        objData.vertexCapacity = objData.vertexCommitSize / sizeof(Math::Vec3);
     }
-
-    if (!String8::ParseI64(cutPair.head, index.vertexIndex))
-    {
-        return false;
-    }
-
-    if (!String8::Cut(cutPair.tail, '/', cutPair))
-    {
-        return String8::ParseI64(cutPair.tail, index.texCoordIndex);
-    }
-
-    if (cutPair.head.Size() > 0 &&
-        !String8::ParseI64(cutPair.head, index.texCoordIndex))
-    {
-        return false;
-    }
-
-    if (cutPair.tail.Size() > 0 &&
-        !String8::ParseI64(cutPair.tail, index.normalIndex))
-    {
-        return false;
-    }
-
-    return true;
+    return objData.vertices[objData.vertexCount++];
 }
 
-static bool ConvertIndex(u64 totalCount, i64& index)
+static Math::Vec3& GetNextNormal(ObjData& objData)
 {
-    if (index > 0)
+    if (objData.normalCount >= objData.normalCapacity)
     {
-        --index;
+        PlatformCommitMemory(reinterpret_cast<u8*>(objData.normals) +
+                                 objData.normalCommitSize,
+                             objData.normalCommitSize);
+        objData.normalCommitSize *= 2;
+        objData.normalCapacity = objData.normalCommitSize / sizeof(Math::Vec3);
     }
-    else if (index < 0)
-    {
-        index = totalCount + index;
-        if (index < 0)
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return objData.normals[objData.normalCount++];
 }
 
-static bool ParseFace(String8 values, ObjData::Face* faces, u64 vertexCount,
-                      u64 texCoordCount, u64 normalCount, u32& triangleCount)
+static Math::Vec2& GetNextTexCoord(ObjData& objData)
 {
-    values = String8::TrimLeft(values);
-
-    ObjData::Face face{};
-    u32 i = 0;
-    String8CutPair cutPair{};
-    cutPair.tail = values;
-    // Simple triangulation if necessary using triangle fan algorithm
-    while (String8::Cut(cutPair.tail, ' ', cutPair))
+    if (objData.texCoordCount >= objData.texCoordCapacity)
     {
-        ObjData::Index index;
-        if (!ParseIndex(cutPair.head, index))
+        PlatformCommitMemory(reinterpret_cast<u8*>(objData.texCoords) +
+                                 objData.texCoordCommitSize,
+                             objData.texCoordCommitSize);
+        objData.texCoordCommitSize *= 2;
+        objData.texCoordCapacity =
+            objData.texCoordCommitSize / sizeof(Math::Vec2);
+    }
+    return objData.texCoords[objData.texCoordCount++];
+}
+
+static ObjData::Shape& GetNextShape(ObjData& objData)
+{
+    if (objData.shapeCount >= objData.shapeCapacity)
+    {
+        PlatformCommitMemory(reinterpret_cast<u8*>(objData.shapes) +
+                                 objData.shapeCommitSize,
+                             objData.shapeCommitSize);
+        objData.shapeCommitSize *= 2;
+        objData.shapeCapacity =
+            objData.shapeCommitSize / sizeof(ObjData::Shape);
+    }
+    return objData.shapes[objData.shapeCount++];
+}
+
+static ObjData::Face& GetNextFace(ObjData& objData)
+{
+    if (objData.faceCount >= objData.faceCapacity)
+    {
+        PlatformCommitMemory(reinterpret_cast<u8*>(objData.faces) +
+                                 objData.faceCommitSize,
+                             objData.faceCommitSize);
+        objData.faceCommitSize *= 2;
+        objData.faceCapacity = objData.faceCommitSize / sizeof(ObjData::Face);
+    }
+    return objData.faces[objData.faceCount++];
+}
+
+static const char* ParseVertex(const char* ptr, ObjData& objData)
+{
+    Math::Vec3& next = GetNextVertex(objData);
+    for (u32 i = 0; i < 3; i++)
+    {
+        ptr = ParseF32(ptr, next[i]);
+    }
+    return ptr;
+}
+
+static const char* ParseNormal(const char* ptr, ObjData& objData)
+{
+    Math::Vec3& next = GetNextNormal(objData);
+    for (u32 i = 0; i < 3; i++)
+    {
+        ptr = ParseF32(ptr, next[i]);
+    }
+    return ptr;
+}
+
+static const char* ParseTexCoord(const char* ptr, ObjData& objData)
+{
+    Math::Vec2& next = GetNextTexCoord(objData);
+    for (u32 i = 0; i < 2; i++)
+    {
+        ptr = ParseF32(ptr, next[i]);
+    }
+    return ptr;
+}
+
+static const char* ParseFace(const char* ptr, ObjData& objData)
+{
+    ptr = SkipWhitespace(ptr);
+
+    i32 v = 0;
+    i32 n = 0;
+    i32 t = 0;
+
+    u32 currentIndex = 0;
+    u32 j = 0;
+    ObjData::Index indices[3] = {};
+    while (!CharIsNewline(*ptr))
+    {
+        ptr = ParseI32(ptr, v);
+        if (*ptr == '/')
         {
-            return false;
+            ptr++;
+            if (*ptr != '/')
+            {
+                ptr = ParseI32(ptr, t);
+            }
+
+            if (*ptr == '/')
+            {
+                ptr++;
+                ptr = ParseI32(ptr, n);
+            }
         }
 
-        // Cannot be zero, obj indexing starts with 1
-        if (index.vertexIndex == 0)
+        if (v < 0)
         {
-            return false;
+            indices[j].vertexIndex =
+                static_cast<u32>(static_cast<i64>(objData.vertexCount) + v);
         }
-        if (!ConvertIndex(vertexCount, index.vertexIndex))
+        else if (v > 0)
         {
-            return false;
-        }
-        if (!ConvertIndex(texCoordCount, index.texCoordIndex))
-        {
-            return false;
-        }
-        if (!ConvertIndex(normalCount, index.normalIndex))
-        {
-            return false;
+            indices[j].vertexIndex = static_cast<u32>(v) - 1;
         }
 
-        if (i < 2)
+        if (t < 0)
         {
-            face.indices[i++] = index;
-            continue;
+            indices[j].texCoordIndex =
+                static_cast<u32>(static_cast<i64>(objData.texCoordCount) + t);
         }
-        else if (i == 2)
+        else if (t > 0)
         {
-            face.indices[i++] = index;
-            faces[triangleCount] = face;
-            triangleCount++;
+            indices[j].texCoordIndex = static_cast<u32>(t) - 1;
+        }
+
+        if (n < 0)
+        {
+            indices[j].normalIndex =
+                static_cast<u32>(static_cast<i64>(objData.normalCount) + n);
+        }
+        else if (n > 0)
+        {
+            indices[j].normalIndex = static_cast<u32>(t) - 1;
+        }
+
+        ++currentIndex;
+        if (currentIndex > 2)
+        {
+            ObjData::Face& face = GetNextFace(objData);
+            memcpy(face.indices, indices, sizeof(indices));
+            indices[1] = indices[2];
         }
         else
         {
-            face.indices[1] = face.indices[2];
-            face.indices[2] = index;
-            faces[triangleCount++] = face;
+            j++;
         }
     }
 
-    ObjData::Index index;
-    if (!ParseIndex(cutPair.tail, index))
-    {
-        return false;
-    }
-
-    // Cannot be zero, obj indexing starts with 1
-    if (index.vertexIndex == 0)
-    {
-        return false;
-    }
-    if (!ConvertIndex(vertexCount, index.vertexIndex))
-    {
-        return false;
-    }
-    if (!ConvertIndex(texCoordCount, index.texCoordIndex))
-    {
-        return false;
-    }
-    if (!ConvertIndex(normalCount, index.normalIndex))
-    {
-        return false;
-    }
-
-    if (i == 2)
-    {
-        face.indices[i++] = index;
-        faces[triangleCount++] = face;
-    }
-    else
-    {
-        face.indices[1] = face.indices[2];
-        face.indices[2] = index;
-        faces[triangleCount++] = face;
-    }
-
-    return true;
+    return ptr;
 }
 
-static bool ParseName(String8 str, ObjData::Shape& shape)
+static const char* ParseName(const char* ptr, ObjData& objData)
 {
-    str = String8::TrimLeft(str);
-    if (!str.Size())
+    ptr = SkipWhitespace(ptr);
+
+    const char* start = ptr;
+    while (!CharIsNewline(*ptr))
     {
-        return true;
+        ptr++;
     }
 
-    u32 count = static_cast<u32>(MIN(str.Size(), 127));
-    strncpy(shape.name, str.Data(), count);
+    while (ptr > start && CharIsWhitespace(*(ptr - 1)))
+    {
+        --ptr;
+    }
+
+    ObjData::Shape& shape = objData.shapes[objData.shapeCount - 1];
+    u32 count = MIN(static_cast<u32>(ptr - start), 127u);
+    strncpy(shape.name, start, count);
     shape.name[count] = '\0';
+    return ptr;
+}
+
+bool FastParse(String8 str, ObjData& objData)
+{
+    objData.vertexCount = 0;
+    objData.vertexCommitSize = HLS_SIZE_MB(1);
+    objData.vertexCapacity = objData.vertexCommitSize / sizeof(Math::Vec3);
+    objData.vertices = static_cast<Math::Vec3*>(
+        PlatformAlloc(HLS_SIZE_GB(4), objData.vertexCommitSize));
+
+    objData.normalCount = 0;
+    objData.normalCommitSize = HLS_SIZE_MB(1);
+    objData.normalCapacity = objData.normalCommitSize / sizeof(Math::Vec3);
+    objData.normals = static_cast<Math::Vec3*>(
+        PlatformAlloc(HLS_SIZE_GB(4), objData.normalCommitSize));
+
+    objData.texCoordCount = 0;
+    objData.texCoordCommitSize = HLS_SIZE_MB(1);
+    objData.texCoordCapacity = objData.texCoordCommitSize / sizeof(Math::Vec2);
+    objData.texCoords = static_cast<Math::Vec2*>(
+        PlatformAlloc(HLS_SIZE_GB(4), objData.texCoordCommitSize));
+
+    objData.faceCount = 0;
+    objData.faceCommitSize = HLS_SIZE_MB(1);
+    objData.faceCapacity = objData.faceCommitSize / sizeof(ObjData::Face);
+    objData.faces = static_cast<ObjData::Face*>(
+        PlatformAlloc(HLS_SIZE_GB(4), objData.faceCommitSize));
+
+    objData.shapeCount = 0;
+    objData.shapeCommitSize = HLS_SIZE_MB(1);
+    objData.shapeCapacity = objData.shapeCommitSize / sizeof(ObjData::Shape);
+    objData.shapes = static_cast<ObjData::Shape*>(
+        PlatformAlloc(HLS_SIZE_GB(4), objData.shapeCommitSize));
+
+    const char* p = str.Data();
+    const char* end = str.Data() + str.Size();
+
+    u32 shapeStartIndex = 0;
+    while (p != end)
+    {
+        p = SkipWhitespace(p);
+        switch (*p)
+        {
+            case '#':
+            {
+                break;
+            }
+            case 'v':
+            {
+                p++;
+                switch (*p++)
+                {
+                    case ' ':
+                    case '\t':
+                    {
+                        p = ParseVertex(p, objData);
+                        break;
+                    }
+                    case 't':
+                    {
+                        p = ParseTexCoord(p, objData);
+                        break;
+                    }
+                    case 'n':
+                    {
+                        p = ParseNormal(p, objData);
+                        break;
+                    }
+                    default:
+                    {
+                        return false;
+                    }
+                }
+                break;
+            }
+            case 'f':
+            {
+                p++;
+                switch (*p++)
+                {
+                    case ' ':
+                    case '\t':
+                    {
+                        p = ParseFace(p, objData);
+                        break;
+                    }
+                    default:
+                    {
+                        return false;
+                    }
+                }
+                break;
+            }
+            case 'g':
+            {
+                p++;
+                if (objData.shapeCount == 0)
+                {
+                    ObjData::Shape& shape = GetNextShape(objData);
+                    shape.name[0] = '\0';
+                    shape.firstFaceIndex = objData.faceCount;
+                }
+                else
+                {
+                    ObjData::Shape& shape =
+                        objData.shapes[objData.shapeCount - 1];
+                    if (shape.firstFaceIndex != objData.faceCount)
+                    {
+                        shape.faceCount =
+                            objData.faceCount - shape.firstFaceIndex;
+                        ObjData::Shape& newShape = GetNextShape(objData);
+                        newShape.name[0] = '\0';
+                        newShape.firstFaceIndex = objData.faceCount;
+                    }
+                }
+                switch (*p++)
+                {
+                    case ' ':
+                    case '\t':
+                    {
+                        p = ParseName(p, objData);
+                        break;
+                    }
+                    case '\n':
+                    {
+                        --p;
+                        break;
+                    }
+                    default:
+                    {
+                        return false;
+                    }
+                }
+                break;
+            }
+            case 'o':
+            {
+                if (objData.shapeCount - 1 >= 0)
+                {
+                    ObjData::Shape& shape =
+                        objData.shapes[objData.shapeCount - 1];
+                    shape.faceCount = objData.faceCount - shape.firstFaceIndex;
+                }
+                ObjData::Shape& shape = GetNextShape(objData);
+                shape.name[0] = '\0';
+                shape.firstFaceIndex = objData.faceCount;
+                break;
+            }
+        }
+        p = SkipLine(p);
+    }
+
+    ObjData::Shape* lastShape = nullptr;
+    if (objData.shapeCount == 0)
+    {
+        lastShape = &(GetNextShape(objData));
+        lastShape->firstFaceIndex = 0;
+        lastShape->name[0] = '\0';
+    }
+    lastShape = &(objData.shapes[objData.shapeCount - 1]);
+    lastShape->faceCount = objData.faceCount - lastShape->firstFaceIndex;
+
     return true;
 }
 
-// In first pass we count vertices and faces to know how much to allocate
-static ObjParseResult FirstPass(String8 str, ObjData& objData)
+bool ImportWavefrontObj(const char* filepath, ObjData& objData)
 {
-    const String8 sVertexToken = HLS_STRING8_LITERAL("v");
-    const String8 sNormalToken = HLS_STRING8_LITERAL("vn");
-    const String8 sTexCoordToken = HLS_STRING8_LITERAL("vt");
-    const String8 sFaceToken = HLS_STRING8_LITERAL("f");
-    const String8 sGroupToken = HLS_STRING8_LITERAL("g");
-    const String8 sObjectToken = HLS_STRING8_LITERAL("o");
-
-    String8CutPair cutPair{};
-    cutPair.tail = str;
-    bool isPreviousObj = false;
-
-    // TODO: If string is not ending with newline it will cause infinite loop
-    u64 lineIndex = 0;
-    while (cutPair.tail.Size())
-    {
-        String8::Cut(cutPair.tail, '\n', cutPair);
-        String8 line = String8::TrimLeft(String8::TrimRight(cutPair.head));
-        lineIndex++;
-
-        String8CutPair lineCutPair{};
-        if (!String8::Cut(line, ' ', lineCutPair))
-        {
-            continue;
-        }
-
-        if (lineCutPair.head == sVertexToken)
-        {
-            ++objData.vertexCount;
-        }
-        else if (lineCutPair.head == sNormalToken)
-        {
-            ++objData.normalCount;
-        }
-        else if (lineCutPair.head == sTexCoordToken)
-        {
-            ++objData.texCoordCount;
-        }
-        else if (lineCutPair.head == sFaceToken)
-        {
-
-            u32 indexCount = 1;
-            while (String8::Cut(lineCutPair.tail, ' ', lineCutPair))
-            {
-                ++indexCount;
-            }
-
-            if (indexCount < 3)
-            {
-                return {lineIndex, ObjParseErrorType::FaceParseError};
-            }
-
-            objData.faceCount += (indexCount - 2);
-        }
-        else if (lineCutPair.head == sGroupToken)
-        {
-            objData.shapeCount += !isPreviousObj;
-            isPreviousObj = false;
-        }
-        else if (lineCutPair.head == sObjectToken)
-        {
-            objData.shapeCount += 1;
-            isPreviousObj = true;
-        }
-    }
-
-    if (!objData.vertexCount)
-    {
-        return {0, ObjParseErrorType::NoVertexData};
-    }
-
-    if (!objData.faceCount)
-    {
-        return {0, ObjParseErrorType::NoFaceData};
-    }
-
-    return {0, ObjParseErrorType::Success};
-}
-
-static ObjParseResult SecondPass(Arena& arena, String8 str, ObjData& objData)
-{
-    objData.vertices = HLS_ALLOC(arena, Math::Vec3, objData.vertexCount);
-    objData.faces = HLS_ALLOC(arena, ObjData::Face, objData.faceCount);
-
-    if (objData.normalCount)
-    {
-        objData.normals = HLS_ALLOC(arena, Math::Vec3, objData.normalCount);
-    }
-    if (objData.texCoordCount)
-    {
-        objData.texCoords = HLS_ALLOC(arena, Math::Vec2, objData.texCoordCount);
-    }
-    if (!objData.shapeCount)
-    {
-        objData.shapes = HLS_ALLOC(arena, ObjData::Shape, 1);
-    }
-    else
-    {
-        objData.shapes = HLS_ALLOC(arena, ObjData::Shape, objData.shapeCount);
-    }
-
-    const String8 sVertexToken = HLS_STRING8_LITERAL("v");
-    const String8 sNormalToken = HLS_STRING8_LITERAL("vn");
-    const String8 sTexCoordToken = HLS_STRING8_LITERAL("vt");
-    const String8 sFaceToken = HLS_STRING8_LITERAL("f");
-    const String8 sObjectToken = HLS_STRING8_LITERAL("o");
-    const String8 sGroupToken = HLS_STRING8_LITERAL("g");
-
-    String8CutPair cutPair{};
-    cutPair.tail = str;
-
-    u64 lineIndex = 0;
-    u64 vIndex = 0;
-    u64 vnIndex = 0;
-    u64 vtIndex = 0;
-    u64 fIndex = 0;
-    u64 sIndex = 0;
-    u64 sStart = 0;
-    bool isPreviousObj = false;
-    // TODO: If string is not ending with newline it will cause infinite loop
-    while (cutPair.tail.Size())
-    {
-        String8::Cut(cutPair.tail, '\n', cutPair);
-        String8 line = String8::TrimLeft(String8::TrimRight(cutPair.head));
-        lineIndex++;
-
-        String8CutPair lineCutPair{};
-        if (!String8::Cut(line, ' ', lineCutPair) && line.Size() != 0 &&
-            line[0] != '#')
-        {
-            return {lineIndex, ObjParseErrorType::UnknownLineToken};
-        }
-
-        if (lineCutPair.head == sVertexToken)
-        {
-            if (!ParseVertex(lineCutPair.tail, objData.vertices[vIndex++]))
-            {
-                return {lineIndex, ObjParseErrorType::VertexParseError};
-            }
-        }
-        else if (lineCutPair.head == sNormalToken)
-        {
-            if (!ParseNormal(lineCutPair.tail, objData.normals[vnIndex++]))
-            {
-                return {lineIndex, ObjParseErrorType::NormalParseError};
-            }
-        }
-        else if (lineCutPair.head == sTexCoordToken)
-        {
-            if (!ParseTexCoord(lineCutPair.tail, objData.texCoords[vtIndex++]))
-            {
-                return {lineIndex, ObjParseErrorType::TexCoordParseError};
-            }
-        }
-        else if (lineCutPair.head == sFaceToken)
-        {
-            u32 triangleCount = 0;
-
-            if (!ParseFace(lineCutPair.tail, objData.faces + fIndex, vIndex,
-                           vtIndex, vnIndex, triangleCount))
-            {
-                return {lineIndex, ObjParseErrorType::FaceParseError};
-            }
-            fIndex += triangleCount;
-        }
-        else if (lineCutPair.head == sObjectToken)
-        {
-            if (!ParseName(lineCutPair.tail, objData.shapes[sIndex]))
-            {
-                return {lineIndex, ObjParseErrorType::ObjectParseError};
-            }
-
-            if (sIndex >= 1)
-            {
-                objData.shapes[sIndex - 1].firstFaceIndex = sStart;
-                objData.shapes[sIndex - 1].faceCount = fIndex - sStart;
-            }
-            sStart = fIndex;
-            ++sIndex;
-            isPreviousObj = true;
-        }
-        else if (lineCutPair.head == sGroupToken)
-        {
-            if (isPreviousObj)
-            {
-                isPreviousObj = false;
-                continue;
-            }
-
-            if (!ParseName(lineCutPair.tail, objData.shapes[sIndex]))
-            {
-                return {lineIndex, ObjParseErrorType::GroupParseError};
-            }
-
-            if (sIndex >= 1)
-            {
-                objData.shapes[sIndex - 1].firstFaceIndex = sStart;
-                objData.shapes[sIndex - 1].faceCount = fIndex - sStart;
-            }
-            sStart = fIndex;
-            ++sIndex;
-            isPreviousObj = false;
-        }
-    }
-
-    objData.shapes[sIndex - 1].firstFaceIndex = sStart;
-    objData.shapes[sIndex - 1].faceCount = fIndex - sStart;
-
-    return {0, ObjParseErrorType::Success};
-}
-
-ObjParseResult ImportWavefrontObj(Arena& arena, const char* filename,
-                                  ObjData& objData)
-{
-    Arena scratch = GetScratchArena(&arena);
+    Arena scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    char* path = AppendPathToBinaryDirectory(scratch, filename);
-
     u64 strLength = 0;
-    char* str = ReadFileToString(scratch, path, &strLength, 1, false);
+    char* str = ReadFileToString(scratch, filepath, &strLength, 1, false);
     if (!str)
     {
-        return {0, ObjParseErrorType::FileReadFailed};
+        return false;
     }
 
     String8 input = {str, strLength};
-
-    ObjParseResult res = FirstPass(input, objData);
-    if (res.error != ObjParseErrorType::Success)
-    {
-        return res;
-    }
-
-    res = SecondPass(arena, input, objData);
-    if (res.error != ObjParseErrorType::Success)
-    {
-        return res;
-    }
+    bool res = FastParse(input, objData);
 
     ArenaPopToMarker(scratch, marker);
     return res;
+}
+
+void FreeWavefrontObj(ObjData& objData)
+{
+    PlatformFree(objData.vertices, objData.vertexCommitSize);
+    PlatformFree(objData.normals, objData.normalCommitSize);
+    PlatformFree(objData.texCoords, objData.texCoordCommitSize);
+    PlatformFree(objData.faces, objData.faceCommitSize);
+    PlatformFree(objData.shapes, objData.shapeCommitSize);
 }
 
 } // namespace Hls

@@ -45,7 +45,24 @@ const char* GetBinaryDirectoryPath(Arena& arena)
 #endif
 }
 
-char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align, bool binaryMode)
+const char* AppendPathToBinaryDirectory(Arena& arena, const char* filename)
+{
+    u64 filenameStrLength = strlen(filename);
+
+    const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
+    u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
+
+    char* buffer =
+        HLS_ALLOC(arena, char, binDirectoryPathStrLength + filenameStrLength + 1);
+
+    strncpy(buffer, binDirectoryPath, binDirectoryPathStrLength);
+    strncpy(buffer + binDirectoryPathStrLength, filename, filenameStrLength);
+    buffer[binDirectoryPathStrLength + filenameStrLength] = '\0';
+    return buffer;
+}
+
+char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align,
+                       bool binaryMode)
 {
     const char* mode = "rb";
     if (!binaryMode)

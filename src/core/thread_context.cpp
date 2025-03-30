@@ -8,7 +8,7 @@ void InitThreadContext()
     for (i32 i = 0; i < 2; i++)
     {
         stThreadContext.arenas[i] =
-            ArenaCreate(HLS_SIZE_MB(256), HLS_SIZE_MB(8));
+            ArenaCreate(HLS_SIZE_MB(256), HLS_SIZE_MB(2));
     }
 }
 

@@ -12,11 +12,11 @@ bool CharIsAlpha(i32 c)
 
 bool CharIsDigit(i32 c) { return (c >= '0' && c <= '9'); }
 
-bool CharIsWhitespace(i32 c)
-{
-    return c == ' ' || c == '\n' || c == '\t' || c == '\r' || c == '\v' ||
-           c == '\f';
-}
+bool CharIsWhitespace(i32 c) { return c == ' ' || c == '\t' || c == '\r'; }
+
+bool CharIsExponent(i32 c) { return c == 'e' || c == 'E'; }
+
+bool CharIsNewline(i32 c) { return c == '\n'; }
 
 bool String8::operator==(String8 rhs)
 {
@@ -162,6 +162,42 @@ bool String8::ParseI64(String8 str, i64& res)
 
     // Process integer part
     i64 result = 0;
+    for (u64 i = 0; i < str.size_; i++)
+    {
+        if (CharIsDigit(str.data_[i]))
+        {
+            result = result * 10 + (str.data_[i] - '0');
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    res = sign * result;
+    return true;
+}
+
+bool String8::ParseI32(String8 str, i32& res)
+{
+    if (!str.size_ || !str.data_)
+    {
+        return false;
+    }
+
+    // Handle sign
+    i32 sign = 1;
+    if (str.data_[0] == '+' || str.data_[0] == '-')
+    {
+        ++str.data_;
+        --str.size_;
+        sign = (str.data_[0] == '+') * 2 - 1;
+    }
+
+    str = TrimLeft(TrimRight(str));
+
+    // Process integer part
+    i32 result = 0;
     for (u64 i = 0; i < str.size_; i++)
     {
         if (CharIsDigit(str.data_[i]))

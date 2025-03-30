@@ -12,22 +12,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-static char* AppendPathToBinaryDirectory(Arena& arena, const char* filename)
-{
-    u64 filenameStrLength = strlen(filename);
-
-    const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
-    u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
-
-    char* buffer =
-        HLS_ALLOC(arena, char, binDirectoryPathStrLength + filenameStrLength);
-
-    strncpy(buffer, binDirectoryPath, binDirectoryPathStrLength);
-    strncpy(buffer + binDirectoryPathStrLength, filename, filenameStrLength);
-    buffer[binDirectoryPathStrLength + filenameStrLength] = '\0';
-    return buffer;
-}
-
 namespace Hls
 {
 

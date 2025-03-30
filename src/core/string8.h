@@ -8,7 +8,9 @@ namespace Hls
 
 bool CharIsAlpha(i32 c);
 bool CharIsDigit(i32 c);
+bool CharIsNewline(i32 c);
 bool CharIsWhitespace(i32 c);
+bool CharIsExponent(i32 c);
 
 struct String8CutPair;
 
@@ -37,6 +39,7 @@ struct String8
     static bool ParseF32(String8 str, f32& res);
     static bool ParseU64(String8 str, u64& res);
     static bool ParseI64(String8 str, i64& res);
+    static bool ParseI32(String8 str, i32& res);
 
 private:
     char* data_ = nullptr;

@@ -1,0 +1,25 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+
+copy_files_to_directory(
+    name = "copy_scene_data",
+    srcs = [
+        "@sponza_scene//:scene_data",
+    ],
+    output_directory = ".",
+)
+
+cc_binary(
+    name = "import_obj",
+    srcs = [
+        "benchmark_import_obj.cpp",
+    ],
+    deps = [
+        "//src/assets:import",
+        "//src/core:clock",
+        "@tinyobjloader//:tinyobjloader",
+    ],
+    data = [
+        ":copy_scene_data",
+    ],
+)

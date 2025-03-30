@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "import",
+    name = "import_obj",
     hdrs = [
         "import_obj.h",
     ],
@@ -11,6 +11,14 @@ cc_library(
     includes = [".."],
     deps = [
         "//src/core:core",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "import",
+    deps = [
+        ":import_obj",
     ],
     visibility = ["//visibility:public"],
 )
