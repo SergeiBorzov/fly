@@ -28,16 +28,6 @@ struct UniformData
     f32 padding[15] = {0.0f};
 };
 
-static void SetVulkanLayerPathEnvVariable()
-{
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-    const char* binaryPath = GetBinaryDirectoryPath(arena);
-    HLS_ASSERT(binaryPath);
-    HLS_ENSURE(SetEnv("VK_LAYER_PATH", binaryPath));
-    ArenaPopToMarker(arena, marker);
-}
-
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
 {
@@ -103,8 +93,6 @@ int main(int argc, char* argv[])
     {
         return -1;
     }
-
-    SetVulkanLayerPathEnvVariable();
 
     if (volkInitialize() != VK_SUCCESS)
     {

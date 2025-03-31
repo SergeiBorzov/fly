@@ -17,15 +17,10 @@ namespace Hls
 
 bool LoadImageFromFile(Arena& arena, const char* filename, Image& image)
 {
-    Arena& scratch = GetScratchArena(&arena);
-    ArenaMarker marker = ArenaGetMarker(scratch);
-
-    const char* absolutePath = AppendPathToBinaryDirectory(scratch, filename);
-
     int x = 0, y = 0, n = 0;
     int desiredChannelCount = 4;
     unsigned char* data =
-        stbi_load(absolutePath, &x, &y, &n, desiredChannelCount);
+        stbi_load(filename, &x, &y, &n, desiredChannelCount);
     if (!data)
     {
         return nullptr;
@@ -38,7 +33,6 @@ bool LoadImageFromFile(Arena& arena, const char* filename, Image& image)
     image.channelCount = static_cast<u32>(desiredChannelCount);
     stbi_image_free(data);
 
-    ArenaPopToMarker(scratch, marker);
     return data;
 }
 
@@ -60,12 +54,9 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
             continue;
         }
 
-        const char* absolutePath =
-            AppendPathToBinaryDirectory(scratch, shaderPathMap[shaderType]);
-
         u64 codeSize = 0;
         const char* spvSource =
-            ReadFileToString(scratch, absolutePath, &codeSize, sizeof(u32));
+            ReadFileToString(scratch, shaderPathMap[shaderType], &codeSize, sizeof(u32));
         if (!spvSource)
         {
             ArenaPopToMarker(scratch, marker);

@@ -10,16 +10,6 @@
 
 #include "platform/window.h"
 
-static void SetVulkanLayerPathEnvVariable()
-{
-    Arena& scratch = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(scratch);
-    const char* binaryPath = GetBinaryDirectoryPath(scratch);
-    HLS_ASSERT(binaryPath);
-    HLS_ENSURE(SetEnv("VK_LAYER_PATH", binaryPath));
-    ArenaPopToMarker(scratch, marker);
-}
-
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
     HLS_ERROR("GLFW - error: %s", description);
@@ -69,8 +59,6 @@ int main(int argc, char* argv[])
     {
         return -1;
     }
-
-    SetVulkanLayerPathEnvVariable();
 
     if (volkInitialize() != VK_SUCCESS)
     {

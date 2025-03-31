@@ -10,57 +10,6 @@
 #include <windows.h>
 #endif
 
-bool SetEnv(const char* name, const char* value)
-{
-#ifdef HLS_PLATFORM_OS_WINDOWS
-    return _putenv_s(name, value) == 0;
-#elif defined HLS_PLATFORM_POSIX
-    return setenv(name, value, true) == 0;
-#else
-    return false;
-#endif
-}
-
-const char* GetBinaryDirectoryPath(Arena& arena)
-{
-#ifdef HLS_PLATFORM_OS_WINDOWS
-    char buffer[MAX_PATH] = {0};
-    DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
-
-    if (length == 0)
-    {
-        return nullptr;
-    }
-
-    char* lastSlash = strrchr(buffer, '\\'); // Find the last backslash
-    i64 actualLength = lastSlash - buffer + 1;
-
-    char* exeDirPath = HLS_ALLOC(arena, char, actualLength + 1);
-    memcpy(exeDirPath, buffer, actualLength);
-    exeDirPath[actualLength] = '\0';
-
-    return exeDirPath;
-#else
-    return nullptr;
-#endif
-}
-
-const char* AppendPathToBinaryDirectory(Arena& arena, const char* filename)
-{
-    u64 filenameStrLength = strlen(filename);
-
-    const char* binDirectoryPath = GetBinaryDirectoryPath(arena);
-    u64 binDirectoryPathStrLength = strlen(binDirectoryPath);
-
-    char* buffer =
-        HLS_ALLOC(arena, char, binDirectoryPathStrLength + filenameStrLength + 1);
-
-    strncpy(buffer, binDirectoryPath, binDirectoryPathStrLength);
-    strncpy(buffer + binDirectoryPathStrLength, filename, filenameStrLength);
-    buffer[binDirectoryPathStrLength + filenameStrLength] = '\0';
-    return buffer;
-}
-
 char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align,
                        bool binaryMode)
 {

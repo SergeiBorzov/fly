@@ -2,7 +2,6 @@
 #include <tiny_obj_loader.h>
 
 #include "core/clock.h"
-#include "core/filesystem.h"
 #include "core/log.h"
 #include "core/thread_context.h"
 
@@ -17,11 +16,11 @@ int main()
         return -1;
     }
 
-    const char* filename = AppendPathToBinaryDirectory(arena, "sponza.obj");
+    const char* filename = "sponza.obj";
 
     u64 hlsStart = Hls::ClockNow();
     Hls::ObjData objData;
-    if (!Hls::ImportWavefrontObj(arena, filename, objData))
+    if (!Hls::ImportWavefrontObj(filename, objData))
     {
         fprintf(stderr, "Failed to load file. Benchmark is not valid.");
         return -1;
