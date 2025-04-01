@@ -3,6 +3,8 @@
 
 #include "assert.h"
 
+struct Arena;
+
 namespace Hls
 {
 
@@ -16,7 +18,7 @@ struct String8CutPair;
 
 struct String8
 {
-    inline String8(char* data = nullptr, u64 size = 0)
+    inline String8(const char* data = nullptr, u64 size = 0)
         : data_(data), size_(size)
     {
     }
@@ -43,8 +45,11 @@ struct String8
     static bool ParseI64(String8 str, i64& res);
     static bool ParseI32(String8 str, i32& res);
 
+    static String8 FindLast(String8 str, i32 character);
+    static char* CopyNullTerminate(Arena& arena, String8 str);
+
 private:
-    char* data_ = nullptr;
+    const char* data_ = nullptr;
     u64 size_ = 0;
 };
 
@@ -54,7 +59,7 @@ struct String8CutPair
     String8 tail = {};
 };
 
-#define HLS_STRING8_LITERAL(str) String8((char*)str, sizeof(str) - 1)
+#define HLS_STRING8_LITERAL(str) String8(str, sizeof(str) - 1)
 
 } // namespace Hls
 

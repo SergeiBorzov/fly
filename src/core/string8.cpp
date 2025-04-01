@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "arena.h"
 #include "string8.h"
 
 namespace Hls
@@ -30,9 +31,9 @@ bool String8::Cut(String8 str, char sep, String8CutPair& cutPair)
         return false;
     }
 
-    char* start = str.data_;
-    char* end = str.data_ + str.size_;
-    char* point = start;
+    const char* start = str.data_;
+    const char* end = str.data_ + str.size_;
+    const char* point = start;
     while (point < end && *point != sep)
     {
         point++;
@@ -74,6 +75,30 @@ String8 String8::TrimRight(String8 str)
         str.size_ -= 1;
     }
     return {str.data_, str.size_};
+}
+
+String8 String8::FindLast(String8 str, i32 character)
+{
+    for (i64 i = str.Size() - 1; i >= 0; i--)
+    {
+        if (str[i] == character)
+        {
+            return String8(str.Data() + i, str.Size() - i);
+        }
+    }
+    return String8();
+}
+
+char* String8::CopyNullTerminate(Arena& arena, String8 str)
+{
+    bool isNullTerminated = str[str.Size() - 1] == '\0';
+    char* copyData = HLS_ALLOC(arena, char, str.Size() + !isNullTerminated);
+    memcpy(copyData, str.Data(), str.Size());
+    if (!isNullTerminated)
+    {
+        copyData[str.Size()] = '\0';
+    }
+    return copyData;
 }
 
 bool String8::ParseF64(String8 str, f64& res)

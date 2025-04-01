@@ -10,8 +10,49 @@
 #include <windows.h>
 #endif
 
+#ifdef HLS_PLATFORM_OS_WINDOWS
+#define HLS_PATH_SEPARATOR '\\'
+#define HLS_PATH_SEPARATOR_STRING "\\"
+#elif defined(HLS_PLATFORM_OS_LINUX) || defined(HLS_PLATFORM_OS_MAC_OSX)
+#define HLS_PATH_SEPARATOR '/'
+#define HLS_PATH_SEPARATOR_STRING "/"
+#else
+#error "Not implemented"
+#endif
+
 namespace Hls
 {
+
+String8 GetParentDirectoryPath(String8 path)
+{
+    String8 lastSeparator = String8::FindLast(path, HLS_PATH_SEPARATOR);
+    if (!lastSeparator)
+    {
+        return HLS_STRING8_LITERAL("." HLS_PATH_SEPARATOR_STRING);
+    }
+
+    return String8(path.Data(), path.Size() - lastSeparator.Size() + 1);
+}
+
+String8 AppendPaths(Arena& arena, String8* paths, u32 pathCount)
+{
+    u64 totalSize = 0;
+    for (u32 i = 0; i < pathCount; i++)
+    {
+        totalSize += paths[i].Size();
+    }
+
+    char* totalData = HLS_ALLOC(arena, char, totalSize);
+
+    u64 offset = 0;
+    for (u32 i = 0; i < pathCount; i++)
+    {
+        memcpy(totalData + offset, paths[i].Data(), paths[i].Size());
+        offset += paths[i].Size();
+    }
+
+    return String8(totalData, totalSize);
+}
 
 String8 ReadFileToString(Arena& arena, const char* filename, u32 align,
                          bool binaryMode)
@@ -33,7 +74,7 @@ String8 ReadFileToString(Arena& arena, const char* filename, u32 align,
     i64 fileSize = ftell(file);
     fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
 
-    // Allocate memory for the string (plus one for the null terminator)
+    // Allocate memory for the string
     char* content = HLS_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
 
     if (!content)
@@ -44,7 +85,6 @@ String8 ReadFileToString(Arena& arena, const char* filename, u32 align,
 
     // Read the file into the string
     fread(content, 1, fileSize, file);
-    content[fileSize] = '\0'; // Null-terminate the string
 
     fclose(file);
 
