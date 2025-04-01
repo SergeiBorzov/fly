@@ -10,8 +10,11 @@
 #include <windows.h>
 #endif
 
-char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align,
-                       bool binaryMode)
+namespace Hls
+{
+
+String8 ReadFileToString(Arena& arena, const char* filename, u32 align,
+                         bool binaryMode)
 {
     const char* mode = "rb";
     if (!binaryMode)
@@ -22,7 +25,7 @@ char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align,
     FILE* file = fopen(filename, mode);
     if (!file)
     {
-        return nullptr;
+        return String8();
     }
 
     // Move the file pointer to the end of the file to determine its size
@@ -36,7 +39,7 @@ char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align,
     if (!content)
     {
         fclose(file);
-        return nullptr;
+        return String8();
     }
 
     // Read the file into the string
@@ -44,9 +47,8 @@ char* ReadFileToString(Arena& arena, const char* filename, u64* size, u32 align,
     content[fileSize] = '\0'; // Null-terminate the string
 
     fclose(file);
-    if (size)
-    {
-        *size = fileSize;
-    }
-    return content;
+
+    return String8(content, fileSize);
 }
+
+} // namespace Hls

@@ -27,6 +27,8 @@ struct String8
         return data_[index];
     }
 
+    inline operator bool() const { return data_ && size_; }
+
     bool operator==(String8 rhs);
 
     inline const char* Data() const { return data_; }

@@ -19,8 +19,7 @@ bool LoadImageFromFile(Arena& arena, const char* filename, Image& image)
 {
     int x = 0, y = 0, n = 0;
     int desiredChannelCount = 4;
-    unsigned char* data =
-        stbi_load(filename, &x, &y, &n, desiredChannelCount);
+    unsigned char* data = stbi_load(filename, &x, &y, &n, desiredChannelCount);
     if (!data)
     {
         return nullptr;
@@ -54,15 +53,14 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
             continue;
         }
 
-        u64 codeSize = 0;
-        const char* spvSource =
-            ReadFileToString(scratch, shaderPathMap[shaderType], &codeSize, sizeof(u32));
+        String8 spvSource =
+            ReadFileToString(scratch, shaderPathMap[shaderType], sizeof(u32));
         if (!spvSource)
         {
             ArenaPopToMarker(scratch, marker);
             return false;
         }
-        if (!Hls::CreateShaderModule(arena, device, spvSource, codeSize,
+        if (!Hls::CreateShaderModule(arena, device, spvSource.Data(), spvSource.Size(),
                                      programmableStage[shaderType]))
         {
             ArenaPopToMarker(scratch, marker);

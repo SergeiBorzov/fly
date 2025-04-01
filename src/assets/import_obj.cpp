@@ -291,6 +291,11 @@ static const char* ParseFace(const char* ptr, ObjData& objData)
     return ptr;
 }
 
+static const char* ParseMtlLib(const char* ptr, ObjData& objData)
+{
+    return ptr;
+}
+
 static const char* ParseName(const char* ptr, ObjData& objData)
 {
     ptr = SkipWhitespace(ptr);
@@ -313,7 +318,7 @@ static const char* ParseName(const char* ptr, ObjData& objData)
     return ptr;
 }
 
-bool FastParse(String8 str, ObjData& objData)
+bool ParseObj(String8 str, ObjData& objData)
 {
     objData.vertexCount = 0;
     objData.vertexCommitSize = HLS_SIZE_MB(1);
@@ -459,6 +464,20 @@ bool FastParse(String8 str, ObjData& objData)
                 shape.firstFaceIndex = objData.faceCount;
                 break;
             }
+            case 'm':
+            {
+                p++;
+                if (p[0] == 't' &&
+                    p[1] == 'l' &&
+                    p[2] == 'l' &&
+                    p[3] == 'i' &&
+                    p[4] == 'b' &&
+                    Hls::CharIsWhitespace(p[5]))
+                {
+                    p = ParseMtlLib(p + 5, objData);
+                }
+                break;
+            }
         }
         p = SkipLine(p);
     }
@@ -481,15 +500,13 @@ bool ImportWavefrontObj(const char* filepath, ObjData& objData)
     Arena scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    u64 strLength = 0;
-    char* str = ReadFileToString(scratch, filepath, &strLength, 1, false);
+    String8 str = ReadFileToString(scratch, filepath, 1, false);
     if (!str)
     {
         return false;
     }
 
-    String8 input = {str, strLength};
-    bool res = FastParse(input, objData);
+    bool res = ParseObj(str, objData);
 
     ArenaPopToMarker(scratch, marker);
     return res;
