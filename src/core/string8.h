@@ -18,10 +18,8 @@ struct String8CutPair;
 
 struct String8
 {
-    inline String8(const char* data = nullptr, u64 size = 0)
-        : data_(data), size_(size)
-    {
-    }
+    inline String8() : data_(nullptr), size_(0) {}
+    inline String8(const char* data, u64 size) : data_(data), size_(size) {}
 
     inline char operator[](u64 index)
     {
@@ -59,7 +57,7 @@ struct String8CutPair
     String8 tail = {};
 };
 
-#define HLS_STRING8_LITERAL(str) String8(str, sizeof(str) - 1)
+#define HLS_STRING8_LITERAL(str) Hls::String8(str, sizeof(str) - 1)
 
 } // namespace Hls
 

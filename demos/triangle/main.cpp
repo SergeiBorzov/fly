@@ -110,8 +110,10 @@ int main(int argc, char* argv[])
 
     Hls::GraphicsPipelineProgrammableStage programmableState{};
     Hls::ShaderPathMap shaderPathMap{};
-    shaderPathMap[Hls::ShaderType::Vertex] = "triangle.vert.spv";
-    shaderPathMap[Hls::ShaderType::Fragment] = "triangle.frag.spv";
+    shaderPathMap[Hls::ShaderType::Vertex] =
+        HLS_STRING8_LITERAL("triangle.vert.spv");
+    shaderPathMap[Hls::ShaderType::Fragment] =
+        HLS_STRING8_LITERAL("triangle.frag.spv");
 
     if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableState))

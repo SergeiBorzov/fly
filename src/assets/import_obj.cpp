@@ -293,6 +293,28 @@ static const char* ParseFace(const char* ptr, ObjData& objData)
 
 static const char* ParseMtlLib(const char* ptr, ObjData& objData)
 {
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    ptr = SkipWhitespace(ptr);
+
+    const char* start = ptr;
+    while (!CharIsNewline(*ptr))
+    {
+        ptr++;
+    }
+
+    while (ptr > start && CharIsWhitespace(*(ptr - 1)))
+    {
+        --ptr;
+    }
+
+    String8 mtlFileName(start, ptr - start);
+    String8 paths[2] = {objData.objDirectoryPath, mtlFileName};
+    String8 str = ReadFileToString(scratch, AppendPaths(scratch, paths, 2));
+
+    ArenaPopToMarker(scratch, marker);
+
     return ptr;
 }
 
@@ -467,12 +489,8 @@ bool ParseObj(String8 str, ObjData& objData)
             case 'm':
             {
                 p++;
-                if (p[0] == 't' &&
-                    p[1] == 'l' &&
-                    p[2] == 'l' &&
-                    p[3] == 'i' &&
-                    p[4] == 'b' &&
-                    Hls::CharIsWhitespace(p[5]))
+                if (p[0] == 't' && p[1] == 'l' && p[2] == 'l' && p[3] == 'i' &&
+                    p[4] == 'b' && Hls::CharIsWhitespace(p[5]))
                 {
                     p = ParseMtlLib(p + 5, objData);
                 }
@@ -495,12 +513,14 @@ bool ParseObj(String8 str, ObjData& objData)
     return true;
 }
 
-bool ImportWavefrontObj(const char* filepath, ObjData& objData)
+bool ImportWavefrontObj(String8 filepath, ObjData& objData)
 {
-    Arena scratch = GetScratchArena();
+    Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    String8 str = ReadFileToString(scratch, filepath, 1, false);
+    objData.objDirectoryPath =
+        GetParentDirectoryPath(filepath);
+    String8 str = ReadFileToString(scratch, filepath);
     if (!str)
     {
         return false;

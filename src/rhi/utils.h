@@ -1,6 +1,8 @@
 #ifndef HLS_RHI_UTILS_H
 #define HLS_RHI_UTILS_H
 
+#include "core/string8.h"
+
 #include "pipeline.h"
 
 struct Arena;
@@ -15,14 +17,14 @@ struct Texture;
 
 struct ShaderPathMap
 {
-    inline const char*& operator[](ShaderType type)
+    inline String8& operator[](ShaderType type)
     {
         u32 index = static_cast<size_t>(type);
         HLS_ASSERT(index < static_cast<size_t>(ShaderType::Count));
         return paths[index];
     }
 
-    inline const char* const& operator[](ShaderType type) const
+    inline const String8& operator[](ShaderType type) const
     {
         u32 index = static_cast<u32>(type);
         HLS_ASSERT(index < static_cast<u32>(ShaderType::Count));
@@ -30,7 +32,7 @@ struct ShaderPathMap
     }
 
 private:
-    const char* paths[ShaderType::Count];
+    String8 paths[ShaderType::Count];
 };
 
 struct DescriptorPool

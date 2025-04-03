@@ -145,8 +145,10 @@ int main(int argc, char* argv[])
 
     Hls::GraphicsPipelineProgrammableStage programmableStage{};
     Hls::ShaderPathMap shaderPathMap{};
-    shaderPathMap[Hls::ShaderType::Vertex] = "cubes.vert.spv";
-    shaderPathMap[Hls::ShaderType::Fragment] = "cubes.frag.spv";
+    shaderPathMap[Hls::ShaderType::Vertex] =
+        HLS_STRING8_LITERAL("cubes.vert.spv");
+    shaderPathMap[Hls::ShaderType::Fragment] =
+        HLS_STRING8_LITERAL("cubes.frag.spv");
     if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableStage))
     {

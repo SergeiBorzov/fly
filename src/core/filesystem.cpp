@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "arena.h"
+#include "thread_context.h"
 #include "filesystem.h"
 #include "platform.h"
 
@@ -54,7 +54,7 @@ String8 AppendPaths(Arena& arena, String8* paths, u32 pathCount)
     return String8(totalData, totalSize);
 }
 
-String8 ReadFileToString(Arena& arena, const char* filename, u32 align,
+String8 ReadFileToString(Arena& arena, String8 filename, u32 align,
                          bool binaryMode)
 {
     const char* mode = "rb";
@@ -63,11 +63,18 @@ String8 ReadFileToString(Arena& arena, const char* filename, u32 align,
         mode = "r";
     }
 
-    FILE* file = fopen(filename, mode);
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    const char* filenameNullTerminated =
+        String8::CopyNullTerminate(scratch, filename);
+
+    FILE* file = fopen(filenameNullTerminated, mode);
     if (!file)
     {
+        ArenaPopToMarker(scratch, marker);
         return String8();
     }
+    ArenaPopToMarker(scratch, marker);
 
     // Move the file pointer to the end of the file to determine its size
     fseek(file, 0, SEEK_END);

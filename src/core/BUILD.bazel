@@ -119,6 +119,7 @@ cc_library(
     ],
     deps = [
         ":string8",
+        ":thread_context",
     ],
     visibility = ["//visibility:public"],
 )

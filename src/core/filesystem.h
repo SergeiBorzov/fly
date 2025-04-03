@@ -10,7 +10,7 @@ namespace Hls
 
 String8 GetParentDirectoryPath(String8 path);
 String8 AppendPaths(Arena& arena, String8* paths, u32 count);
-String8 ReadFileToString(Arena& arena, const char* filename, u32 align = 1,
+String8 ReadFileToString(Arena& arena, String8 filename, u32 align = 1,
                          bool binaryMode = true);
 } // namespace Hls
 

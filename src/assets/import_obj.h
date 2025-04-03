@@ -1,6 +1,7 @@
 #ifndef HLS_ASSETS_IMPORT_OBJ_H
 #define HLS_ASSETS_IMPORT_OBJ_H
 
+#include "core/string8.h"
 #include "math/vec.h"
 
 namespace Hls
@@ -48,6 +49,7 @@ struct ObjData
         u32 faceCount = 0;
     };
 
+    String8 objDirectoryPath;
     Face* faces = nullptr;
     Math::Vec3* vertices = nullptr;
     Math::Vec3* normals = nullptr;
@@ -70,7 +72,7 @@ struct ObjData
     u32 faceCommitSize = 0;
     u32 shapeCommitSize = 0;
 };
-bool ImportWavefrontObj(const char* filename, ObjData& objData);
+bool ImportWavefrontObj(String8 filename, ObjData& objData);
 void FreeWavefrontObj(ObjData& objData);
 
 } // namespace Hls
