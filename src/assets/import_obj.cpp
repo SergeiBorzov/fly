@@ -310,7 +310,6 @@ static const char* ParseMtlLib(const char* ptr, ObjData& objData)
     {
         ArenaMarker loopMarker = ArenaGetMarker(scratch);
         const char* np = SkipLine(p);
-        HLS_LOG("%s", String8::CopyNullTerminate(scratch, String8(p, np - p)));
         p = np;
         ArenaPopToMarker(scratch, loopMarker);
     }

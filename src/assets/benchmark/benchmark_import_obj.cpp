@@ -16,17 +16,16 @@ int main()
         return -1;
     }
 
-    const char* filename = "sponza.obj";
-
     u64 hlsStart = Hls::ClockNow();
     Hls::ObjData objData;
-    if (!Hls::ImportWavefrontObj(filename, objData))
+    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), objData))
     {
         fprintf(stderr, "Failed to load file. Benchmark is not valid.");
         return -1;
     }
     u64 hlsEnd = Hls::ClockNow();
 
+    const char* filename = "sponza.obj";
     u64 tinyobjloaderStart = Hls::ClockNow();
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
