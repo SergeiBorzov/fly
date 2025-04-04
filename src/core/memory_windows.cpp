@@ -1,6 +1,9 @@
 #include "memory.h"
 #include <windows.h>
 
+namespace Hls
+{
+
 void* PlatformAlloc(u64 reserveSize, u64 commitSize)
 {
     // reserve memory
@@ -23,7 +26,8 @@ void* PlatformAlloc(u64 reserveSize, u64 commitSize)
 
 void* PlatformCommitMemory(void* baseAddress, u64 commitSize)
 {
-    baseAddress = VirtualAlloc(baseAddress, commitSize, MEM_COMMIT, PAGE_READWRITE);
+    baseAddress =
+        VirtualAlloc(baseAddress, commitSize, MEM_COMMIT, PAGE_READWRITE);
     if (!baseAddress)
     {
         return nullptr;
@@ -37,3 +41,5 @@ bool PlatformDecommitMemory(void* baseAddress)
 }
 
 void PlatformFree(void* ptr, u64 size) { VirtualFree(ptr, 0, MEM_RELEASE); }
+
+} // namespace Hls

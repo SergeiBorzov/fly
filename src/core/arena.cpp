@@ -31,7 +31,8 @@ Arena ArenaCreate(u64 reservedSize, u64 commitedSize)
     // TODO: Add checks for size value
     // on some platforms allocation might fail
     // if size is not a multiple of a page size
-    arena.ptr = static_cast<u8*>(PlatformAlloc(reservedSize, commitedSize));
+    arena.ptr =
+        static_cast<u8*>(Hls::PlatformAlloc(reservedSize, commitedSize));
     HLS_ASSERT(arena.ptr);
 
     arena.reservedCapacity = reservedSize;
@@ -56,7 +57,7 @@ Arena ArenaCreateInline(u64 commitedSize, void* ptr)
 
 void ArenaDestroy(Arena& arena)
 {
-    PlatformFree(arena.ptr, arena.reservedCapacity);
+    Hls::PlatformFree(arena.ptr, arena.reservedCapacity);
     arena.ptr = nullptr;
     arena.lastAllocSize = 0;
     arena.size = 0;
@@ -97,8 +98,8 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
         u64 newCapacity = 2 * arena.capacity;
         if (newCapacity <= arena.reservedCapacity)
         {
-            void* res = PlatformCommitMemory(arena.ptr + arena.capacity,
-                                             arena.capacity);
+            void* res = Hls::PlatformCommitMemory(arena.ptr + arena.capacity,
+                                                  arena.capacity);
             HLS_ASSERT(res);
             arena.capacity = newCapacity;
         }

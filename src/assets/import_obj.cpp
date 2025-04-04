@@ -123,11 +123,9 @@ static Math::Vec3& GetNextVertex(ObjData& objData)
 {
     if (objData.vertexCount >= objData.vertexCapacity)
     {
-        PlatformCommitMemory(reinterpret_cast<u8*>(objData.vertices) +
-                                 objData.vertexCommitSize,
-                             objData.vertexCommitSize);
-        objData.vertexCommitSize *= 2;
-        objData.vertexCapacity = objData.vertexCommitSize / sizeof(Math::Vec3);
+        objData.vertices = static_cast<Math::Vec3*>(Hls::Realloc(
+            objData.vertices, sizeof(Math::Vec3) * objData.vertexCapacity * 2));
+        objData.vertexCapacity *= 2;
     }
     return objData.vertices[objData.vertexCount++];
 }
@@ -136,11 +134,9 @@ static Math::Vec3& GetNextNormal(ObjData& objData)
 {
     if (objData.normalCount >= objData.normalCapacity)
     {
-        PlatformCommitMemory(reinterpret_cast<u8*>(objData.normals) +
-                                 objData.normalCommitSize,
-                             objData.normalCommitSize);
-        objData.normalCommitSize *= 2;
-        objData.normalCapacity = objData.normalCommitSize / sizeof(Math::Vec3);
+        objData.normals = static_cast<Math::Vec3*>(Hls::Realloc(
+            objData.normals, sizeof(Math::Vec3) * objData.normalCapacity * 2));
+        objData.normalCapacity *= 2;
     }
     return objData.normals[objData.normalCount++];
 }
@@ -149,12 +145,10 @@ static Math::Vec2& GetNextTexCoord(ObjData& objData)
 {
     if (objData.texCoordCount >= objData.texCoordCapacity)
     {
-        PlatformCommitMemory(reinterpret_cast<u8*>(objData.texCoords) +
-                                 objData.texCoordCommitSize,
-                             objData.texCoordCommitSize);
-        objData.texCoordCommitSize *= 2;
-        objData.texCoordCapacity =
-            objData.texCoordCommitSize / sizeof(Math::Vec2);
+        objData.texCoords = static_cast<Math::Vec2*>(
+            Hls::Realloc(objData.texCoords,
+                         sizeof(Math::Vec2) * objData.texCoordCapacity * 2));
+        objData.texCoordCapacity *= 2;
     }
     return objData.texCoords[objData.texCoordCount++];
 }
@@ -163,12 +157,10 @@ static ObjData::Shape& GetNextShape(ObjData& objData)
 {
     if (objData.shapeCount >= objData.shapeCapacity)
     {
-        PlatformCommitMemory(reinterpret_cast<u8*>(objData.shapes) +
-                                 objData.shapeCommitSize,
-                             objData.shapeCommitSize);
-        objData.shapeCommitSize *= 2;
-        objData.shapeCapacity =
-            objData.shapeCommitSize / sizeof(ObjData::Shape);
+        objData.shapes = static_cast<ObjData::Shape*>(
+            Hls::Realloc(objData.shapes,
+                         sizeof(ObjData::Shape) * objData.shapeCapacity * 2));
+        objData.shapeCapacity *= 2;
     }
     return objData.shapes[objData.shapeCount++];
 }
@@ -177,11 +169,9 @@ static ObjData::Face& GetNextFace(ObjData& objData)
 {
     if (objData.faceCount >= objData.faceCapacity)
     {
-        PlatformCommitMemory(reinterpret_cast<u8*>(objData.faces) +
-                                 objData.faceCommitSize,
-                             objData.faceCommitSize);
-        objData.faceCommitSize *= 2;
-        objData.faceCapacity = objData.faceCommitSize / sizeof(ObjData::Face);
+        objData.faces = static_cast<ObjData::Face*>(Hls::Realloc(
+            objData.faces, sizeof(ObjData::Face) * objData.faceCapacity * 2));
+        objData.faceCapacity *= 2;
     }
     return objData.faces[objData.faceCount++];
 }
@@ -313,6 +303,18 @@ static const char* ParseMtlLib(const char* ptr, ObjData& objData)
     String8 paths[2] = {objData.objDirectoryPath, mtlFileName};
     String8 str = ReadFileToString(scratch, AppendPaths(scratch, paths, 2));
 
+    const char* p = str.Data();
+    const char* mtlEnd = str.Data() + str.Size();
+
+    while (p != mtlEnd)
+    {
+        ArenaMarker loopMarker = ArenaGetMarker(scratch);
+        const char* np = SkipLine(p);
+        HLS_LOG("%s", String8::CopyNullTerminate(scratch, String8(p, np - p)));
+        p = np;
+        ArenaPopToMarker(scratch, loopMarker);
+    }
+
     ArenaPopToMarker(scratch, marker);
 
     return ptr;
@@ -343,34 +345,29 @@ static const char* ParseName(const char* ptr, ObjData& objData)
 bool ParseObj(String8 str, ObjData& objData)
 {
     objData.vertexCount = 0;
-    objData.vertexCommitSize = HLS_SIZE_MB(1);
-    objData.vertexCapacity = objData.vertexCommitSize / sizeof(Math::Vec3);
+    objData.vertexCapacity = 200000;
     objData.vertices = static_cast<Math::Vec3*>(
-        PlatformAlloc(HLS_SIZE_GB(4), objData.vertexCommitSize));
+        Hls::Alloc(sizeof(Math::Vec3) * objData.vertexCapacity));
 
     objData.normalCount = 0;
-    objData.normalCommitSize = HLS_SIZE_MB(1);
-    objData.normalCapacity = objData.normalCommitSize / sizeof(Math::Vec3);
+    objData.normalCapacity = 200000;
     objData.normals = static_cast<Math::Vec3*>(
-        PlatformAlloc(HLS_SIZE_GB(4), objData.normalCommitSize));
+        Hls::Alloc(sizeof(Math::Vec3) * objData.normalCapacity));
 
     objData.texCoordCount = 0;
-    objData.texCoordCommitSize = HLS_SIZE_MB(1);
-    objData.texCoordCapacity = objData.texCoordCommitSize / sizeof(Math::Vec2);
+    objData.texCoordCapacity = 200000;
     objData.texCoords = static_cast<Math::Vec2*>(
-        PlatformAlloc(HLS_SIZE_GB(4), objData.texCoordCommitSize));
+        Hls::Alloc(sizeof(Math::Vec2) * objData.texCoordCapacity));
 
     objData.faceCount = 0;
-    objData.faceCommitSize = HLS_SIZE_MB(1);
-    objData.faceCapacity = objData.faceCommitSize / sizeof(ObjData::Face);
+    objData.faceCapacity = 500000;
     objData.faces = static_cast<ObjData::Face*>(
-        PlatformAlloc(HLS_SIZE_GB(4), objData.faceCommitSize));
+        Hls::Alloc(sizeof(ObjData::Face) * objData.faceCapacity));
 
     objData.shapeCount = 0;
-    objData.shapeCommitSize = HLS_SIZE_MB(1);
-    objData.shapeCapacity = objData.shapeCommitSize / sizeof(ObjData::Shape);
+    objData.shapeCapacity = 1000;
     objData.shapes = static_cast<ObjData::Shape*>(
-        PlatformAlloc(HLS_SIZE_GB(4), objData.shapeCommitSize));
+        Hls::Alloc(sizeof(ObjData::Shape) * objData.shapeCapacity));
 
     const char* p = str.Data();
     const char* end = str.Data() + str.Size();
@@ -518,8 +515,7 @@ bool ImportWavefrontObj(String8 filepath, ObjData& objData)
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    objData.objDirectoryPath =
-        GetParentDirectoryPath(filepath);
+    objData.objDirectoryPath = GetParentDirectoryPath(filepath);
     String8 str = ReadFileToString(scratch, filepath);
     if (!str)
     {
@@ -534,11 +530,11 @@ bool ImportWavefrontObj(String8 filepath, ObjData& objData)
 
 void FreeWavefrontObj(ObjData& objData)
 {
-    PlatformFree(objData.vertices, objData.vertexCommitSize);
-    PlatformFree(objData.normals, objData.normalCommitSize);
-    PlatformFree(objData.texCoords, objData.texCoordCommitSize);
-    PlatformFree(objData.faces, objData.faceCommitSize);
-    PlatformFree(objData.shapes, objData.shapeCommitSize);
+    Hls::Free(objData.vertices);
+    Hls::Free(objData.normals);
+    Hls::Free(objData.texCoords);
+    Hls::Free(objData.faces);
+    Hls::Free(objData.shapes);
 }
 
 } // namespace Hls

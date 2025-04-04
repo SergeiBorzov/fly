@@ -32,52 +32,23 @@ cc_library(
 )
 
 cc_library(
-    name = "memory_osx",
-    hdrs = [
-        "memory.h",
-    ],
-    srcs = [
-        "memory_osx.cpp",
-    ],
-    target_compatible_with = [
-        "@platforms//os:osx",
-    ],
-    deps = [
-        ":types",
-    ],
-)
-
-cc_library(
-    name = "memory_windows",
-    hdrs = [
-        "memory.h",
-    ],
-    srcs = [
-        "memory_windows.cpp",
-    ],
-    target_compatible_with = [
-        "@platforms//os:windows",
-    ],
-    deps = [
-        ":types",
-    ],
-)
-
-cc_library(
     name = "memory",
     hdrs = [
+        "memory.h",
         "arena.h",
     ],
     srcs = [
         "arena.cpp",
-    ],
-    deps = [
-        ":assert",
+        "memory.cpp",
     ] + select({
-        "@platforms//os:osx": [ ":memory_osx" ],
-	    "@platforms//os:windows": [ ":memory_windows" ],
+        "@platforms//os:osx": [ "memory_osx.cpp" ],
+	    "@platforms//os:windows": [ "memory_windows.cpp" ],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
+    deps = [
+        ":assert",
+        "@mimalloc//:mimalloc",
+    ],
     visibility = ["//visibility:public"],
 )
 

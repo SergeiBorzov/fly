@@ -126,6 +126,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "optparse")
 
 external_git_repository.base(
+    name = "mimalloc",
+    build_file = "//scripts/bazel/target:BUILD.mimalloc.bazel",
+    commit = "51c09e7b6a0ac5feeba998710f00c7dd7aa67bbf",
+    remote = "https://github.com/microsoft/mimalloc.git",
+)
+use_repo(external_git_repository, "mimalloc")
+
+external_git_repository.base(
     name = "stb",
     build_file = "//scripts/bazel/target:BUILD.stb.bazel",
     commit = "f0569113c93ad095470c54bf34a17b36646bbbb5",

@@ -1,0 +1,45 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "mimalloc",
+    srcs = [
+        "src/alloc.c",
+        "src/alloc-aligned.c",
+        "src/alloc-posix.c",
+        "src/arena.c",
+        "src/arena-meta.c",
+        "src/bitmap.c",
+        "src/heap.c",
+        "src/init.c",
+        "src/libc.c",
+        "src/options.c",
+        "src/os.c",
+        "src/page.c",
+        "src/page-map.c",
+        "src/random.c",
+        "src/stats.c",
+        "src/prim/prim.c",
+    ],
+    hdrs = [
+        "include/mimalloc/atomic.h",
+        "include/mimalloc/bits.h",
+        "include/mimalloc/internal.h",
+        "include/mimalloc/prim.h",
+        "include/mimalloc/track.h",
+        "include/mimalloc/types.h",
+        "include/mimalloc-stats.h",
+        "include/mimalloc.h",
+    ],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:advapi32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    includes = [
+        "include",
+        "src",
+        "src/prim",
+    ],
+    visibility = ["//visibility:public"],
+)
