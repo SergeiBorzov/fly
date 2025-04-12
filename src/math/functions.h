@@ -22,9 +22,6 @@ inline f32 Clamp(f32 value, f32 min, f32 max)
     return Max(min, Min(value, max));
 }
 
-f32 Min(f32 a, f32 b);
-f32 Clamp(f32 value, f32 min, f32 max);
-
 f32 Abs(f32 value);
 f32 Sqrt(f32 value);
 f32 InvSqrt(f32 value);
