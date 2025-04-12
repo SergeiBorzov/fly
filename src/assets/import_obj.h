@@ -65,6 +65,7 @@ struct ObjData
     struct Face
     {
         Index indices[3];
+        i32 materialIndex = -1;
     };
 
     struct Shape
@@ -97,6 +98,8 @@ struct ObjData
     u32 faceCapacity = 0;
     u32 shapeCapacity = 0;
     u32 materialCapacity = 0;
+
+    i32 currentMaterialIndex = -1;
 };
 bool ImportWavefrontObj(String8 filename, ObjData& objData);
 void FreeWavefrontObj(ObjData& objData);

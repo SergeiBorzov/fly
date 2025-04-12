@@ -294,6 +294,7 @@ static const char* ParseFace(const char* ptr, ObjData& objData)
         {
             ObjData::Face& face = GetNextFace(objData);
             memcpy(face.indices, indices, sizeof(indices));
+            face.materialIndex = objData.currentMaterialIndex;
             indices[1] = indices[2];
         }
         else
@@ -407,6 +408,41 @@ static const char* ParseTexture(const char* ptr, ObjData& objData,
     }
 
     textureHandle = index;
+
+    return ptr;
+}
+
+static const char* ParseUseMtl(const char* ptr, ObjData& objData)
+{
+    ptr = SkipWhitespace(ptr);
+
+    const char* start = ptr;
+    while (!CharIsNewline(*ptr))
+    {
+        ptr++;
+    }
+
+    while (ptr > start && CharIsWhitespace(*(ptr - 1)))
+    {
+        --ptr;
+    }
+
+    char buff[128];
+    u32 count = MIN(static_cast<u32>(ptr - start), 127u);
+    strncpy(buff, start, count);
+    buff[count] = '\0';
+
+    i32 index = 0;
+    for (u32 i = 0; i < objData.materialCount; i++)
+    {
+        if (strcmp(buff, objData.materials[i].name) == 0)
+        {
+            index = i;
+            break;
+        }
+    }
+
+    objData.currentMaterialIndex = index;
 
     return ptr;
 }
@@ -801,6 +837,16 @@ bool ParseObj(String8 str, ObjData& objData)
                     p[4] == 'b' && Hls::CharIsWhitespace(p[5]))
                 {
                     p = ParseMtlLib(p + 5, objData);
+                }
+                break;
+            }
+            case 'u':
+            {
+                p++;
+                if (p[0] == 's' && p[1] == 'e' && p[2] == 'm' && p[3] == 't' &&
+                    p[4] == 'l' && CharIsWhitespace(p[5]))
+                {
+                    p = ParseUseMtl(p + 5, objData);
                 }
                 break;
             }
