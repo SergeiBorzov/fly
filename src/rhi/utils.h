@@ -42,8 +42,6 @@ struct DescriptorPool
     u32 descriptorSetCount = 0;
 };
 
-bool LoadImageFromFile(Arena& arena, const char* filename, Image& image);
-
 bool LoadProgrammableStage(
     Arena& arena, Device& device, const ShaderPathMap& shaderPathMap,
     GraphicsPipelineProgrammableStage& programmableStage);

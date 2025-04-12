@@ -16,14 +16,6 @@ struct Device;
 namespace Hls
 {
 
-struct Image
-{
-    u8* data = nullptr;
-    u32 width = 0;
-    u32 height = 0;
-    u32 channelCount = 0;
-};
-
 struct SwapchainTexture
 {
     VkImage handle = VK_NULL_HANDLE;
@@ -62,8 +54,6 @@ struct Texture
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
                    Texture& texture);
 void DestroyTexture(Device& device, Texture& texture);
-bool TransferImageDataToTexture(Device& device, const Image& image,
-                                Texture& texture);
 
 } // namespace Hls
 

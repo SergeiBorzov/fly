@@ -27,7 +27,6 @@ cc_library(
         "@volk//:volk",
         "@vma//:vma",
         "@spirv_reflect//:spirv_reflect",
-        "@stb//:stb_image",
         "//src/core:core",
     ],
     visibility = ["//visibility:public"],

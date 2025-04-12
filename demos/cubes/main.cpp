@@ -10,6 +10,8 @@
 #include "rhi/texture.h"
 #include "rhi/utils.h"
 
+#include "assets/import_image.h"
+
 #include "platform/window.h"
 
 #include "demos/common/simple_camera_fps.h"
@@ -165,7 +167,7 @@ int main(int argc, char* argv[])
     HLS_LOG("Number of descriptor sets %u", sDescriptorPool.descriptorSetCount);
 
     Hls::Image image;
-    if (!Hls::LoadImageFromFile(arena, "default.png", image))
+    if (!Hls::LoadImageFromFile("default.png", image))
     {
         HLS_ERROR("Failed to load image");
         return -1;
@@ -182,6 +184,7 @@ int main(int argc, char* argv[])
         HLS_ERROR("Failed to transfer image data to texture");
         return -1;
     }
+    Hls::FreeImage(image);
     Hls::BindTextureToDescriptorSet(device, texture,
                                     sDescriptorPool.descriptorSets[3], 0);
 

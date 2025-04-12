@@ -9,31 +9,8 @@
 #include "texture.h"
 #include "utils.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
 namespace Hls
 {
-
-bool LoadImageFromFile(Arena& arena, const char* filename, Image& image)
-{
-    int x = 0, y = 0, n = 0;
-    int desiredChannelCount = 4;
-    unsigned char* data = stbi_load(filename, &x, &y, &n, desiredChannelCount);
-    if (!data)
-    {
-        return nullptr;
-    }
-
-    image.data = HLS_ALLOC(arena, u8, x * y * desiredChannelCount);
-    memcpy(image.data, data, sizeof(u8) * x * y * desiredChannelCount);
-    image.width = static_cast<u32>(x);
-    image.height = static_cast<u32>(y);
-    image.channelCount = static_cast<u32>(desiredChannelCount);
-    stbi_image_free(data);
-
-    return data;
-}
 
 bool LoadProgrammableStage(Arena& arena, Device& device,
                            const ShaderPathMap& shaderPathMap,

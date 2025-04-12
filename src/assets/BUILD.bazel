@@ -16,6 +16,22 @@ cc_library(
 )
 
 cc_library(
+    name = "import_image",
+    hdrs = [
+        "import_image.h",
+    ],
+    srcs = [
+        "import_image.cpp",
+    ],
+    includes = [".."],
+    deps = [
+        "//src/rhi:context",
+        "@stb//:stb_image",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "import",
     deps = [
         ":import_obj",

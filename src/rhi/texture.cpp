@@ -9,61 +9,6 @@
 namespace Hls
 {
 
-bool TransferImageDataToTexture(Device& device, const Image& image,
-                                Texture& texture)
-{
-    Buffer transferBuffer;
-
-    u64 allocSize =
-        sizeof(u8) * image.width * image.height * image.channelCount;
-    if (!CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-                      allocSize, transferBuffer))
-    {
-        return false;
-    }
-
-    if (!MapBuffer(device, transferBuffer))
-    {
-        return false;
-    }
-    memcpy(transferBuffer.mappedPtr, image.data, allocSize);
-
-    BeginTransfer(device);
-    CommandBuffer& cmd = TransferCommandBuffer(device);
-
-    RecordTransitionImageLayout(cmd, texture.handle, VK_IMAGE_LAYOUT_UNDEFINED,
-                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    VkBufferImageCopy copyRegion{};
-    copyRegion.bufferOffset = 0;
-    copyRegion.bufferRowLength = 0;
-    copyRegion.bufferImageHeight = 0;
-    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.imageSubresource.mipLevel = 0;
-    copyRegion.imageSubresource.baseArrayLayer = 0;
-    copyRegion.imageSubresource.layerCount = 1;
-    copyRegion.imageExtent.width = image.width;
-    copyRegion.imageExtent.height = image.height;
-    copyRegion.imageExtent.depth = 1;
-
-    vkCmdCopyBufferToImage(cmd.handle, transferBuffer.handle, texture.handle,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                           &copyRegion);
-
-    RecordTransitionImageLayout(cmd, texture.handle,
-                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    EndTransfer(device);
-
-    UnmapBuffer(device, transferBuffer);
-    DestroyBuffer(device, transferBuffer);
-
-    return true;
-}
-
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
                    Texture& texture)
 {
