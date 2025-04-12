@@ -236,7 +236,8 @@ static const char* ParseTexCoord(const char* ptr, bool uvOriginBottom,
     return ptr;
 }
 
-static const char* ParseFace(const char* ptr, ObjData& objData)
+static const char* ParseFace(const char* ptr, bool flipFaceOrientation,
+                             ObjData& objData)
 {
     ptr = SkipWhitespace(ptr);
 
@@ -300,7 +301,14 @@ static const char* ParseFace(const char* ptr, ObjData& objData)
         {
             ObjData::Face& face = GetNextFace(objData);
             memcpy(face.indices, indices, sizeof(indices));
+            if (flipFaceOrientation)
+            {
+                ObjData::Index tmp = face.indices[1];
+                face.indices[1] = face.indices[2];
+                face.indices[2] = tmp;
+            }
             face.materialIndex = objData.currentMaterialIndex;
+
             indices[1] = indices[2];
         }
         else
@@ -771,7 +779,7 @@ bool ParseObj(String8 str, const ObjImportSettings& settings, ObjData& objData)
                     case ' ':
                     case '\t':
                     {
-                        p = ParseFace(p, objData);
+                        p = ParseFace(p, settings.flipFaceOrientation, objData);
                         break;
                     }
                     default:

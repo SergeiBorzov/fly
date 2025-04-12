@@ -72,6 +72,7 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
     Hls::ObjImportSettings settings;
     settings.scale = 0.01f;
     settings.uvOriginBottom = false;
+    settings.flipFaceOrientation = true;
     if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), settings,
                                  objData))
     {
@@ -454,7 +455,7 @@ int main(int argc, char* argv[])
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     Hls::GraphicsPipeline graphicsPipeline{};

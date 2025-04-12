@@ -21,6 +21,7 @@ int main()
     Hls::ObjImportSettings settings;
     settings.scale = 0.01f;
     settings.uvOriginBottom = false;
+    settings.flipFaceOrientation = true;
     if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), settings,
                                  objData))
     {

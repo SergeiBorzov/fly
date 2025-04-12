@@ -11,6 +11,7 @@ struct ObjImportSettings
 {
     f32 scale = 1.0f;
     bool uvOriginBottom = true;
+    bool flipFaceOrientation = false;
 };
 
 struct ObjData
