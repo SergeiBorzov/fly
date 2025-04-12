@@ -49,10 +49,11 @@ struct Texture
     VmaAllocation allocation;
     u32 width = 0;
     u32 height = 0;
+    u32 mipLevelCount = 0;
 };
 
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
-                   Texture& texture);
+                   Texture& texture, bool generateMipMaps = true);
 void DestroyTexture(Device& device, Texture& texture);
 
 } // namespace Hls

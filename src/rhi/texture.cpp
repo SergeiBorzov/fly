@@ -6,14 +6,35 @@
 #include "command_buffer.h"
 #include "texture.h"
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+static u32 Log2(u32 x)
+{
+    u32 result = 0;
+    while (x >>= 1)
+    {
+        ++result;
+    }
+    return result;
+}
+
 namespace Hls
 {
 
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
-                   Texture& texture)
+                   Texture& texture, bool generateMipMaps)
 {
     HLS_ASSERT(width > 0);
     HLS_ASSERT(height > 0);
+
+    u32 mipLevelCount = 1;
+    VkImageUsageFlags usage =
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    if (generateMipMaps)
+    {
+        mipLevelCount = Log2(MAX(width, height)) + 1;
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
 
     VkImageCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -21,13 +42,12 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     createInfo.extent.width = width;
     createInfo.extent.height = height;
     createInfo.extent.depth = 1;
-    createInfo.mipLevels = 1;
+    createInfo.mipLevels = mipLevelCount;
     createInfo.arrayLayers = 1;
     createInfo.format = format;
     createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    createInfo.usage =
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    createInfo.usage = usage;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     createInfo.flags = 0;
@@ -47,6 +67,7 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     texture.width = width;
     texture.height = height;
     texture.format = format;
+    texture.mipLevelCount = mipLevelCount;
 
     VkImageViewCreateInfo viewCreateInfo{};
     viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -55,7 +76,7 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     viewCreateInfo.format = format;
     viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.levelCount = mipLevelCount;
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
 
@@ -84,7 +105,7 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerCreateInfo.mipLodBias = 0.0f;
     samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = 0.0f;
+    samplerCreateInfo.maxLod = static_cast<f32>(mipLevelCount);
 
     if (vkCreateSampler(device.logicalDevice, &samplerCreateInfo, nullptr,
                         &texture.sampler) != VK_SUCCESS)
