@@ -1,5 +1,5 @@
 filegroup(
-    name = "scene_data",
+    name = "textures",
     srcs = [
         "textures/background_bump.png",
         "textures/background.png",
@@ -55,6 +55,13 @@ filegroup(
         "textures/vase_round_bump.png",
         "textures/vase_round.png",
         "textures/vase_round_spec.png",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "obj",
+    srcs = [
         "sponza.obj",
         "sponza.mtl",
     ],

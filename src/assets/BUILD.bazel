@@ -35,6 +35,7 @@ cc_library(
     name = "import",
     deps = [
         ":import_obj",
+        ":import_image",
     ],
     visibility = ["//visibility:public"],
 )

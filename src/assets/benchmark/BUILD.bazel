@@ -2,9 +2,17 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 
 copy_files_to_directory(
-    name = "copy_scene_data",
+    name = "copy_obj_data",
     srcs = [
-        "@sponza_scene//:scene_data",
+        "@sponza_scene//:obj",
+    ],
+    output_directory = ".",
+)
+
+copy_files_to_directory(
+    name = "copy_texture_data",
+    srcs = [
+        "@sponza_scene//:textures",
     ],
     output_directory = ".",
 )
@@ -20,6 +28,7 @@ cc_binary(
         "@tinyobjloader//:tinyobjloader",
     ],
     data = [
-        ":copy_scene_data",
+        ":copy_obj_data",
+        ":copy_texture_data",
     ],
 )

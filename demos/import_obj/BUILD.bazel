@@ -1,0 +1,71 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+
+copy_files_to_directory(
+    name = "copy_vulkan_validation_layer",
+    srcs = [
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
+    ],
+    output_directory = ".",
+)
+
+config_setting(
+    name = "release_build",
+    values = {
+        "compilation_mode": "opt",
+    },
+)
+
+copy_files_to_directory(
+    name = "copy_obj_data",
+    srcs = [
+        "@sponza_scene//:obj",
+    ],
+    output_directory = ".",
+)
+
+copy_files_to_directory(
+    name = "copy_texture_data",
+    srcs = [
+        "@sponza_scene//:textures",
+    ],
+    output_directory = "textures",
+)
+
+glsl_shader(
+    name = "unlit.vert.spv",
+    src = "unlit.vert",
+)
+
+glsl_shader(
+    name = "unlit.frag.spv",
+    src = "unlit.frag",
+)
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        "//src/assets:import",
+        "//src/platform:window",
+        "//src/rhi:context",
+        "//demos/common:simple_camera_fps",
+    ],
+    data = [
+        ":unlit.frag.spv",
+        ":unlit.vert.spv",
+        ":copy_obj_data",
+        ":copy_texture_data",
+    ] + select({
+        ":release_build": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    }),
+)
+
