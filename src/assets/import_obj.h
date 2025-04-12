@@ -7,25 +7,10 @@
 namespace Hls
 {
 
-enum class ObjParseErrorType
+struct ObjImportSettings
 {
-    Success = 0,
-    FileReadFailed,
-    NoVertexData,
-    NoFaceData,
-    UnknownLineToken,
-    FaceParseError,
-    VertexParseError,
-    NormalParseError,
-    TexCoordParseError,
-    GroupParseError,
-    ObjectParseError
-};
-
-struct ObjParseResult
-{
-    u32 line = 0;
-    ObjParseErrorType error = ObjParseErrorType::Success;
+    f32 scale = 1.0f;
+    bool uvOriginBottom = true;
 };
 
 struct ObjData
@@ -101,7 +86,8 @@ struct ObjData
 
     i32 currentMaterialIndex = -1;
 };
-bool ImportWavefrontObj(String8 filename, ObjData& objData);
+bool ImportWavefrontObj(String8 filename, const ObjImportSettings& settings,
+                        ObjData& objData);
 void FreeWavefrontObj(ObjData& objData);
 
 } // namespace Hls

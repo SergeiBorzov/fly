@@ -69,7 +69,11 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
     ArenaMarker marker = ArenaGetMarker(scratch);
 
     Hls::ObjData objData;
-    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), objData))
+    Hls::ObjImportSettings settings;
+    settings.scale = 0.01f;
+    settings.uvOriginBottom = false;
+    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), settings,
+                                 objData))
     {
         HLS_ERROR("Failed to parse sponza.obj");
         return nullptr;
@@ -83,7 +87,7 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
         for (u32 j = 0; j < 3; j++)
         {
             Vertex& v = vertices[3 * i + j];
-            v.position = objData.vertices[face.indices[j].vertexIndex] / 100.0f;
+            v.position = objData.vertices[face.indices[j].vertexIndex];
             v.normal = objData.normals[face.indices[j].normalIndex];
             const Hls::Math::Vec2 uv =
                 objData.texCoords[face.indices[j].texCoordIndex];
@@ -99,11 +103,6 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
     u32 textureCount = 0;
     for (u64 i = 0; i < objData.shapeCount; i++)
     {
-        // if (strcmp(objData.shapes[i].name, "sponza_124") != 0)
-        // {
-        //     continue;
-        // }
-
         const Hls::ObjData::Shape& s = objData.shapes[i];
         if (objData.faces[s.firstFaceIndex].materialIndex !=
             objData.faces[s.firstFaceIndex + s.faceCount - 1].materialIndex)
@@ -141,11 +140,6 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
     u32 j = 0;
     for (u64 i = 0; i < objData.shapeCount; i++)
     {
-        // if (strcmp(objData.shapes[i].name, "sponza_124") != 0)
-        // {
-        //     continue;
-        // }
-
         const Hls::ObjData::Shape& s = objData.shapes[i];
         if (objData.faces[s.firstFaceIndex].materialIndex !=
             objData.faces[s.firstFaceIndex + s.faceCount - 1].materialIndex)

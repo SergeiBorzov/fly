@@ -25,7 +25,7 @@ layout(set = 1, binding = 0, std430) readonly buffer VertexBuffer
 void main()
 {
     Vertex v = vertices[gl_VertexIndex];
-    out_uv = vec2(v.uv_x, 1.0f - v.uv_y);
+    out_uv = vec2(v.uv_x, v.uv_y);
     gl_Position =
         uniform_data.projection * uniform_data.view * vec4(v.position, 1.0f);
 }

@@ -200,12 +200,13 @@ static const char*& GetNextTexture(ObjData& objData)
     return objData.textures[objData.textureCount++];
 }
 
-static const char* ParseVertex(const char* ptr, ObjData& objData)
+static const char* ParseVertex(const char* ptr, f32 scale, ObjData& objData)
 {
     Math::Vec3& next = GetNextVertex(objData);
     for (u32 i = 0; i < 3; i++)
     {
         ptr = ParseF32(ptr, next[i]);
+        next[i] *= scale;
     }
     return ptr;
 }
@@ -220,12 +221,17 @@ static const char* ParseNormal(const char* ptr, ObjData& objData)
     return ptr;
 }
 
-static const char* ParseTexCoord(const char* ptr, ObjData& objData)
+static const char* ParseTexCoord(const char* ptr, bool uvOriginBottom,
+                                 ObjData& objData)
 {
     Math::Vec2& next = GetNextTexCoord(objData);
     for (u32 i = 0; i < 2; i++)
     {
         ptr = ParseF32(ptr, next[i]);
+    }
+    if (!uvOriginBottom)
+    {
+        next.y = 1.0f - next.y;
     }
     return ptr;
 }
@@ -679,7 +685,7 @@ static const char* ParseMtlLib(const char* ptr, ObjData& objData)
     return ptr;
 }
 
-bool ParseObj(String8 str, ObjData& objData)
+bool ParseObj(String8 str, const ObjImportSettings& settings, ObjData& objData)
 {
     objData.vertexCount = 0;
     objData.vertexCapacity = 131136;
@@ -737,12 +743,12 @@ bool ParseObj(String8 str, ObjData& objData)
                     case ' ':
                     case '\t':
                     {
-                        p = ParseVertex(p, objData);
+                        p = ParseVertex(p, settings.scale, objData);
                         break;
                     }
                     case 't':
                     {
-                        p = ParseTexCoord(p, objData);
+                        p = ParseTexCoord(p, settings.uvOriginBottom, objData);
                         break;
                     }
                     case 'n':
@@ -867,7 +873,8 @@ bool ParseObj(String8 str, ObjData& objData)
     return true;
 }
 
-bool ImportWavefrontObj(String8 filepath, ObjData& objData)
+bool ImportWavefrontObj(String8 filepath, const ObjImportSettings& settings,
+                        ObjData& objData)
 {
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
@@ -879,7 +886,7 @@ bool ImportWavefrontObj(String8 filepath, ObjData& objData)
         return false;
     }
 
-    bool res = ParseObj(str, objData);
+    bool res = ParseObj(str, settings, objData);
 
     ArenaPopToMarker(scratch, marker);
     return res;

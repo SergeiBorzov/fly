@@ -18,7 +18,11 @@ int main()
 
     u64 hlsStart = Hls::ClockNow();
     Hls::ObjData objData;
-    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), objData))
+    Hls::ObjImportSettings settings;
+    settings.scale = 0.01f;
+    settings.uvOriginBottom = false;
+    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), settings,
+                                 objData))
     {
         fprintf(stderr, "Failed to load file. Benchmark is not valid.");
         return -1;
