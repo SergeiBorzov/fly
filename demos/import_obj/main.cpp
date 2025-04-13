@@ -303,6 +303,7 @@ int main(int argc, char* argv[])
     dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
 
     Hls::ContextSettings settings{};
+    settings.deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     settings.deviceFeatures2.pNext = &dynamicRenderingFeatures;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);

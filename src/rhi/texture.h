@@ -53,7 +53,8 @@ struct Texture
 };
 
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
-                   Texture& texture, bool generateMipMaps = true);
+                   Texture& texture, bool generateMipMaps = true,
+                   u32 maxAnisotropy = 8);
 void DestroyTexture(Device& device, Texture& texture);
 
 } // namespace Hls

@@ -22,7 +22,7 @@ namespace Hls
 {
 
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
-                   Texture& texture, bool generateMipMaps)
+                   Texture& texture, bool generateMipMaps, u32 maxAnisotropy)
 {
     HLS_ASSERT(width > 0);
     HLS_ASSERT(height > 0);
@@ -94,8 +94,8 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-    samplerCreateInfo.anisotropyEnable = VK_FALSE;
-    samplerCreateInfo.maxAnisotropy = 0;
+    samplerCreateInfo.anisotropyEnable = maxAnisotropy > 0;
+    samplerCreateInfo.maxAnisotropy = static_cast<f32>(maxAnisotropy);
 
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
