@@ -118,14 +118,6 @@ external_git_repository.base(
 use_repo(external_git_repository, "spirv_reflect")
 
 external_git_repository.base(
-    name = "optparse",
-    build_file = "//scripts/bazel/target:BUILD.optparse.bazel",
-    commit = "a86877ed301d89a4eb64feb08f23af395aede2ed",
-    remote = "https://github.com/skeeto/optparse.git",
-)
-use_repo(external_git_repository, "optparse")
-
-external_git_repository.base(
     name = "mimalloc",
     build_file = "//scripts/bazel/target:BUILD.mimalloc.bazel",
     commit = "51c09e7b6a0ac5feeba998710f00c7dd7aa67bbf",
@@ -140,6 +132,14 @@ external_git_repository.base(
     remote = "https://github.com/nothings/stb.git",
 )
 use_repo(external_git_repository, "stb")
+
+external_git_repository.base(
+    name = "cgltf",
+    build_file = "//scripts/bazel/target:BUILD.cgltf.bazel",
+    commit = "08470a2b08980cd3221002a9b2ef29a37e3111dc",
+    remote = "https://github.com/jkuhlmann/cgltf.git",
+)
+use_repo(external_git_repository, "cgltf")
 
 external_git_repository.base(
     name = "tinyobjloader",
