@@ -548,48 +548,6 @@ static void DestroyCommandPool(Device& device)
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// Descriptor Pool
-/////////////////////////////////////////////////////////////////////////////
-
-bool CreateDescriptorPool(Device& device, const VkDescriptorPoolSize* poolSizes,
-                          u32 poolSizeCount, u32 maxSets,
-                          VkDescriptorPool& descriptorPool)
-{
-    HLS_ASSERT(poolSizes);
-    HLS_ASSERT(poolSizeCount > 0);
-    HLS_ASSERT(maxSets > 0);
-
-    VkDescriptorPoolCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    createInfo.poolSizeCount = poolSizeCount;
-    createInfo.pPoolSizes = poolSizes;
-    createInfo.maxSets = maxSets;
-
-    return vkCreateDescriptorPool(device.logicalDevice, &createInfo, nullptr,
-                                  &descriptorPool) == VK_SUCCESS;
-}
-
-VkResult AllocateDescriptorSets(Device& device, VkDescriptorPool descriptorPool,
-                                const VkDescriptorSetLayout* layouts,
-                                VkDescriptorSet* descriptorSets,
-                                u32 descriptorSetCount)
-{
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = descriptorSetCount;
-    allocInfo.pSetLayouts = layouts;
-
-    return vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
-                                    descriptorSets);
-}
-
-void DestroyDescriptorPool(Device& device, VkDescriptorPool descriptorPool)
-{
-    vkDestroyDescriptorPool(device.logicalDevice, descriptorPool, nullptr);
-}
-
-/////////////////////////////////////////////////////////////////////////////
 // Vma Allocator
 /////////////////////////////////////////////////////////////////////////////
 

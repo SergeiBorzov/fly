@@ -6,6 +6,7 @@
 
 #include "rhi/buffer.h"
 #include "rhi/context.h"
+#include "rhi/descriptor.h"
 #include "rhi/pipeline.h"
 #include "rhi/texture.h"
 #include "rhi/utils.h"
@@ -39,6 +40,7 @@ struct Mesh
     VkDescriptorSet descriptorSet;
 };
 
+static VkDescriptorSet* sUniformDescriptorSets = nullptr;
 static VkDescriptorSet* sMaterialDescriptorSets = nullptr;
 static Hls::Texture* sTextures = nullptr;
 static u32 sTextureCount = 0;
@@ -242,7 +244,7 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline,
 
     vkCmdBindDescriptorSets(
         cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1,
-        &sDescriptorPool.descriptorSets[device.frameIndex], 0, nullptr);
+        &sUniformDescriptorSets[device.frameIndex], 0, nullptr);
     for (u32 i = 0; i < meshCount; i++)
     {
         const Mesh& mesh = meshes[i];
@@ -341,26 +343,18 @@ int main(int argc, char* argv[])
     HLS_LOG("Loaded %u meshes", meshCount);
 
     VkDescriptorPoolSize poolSizes[3];
-
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = HLS_FRAME_IN_FLIGHT_COUNT;
-
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[1].descriptorCount = meshCount;
-
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
     poolSizes[2].descriptorCount = sTextureCount;
 
-    VkDescriptorPoolCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    createInfo.poolSizeCount = 3;
-    createInfo.pPoolSizes = poolSizes;
-    createInfo.maxSets = meshCount + sTextureCount + HLS_FRAME_IN_FLIGHT_COUNT;
-
-    if (vkCreateDescriptorPool(device.logicalDevice, &createInfo, nullptr,
-                               &sDescriptorPool.handle) != VK_SUCCESS)
+    if (!Hls::CreateDescriptorPool(device, poolSizes, 3,
+                                   meshCount + sTextureCount +
+                                       HLS_FRAME_IN_FLIGHT_COUNT,
+                                   sDescriptorPool))
     {
-        HLS_ERROR("Failed to create descriptor pool!");
         return -1;
     }
 
@@ -371,33 +365,25 @@ int main(int argc, char* argv[])
         programmableStage[Hls::ShaderType::Vertex]
             .descriptorSetLayouts[0]
             .handle};
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = sDescriptorPool.handle;
-    allocInfo.descriptorSetCount = HLS_FRAME_IN_FLIGHT_COUNT;
-    allocInfo.pSetLayouts = uniformDescriptorSetLayouts;
-
-    sDescriptorPool.descriptorSetCount = 2;
-    sDescriptorPool.descriptorSets =
+    sUniformDescriptorSets =
         HLS_ALLOC(arena, VkDescriptorSet, HLS_FRAME_IN_FLIGHT_COUNT);
-
-    if (vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
-                                 sDescriptorPool.descriptorSets) != VK_SUCCESS)
+    if (!AllocateDescriptorSets(
+            device, sDescriptorPool, uniformDescriptorSetLayouts,
+            HLS_FRAME_IN_FLIGHT_COUNT, sUniformDescriptorSets))
     {
-        HLS_ERROR("Failed to allocate descriptor sets for uniform buffers!");
+        HLS_ERROR("Failed to allocate uniform descriptors");
         return -1;
     }
 
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &programmableStage[Hls::ShaderType::Vertex]
-                                 .descriptorSetLayouts[1]
-                                 .handle;
     for (u32 i = 0; i < meshCount; i++)
     {
-        if (vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
-                                     &meshes[i].descriptorSet) != VK_SUCCESS)
+        if (!AllocateDescriptorSets(device, sDescriptorPool,
+                                    &programmableStage[Hls::ShaderType::Vertex]
+                                         .descriptorSetLayouts[1]
+                                         .handle,
+                                    1, &meshes[i].descriptorSet))
         {
-            HLS_ERROR("Failed to allocate descriptor set for mesh");
+            HLS_ERROR("Failed to allocate mesh descriptors");
             return -1;
         }
         Hls::BindBufferToDescriptorSet(device, meshes[i].vertexBuffer, 0,
@@ -407,15 +393,14 @@ int main(int argc, char* argv[])
     }
 
     sMaterialDescriptorSets = HLS_ALLOC(arena, VkDescriptorSet, sTextureCount);
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &programmableStage[Hls::ShaderType::Fragment]
-                                 .descriptorSetLayouts[0]
-                                 .handle;
-
     for (u32 i = 0; i < sTextureCount; i++)
     {
-        if (vkAllocateDescriptorSets(device.logicalDevice, &allocInfo,
-                                     &sMaterialDescriptorSets[i]) != VK_SUCCESS)
+        if (!AllocateDescriptorSets(
+                device, sDescriptorPool,
+                &programmableStage[Hls::ShaderType::Fragment]
+                     .descriptorSetLayouts[0]
+                     .handle,
+                1, &sMaterialDescriptorSets[i]))
         {
             HLS_ERROR("Failed to allocate material descriptor set");
             return -1;
@@ -444,8 +429,7 @@ int main(int argc, char* argv[])
     {
         Hls::BindBufferToDescriptorSet(
             device, uniformBuffer, i * sizeof(UniformData), sizeof(UniformData),
-            sDescriptorPool.descriptorSets[i],
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
+            sUniformDescriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
     }
 
     Hls::GraphicsPipelineFixedStateStage fixedState{};
@@ -508,7 +492,7 @@ int main(int argc, char* argv[])
     Hls::UnmapBuffer(device, uniformBuffer);
     Hls::DestroyBuffer(device, uniformBuffer);
 
-    Hls::DestroyDescriptorPool(device, sDescriptorPool.handle);
+    Hls::DestroyDescriptorPool(device, sDescriptorPool);
     Hls::DestroyGraphicsPipeline(device, graphicsPipeline);
     Hls::DestroyContext(context);
 

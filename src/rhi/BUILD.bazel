@@ -10,6 +10,7 @@ cc_library(
         "pipeline.h",
         "buffer.h",
         "texture.h",
+        "descriptor.h",
         "utils.h",
     ],
     srcs = [
@@ -20,6 +21,7 @@ cc_library(
         "pipeline.cpp",
         "buffer.cpp",
         "texture.cpp",
+        "descriptor.cpp",
         "utils.cpp",
     ],
     includes = [".."],

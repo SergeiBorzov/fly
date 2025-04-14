@@ -60,15 +60,6 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
                          Context& context, Device& device);
 void DestroyLogicalDevice(Device& device);
 
-bool CreateDescriptorPool(Device& device, const VkDescriptorPoolSize* poolSizes,
-                          u32 poolSizeCount, u32 maxSets,
-                          VkDescriptorPool& descriptorPool);
-VkResult AllocateDescriptorSets(Device& device, VkDescriptorPool descriptorPool,
-                                const VkDescriptorSetLayout* layouts,
-                                VkDescriptorSet* descriptorSets,
-                                u32 descriptorSetCount);
-void DestroyDescriptorPool(Device& device, VkDescriptorPool descriptorPool);
-
 CommandBuffer& TransferCommandBuffer(Device& device);
 void BeginTransfer(Device& device);
 void EndTransfer(Device& device);

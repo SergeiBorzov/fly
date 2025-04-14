@@ -35,28 +35,9 @@ private:
     String8 paths[ShaderType::Count];
 };
 
-struct DescriptorPool
-{
-    VkDescriptorPool handle = VK_NULL_HANDLE;
-    VkDescriptorSet* descriptorSets = nullptr;
-    u32 descriptorSetCount = 0;
-};
-
 bool LoadProgrammableStage(
     Arena& arena, Device& device, const ShaderPathMap& shaderPathMap,
     GraphicsPipelineProgrammableStage& programmableStage);
-
-bool CreatePoolAndAllocateDescriptorsForProgrammableStage(
-    Arena& arena, Device& device,
-    const GraphicsPipelineProgrammableStage& programmableStage,
-    DescriptorPool& descriptorPool);
-
-void BindBufferToDescriptorSet(Device& device, const Buffer& buffer, u64 offset,
-                               u64 range, VkDescriptorSet descriptorSet,
-                               VkDescriptorType descriptorType, u32 setBinding);
-void BindTextureToDescriptorSet(Device& device, const Texture& texture,
-                                VkDescriptorSet descriptorSet,
-                                u32 bindingIndex);
 
 } // namespace Hls
 

@@ -6,6 +6,7 @@
 
 #include "rhi/buffer.h"
 #include "rhi/context.h"
+#include "rhi/descriptor.h"
 #include "rhi/pipeline.h"
 #include "rhi/texture.h"
 #include "rhi/utils.h"
@@ -16,6 +17,8 @@
 
 #include "demos/common/simple_camera_fps.h"
 
+static VkDescriptorSet sTextureDescriptorSet;
+static VkDescriptorSet* sUniformDescriptorSets = nullptr;
 static Hls::DescriptorPool sDescriptorPool = {};
 
 static Hls::SimpleCameraFPS
@@ -78,10 +81,10 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
 
     vkCmdBindDescriptorSets(
         cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1,
-        &sDescriptorPool.descriptorSets[device.frameIndex], 0, nullptr);
+        &sUniformDescriptorSets[device.frameIndex], 0, nullptr);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipeline.layout, 1, 1,
-                            &sDescriptorPool.descriptorSets[3], 0, nullptr);
+                            pipeline.layout, 1, 1, &sTextureDescriptorSet, 0,
+                            nullptr);
     vkCmdDraw(cmd.handle, 36, 10000, 0, 0);
 
     vkCmdEndRendering(cmd.handle);
@@ -157,14 +160,47 @@ int main(int argc, char* argv[])
         HLS_ERROR("Failed to load and create shader modules");
     }
 
-    if (!CreatePoolAndAllocateDescriptorsForProgrammableStage(
-            arena, device, programmableStage, sDescriptorPool))
+    VkDescriptorPoolSize poolSizes[2];
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = HLS_FRAME_IN_FLIGHT_COUNT;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+    poolSizes[1].descriptorCount = 1;
+
+    if (!CreateDescriptorPool(device, poolSizes, 2,
+                              1 + HLS_FRAME_IN_FLIGHT_COUNT, sDescriptorPool))
     {
         HLS_ERROR("Failed to create descriptor pool!");
         return -1;
     }
 
-    HLS_LOG("Number of descriptor sets %u", sDescriptorPool.descriptorSetCount);
+    sUniformDescriptorSets =
+        HLS_ALLOC(arena, VkDescriptorSet, HLS_FRAME_IN_FLIGHT_COUNT);
+
+    VkDescriptorSetLayout
+        uniformDescriptorSetLayouts[HLS_FRAME_IN_FLIGHT_COUNT] = {
+            programmableStage[Hls::ShaderType::Vertex]
+                .descriptorSetLayouts[0]
+                .handle,
+            programmableStage[Hls::ShaderType::Vertex]
+                .descriptorSetLayouts[0]
+                .handle};
+    if (!AllocateDescriptorSets(
+            device, sDescriptorPool, uniformDescriptorSetLayouts,
+            HLS_FRAME_IN_FLIGHT_COUNT, sUniformDescriptorSets))
+    {
+        HLS_ERROR("Failed to allocate uniform descriptors");
+        return -1;
+    }
+
+    if (!AllocateDescriptorSets(device, sDescriptorPool,
+                                &programmableStage[Hls::ShaderType::Fragment]
+                                     .descriptorSetLayouts[0]
+                                     .handle,
+                                1, &sTextureDescriptorSet))
+    {
+        HLS_ERROR("Failed to allocate texture descriptor");
+        return -1;
+    }
 
     Hls::Image image;
     if (!Hls::LoadImageFromFile("default.png", image))
@@ -174,7 +210,7 @@ int main(int argc, char* argv[])
     }
     Hls::Texture texture;
     if (!Hls::CreateTexture(device, image.width, image.height,
-                            VK_FORMAT_R8G8B8A8_SRGB, texture))
+                            VK_FORMAT_R8G8B8A8_SRGB, texture, false, 0))
     {
         HLS_ERROR("Failed to create texture");
         return -1;
@@ -185,8 +221,7 @@ int main(int argc, char* argv[])
         return -1;
     }
     Hls::FreeImage(image);
-    Hls::BindTextureToDescriptorSet(device, texture,
-                                    sDescriptorPool.descriptorSets[3], 0);
+    Hls::BindTextureToDescriptorSet(device, texture, sTextureDescriptorSet, 0);
 
     Hls::Buffer uniformBuffer;
     if (!Hls::CreateBuffer(
@@ -208,8 +243,7 @@ int main(int argc, char* argv[])
     {
         Hls::BindBufferToDescriptorSet(
             device, uniformBuffer, i * sizeof(UniformData), sizeof(UniformData),
-            sDescriptorPool.descriptorSets[i],
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
+            sUniformDescriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
     }
 
     Hls::GraphicsPipelineFixedStateStage fixedState{};
@@ -262,7 +296,7 @@ int main(int argc, char* argv[])
     Hls::DestroyBuffer(device, uniformBuffer);
     Hls::DestroyTexture(device, texture);
 
-    Hls::DestroyDescriptorPool(device, sDescriptorPool.handle);
+    Hls::DestroyDescriptorPool(device, sDescriptorPool);
     Hls::DestroyGraphicsPipeline(device, graphicsPipeline);
     Hls::DestroyContext(context);
 
