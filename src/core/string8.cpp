@@ -77,6 +77,18 @@ String8 String8::TrimRight(String8 str)
     return {str.data_, str.size_};
 }
 
+String8 String8::Find(String8 str, i32 character)
+{
+    for (u64 i = 0; i < str.Size(); i++)
+    {
+        if (str[i] == character)
+        {
+            return String8(str.Data() + i, str.Size() - i);
+        }
+    }
+    return String8();
+}
+
 String8 String8::FindLast(String8 str, i32 character)
 {
     for (i64 i = str.Size() - 1; i >= 0; i--)

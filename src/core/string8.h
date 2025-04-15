@@ -43,6 +43,7 @@ struct String8
     static bool ParseI64(String8 str, i64& res);
     static bool ParseI32(String8 str, i32& res);
 
+    static String8 Find(String8 str, i32 character);
     static String8 FindLast(String8 str, i32 character);
     static char* CopyNullTerminate(Arena& arena, String8 str);
 

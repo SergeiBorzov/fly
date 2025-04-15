@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "thread_context.h"
 #include "filesystem.h"
 #include "platform.h"
+#include "thread_context.h"
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
 #include <windows.h>
@@ -22,6 +22,58 @@
 
 namespace Hls
 {
+
+bool IsValidPathString(String8 str)
+{
+    if (!str)
+    {
+        return false;
+    }
+
+#ifdef HLS_PLATFORM_OS_WINDOWS
+    String8 invalidCharacters = HLS_STRING8_LITERAL("<>\"|*");
+    for (u64 i = 0; i < str.Size(); i++)
+    {
+        // No control sequence characters in path
+        if (str[i] < 32)
+        {
+            return false;
+        }
+
+        // Colon only allowed after drive letter, e.g C:\...
+        if (str[i] == ':')
+        {
+            if (i == 1 && CharIsAlpha(str[0]))
+            {
+                continue;
+            }
+            else if (i == 5 && str[0] == '\\' && str[1] == '\\' &&
+                     (str[2] == '?' || str[2] == '.') && str[3] == '\\' &&
+                     CharIsAlpha(str[4]))
+            {
+                continue;
+            }
+            return false;
+        }
+        else if (str[i] == '?')
+        {
+            // Allow only NT file path prefix
+            if (i != 2 || str.Size() < 4 || str[0] != '\\' || str[1] != '\\' ||
+                str[3] != '\\')
+            {
+                return false;
+            }
+        }
+        else if (String8::Find(invalidCharacters, str[i]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+#endif
+    return false;
+}
 
 String8 GetParentDirectoryPath(String8 path)
 {
