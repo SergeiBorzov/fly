@@ -75,6 +75,65 @@ bool IsValidPathString(String8 str)
     return false;
 }
 
+bool Path::Create(Arena& arena, String8 str, Path& path)
+{
+    if (!IsValidPathString(str))
+    {
+        return false;
+    }
+
+    char* data = HLS_ALLOC(arena, char, str.Size() + 1);
+    strncpy(data, str.Data(), str.Size());
+    data[str.Size()] = '\0';
+
+    path.data_ = data;
+    path.size_ = str.Size();
+
+    return true;
+}
+
+bool Path::Create(Arena& arena, const char* str, Path& path)
+{
+    String8 str8 = String8(str, strlen(str));
+    return Create(arena, str8, path);
+}
+
+String8 Path::ToString8() const { return String8(data_, size_); }
+
+bool Path::IsAbsolute() const
+{
+    if (!data_ || !size_)
+    {
+        return false;
+    }
+#ifdef HLS_PLATFORM_OS_WINDOWS
+
+    if (data_[0] == '\\' && data_[1] == '\\')
+    {
+        return true;
+    }
+
+    if (CharIsAlpha(data_[0]) && data_[1] == ':' &&
+        (data_[2] == '\\' || data_[2] == '/'))
+    {
+        return true;
+    }
+
+    return false;
+#endif
+    return false;
+}
+
+bool Path::IsRelative() const
+{
+    if (!data_ || !size_)
+    {
+        return false;
+    }
+
+    return !IsAbsolute();
+}
+
 String8 GetParentDirectoryPath(String8 path)
 {
     String8 lastSeparator = String8::FindLast(path, HLS_PATH_SEPARATOR);
