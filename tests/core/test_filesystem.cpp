@@ -1,8 +1,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "src/core/arena.h"
 #include "src/core/filesystem.h"
+#include "src/core/thread_context.h"
 
 using namespace Hls;
 
@@ -39,11 +39,15 @@ TEST(Path, Validation)
 
 TEST(Path, Create)
 {
+    InitThreadContext();
+    Arena& arena = GetScratchArena();
+
     String8 a = HLS_STRING8_LITERAL("C:\\Users\\Username\\Documents\\file.txt");
     String8 b = HLS_STRING8_LITERAL("D:/Folder/AnotherFile.txt");
     String8 c = HLS_STRING8_LITERAL("..\\file.txt");
     String8 d = HLS_STRING8_LITERAL("folder\\subfolder\\file.txt");
-    String8 e = HLS_STRING8_LITERAL("C:/folder/../file.txt");
+    String8 e = HLS_STRING8_LITERAL("C:\\folder\file.txt");
+    String8 e2 = HLS_STRING8_LITERAL("C:\\.\\.\\.\\folder\\.\\.\\file.txt");
     String8 f = HLS_STRING8_LITERAL("..\\folder\\..\\file.txt");
     String8 g =
         HLS_STRING8_LITERAL("\\\\?\\C:\\Users\\Username\\Documents\\file.txt");
@@ -51,9 +55,6 @@ TEST(Path, Create)
     String8 i = HLS_STRING8_LITERAL("");
     String8 k = HLS_STRING8_LITERAL("C:\\folder\\|file.txt");
     String8 l = HLS_STRING8_LITERAL("C:\\??\\InvalidPath");
-
-    char buffer[HLS_SIZE_KB(4)] = {0};
-    Arena arena = ArenaCreateInline(HLS_SIZE_KB(4), buffer);
 
     Path pA;
     EXPECT_FALSE(pA);
@@ -84,6 +85,13 @@ TEST(Path, Create)
     EXPECT_FALSE(pD.IsAbsolute());
     EXPECT_EQ(pD.ToString8(), d);
 
+    Path pE2;
+    res = Path::Create(arena, e2, pE2);
+    EXPECT_TRUE(res);
+    EXPECT_FALSE(pE2.IsRelative());
+    EXPECT_TRUE(pE2.IsAbsolute());
+    EXPECT_EQ(pE2.ToString8(), e);
+
     Path pG;
     res = Path::Create(arena, g, pG);
     EXPECT_TRUE(res);
@@ -109,4 +117,6 @@ TEST(Path, Create)
     Path pL;
     res = Path::Create(arena, l, pL);
     EXPECT_FALSE(res);
+
+    ReleaseThreadContext();
 }

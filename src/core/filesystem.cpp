@@ -7,7 +7,10 @@
 #include "thread_context.h"
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
+// clang-format off
 #include <windows.h>
+#include <pathcch.h>
+// clang-format on
 #endif
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
@@ -82,14 +85,61 @@ bool Path::Create(Arena& arena, String8 str, Path& path)
         return false;
     }
 
-    char* data = HLS_ALLOC(arena, char, str.Size() + 1);
-    strncpy(data, str.Data(), str.Size());
-    data[str.Size()] = '\0';
+#ifdef HLS_PLATFORM_OS_WINDOWS
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker marker = ArenaGetMarker(arena);
+    ArenaMarker scratchMarker = ArenaGetMarker(scratch);
+
+    int sizeNeeded = MultiByteToWideChar(
+        CP_UTF8, 0, str.Data(), static_cast<int>(str.Size()), nullptr, 0);
+    if (sizeNeeded == 0)
+    {
+        return false;
+    }
+
+    wchar_t* wideInput = HLS_ALLOC(scratch, wchar_t, sizeNeeded + 1);
+    if (MultiByteToWideChar(CP_UTF8, 0, str.Data(),
+                            static_cast<int>(str.Size()), wideInput,
+                            sizeNeeded) == 0)
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
+        return false;
+    }
+    for (wchar_t* p = wideInput; *p != L'\0'; ++p)
+    {
+        if (*p == L'/')
+        {
+            *p = L'\\';
+        }
+    }
+
+    wchar_t* normalized = HLS_ALLOC(scratch, wchar_t, PATHCCH_MAX_CCH);
+    HRESULT hr = PathCchCanonicalizeEx(normalized, PATHCCH_MAX_CCH, wideInput,
+                                       PATHCCH_ALLOW_LONG_PATHS);
+    if (FAILED(hr))
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
+        return false;
+    }
+
+    sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, normalized, -1, nullptr, 0,
+                                     nullptr, nullptr);
+    char* data = HLS_ALLOC(arena, char, sizeNeeded);
+    if (WideCharToMultiByte(CP_UTF8, 0, normalized, -1, data, sizeNeeded,
+                            nullptr, nullptr) == 0)
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
+        ArenaPopToMarker(arena, marker);
+        return false;
+    }
 
     path.data_ = data;
-    path.size_ = str.Size();
+    path.size_ = sizeNeeded - 1;
 
+    ArenaPopToMarker(scratch, scratchMarker);
     return true;
+#endif
+    return false;
 }
 
 bool Path::Create(Arena& arena, const char* str, Path& path)

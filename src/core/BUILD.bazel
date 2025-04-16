@@ -92,6 +92,11 @@ cc_library(
         ":string8",
         ":thread_context",
     ],
+    linkopts = select({
+	    "@platforms//os:windows": [
+            "-DEFAULTLIB:PathCch.lib",
+        ],
+    }),
     visibility = ["//visibility:public"],
 )
 
