@@ -14,7 +14,7 @@ public:
     Path() : data_(nullptr), size_(0) {}
 
     static bool Create(Arena& arena, String8 str, Path& path);
-    static bool Create(Arena& arena, const char* str, Path& path);
+    static bool Create(Arena& arena, const char* str, u64 size, Path& path);
 
     inline operator bool() const { return data_ && size_; }
 
