@@ -24,6 +24,26 @@ bool String8::operator==(String8 rhs)
     return size_ == rhs.size_ && (!size_ || !memcmp(data_, rhs.data_, size_));
 }
 
+bool String8::operator!=(String8 rhs) { return !(*this == rhs); }
+
+bool String8::StartsWith(String8 str)
+{
+    if (str.Size() > size_)
+    {
+        return false;
+    }
+
+    for (u64 i = 0; i < str.Size(); i++)
+    {
+        if (data_[i] != str[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool String8::Cut(String8 str, char sep, String8CutPair& cutPair)
 {
     if (!str.data_ || str.size_ == 0)

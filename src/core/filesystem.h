@@ -22,6 +22,8 @@ public:
     bool IsAbsolute() const;
 
     String8 ToString8() const;
+    const char* ToCStr() const { return data_; }
+
 private:
     Path(const char* data, u64 size) : data_(data), size_(size) {}
     Path(const Path& path) = delete;
@@ -31,6 +33,7 @@ private:
 };
 
 bool IsValidPathString(String8 string);
+bool NormalizePathString(Arena& arena, String8 path, String8& out);
 
 String8 GetParentDirectoryPath(String8 path);
 String8 AppendPaths(Arena& arena, String8* paths, u32 count);

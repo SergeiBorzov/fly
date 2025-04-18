@@ -30,9 +30,11 @@ struct String8
     inline operator bool() const { return data_ && size_; }
 
     bool operator==(String8 rhs);
+    bool operator!=(String8 rhs);
 
     inline const char* Data() const { return data_; }
     inline u64 Size() const { return size_; }
+    bool StartsWith(String8 str);
 
     static bool Cut(String8, char sep, String8CutPair& cut);
     static String8 TrimLeft(String8 str);
@@ -42,6 +44,7 @@ struct String8
     static bool ParseU64(String8 str, u64& res);
     static bool ParseI64(String8 str, i64& res);
     static bool ParseI32(String8 str, i32& res);
+
 
     static String8 Find(String8 str, i32 character);
     static String8 FindLast(String8 str, i32 character);

@@ -3,8 +3,11 @@
 #include <string.h>
 
 #include "filesystem.h"
+#include "memory.h"
 #include "platform.h"
 #include "thread_context.h"
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
 // clang-format off
@@ -73,9 +76,196 @@ bool IsValidPathString(String8 str)
         }
     }
 
+    if (str.Size() > 1 && (str[0] == '\\' || str[0] == '/') &&
+        (str[1] == '\\' || str[1] == '/'))
+    {
+        if (str[2] == '\\' || str[2] == '/')
+        {
+            return false;
+        }
+
+        bool slashPresent = false;
+        bool validCharacterAfterSlash = false;
+
+        for (u64 i = 3; i < str.Size(); i++)
+        {
+            if (!slashPresent && (str[i] == '\\' || str[i] == '/'))
+            {
+                slashPresent = true;
+            }
+            else if (slashPresent && str[i] != '\\' && str[i] != '/')
+            {
+                validCharacterAfterSlash = true;
+                break;
+            }
+        }
+
+        return slashPresent && validCharacterAfterSlash;
+    }
+
     return true;
 #endif
     return false;
+}
+
+bool NormalizePathString(Arena& arena, String8 path, String8& out)
+{
+    if (!IsValidPathString(path))
+    {
+        return nullptr;
+    }
+#ifdef HLS_PLATFORM_OS_WINDOWS
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker scratchMarker = ArenaGetMarker(scratch);
+
+    char* buffer = HLS_ALLOC(scratch, char, path.Size() + 1);
+    memcpy(buffer, path.Data(), path.Size());
+    for (u64 i = 0; i < path.Size(); i++)
+    {
+        if (buffer[i] == '/')
+        {
+            buffer[i] = '\\';
+        }
+    }
+    buffer[path.Size()] = '\0';
+
+    u64 bufferSize = 0;
+    for (u64 i = 0; i < path.Size(); i++)
+    {
+        if (buffer[i] != '\\' || i <= 1 || buffer[i - 1] != '\\')
+        {
+            buffer[bufferSize++] = buffer[i];
+        }
+    }
+    String8 slashReplacedPath = String8(buffer, bufferSize);
+
+    String8 extendedLengthPrefix = HLS_STRING8_LITERAL("\\\\?\\");
+    String8 devicePathPrefix = HLS_STRING8_LITERAL("\\\\.\\");
+    if (slashReplacedPath.StartsWith(extendedLengthPrefix) ||
+        slashReplacedPath.StartsWith(devicePathPrefix))
+    {
+        char* normalized = HLS_ALLOC(arena, char, slashReplacedPath.Size() + 1);
+        memcpy(normalized, slashReplacedPath.Data(), slashReplacedPath.Size());
+        normalized[slashReplacedPath.Size()] = '\0';
+        out = String8(normalized, slashReplacedPath.Size());
+        ArenaPopToMarker(scratch, scratchMarker);
+        return true;
+    }
+
+    u64 irremovablePrefixCount = 0;
+    if (bufferSize > 2 && CharIsAlpha(buffer[0]) && buffer[1] == ':' &&
+        buffer[2] == '\\')
+    {
+        irremovablePrefixCount = 3;
+    }
+
+    if (bufferSize > 1 && buffer[0] == '\\' && buffer[1] == '\\')
+    {
+        u32 count = 0;
+        for (u64 i = 2; i < bufferSize; i++)
+        {
+            if (slashReplacedPath[i] == '\\')
+            {
+                count++;
+                if (count == 2)
+                {
+                    irremovablePrefixCount = i;
+                    break;
+                }
+            }
+        }
+        if (count != 2)
+        {
+            irremovablePrefixCount = slashReplacedPath.Size();
+        }
+    }
+
+    u64 segmentStart = irremovablePrefixCount;
+    u64 newSize = irremovablePrefixCount;
+    bool hasRootSegment = irremovablePrefixCount > 0;
+    if (irremovablePrefixCount != slashReplacedPath.Size())
+    {
+        String8 currentDir = HLS_STRING8_LITERAL(".\\");
+        String8 currentDirLast = HLS_STRING8_LITERAL(".");
+        String8 parentDir = HLS_STRING8_LITERAL("..\\");
+        String8 parentDirLast = HLS_STRING8_LITERAL("..");
+        for (u64 i = irremovablePrefixCount; i < bufferSize; i++)
+        {
+            if (slashReplacedPath[i] == '\\' || i == bufferSize - 1)
+            {
+                String8 segment(buffer + segmentStart, i - segmentStart + 1);
+                if (segment == parentDir || segment == parentDirLast)
+                {
+                    i64 prevSegmentStart = -1;
+                    for (i64 j = static_cast<i64>(newSize) - 2;
+                         j >=
+                         MAX(static_cast<i64>(irremovablePrefixCount) - 1, 0);
+                         j--)
+                    {
+                        if (buffer[j] == '\\')
+                        {
+                            prevSegmentStart = j + 1;
+                            break;
+                        }
+                        else if (j == 0)
+                        {
+                            prevSegmentStart = 0;
+                            break;
+                        }
+                    }
+
+                    if (prevSegmentStart == -1 && !hasRootSegment)
+                    {
+                        memcpy(buffer + newSize, segment.Data(),
+                               segment.Size());
+                        newSize += segment.Size();
+                    }
+                    else if (prevSegmentStart != -1)
+                    {
+                        String8 prevSegment(buffer + prevSegmentStart,
+                                            newSize - prevSegmentStart);
+                        if (prevSegment != parentDir)
+                        {
+                            newSize -= prevSegment.Size();
+                        }
+                        else if (!hasRootSegment)
+                        {
+                            memcpy(buffer + newSize, segment.Data(),
+                                   segment.Size());
+                            newSize += segment.Size();
+                        }
+                    }
+                }
+                else if (segment != currentDir ||
+                         (segment == currentDirLast && newSize == 0))
+                {
+                    memcpy(buffer + newSize, segment.Data(), segment.Size());
+                    newSize += segment.Size();
+                }
+                segmentStart = i + 1;
+            }
+        }
+    }
+
+    if (newSize == 0)
+    {
+        newSize = 1;
+        char* normalized = HLS_ALLOC(arena, char, 2);
+        normalized[0] = '.';
+        normalized[1] = '\0';
+        out = String8(normalized, newSize);
+        ArenaPopToMarker(scratch, scratchMarker);
+        return true;
+    }
+
+    char* normalized = HLS_ALLOC(arena, char, newSize + 1);
+    memcpy(normalized, buffer, newSize);
+    normalized[newSize] = '\0';
+    out = String8(normalized, newSize);
+    ArenaPopToMarker(scratch, scratchMarker);
+    return true;
+#endif
+    return nullptr;
 }
 
 bool Path::Create(Arena& arena, String8 str, Path& path)
@@ -97,7 +287,9 @@ bool Path::Create(Arena& arena, String8 str, Path& path)
         return false;
     }
 
-    wchar_t* wideInput = HLS_ALLOC(scratch, wchar_t, sizeNeeded + 1);
+    wchar_t* wideInput =
+        HLS_ALLOC_ALIGNED(scratch, wchar_t, sizeNeeded + 1, 16);
+    Hls::MemZero(wideInput, sizeof(wchar_t) * sizeNeeded + 1);
     if (MultiByteToWideChar(CP_UTF8, 0, str.Data(),
                             static_cast<int>(str.Size()), wideInput,
                             sizeNeeded) == 0)
@@ -105,6 +297,7 @@ bool Path::Create(Arena& arena, String8 str, Path& path)
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
+    wideInput[sizeNeeded] = L'\0';
     for (wchar_t* p = wideInput; *p != L'\0'; ++p)
     {
         if (*p == L'/')
@@ -113,9 +306,10 @@ bool Path::Create(Arena& arena, String8 str, Path& path)
         }
     }
 
-    wchar_t* normalized = HLS_ALLOC(scratch, wchar_t, PATHCCH_MAX_CCH);
-    HRESULT hr = PathCchCanonicalizeEx(normalized, PATHCCH_MAX_CCH, wideInput,
-                                       PATHCCH_ALLOW_LONG_PATHS);
+    wchar_t normalized[PATHCCH_MAX_CCH] = {0};
+    HRESULT hr = PathCchCanonicalizeEx(
+        normalized, PATHCCH_MAX_CCH, L"..\\file.txt", PATHCCH_ALLOW_LONG_PATHS);
+    wprintf(L"Wide string: %ls\n", normalized);
     if (FAILED(hr))
     {
         ArenaPopToMarker(scratch, scratchMarker);
