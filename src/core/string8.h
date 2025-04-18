@@ -21,7 +21,7 @@ struct String8
     inline String8() : data_(nullptr), size_(0) {}
     inline String8(const char* data, u64 size) : data_(data), size_(size) {}
 
-    inline char operator[](u64 index)
+    inline char operator[](u64 index) const
     {
         HLS_ASSERT(index < size_);
         return data_[index];

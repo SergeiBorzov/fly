@@ -22,8 +22,7 @@ int main()
     settings.scale = 0.01f;
     settings.uvOriginBottom = false;
     settings.flipFaceOrientation = true;
-    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), settings,
-                                 objData))
+    if (!Hls::ImportWavefrontObj("sponza.obj", settings, objData))
     {
         fprintf(stderr, "Failed to load file. Benchmark is not valid.");
         return -1;

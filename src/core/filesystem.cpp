@@ -400,38 +400,28 @@ bool Path::IsRelative() const
     return !IsAbsolute();
 }
 
-String8 GetParentDirectoryPath(String8 path)
+bool GetParentDirectoryPath(Arena& arena, const Path& path, Path& out)
 {
-    String8 lastSeparator = String8::FindLast(path, HLS_PATH_SEPARATOR);
-    if (!lastSeparator)
-    {
-        return HLS_STRING8_LITERAL("." HLS_PATH_SEPARATOR_STRING);
-    }
-
-    return String8(path.Data(), path.Size() - lastSeparator.Size() + 1);
-}
-
-String8 ReadFileToString(Arena& arena, String8 filename, u32 align,
-                         bool binaryMode)
-{
-    const char* mode = "rb";
-    if (!binaryMode)
-    {
-        mode = "r";
-    }
-
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker marker = ArenaGetMarker(scratch);
-    const char* filenameNullTerminated =
-        String8::CopyNullTerminate(scratch, filename);
 
-    FILE* file = fopen(filenameNullTerminated, mode);
+    Path parentDir;
+    Path::Create(scratch, HLS_STRING8_LITERAL(".."), parentDir);
+
+    bool res = Path::Append(arena, path, parentDir, out);
+    ArenaPopToMarker(scratch, marker);
+    return res;
+}
+
+String8 ReadFileToString(Arena& arena, const char* path, u32 align)
+{
+    const char* mode = "rb";
+
+    FILE* file = fopen(path, mode);
     if (!file)
     {
-        ArenaPopToMarker(scratch, marker);
         return String8();
     }
-    ArenaPopToMarker(scratch, marker);
 
     // Move the file pointer to the end of the file to determine its size
     fseek(file, 0, SEEK_END);
@@ -453,6 +443,11 @@ String8 ReadFileToString(Arena& arena, String8 filename, u32 align,
     fclose(file);
 
     return String8(content, fileSize);
+}
+
+String8 ReadFileToString(Arena& arena, const Path& path, u32 align)
+{
+    return ReadFileToString(arena, path.ToCStr(), align);
 }
 
 } // namespace Hls

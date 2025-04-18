@@ -19,6 +19,12 @@ public:
                        Path& out);
     static bool Append(Arena& arena, const Path& p1, const Path& p2, Path& out);
 
+    inline char operator[](u64 index) const
+    {
+        HLS_ASSERT(index < size_);
+        return data_[index];
+    }
+
     inline operator bool() const { return data_ && size_; }
     inline u64 Size() const { return size_; }
 
@@ -42,10 +48,10 @@ private:
 bool IsValidPathString(String8 string);
 bool NormalizePathString(Arena& arena, String8 path, String8& out);
 
-String8 GetParentDirectoryPath(String8 path);
+bool GetParentDirectoryPath(Arena& arena, const Path& path, Path& out);
 
-String8 ReadFileToString(Arena& arena, String8 filename, u32 align = 1,
-                         bool binaryMode = true);
+String8 ReadFileToString(Arena& arena, const char* filename, u32 align = 1);
+String8 ReadFileToString(Arena& arena, const Path& path, u32 align = 1);
 } // namespace Hls
 
 #endif /* HLS_FILESYSTEM_H */

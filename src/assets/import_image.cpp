@@ -4,7 +4,9 @@
 #include "import_image.h"
 
 #include "core/assert.h"
+#include "core/filesystem.h"
 #include "core/memory.h"
+
 #define STBI_ASSERT(x) HLS_ASSERT(x)
 #define STBI_MALLOC(size) (Hls::Alloc(size))
 #define STBI_REALLOC(p, newSize) (Hls::Realloc(p, newSize))
@@ -91,11 +93,11 @@ static void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
                          0, nullptr, 1, &barrier);
 }
 
-bool LoadImageFromFile(const char* filename, Image& image)
+bool ImportImageFromFile(const char* path, Image& image)
 {
     int x = 0, y = 0, n = 0;
     int desiredChannelCount = 4;
-    unsigned char* data = stbi_load(filename, &x, &y, &n, desiredChannelCount);
+    unsigned char* data = stbi_load(path, &x, &y, &n, desiredChannelCount);
     if (!data)
     {
         return nullptr;
@@ -107,6 +109,11 @@ bool LoadImageFromFile(const char* filename, Image& image)
     image.channelCount = static_cast<u32>(desiredChannelCount);
 
     return data;
+}
+
+bool ImportImageFromFile(const Path& path, Image& image)
+{
+    return ImportImageFromFile(path.ToCStr(), image);
 }
 
 void FreeImage(Image& image)

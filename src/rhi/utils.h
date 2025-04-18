@@ -17,14 +17,14 @@ struct Texture;
 
 struct ShaderPathMap
 {
-    inline String8& operator[](ShaderType type)
+    inline Path& operator[](ShaderType type)
     {
         u32 index = static_cast<size_t>(type);
         HLS_ASSERT(index < static_cast<size_t>(ShaderType::Count));
         return paths[index];
     }
 
-    inline const String8& operator[](ShaderType type) const
+    inline const Path& operator[](ShaderType type) const
     {
         u32 index = static_cast<u32>(type);
         HLS_ASSERT(index < static_cast<u32>(ShaderType::Count));
@@ -32,7 +32,7 @@ struct ShaderPathMap
     }
 
 private:
-    String8 paths[ShaderType::Count];
+    Path paths[ShaderType::Count];
 };
 
 bool LoadProgrammableStage(

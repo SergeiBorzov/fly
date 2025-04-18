@@ -150,10 +150,11 @@ int main(int argc, char* argv[])
 
     Hls::GraphicsPipelineProgrammableStage programmableStage{};
     Hls::ShaderPathMap shaderPathMap{};
-    shaderPathMap[Hls::ShaderType::Vertex] =
-        HLS_STRING8_LITERAL("cubes.vert.spv");
-    shaderPathMap[Hls::ShaderType::Fragment] =
-        HLS_STRING8_LITERAL("cubes.frag.spv");
+    Hls::Path::Create(arena, HLS_STRING8_LITERAL("cubes.vert.spv"),
+                      shaderPathMap[Hls::ShaderType::Vertex]);
+    Hls::Path::Create(arena, HLS_STRING8_LITERAL("cubes.frag.spv"),
+                      shaderPathMap[Hls::ShaderType::Fragment]);
+
     if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableStage))
     {
@@ -203,7 +204,9 @@ int main(int argc, char* argv[])
     }
 
     Hls::Image image;
-    if (!Hls::LoadImageFromFile("default.png", image))
+    Hls::Path imagePath;
+    Hls::Path::Create(arena, HLS_STRING8_LITERAL("default.png"), imagePath);
+    if (!Hls::ImportImageFromFile(imagePath, image))
     {
         HLS_ERROR("Failed to load image");
         return -1;

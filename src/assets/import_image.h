@@ -4,6 +4,7 @@
 namespace Hls
 {
 
+struct Path;
 struct Device;
 struct Texture;
 
@@ -15,7 +16,8 @@ struct Image
     u32 channelCount = 0;
 };
 
-bool LoadImageFromFile(const char* filename, Image& image);
+bool ImportImageFromFile(const Hls::Path& path, Image& image);
+bool ImportImageFromFile(const char* path, Image& image);
 void FreeImage(Image& image);
 
 bool TransferImageDataToTexture(Device& device, const Image& image,

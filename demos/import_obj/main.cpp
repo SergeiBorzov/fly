@@ -75,8 +75,7 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
     settings.scale = 0.01f;
     settings.uvOriginBottom = false;
     settings.flipFaceOrientation = true;
-    if (!Hls::ImportWavefrontObj(HLS_STRING8_LITERAL("sponza.obj"), settings,
-                                 objData))
+    if (!Hls::ImportWavefrontObj("sponza.obj", settings, objData))
     {
         HLS_ERROR("Failed to parse sponza.obj");
         return nullptr;
@@ -193,8 +192,8 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
     for (u32 i = 0; i < textureCount; i++)
     {
         Hls::Image image;
-        bool res =
-            Hls::LoadImageFromFile(objData.textures[textureIndices[i]], image);
+        bool res = Hls::ImportImageFromFile(objData.textures[textureIndices[i]],
+                                            image);
         HLS_ASSERT(res);
         res = Hls::CreateTexture(device, image.width, image.height,
                                  VK_FORMAT_R8G8B8A8_SRGB, sTextures[i]);
@@ -324,10 +323,10 @@ int main(int argc, char* argv[])
 
     Hls::GraphicsPipelineProgrammableStage programmableStage{};
     Hls::ShaderPathMap shaderPathMap{};
-    shaderPathMap[Hls::ShaderType::Vertex] =
-        HLS_STRING8_LITERAL("unlit.vert.spv");
-    shaderPathMap[Hls::ShaderType::Fragment] =
-        HLS_STRING8_LITERAL("unlit.frag.spv");
+    Hls::Path::Create(arena, HLS_STRING8_LITERAL("unlit.vert.spv"),
+                      shaderPathMap[Hls::ShaderType::Vertex]);
+    Hls::Path::Create(arena, HLS_STRING8_LITERAL("unlit.frag.spv"),
+                      shaderPathMap[Hls::ShaderType::Fragment]);
     if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableStage))
     {

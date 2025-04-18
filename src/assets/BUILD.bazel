@@ -10,7 +10,7 @@ cc_library(
     ],
     includes = [".."],
     deps = [
-        "//src/core:core",
+        "//src/core:filesystem",
     ],
     visibility = ["//visibility:public"],
 )
@@ -26,6 +26,7 @@ cc_library(
     includes = [".."],
     deps = [
         "//src/rhi:context",
+        "//src/core:filesystem",
         "@stb//:stb_image",
     ],
     visibility = ["//visibility:public"],

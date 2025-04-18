@@ -2,10 +2,8 @@
 #include <string.h>
 
 #include "core/clock.h"
-#include "core/filesystem.h"
 #include "core/log.h"
 #include "core/memory.h"
-#include "core/string8.h"
 #include "core/thread_context.h"
 
 #include "import_obj.h"
@@ -479,9 +477,15 @@ static const char* ParseMtlLib(const char* ptr, ObjData& objData)
         --ptr;
     }
 
-    String8 mtlFileName(start, ptr - start);
-    String8 paths[2] = {objData.objDirectoryPath, mtlFileName};
-    String8 str = ReadFileToString(scratch, AppendPaths(scratch, paths, 2));
+    String8 mtlFileNameStr(start, ptr - start);
+
+    Path mtlFileName;
+    Path::Create(scratch, mtlFileNameStr, mtlFileName);
+    Path mtlPath;
+    Path::Append(scratch, objData.objDirectoryPath, mtlFileName, mtlPath);
+
+    String8 str = ReadFileToString(scratch, mtlPath);
+    ArenaPopToMarker(scratch, marker);
 
     const char* p = str.Data();
     const char* mtlEnd = str.Data() + str.Size();
@@ -688,8 +692,6 @@ static const char* ParseMtlLib(const char* ptr, ObjData& objData)
         p = SkipLine(p);
     }
 
-    ArenaPopToMarker(scratch, marker);
-
     return ptr;
 }
 
@@ -881,14 +883,45 @@ bool ParseObj(String8 str, const ObjImportSettings& settings, ObjData& objData)
     return true;
 }
 
-bool ImportWavefrontObj(String8 filepath, const ObjImportSettings& settings,
+bool ImportWavefrontObj(const Path& path, const ObjImportSettings& settings,
                         ObjData& objData)
 {
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    objData.objDirectoryPath = GetParentDirectoryPath(filepath);
-    String8 str = ReadFileToString(scratch, filepath);
+    if (!GetParentDirectoryPath(scratch, path, objData.objDirectoryPath))
+    {
+        return false;
+    }
+    String8 str = ReadFileToString(scratch, path);
+    if (!str)
+    {
+        return false;
+    }
+
+    bool res = ParseObj(str, settings, objData);
+
+    ArenaPopToMarker(scratch, marker);
+    return res;
+}
+
+bool ImportWavefrontObj(const char* filePath, const ObjImportSettings& settings,
+                        ObjData& objData)
+{
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    Path path;
+    if (!Path::Create(scratch, filePath, strlen(filePath), path))
+    {
+        return false;
+    }
+
+    if (!GetParentDirectoryPath(scratch, path, objData.objDirectoryPath))
+    {
+        return false;
+    }
+    String8 str = ReadFileToString(scratch, filePath);
     if (!str)
     {
         return false;
