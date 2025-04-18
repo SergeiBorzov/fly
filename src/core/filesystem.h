@@ -15,8 +15,15 @@ public:
 
     static bool Create(Arena& arena, String8 str, Path& path);
     static bool Create(Arena& arena, const char* str, u64 size, Path& path);
+    static bool Append(Arena& arena, const Path** paths, u32 pathCount,
+                       Path& out);
+    static bool Append(Arena& arena, const Path& p1, const Path& p2, Path& out);
 
     inline operator bool() const { return data_ && size_; }
+    inline u64 Size() const { return size_; }
+
+    bool operator==(const Path& rhs);
+    bool operator!=(const Path& rhs);
 
     bool IsRelative() const;
     bool IsAbsolute() const;
@@ -36,7 +43,7 @@ bool IsValidPathString(String8 string);
 bool NormalizePathString(Arena& arena, String8 path, String8& out);
 
 String8 GetParentDirectoryPath(String8 path);
-String8 AppendPaths(Arena& arena, String8* paths, u32 count);
+
 String8 ReadFileToString(Arena& arena, String8 filename, u32 align = 1,
                          bool binaryMode = true);
 } // namespace Hls

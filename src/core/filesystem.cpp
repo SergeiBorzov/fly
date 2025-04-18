@@ -287,6 +287,83 @@ bool Path::Create(Arena& arena, const char* str, u64 size, Path& path)
     return Create(arena, str8, path);
 }
 
+bool Path::operator==(const Path& rhs)
+{
+    return size_ == rhs.size_ && (!size_ || !memcmp(data_, rhs.data_, size_));
+}
+
+bool Path::operator!=(const Path& rhs) { return !(*this == rhs); }
+
+bool Path::Append(Arena& arena, const Path** paths, u32 pathCount, Path& out)
+{
+    if (pathCount <= 1)
+    {
+        return false;
+    }
+
+    if (!paths[0] || !(*paths[0]))
+    {
+        return false;
+    }
+    for (u64 i = 1; i < pathCount; i++)
+    {
+        if (!paths[i] || !(*paths[i]) || paths[i]->IsAbsolute())
+        {
+            return false;
+        }
+    }
+
+    u64 totalSize = 0;
+    for (u32 i = 0; i < pathCount; i++)
+    {
+        totalSize += paths[i]->Size();
+    }
+
+    if (totalSize == 0)
+    {
+        out = Path();
+        return true;
+    }
+
+    totalSize += pathCount - 1;
+
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker scratchMarker = ArenaGetMarker(scratch);
+
+    char* totalData = HLS_ALLOC(scratch, char, totalSize);
+    u64 offset = 0;
+    for (u32 i = 0; i < pathCount; i++)
+    {
+        if (paths[i]->Size() > 0)
+        {
+            memcpy(totalData + offset, paths[i]->ToCStr(), paths[i]->Size());
+            offset += paths[i]->Size();
+            if (i != pathCount - 1)
+            {
+                totalData[offset++] = HLS_PATH_SEPARATOR;
+            }
+        }
+    }
+
+    String8 pathStr;
+    if (!NormalizePathString(arena, String8(totalData, totalSize), pathStr))
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
+        return false;
+    }
+
+    out.data_ = pathStr.Data();
+    out.size_ = pathStr.Size();
+
+    return true;
+}
+
+bool Path::Append(Arena& arena, const Path& p1, const Path& p2, Path& out)
+{
+    const Path* paths[2] = {&p1, &p2};
+    return Append(arena, paths, 2, out);
+}
+
 String8 Path::ToString8() const { return String8(data_, size_); }
 
 bool Path::IsAbsolute() const
@@ -332,26 +409,6 @@ String8 GetParentDirectoryPath(String8 path)
     }
 
     return String8(path.Data(), path.Size() - lastSeparator.Size() + 1);
-}
-
-String8 AppendPaths(Arena& arena, String8* paths, u32 pathCount)
-{
-    u64 totalSize = 0;
-    for (u32 i = 0; i < pathCount; i++)
-    {
-        totalSize += paths[i].Size();
-    }
-
-    char* totalData = HLS_ALLOC(arena, char, totalSize);
-
-    u64 offset = 0;
-    for (u32 i = 0; i < pathCount; i++)
-    {
-        memcpy(totalData + offset, paths[i].Data(), paths[i].Size());
-        offset += paths[i].Size();
-    }
-
-    return String8(totalData, totalSize);
 }
 
 String8 ReadFileToString(Arena& arena, String8 filename, u32 align,

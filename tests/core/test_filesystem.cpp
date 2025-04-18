@@ -110,6 +110,55 @@ TEST(Path, Normalize)
     EXPECT_TRUE(Hls::NormalizePathString(arena, i, iActual));
     EXPECT_TRUE(iExpected == iActual);
 
+    String8 j = HLS_STRING8_LITERAL("/file.txt");
+    String8 jExpected = HLS_STRING8_LITERAL("\\file.txt");
+    String8 jActual;
+    EXPECT_TRUE(Hls::NormalizePathString(arena, j, jActual));
+    EXPECT_TRUE(jExpected == jActual);
+
     ReleaseThreadContext();
 }
 
+TEST(Path, Append)
+{
+    InitThreadContext();
+    Arena& arena = GetScratchArena();
+
+    Path a;
+    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("."), a));
+    Path aa;
+    EXPECT_TRUE(Hls::Path::Append(arena, a, a, aa));
+    printf("%s vs %s\n", a.ToCStr(), aa.ToCStr());
+    EXPECT_TRUE(a == aa);
+
+    Path b;
+    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("dir1/dir2"), b));
+    Path c;
+    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("..\\..\\.."), c));
+    Path d;
+    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("../.."), d));
+    Path bcExpected;
+    EXPECT_TRUE(
+        Hls::Path::Create(arena, HLS_STRING8_LITERAL(".."), bcExpected));
+    Path bcActual;
+    EXPECT_TRUE(Hls::Path::Append(arena, b, c, bcActual));
+    EXPECT_TRUE(bcExpected == bcActual);
+    Path bdActual;
+    EXPECT_TRUE(Hls::Path::Append(arena, b, d, bdActual));
+    EXPECT_TRUE(a == bdActual);
+
+    Path e;
+    EXPECT_TRUE(
+        Hls::Path::Create(arena, HLS_STRING8_LITERAL("D:/dir1/dir2/.\\"), e));
+    Path f;
+    EXPECT_TRUE(Hls::Path::Create(
+        arena, HLS_STRING8_LITERAL("../../dir3/./dir4/../file.txt"), f));
+    Path efExpected;
+    EXPECT_TRUE(Hls::Path::Create(
+        arena, HLS_STRING8_LITERAL("D:\\dir3\\file.txt"), efExpected));
+    Path efActual;
+    EXPECT_TRUE(Hls::Path::Append(arena, e, f, efActual));
+    EXPECT_TRUE(efExpected == efActual);
+
+    ReleaseThreadContext();
+}
