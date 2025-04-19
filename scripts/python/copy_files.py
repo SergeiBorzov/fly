@@ -14,8 +14,6 @@ def main(argv):
     argparser.add_argument("-o", type=str, nargs="+")
 
     args = argparser.parse_args()
-
-    print(f"Args {args}")
     copy_files(args.i, args.o)
     
 
