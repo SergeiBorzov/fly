@@ -1,6 +1,8 @@
-#include "device.h"
+#include "allocation_callbacks.h"
+
 #include "buffer.h"
 #include "descriptor.h"
+#include "device.h"
 
 namespace Hls
 {
@@ -15,7 +17,8 @@ bool CreateDescriptorPool(Device& device, const VkDescriptorPoolSize* poolSizes,
     createInfo.pPoolSizes = poolSizes;
     createInfo.maxSets = maxSetCount;
 
-    if (vkCreateDescriptorPool(device.logicalDevice, &createInfo, nullptr,
+    if (vkCreateDescriptorPool(device.logicalDevice, &createInfo,
+                               GetVulkanAllocationCallbacks(),
                                &descriptorPool.handle) != VK_SUCCESS)
     {
         return false;
@@ -25,7 +28,8 @@ bool CreateDescriptorPool(Device& device, const VkDescriptorPoolSize* poolSizes,
 
 void DestroyDescriptorPool(Device& device, DescriptorPool& descriptorPool)
 {
-    vkDestroyDescriptorPool(device.logicalDevice, descriptorPool.handle, nullptr);
+    vkDestroyDescriptorPool(device.logicalDevice, descriptorPool.handle,
+                            GetVulkanAllocationCallbacks());
 }
 
 bool AllocateDescriptorSets(Device& device, DescriptorPool& descriptorPool,

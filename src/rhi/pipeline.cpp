@@ -1,6 +1,7 @@
 #include "core/assert.h"
 #include "core/thread_context.h"
 
+#include "allocation_callbacks.h"
 #include "context.h"
 #include "pipeline.h"
 
@@ -272,7 +273,8 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
         createInfo.pBindings = descriptorSetLayout.bindings;
 
         if (vkCreateDescriptorSetLayout(device.logicalDevice, &createInfo,
-                                        nullptr, &descriptorSetLayout.handle) !=
+                                        GetVulkanAllocationCallbacks(),
+                                        &descriptorSetLayout.handle) !=
             VK_SUCCESS)
         {
             ArenaPopToMarker(scratch, marker);
@@ -330,8 +332,9 @@ CreatePipelineLayout(Device& device,
     createInfo.pushConstantRangeCount = 0;
     createInfo.pPushConstantRanges = nullptr;
 
-    VkResult res = vkCreatePipelineLayout(device.logicalDevice, &createInfo,
-                                          nullptr, &pipelineLayout);
+    VkResult res =
+        vkCreatePipelineLayout(device.logicalDevice, &createInfo,
+                               GetVulkanAllocationCallbacks(), &pipelineLayout);
     ArenaPopToMarker(arena, marker);
     return res == VK_SUCCESS;
 }
@@ -379,7 +382,8 @@ bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
     createInfo.codeSize = codeSize;
     createInfo.pCode = reinterpret_cast<const u32*>(spvSource);
 
-    if (vkCreateShaderModule(device.logicalDevice, &createInfo, nullptr,
+    if (vkCreateShaderModule(device.logicalDevice, &createInfo,
+                             GetVulkanAllocationCallbacks(),
                              &shaderModule.handle) != VK_SUCCESS)
     {
         return false;
@@ -400,10 +404,11 @@ void DestroyShaderModule(Device& device, ShaderModule& shaderModule)
     {
         vkDestroyDescriptorSetLayout(
             device.logicalDevice, shaderModule.descriptorSetLayouts[i].handle,
-            nullptr);
+            GetVulkanAllocationCallbacks());
         shaderModule.descriptorSetLayouts[i].handle = VK_NULL_HANDLE;
     }
-    vkDestroyShaderModule(device.logicalDevice, shaderModule.handle, nullptr);
+    vkDestroyShaderModule(device.logicalDevice, shaderModule.handle,
+                          GetVulkanAllocationCallbacks());
     shaderModule.handle = VK_NULL_HANDLE;
 }
 
@@ -534,7 +539,7 @@ bool CreateGraphicsPipeline(
     createInfo.basePipelineHandle = VK_NULL_HANDLE; // not used
 
     if (vkCreateGraphicsPipelines(device.logicalDevice, VK_NULL_HANDLE, 1,
-                                  &createInfo, nullptr,
+                                  &createInfo, GetVulkanAllocationCallbacks(),
                                   &graphicsPipeline.handle) != VK_SUCCESS)
     {
         return false;
@@ -545,9 +550,10 @@ bool CreateGraphicsPipeline(
 
 void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 {
-    vkDestroyPipeline(device.logicalDevice, graphicsPipeline.handle, nullptr);
+    vkDestroyPipeline(device.logicalDevice, graphicsPipeline.handle,
+                      GetVulkanAllocationCallbacks());
     vkDestroyPipelineLayout(device.logicalDevice, graphicsPipeline.layout,
-                            nullptr);
+                            GetVulkanAllocationCallbacks());
     graphicsPipeline.handle = VK_NULL_HANDLE;
     graphicsPipeline.layout = VK_NULL_HANDLE;
 }

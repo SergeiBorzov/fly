@@ -8,6 +8,7 @@
 
 #include <volk.h>
 
+#include "allocation_callbacks.h"
 #include "context.h"
 #include "surface.h"
 
@@ -24,13 +25,15 @@ bool CreateSurface(Context& context)
     createInfo.hinstance = GetModuleHandle(nullptr);
     createInfo.hwnd = reinterpret_cast<HWND>(context.windowPtr);
 #endif
-    return vkCreateWin32SurfaceKHR(context.instance, &createInfo, nullptr,
+    return vkCreateWin32SurfaceKHR(context.instance, &createInfo,
+                                   GetVulkanAllocationCallbacks(),
                                    &context.surface) == VK_SUCCESS;
 }
 
 void DestroySurface(Context& context)
 {
-    vkDestroySurfaceKHR(context.instance, context.surface, nullptr);
+    vkDestroySurfaceKHR(context.instance, context.surface,
+                        GetVulkanAllocationCallbacks());
 }
 
 void GetWindowSize(Context& context, i32& width, i32& height)

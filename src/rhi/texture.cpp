@@ -2,6 +2,7 @@
 
 #include "core/assert.h"
 
+#include "allocation_callbacks.h"
 #include "buffer.h"
 #include "command_buffer.h"
 #include "texture.h"
@@ -80,7 +81,8 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo, nullptr,
+    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
+                          GetVulkanAllocationCallbacks(),
                           &texture.imageView) != VK_SUCCESS)
     {
         return false;
@@ -107,7 +109,8 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
     samplerCreateInfo.minLod = 0.0f;
     samplerCreateInfo.maxLod = static_cast<f32>(mipLevelCount);
 
-    if (vkCreateSampler(device.logicalDevice, &samplerCreateInfo, nullptr,
+    if (vkCreateSampler(device.logicalDevice, &samplerCreateInfo,
+                        GetVulkanAllocationCallbacks(),
                         &texture.sampler) != VK_SUCCESS)
     {
         return false;
@@ -118,8 +121,10 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
 
 void DestroyTexture(Device& device, Texture& texture)
 {
-    vkDestroySampler(device.logicalDevice, texture.sampler, nullptr);
-    vkDestroyImageView(device.logicalDevice, texture.imageView, nullptr);
+    vkDestroySampler(device.logicalDevice, texture.sampler,
+                     GetVulkanAllocationCallbacks());
+    vkDestroyImageView(device.logicalDevice, texture.imageView,
+                       GetVulkanAllocationCallbacks());
     vmaDestroyImage(device.allocator, texture.handle, texture.allocation);
     texture.handle = VK_NULL_HANDLE;
 }
@@ -171,7 +176,8 @@ bool CreateDepthTexture(Device& device, u32 width, u32 height, VkFormat format,
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo, nullptr,
+    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
+                          GetVulkanAllocationCallbacks(),
                           &device.depthTexture.imageView) != VK_SUCCESS)
     {
         return false;
@@ -182,7 +188,8 @@ bool CreateDepthTexture(Device& device, u32 width, u32 height, VkFormat format,
 
 void DestroyDepthTexture(Device& device, DepthTexture& depthTexture)
 {
-    vkDestroyImageView(device.logicalDevice, depthTexture.imageView, nullptr);
+    vkDestroyImageView(device.logicalDevice, depthTexture.imageView,
+                       GetVulkanAllocationCallbacks());
     vmaDestroyImage(device.allocator, depthTexture.handle,
                     depthTexture.allocation);
     depthTexture.handle = VK_NULL_HANDLE;

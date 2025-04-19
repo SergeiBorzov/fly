@@ -4,6 +4,7 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "allocation_callbacks.h"
 #include "context.h"
 #include "surface.h"
 
@@ -197,9 +198,9 @@ static bool CreateSwapchainImageViews(Device& device)
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        VkResult res =
-            vkCreateImageView(device.logicalDevice, &createInfo, nullptr,
-                              &device.swapchainTextures[i].imageView);
+        VkResult res = vkCreateImageView(
+            device.logicalDevice, &createInfo, GetVulkanAllocationCallbacks(),
+            &device.swapchainTextures[i].imageView);
         if (res != VK_SUCCESS)
         {
             return false;
@@ -215,7 +216,8 @@ static void DestroySwapchainImageViews(Device& device)
     for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
         vkDestroyImageView(device.logicalDevice,
-                           device.swapchainTextures[i].imageView, nullptr);
+                           device.swapchainTextures[i].imageView,
+                           GetVulkanAllocationCallbacks());
     }
 }
 
@@ -321,8 +323,9 @@ static bool CreateSwapchain(Device& device,
         createInfo.pQueueFamilyIndices = queueFamilyIndices;
     }
 
-    VkResult res = vkCreateSwapchainKHR(device.logicalDevice, &createInfo,
-                                        nullptr, &device.swapchain);
+    VkResult res =
+        vkCreateSwapchainKHR(device.logicalDevice, &createInfo,
+                             GetVulkanAllocationCallbacks(), &device.swapchain);
     if (res != VK_SUCCESS)
     {
         return false;
@@ -370,7 +373,8 @@ static void DestroySwapchain(Device& device)
     HLS_ASSERT(device.context->windowPtr);
 
     DestroySwapchainImageViews(device);
-    vkDestroySwapchainKHR(device.logicalDevice, device.swapchain, nullptr);
+    vkDestroySwapchainKHR(device.logicalDevice, device.swapchain,
+                          GetVulkanAllocationCallbacks());
 }
 
 static bool RecreateSwapchain(Device& device)
@@ -403,9 +407,10 @@ static bool RecreateSwapchain(Device& device)
         for (u32 i = 0; i < oldSwapchainImageCount; i++)
         {
             vkDestroyImageView(device.logicalDevice, oldSwapchainImageViews[i],
-                               nullptr);
+                               GetVulkanAllocationCallbacks());
         }
-        vkDestroySwapchainKHR(device.logicalDevice, oldSwapchain, nullptr);
+        vkDestroySwapchainKHR(device.logicalDevice, oldSwapchain,
+                              GetVulkanAllocationCallbacks());
     }
 
     return true;
@@ -434,7 +439,8 @@ static bool CreateFrameData(Device& device)
 
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
+        if (vkCreateCommandPool(device.logicalDevice, &createInfo,
+                                GetVulkanAllocationCallbacks(),
                                 &device.frameData[i].commandPool) != VK_SUCCESS)
         {
             return false;
@@ -446,21 +452,24 @@ static bool CreateFrameData(Device& device)
             return false;
         }
 
-        if (vkCreateFence(device.logicalDevice, &fenceCreateInfo, nullptr,
+        if (vkCreateFence(device.logicalDevice, &fenceCreateInfo,
+                          GetVulkanAllocationCallbacks(),
                           &device.frameData[i].renderFence) != VK_SUCCESS)
         {
             return false;
         }
 
-        if (vkCreateSemaphore(
-                device.logicalDevice, &semaphoreCreateInfo, nullptr,
-                &device.frameData[i].swapchainSemaphore) != VK_SUCCESS)
+        if (vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
+                              GetVulkanAllocationCallbacks(),
+                              &device.frameData[i].swapchainSemaphore) !=
+            VK_SUCCESS)
         {
             return false;
         }
 
         if (vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
-                              nullptr, &device.frameData[i].renderSemaphore) !=
+                              GetVulkanAllocationCallbacks(),
+                              &device.frameData[i].renderSemaphore) !=
             VK_SUCCESS)
         {
             return false;
@@ -475,14 +484,17 @@ static void DestroyFrameData(Device& device)
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
         vkDestroySemaphore(device.logicalDevice,
-                           device.frameData[i].renderSemaphore, nullptr);
+                           device.frameData[i].renderSemaphore,
+                           GetVulkanAllocationCallbacks());
         vkDestroySemaphore(device.logicalDevice,
-                           device.frameData[i].swapchainSemaphore, nullptr);
+                           device.frameData[i].swapchainSemaphore,
+                           GetVulkanAllocationCallbacks());
         vkDestroyFence(device.logicalDevice, device.frameData[i].renderFence,
-                       nullptr);
+                       GetVulkanAllocationCallbacks());
 
         vkDestroyCommandPool(device.logicalDevice,
-                             device.frameData[i].commandPool, nullptr);
+                             device.frameData[i].commandPool,
+                             GetVulkanAllocationCallbacks());
     }
 }
 
@@ -498,7 +510,8 @@ static bool CreateTransferData(Device& device)
     fenceCreateInfo.pNext = nullptr;
     fenceCreateInfo.flags = 0;
 
-    if (vkCreateCommandPool(device.logicalDevice, &createInfo, nullptr,
+    if (vkCreateCommandPool(device.logicalDevice, &createInfo,
+                            GetVulkanAllocationCallbacks(),
                             &device.transferData.commandPool) != VK_SUCCESS)
     {
         return false;
@@ -510,7 +523,8 @@ static bool CreateTransferData(Device& device)
         return false;
     }
 
-    if (vkCreateFence(device.logicalDevice, &fenceCreateInfo, nullptr,
+    if (vkCreateFence(device.logicalDevice, &fenceCreateInfo,
+                      GetVulkanAllocationCallbacks(),
                       &device.transferData.transferFence) != VK_SUCCESS)
     {
         return false;
@@ -522,10 +536,10 @@ static bool CreateTransferData(Device& device)
 static void DestroyTransferData(Device& device)
 {
     vkDestroyFence(device.logicalDevice, device.transferData.transferFence,
-                   nullptr);
+                   GetVulkanAllocationCallbacks());
 
     vkDestroyCommandPool(device.logicalDevice, device.transferData.commandPool,
-                         nullptr);
+                         GetVulkanAllocationCallbacks());
 }
 
 static bool CreateCommandPool(Device& device)
@@ -564,6 +578,7 @@ static bool CreateVmaAllocator(Context& context, Device& device)
     createInfo.device = device.logicalDevice;
     createInfo.instance = context.instance;
     createInfo.pVulkanFunctions = &vulkanFunctions;
+    createInfo.pAllocationCallbacks = GetVulkanAllocationCallbacks();
 
     VkResult res = vmaCreateAllocator(&createInfo, &(device.allocator));
     if (res != VK_SUCCESS)
@@ -628,8 +643,9 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
     }
     createInfo.pNext = &deviceFeatures2;
 
-    VkResult res = vkCreateDevice(device.physicalDevice, &createInfo, nullptr,
-                                  &(device.logicalDevice));
+    VkResult res =
+        vkCreateDevice(device.physicalDevice, &createInfo,
+                       GetVulkanAllocationCallbacks(), &(device.logicalDevice));
     if (res != VK_SUCCESS)
     {
         ArenaPopToMarker(arena, marker);
@@ -685,7 +701,7 @@ void DestroyLogicalDevice(Device& device)
     DestroyCommandPool(device);
     DestroyVmaAllocator(device);
 
-    vkDestroyDevice(device.logicalDevice, nullptr);
+    vkDestroyDevice(device.logicalDevice, GetVulkanAllocationCallbacks());
     HLS_DEBUG_LOG("Vulkan logical device %s destroyed", device.name);
 }
 
@@ -712,8 +728,8 @@ bool BeginRenderFrame(Device& device)
         {
             res = vkAcquireNextImageKHR(
                 device.logicalDevice, device.swapchain, UINT64_MAX,
-                device.frameData[device.frameIndex].swapchainSemaphore, nullptr,
-                &device.swapchainTextureIndex);
+                device.frameData[device.frameIndex].swapchainSemaphore,
+                VK_NULL_HANDLE, &device.swapchainTextureIndex);
 
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {

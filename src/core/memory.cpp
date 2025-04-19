@@ -14,7 +14,7 @@ void* AllocAligned(u64 size, u32 alignment)
 
 void* ReallocAligned(void* p, u64 newSize, u32 alignment)
 {
-    return mi_realloc_aligned(p, newSize, alignment);
+    return mi_realloc_aligned(p, newSize, static_cast<u64>(alignment));
 }
 
 void Free(void* p) { mi_free(p); }

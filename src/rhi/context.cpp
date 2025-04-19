@@ -5,6 +5,7 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "allocation_callbacks.h"
 #include "context.h"
 #include "surface.h"
 
@@ -185,8 +186,8 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
 #endif
 
     VkInstance instance = VK_NULL_HANDLE;
-
-    VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
+    VkResult result = vkCreateInstance(
+        &createInfo, GetVulkanAllocationCallbacks(), &instance);
     ArenaPopToMarker(arena, marker);
 
     if (result != VK_SUCCESS)
@@ -787,7 +788,8 @@ void DestroyContext(Context& context)
     {
         DestroySurface(context);
     }
-    vkDestroyInstance(context.instance, nullptr);
+
+    vkDestroyInstance(context.instance, GetVulkanAllocationCallbacks());
     HLS_DEBUG_LOG("Vulkan instance is destroyed");
 }
 

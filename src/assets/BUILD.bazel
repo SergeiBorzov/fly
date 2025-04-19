@@ -15,6 +15,22 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+# cc_library(
+#     name = "import_gltf",
+#     hdrs = [
+#         "import_gltf.h",
+#     ],
+#     srcs = [
+#         "import_gltf.cpp",
+#     ],
+#     includes = [".."],
+#     deps = [
+#         "//src/core:filesystem",
+#         "@cgltf//:cgltf",
+#     ],
+#     visibility = ["//visibility:public"],
+# )
+
 cc_library(
     name = "import_image",
     hdrs = [
@@ -36,6 +52,7 @@ cc_library(
     name = "import",
     deps = [
         ":import_obj",
+        #":import_gltf",
         ":import_image",
     ],
     visibility = ["//visibility:public"],
