@@ -149,6 +149,14 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "tinyobjloader")
 
+external_git_repository.base(
+    name = "gltf_sample_models",
+    build_file = "//scripts/bazel/target:BUILD.gltf_sample_models.bazel",
+    commit = "d7a3cc8e51d7c573771ae77a57f16b0662a905c6",
+    remote = "https://github.com/KhronosGroup/glTF-Sample-Models.git",
+)
+use_repo(external_git_repository, "gltf_sample_models")
+    
 external_data.base(
     name = "cube_scene",
     url = "https://casual-effects.com/g3d/data10/common/model/cube/cube.zip",
