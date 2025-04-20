@@ -12,6 +12,8 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define CLAMP(v, min, max) MAX(MIN(v, max), min)
 
+#define HLS_DESCRIPTOR_MAX_COUNT 100000
+
 static const char* PresentModeToString(VkPresentModeKHR presentMode)
 {
     switch (presentMode)
@@ -417,6 +419,97 @@ static bool RecreateSwapchain(Device& device)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+// Descriptor pool
+/////////////////////////////////////////////////////////////////////////////
+
+static bool CreateDescriptorPool(Device& device)
+{
+    VkDescriptorPoolSize poolSizes[3] = {
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, HLS_DESCRIPTOR_MAX_COUNT},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, HLS_DESCRIPTOR_MAX_COUNT},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, HLS_DESCRIPTOR_MAX_COUNT}};
+
+    VkDescriptorPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    createInfo.pPoolSizes = poolSizes;
+    createInfo.poolSizeCount = 3;
+    createInfo.maxSets = 1;
+    createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+
+    if (vkCreateDescriptorPool(device.logicalDevice, &createInfo,
+                               GetVulkanAllocationCallbacks(),
+                               &device.descriptorPool) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    VkDescriptorBindingFlags bindingFlags[3] = {
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+    };
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo{};
+    bindingFlagsCreateInfo.sType =
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    bindingFlagsCreateInfo.pBindingFlags = bindingFlags;
+    bindingFlagsCreateInfo.bindingCount = 3;
+    bindingFlagsCreateInfo.pNext = nullptr;
+
+    VkDescriptorSetLayoutBinding bindings[3] = {
+        {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, HLS_DESCRIPTOR_MAX_COUNT,
+         VK_SHADER_STAGE_ALL, nullptr},
+        {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, HLS_DESCRIPTOR_MAX_COUNT,
+         VK_SHADER_STAGE_ALL, nullptr},
+        {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, HLS_DESCRIPTOR_MAX_COUNT,
+         VK_SHADER_STAGE_ALL, nullptr}};
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+    descriptorSetLayoutCreateInfo.sType =
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCreateInfo.bindingCount = 3;
+    descriptorSetLayoutCreateInfo.pBindings = bindings;
+    descriptorSetLayoutCreateInfo.flags =
+        VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+    descriptorSetLayoutCreateInfo.pNext = &bindingFlagsCreateInfo;
+
+    if (vkCreateDescriptorSetLayout(
+            device.logicalDevice, &descriptorSetLayoutCreateInfo,
+            GetVulkanAllocationCallbacks(),
+            &device.bindlessDescriptorSetLayout) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    VkDescriptorSetAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = device.descriptorPool;
+    allocateInfo.pSetLayouts = &device.bindlessDescriptorSetLayout;
+    allocateInfo.descriptorSetCount = 1;
+    allocateInfo.pNext = nullptr;
+
+    if (vkAllocateDescriptorSets(device.logicalDevice, &allocateInfo,
+                                 &device.bindlessDescriptorSet) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static void DestroyDescriptorPool(Device& device)
+{
+    vkDestroyDescriptorSetLayout(device.logicalDevice,
+                                 device.bindlessDescriptorSetLayout,
+                                 GetVulkanAllocationCallbacks());
+    vkDestroyDescriptorPool(device.logicalDevice, device.descriptorPool,
+                            GetVulkanAllocationCallbacks());
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // Command pools and command buffers
 /////////////////////////////////////////////////////////////////////////////
 
@@ -674,6 +767,11 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         return false;
     }
 
+    if (!CreateDescriptorPool(device))
+    {
+        return false;
+    }
+
     if (!CreateMainDepthTexture(device))
     {
         return false;
@@ -698,6 +796,7 @@ void DestroyLogicalDevice(Device& device)
         DestroySwapchain(device);
     }
     DestroyMainDepthTexture(device);
+    DestroyDescriptorPool(device);
     DestroyCommandPool(device);
     DestroyVmaAllocator(device);
 

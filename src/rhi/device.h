@@ -47,6 +47,9 @@ struct Device
     VkQueue graphicsComputeQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSetLayout bindlessDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet bindlessDescriptorSet = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
     u32 swapchainTextureCount = 0;
     u32 swapchainTextureIndex = 0;
