@@ -358,9 +358,20 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
         info.accelerationStructureFeatures.pNext = &info.rayQueryFeatures;
 
+        info.descriptorIndexingFeatures = {};
+        info.descriptorIndexingFeatures.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+        info.descriptorIndexingFeatures.pNext =
+            &info.accelerationStructureFeatures;
+
+        info.dynamicRenderingFeatures = {};
+        info.dynamicRenderingFeatures.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+        info.dynamicRenderingFeatures.pNext = &info.descriptorIndexingFeatures;
+
         VkPhysicalDeviceFeatures2 deviceFeatures2{};
         deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        deviceFeatures2.pNext = &info.accelerationStructureFeatures;
+        deviceFeatures2.pNext = &info.dynamicRenderingFeatures;
 
         vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures2);
         info.features = deviceFeatures2.features;
@@ -459,6 +470,139 @@ static bool PhysicalDeviceSupportsRayTracingPipelineFeatures(
     return true;
 }
 
+static bool PhysicalDeviceSupportsDescriptorIndexingFeatures(
+    const VkPhysicalDeviceDescriptorIndexingFeatures& requested,
+    const VkPhysicalDeviceDescriptorIndexingFeatures& supported)
+{
+    if (requested.shaderInputAttachmentArrayDynamicIndexing &&
+        !supported.shaderInputAttachmentArrayDynamicIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderUniformTexelBufferArrayDynamicIndexing &&
+        !supported.shaderUniformTexelBufferArrayDynamicIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderStorageTexelBufferArrayDynamicIndexing &&
+        !supported.shaderStorageTexelBufferArrayDynamicIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderUniformBufferArrayNonUniformIndexing &&
+        !supported.shaderUniformBufferArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderSampledImageArrayNonUniformIndexing &&
+        !supported.shaderSampledImageArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderStorageBufferArrayNonUniformIndexing &&
+        !supported.shaderStorageBufferArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderStorageImageArrayNonUniformIndexing &&
+        !supported.shaderStorageImageArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderInputAttachmentArrayNonUniformIndexing &&
+        !supported.shaderInputAttachmentArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderUniformTexelBufferArrayNonUniformIndexing &&
+        !supported.shaderUniformTexelBufferArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.shaderStorageTexelBufferArrayNonUniformIndexing &&
+        !supported.shaderStorageTexelBufferArrayNonUniformIndexing)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingUniformBufferUpdateAfterBind &&
+        !supported.descriptorBindingUniformBufferUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingSampledImageUpdateAfterBind &&
+        !supported.descriptorBindingSampledImageUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingStorageImageUpdateAfterBind &&
+        !supported.descriptorBindingStorageImageUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingStorageBufferUpdateAfterBind &&
+        !supported.descriptorBindingStorageBufferUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingUniformTexelBufferUpdateAfterBind &&
+        !supported.descriptorBindingUniformTexelBufferUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingStorageTexelBufferUpdateAfterBind &&
+        !supported.descriptorBindingStorageTexelBufferUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingUpdateUnusedWhilePending &&
+        !supported.descriptorBindingUpdateUnusedWhilePending)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingPartiallyBound &&
+        !supported.descriptorBindingPartiallyBound)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingVariableDescriptorCount &&
+        !supported.descriptorBindingVariableDescriptorCount)
+    {
+        return false;
+    }
+
+    if (requested.runtimeDescriptorArray && !supported.runtimeDescriptorArray)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool PhysicalDeviceSupportsDynamicRenderingFeatures(
+    const VkPhysicalDeviceDynamicRenderingFeatures& requested,
+    const VkPhysicalDeviceDynamicRenderingFeatures& supported)
+{
+    return !requested.dynamicRendering || supported.dynamicRendering;
+}
+
 static bool PhysicalDeviceSupportsRequiredFeatures(
     const VkPhysicalDeviceFeatures2& requested,
     const PhysicalDeviceInfo& supported)
@@ -521,6 +665,34 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
                 if (!PhysicalDeviceSupportsRayTracingPipelineFeatures(
                         *requestedRayTracingPipelineFeatures,
                         supported.rayTracingPipelineFeatures))
+                {
+                    return false;
+                }
+                break;
+            }
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES:
+            {
+                const VkPhysicalDeviceDescriptorIndexingFeatures*
+                    requestedDescriptorIndexingFeatures = reinterpret_cast<
+                        const VkPhysicalDeviceDescriptorIndexingFeatures*>(
+                        currRequestedFeaturePtr);
+                if (!PhysicalDeviceSupportsDescriptorIndexingFeatures(
+                        *requestedDescriptorIndexingFeatures,
+                        supported.descriptorIndexingFeatures))
+                {
+                    return false;
+                }
+                break;
+            }
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES:
+            {
+                const VkPhysicalDeviceDynamicRenderingFeatures*
+                    requestedDynamicRenderingFeatures = reinterpret_cast<
+                        const VkPhysicalDeviceDynamicRenderingFeatures*>(
+                        currRequestedFeaturePtr);
+                if (!PhysicalDeviceSupportsDynamicRenderingFeatures(
+                        *requestedDynamicRenderingFeatures,
+                        supported.dynamicRenderingFeatures))
                 {
                     return false;
                 }

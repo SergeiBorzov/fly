@@ -16,11 +16,13 @@ namespace Hls
 struct PhysicalDeviceInfo
 {
     VkPhysicalDeviceFeatures features = {};
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures =
         {};
-    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR
         accelerationStructureFeatures = {};
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
+    VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {};
     VkPhysicalDeviceProperties properties = {};
     VkPhysicalDeviceMemoryProperties memoryProperties = {};
     VkSurfaceCapabilitiesKHR surfaceCapabilities = {};
