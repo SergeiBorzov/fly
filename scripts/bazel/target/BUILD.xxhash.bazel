@@ -1,0 +1,23 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "xxhash",
+    hdrs = [
+        "xxHash-0.8.3/xxhash.h",
+    ] + select({
+        "@platforms//cpu:x86_64": ["xxHash-0.8.3/xxh_x86dispatch.h"],
+    }),
+    srcs = [
+        "xxHash-0.8.3/xxhash.c",
+    ] + select({
+        "@platforms//cpu:x86_64": ["xxHash-0.8.3/xxh_x86dispatch.c"],
+    }),
+    defines = [
+    ] + select({
+        "@platforms//cpu:x86_64": ["XXHSUM_DISPATCH=1"],
+    }),
+    includes = [
+        "xxHash-0.8.3",
+    ],
+    visibility = ["//visibility:public"],
+)
