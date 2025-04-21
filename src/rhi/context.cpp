@@ -912,20 +912,35 @@ bool CreateContext(ContextSettings& settings, Context& context)
         return false;
     }
 
-    if (!FindPhysicalDevices(
-            settings.deviceExtensions, settings.deviceExtensionCount,
-            settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
-            settings.determineSurfaceFormatCallback,
-            settings.determinePresentModeCallback, context))
-    {
-        return false;
-    }
+    // Fundamental always requested features
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
+    descriptorIndexingFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = true;
+    descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind =
+        true;
+    descriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing =
+        true;
+    descriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind =
+        true;
+    descriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing =
+        true;
+    descriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind =
+        true;
+    descriptorIndexingFeatures.descriptorBindingPartiallyBound = true;
+    descriptorIndexingFeatures.pNext = nullptr;
 
-    // Add synchronization2 to the end of device features
+    VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
+    dynamicRenderingFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+    dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
+    dynamicRenderingFeatures.pNext = &descriptorIndexingFeatures;
+
     VkPhysicalDeviceSynchronization2Features synchronization2Features{};
     synchronization2Features.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
     synchronization2Features.synchronization2 = VK_TRUE;
+    synchronization2Features.pNext = &dynamicRenderingFeatures;
 
     VkBaseOutStructure* currRequestedFeaturePtr =
         reinterpret_cast<VkBaseOutStructure*>(&settings.deviceFeatures2);
@@ -935,6 +950,15 @@ bool CreateContext(ContextSettings& settings, Context& context)
     }
     currRequestedFeaturePtr->pNext =
         reinterpret_cast<VkBaseOutStructure*>(&synchronization2Features);
+
+    if (!FindPhysicalDevices(
+            settings.deviceExtensions, settings.deviceExtensionCount,
+            settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
+            settings.determineSurfaceFormatCallback,
+            settings.determinePresentModeCallback, context))
+    {
+        return false;
+    }
 
     for (u32 i = 0; i < context.deviceCount; i++)
     {
