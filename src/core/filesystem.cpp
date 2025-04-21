@@ -10,10 +10,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
-// clang-format off
 #include <windows.h>
-#include <pathcch.h>
-// clang-format on
 #endif
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
