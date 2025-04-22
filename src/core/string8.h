@@ -2,6 +2,7 @@
 #define HLS_CORE_STRING8_H
 
 #include "assert.h"
+#include "hash.h"
 
 struct Arena;
 
@@ -45,7 +46,6 @@ struct String8
     static bool ParseI64(String8 str, i64& res);
     static bool ParseI32(String8 str, i32& res);
 
-
     static String8 Find(String8 str, i32 character);
     static String8 FindLast(String8 str, i32 character);
     static char* CopyNullTerminate(Arena& arena, String8 str);
@@ -53,6 +53,12 @@ struct String8
 private:
     const char* data_ = nullptr;
     u64 size_ = 0;
+};
+
+template <>
+struct Hash<String8>
+{
+    u64 operator()(String8 key);
 };
 
 struct String8CutPair

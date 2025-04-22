@@ -27,7 +27,6 @@ cc_library(
     deps = [
         "//src/rhi:context",
         "//src/core:core",
-        "@xxhash//:xxhash",
         "@cgltf//:cgltf",
     ],
     visibility = ["//visibility:public"],

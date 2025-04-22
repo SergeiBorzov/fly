@@ -67,6 +67,32 @@ cc_library(
 )
 
 cc_library(
+    name = "hash",
+    hdrs = [
+        "hash.h",
+    ],
+    srcs = [
+        "hash.cpp",
+    ],
+    deps = [
+        ":assert",
+        "@xxhash//:xxhash",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hash_trie",
+    hdrs = [
+        "hash_trie.h",
+    ],
+    deps = [
+        "hash",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "string8",
     hdrs = [
         "string8.h",
@@ -75,6 +101,7 @@ cc_library(
         "string8.cpp",
     ],
     deps = [
+        ":hash",
         ":memory",
     ],
     visibility = ["//visibility:public"],

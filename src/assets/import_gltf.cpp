@@ -1,6 +1,5 @@
-#include <xxhash.h>
-
 #include "core/assert.h"
+#include "core/hash_trie.h"
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/thread_context.h"
@@ -49,52 +48,17 @@ BufferKey PushBufferKeyToArena(Arena& arena, u32 bvIndexCount)
     return key;
 }
 
-u64 HashBufferKey(BufferKey key)
+template <>
+struct Hash<BufferKey>
 {
-    HLS_ASSERT(key.bvIndices);
-    return XXH64(key.bvIndices, sizeof(u32) * key.count, HASH_SEED);
-}
-
-struct BufferHashMap
-{
-    BufferHashMap* children[4];
-    BufferKey key;
-    Hls::Buffer value;
+    inline u64 operator()(BufferKey key)
+    {
+        return Hash64(key.bvIndices, sizeof(u32) * key.count);
+    };
 };
 
-Hls::Buffer* Upsert(BufferHashMap** map, Arena* arena, BufferKey key)
-{
-    for (u64 h = HashBufferKey(key); h != 0; h <<= 2)
-    {
-        if (!*map)
-        {
-            if (!arena)
-            {
-                return nullptr;
-            }
-
-            *map = HLS_ALLOC(*arena, BufferHashMap, 1);
-            (*map)->key = key;
-            (*map)->value = {};
-            Hls::MemZero((*map)->children, sizeof(BufferHashMap*) * 4);
-            return &(*map)->value;
-        }
-
-        if (key == (*map)->key)
-        {
-            return &(*map)->value;
-        }
-
-        map = &(*map)->children[h >> 62];
-    }
-
-    // Full hash collision case
-    // TODO: fallback to linked list, if encountered ever
-    HLS_ASSERT(false);
-    return nullptr;
-}
-
-static void ProcessPrimitive(Arena& arena, BufferHashMap** map,
+static void ProcessPrimitive(Arena& arena,
+                             HashTrie<BufferKey, Hls::Buffer>& map,
                              cgltf_data* data, cgltf_primitive* primitive)
 {
     HLS_ASSERT(data);
@@ -109,10 +73,10 @@ static void ProcessPrimitive(Arena& arena, BufferHashMap** map,
         key.bvIndices[0] =
             static_cast<u32>(cgltf_buffer_view_index(data, indexBufferView));
 
-        Hls::Buffer* buffer = Upsert(map, &arena, key);
-
-        if (buffer->handle == VK_NULL_HANDLE)
+        Hls::Buffer& buffer = map.Insert(arena, key);
+        if (buffer.handle == VK_NULL_HANDLE)
         {
+            HLS_LOG("Index buffer pointer is %p", &buffer);
             HLS_LOG("Index buffer not filled with data");
         }
     }
@@ -125,9 +89,10 @@ static void ProcessPrimitive(Arena& arena, BufferHashMap** map,
             data, primitive->attributes[i].data->buffer_view));
         key.bvIndices[i] = bvIndex;
     }
-    Hls::Buffer* buffer = Upsert(map, &arena, key);
-    if (buffer->handle == VK_NULL_HANDLE)
+    Hls::Buffer& buffer = map.Insert(arena, key);
+    if (buffer.handle == VK_NULL_HANDLE)
     {
+        HLS_LOG("Vertex buffer pointer is %p", &buffer);
         HLS_LOG("Vertex buffer not filled with data");
     }
 }
@@ -139,7 +104,7 @@ static void ProcessScene(cgltf_data* data, cgltf_scene* scene)
 
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
-    BufferHashMap* map = nullptr;
+    HashTrie<BufferKey, Hls::Buffer> map;
 
     for (u64 i = 0; i < scene->nodes_count; i++)
     {
@@ -148,7 +113,7 @@ static void ProcessScene(cgltf_data* data, cgltf_scene* scene)
         {
             for (u64 i = 0; i < mesh->primitives_count; i++)
             {
-                ProcessPrimitive(scratch, &map, data, &mesh->primitives[i]);
+                ProcessPrimitive(scratch, map, data, &mesh->primitives[i]);
             }
         }
     }
