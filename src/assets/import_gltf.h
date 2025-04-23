@@ -5,6 +5,8 @@
 
 #include "rhi/buffer.h"
 
+struct Arena;
+
 namespace Hls
 {
 
@@ -12,23 +14,30 @@ struct Geometry
 {
     Hls::Buffer vertexBuffer;
     Hls::Buffer indexBuffer;
-    u64 indexOffset = 0;
-    u32 indexCount = 0;
 };
 
-struct SceneData
+struct Mesh
 {
     Geometry* geometries = nullptr;
     u32 geometryCount = 0;
 };
 
+struct SceneData
+{
+    Mesh* meshes = nullptr;
+    u32 meshCount = 0;
+};
+
 bool LoadGltf(const char* path, const cgltf_options& options,
               cgltf_data** data);
-bool CopyGltfToDevice(Device& device, cgltf_data* data, SceneData& sceneData);
+bool CopyGltfToDevice(Arena& arena, Device& device, cgltf_data* data,
+                      SceneData& sceneData);
 void FreeGltf(cgltf_data* data);
 
-bool LoadGltfToDevice(Device& device, const char* path,
+bool LoadGltfToDevice(Arena& arena, Device& device, const char* path,
                       const cgltf_options& options, SceneData& sceneData);
+
+void FreeDeviceSceneData(Device& device, SceneData& sceneData);
 
 } // namespace Hls
 

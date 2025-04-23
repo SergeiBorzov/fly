@@ -4,6 +4,8 @@
 #include "core/memory.h"
 #include "core/thread_context.h"
 
+#include "math/vec.h"
+
 #include "import_gltf.h"
 
 #define CGLTF_MALLOC(size) (Hls::Alloc(size))
@@ -11,114 +13,220 @@
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
-#define HASH_SEED 2025
-
 namespace Hls
 {
 
-struct BufferKey
+struct Vertex
 {
-    u32* bvIndices = nullptr;
-    u32 count = 0;
+    Math::Vec3 position;
+    f32 uvX;
+    Math::Vec3 normal;
+    f32 uvY;
+};
 
-    bool operator==(BufferKey& rhs) const
+static bool ProcessPrimitiveIndices(Device& device, cgltf_data* data,
+                                    cgltf_accessor* accessor,
+                                    Geometry& geometry)
+{
+    HLS_ASSERT(data);
+    HLS_ASSERT(accessor);
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    u64* indices = HLS_ALLOC(scratch, u64, accessor->count);
+    cgltf_accessor_unpack_indices(accessor, indices, sizeof(u64),
+                                  accessor->count);
+
+    if (!CreateBuffer(device,
+                      VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                      VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
+                      sizeof(u64) * accessor->count, geometry.indexBuffer))
     {
-        if (count != rhs.count)
-        {
-            return false;
-        }
+        return false;
+    }
 
-        for (u32 i = 0; i < count; i++)
+    if (!TransferDataToBuffer(device, indices, sizeof(u64) * accessor->count,
+                              geometry.indexBuffer))
+    {
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
+}
+
+static bool ProcessPrimitiveVertices(Device& device, cgltf_data* data,
+                                     cgltf_primitive* primitive,
+                                     Geometry& geometry)
+{
+    HLS_ASSERT(data);
+    HLS_ASSERT(primitive);
+
+    bool isPosPresent = false;
+    bool isNormalPresent = false;
+    bool isTexCoordPresent = false;
+
+    u64 vertexCount = 0;
+    for (u64 i = 0; i < primitive->attributes_count; i++)
+    {
+        cgltf_attribute& attribute = primitive->attributes[i];
+        cgltf_accessor* accessor = attribute.data;
+
+        vertexCount = accessor->count;
+
+        if (attribute.type == cgltf_attribute_type_position)
         {
-            if (bvIndices[i] != rhs.bvIndices[i])
+            isPosPresent = true;
+            if (accessor->component_type != cgltf_component_type_r_32f &&
+                accessor->type != cgltf_type_vec3)
             {
                 return false;
             }
         }
-
-        return true;
+        else if (attribute.type == cgltf_attribute_type_normal)
+        {
+            isNormalPresent = true;
+            if (accessor->component_type != cgltf_component_type_r_32f &&
+                accessor->type != cgltf_type_vec3)
+            {
+                return false;
+            }
+        }
+        else if (attribute.type == cgltf_attribute_type_texcoord)
+        {
+            isTexCoordPresent = true;
+            if (accessor->component_type != cgltf_component_type_r_32f &&
+                accessor->type != cgltf_type_vec2)
+            {
+                return false;
+            }
+        }
     }
-};
 
-BufferKey PushBufferKeyToArena(Arena& arena, u32 bvIndexCount)
-{
-    BufferKey key;
-    key.bvIndices = HLS_ALLOC(arena, u32, bvIndexCount);
-    key.count = bvIndexCount;
-    return key;
+    if (!isPosPresent || !isNormalPresent || !isTexCoordPresent)
+    {
+        return false;
+    }
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    Vertex* vertices = HLS_ALLOC(scratch, Vertex, vertexCount);
+    for (u64 i = 0; i < primitive->attributes_count; i++)
+    {
+        cgltf_attribute& attribute = primitive->attributes[i];
+        cgltf_accessor* accessor = attribute.data;
+        cgltf_buffer_view* bv = accessor->buffer_view;
+        cgltf_buffer* buffer = bv->buffer;
+
+        if (attribute.type == cgltf_attribute_type_position)
+        {
+            for (u64 j = 0; j < vertexCount; j++)
+            {
+                cgltf_accessor_unpack_floats(accessor,
+                                             vertices[j].position.data, 3);
+            }
+        }
+        else if (attribute.type == cgltf_attribute_type_normal)
+        {
+            for (u64 j = 0; j < vertexCount; j++)
+            {
+                cgltf_accessor_unpack_floats(accessor, vertices[j].normal.data,
+                                             3);
+            }
+        }
+        else if (attribute.type == cgltf_attribute_type_texcoord)
+        {
+            for (u64 j = 0; j < vertexCount; j++)
+            {
+                f32 uv[2];
+                cgltf_accessor_unpack_floats(accessor, uv, 2);
+                vertices[j].uvX = uv[0];
+                vertices[j].uvY = uv[1];
+            }
+        }
+    }
+
+    if (!CreateBuffer(device,
+                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                      VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
+                      sizeof(Vertex) * vertexCount, geometry.vertexBuffer))
+    {
+        return false;
+    }
+
+    if (!TransferDataToBuffer(device, vertices, sizeof(Vertex) * vertexCount,
+                              geometry.vertexBuffer))
+    {
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
 }
 
-template <>
-struct Hash<BufferKey>
-{
-    inline u64 operator()(BufferKey key)
-    {
-        return Hash64(key.bvIndices, sizeof(u32) * key.count);
-    };
-};
-
-static void ProcessPrimitive(Arena& arena,
-                             HashTrie<BufferKey, Hls::Buffer>& map,
-                             cgltf_data* data, cgltf_primitive* primitive)
+static bool ProcessPrimitive(Device& device, cgltf_data* data,
+                             cgltf_primitive* primitive, Geometry& geometry)
 {
     HLS_ASSERT(data);
     HLS_ASSERT(primitive);
 
     if (primitive->indices)
     {
-        cgltf_buffer_view* indexBufferView = primitive->indices->buffer_view;
-        HLS_ASSERT(indexBufferView);
-
-        BufferKey key = PushBufferKeyToArena(arena, 1);
-        key.bvIndices[0] =
-            static_cast<u32>(cgltf_buffer_view_index(data, indexBufferView));
-
-        Hls::Buffer& buffer = map.Insert(arena, key);
-        if (buffer.handle == VK_NULL_HANDLE)
+        if (!ProcessPrimitiveIndices(device, data, primitive->indices,
+                                     geometry))
         {
-            HLS_LOG("Index buffer pointer is %p", &buffer);
-            HLS_LOG("Index buffer not filled with data");
+            return false;
         }
     }
 
-    BufferKey key = PushBufferKeyToArena(
-        arena, static_cast<u32>(primitive->attributes_count));
-    for (u64 i = 0; i < primitive->attributes_count; i++)
-    {
-        u32 bvIndex = static_cast<u32>(cgltf_buffer_view_index(
-            data, primitive->attributes[i].data->buffer_view));
-        key.bvIndices[i] = bvIndex;
-    }
-    Hls::Buffer& buffer = map.Insert(arena, key);
-    if (buffer.handle == VK_NULL_HANDLE)
-    {
-        HLS_LOG("Vertex buffer pointer is %p", &buffer);
-        HLS_LOG("Vertex buffer not filled with data");
-    }
+    return ProcessPrimitiveVertices(device, data, primitive, geometry);
 }
 
-static void ProcessScene(cgltf_data* data, cgltf_scene* scene)
+static bool ProcessScene(Arena& arena, Device& device, cgltf_data* data,
+                         cgltf_scene* scene, SceneData& sceneData)
 {
     HLS_ASSERT(data);
     HLS_ASSERT(scene);
 
-    Arena& scratch = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(scratch);
-    HashTrie<BufferKey, Hls::Buffer> map;
+    u64 meshCount = 0;
+    for (u64 i = 0; i < scene->nodes_count; i++)
+    {
+        meshCount += scene->nodes[i]->mesh != nullptr;
+    }
 
+    sceneData.meshes = HLS_ALLOC(arena, Mesh, meshCount);
+    sceneData.meshCount = static_cast<u32>(meshCount);
+
+    u64 meshIndex = 0;
     for (u64 i = 0; i < scene->nodes_count; i++)
     {
         cgltf_mesh* mesh = scene->nodes[i]->mesh;
         if (mesh)
         {
-            for (u64 i = 0; i < mesh->primitives_count; i++)
+            sceneData.meshes[meshIndex].geometries =
+                HLS_ALLOC(arena, Geometry, mesh->primitives_count);
+            sceneData.meshes[meshIndex].geometryCount =
+                static_cast<u32>(mesh->primitives_count);
+            for (u64 j = 0; j < mesh->primitives_count; j++)
             {
-                ProcessPrimitive(scratch, map, data, &mesh->primitives[i]);
+                if (!ProcessPrimitive(
+                        device, data, &mesh->primitives[j],
+                        sceneData.meshes[meshIndex].geometries[j]))
+                {
+                    return false;
+                }
             }
+            meshIndex++;
         }
     }
 
-    ArenaPopToMarker(scratch, marker);
+    return true;
 }
 
 bool LoadGltf(const char* path, const cgltf_options& options, cgltf_data** data)
@@ -137,13 +245,14 @@ bool LoadGltf(const char* path, const cgltf_options& options, cgltf_data** data)
     return true;
 }
 
-bool CopyGltfToDevice(Device& device, cgltf_data* data, SceneData& sceneData)
+bool CopyGltfToDevice(Arena& arena, Device& device, cgltf_data* data,
+                      SceneData& sceneData)
 {
     if (data && data->scene)
     {
         HLS_LOG("Buffer count: %llu", data->buffers_count);
         HLS_LOG("Buffer view count: %llu", data->buffer_views_count);
-        ProcessScene(data, data->scene);
+        ProcessScene(arena, device, data, data->scene, sceneData);
     }
 
     return true;
@@ -151,7 +260,7 @@ bool CopyGltfToDevice(Device& device, cgltf_data* data, SceneData& sceneData)
 
 void FreeGltf(cgltf_data* data) { cgltf_free(data); }
 
-bool LoadGltfToDevice(Device& device, const char* path,
+bool LoadGltfToDevice(Arena& arena, Device& device, const char* path,
                       const cgltf_options& options, SceneData& sceneData)
 {
     HLS_ASSERT(path);
@@ -162,10 +271,24 @@ bool LoadGltfToDevice(Device& device, const char* path,
         return false;
     }
 
-    bool res = CopyGltfToDevice(device, data, sceneData);
+    bool res = CopyGltfToDevice(arena, device, data, sceneData);
     FreeGltf(data);
 
     return res;
+}
+
+void FreeDeviceSceneData(Device& device, SceneData& sceneData)
+{
+    for (u64 i = 0; i < sceneData.meshCount; i++)
+    {
+        for (u64 j = 0; j < sceneData.meshes[i].geometryCount; j++)
+        {
+            Hls::DestroyBuffer(device,
+                               sceneData.meshes[i].geometries[j].vertexBuffer);
+            Hls::DestroyBuffer(device,
+                               sceneData.meshes[i].geometries[j].indexBuffer);
+        }
+    }
 }
 
 } // namespace Hls
