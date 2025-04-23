@@ -40,7 +40,8 @@ struct HashTrie
         return nullptr;
     }
 
-    ValueType& Insert(Arena& arena, const KeyType& key, const ValueType& value = ValueType())
+    ValueType& Insert(Arena& arena, const KeyType& key,
+                      const ValueType& value = ValueType())
     {
         Node** node = &root_;
         Hash<KeyType> hashFunc;
@@ -52,6 +53,7 @@ struct HashTrie
                 (*node)->key = key;
                 (*node)->value = value;
                 Hls::MemZero((*node)->children, sizeof(Node*) * 4);
+                count_++;
                 return (*node)->value;
             }
 
@@ -67,8 +69,12 @@ struct HashTrie
         HLS_ASSERT(false);
         return (*node)->value;
     }
+
+    inline u64 Count() const { return count_; }
+
 private:
     Node* root_ = nullptr;
+    u64 count_ = 0;
 };
 
 } // namespace Hls
