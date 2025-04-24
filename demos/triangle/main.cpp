@@ -10,6 +10,15 @@
 
 #include "platform/window.h"
 
+static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
+                              int action, int mods)
+{
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        glfwSetWindowShouldClose(window, true);
+    }
+}
+
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
     HLS_ERROR("GLFW - error: %s", description);
@@ -82,6 +91,7 @@ int main(int argc, char* argv[])
         glfwTerminate();
         return -1;
     }
+    glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Device extensions
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
