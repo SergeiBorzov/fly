@@ -3,7 +3,8 @@
 
 #include <cgltf.h>
 
-#include "rhi/buffer.h"
+#include "rhi/storage_buffer.h"
+#include "rhi/index_buffer.h"
 
 struct Arena;
 
@@ -12,8 +13,8 @@ namespace Hls
 
 struct Geometry
 {
-    Hls::Buffer vertexBuffer;
-    Hls::Buffer indexBuffer;
+    Hls::StorageBuffer vertexBuffer;
+    Hls::IndexBuffer indexBuffer;
 };
 
 struct Mesh

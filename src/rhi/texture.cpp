@@ -3,8 +3,8 @@
 #include "core/assert.h"
 
 #include "allocation_callbacks.h"
-#include "buffer.h"
 #include "command_buffer.h"
+#include "device.h"
 #include "texture.h"
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

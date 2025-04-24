@@ -4,11 +4,11 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/descriptor.h"
 #include "rhi/pipeline.h"
 #include "rhi/texture.h"
+#include "rhi/uniform_buffer.h"
 #include "rhi/utils.h"
 
 #include "assets/import_image.h"
@@ -221,27 +221,32 @@ int main(int argc, char* argv[])
     Hls::FreeImage(image);
     Hls::BindTextureToDescriptorSet(device, texture, sTextureDescriptorSet, 0);
 
-    Hls::Buffer uniformBuffer;
-    if (!Hls::CreateBuffer(
-            device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-            sizeof(UniformData) * HLS_FRAME_IN_FLIGHT_COUNT, uniformBuffer))
+    Hls::UniformBuffer uniformBuffer;
+    if (!Hls::CreateUniformBuffer(
+            device, nullptr, sizeof(UniformData) * HLS_FRAME_IN_FLIGHT_COUNT,
+            uniformBuffer))
     {
         HLS_ERROR("Failed to create uniform buffer!");
-        return -1;
-    }
-    if (!Hls::MapBuffer(device, uniformBuffer))
-    {
-        HLS_ERROR("Failed to map the uniform buffer!");
-        return -1;
     }
 
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        Hls::BindBufferToDescriptorSet(
-            device, uniformBuffer, i * sizeof(UniformData), sizeof(UniformData),
-            sUniformDescriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uniformBuffer.handle;
+        bufferInfo.offset = i * sizeof(UniformData);
+        bufferInfo.range = sizeof(UniformData);
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = sUniformDescriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+
+        vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                               nullptr);
     }
 
     Hls::GraphicsPipelineFixedStateStage fixedState{};
@@ -280,9 +285,10 @@ int main(int argc, char* argv[])
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView(),
                                    time};
-        Hls::CopyDataToBuffer(device, uniformBuffer,
-                              device.frameIndex * sizeof(UniformData),
-                              &uniformData, sizeof(UniformData));
+
+        Hls::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
+                                     device.frameIndex * sizeof(UniformData),
+                                     uniformBuffer);
 
         Hls::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline);
@@ -290,8 +296,7 @@ int main(int argc, char* argv[])
     }
 
     Hls::WaitAllDevicesIdle(context);
-    Hls::UnmapBuffer(device, uniformBuffer);
-    Hls::DestroyBuffer(device, uniformBuffer);
+    Hls::DestroyUniformBuffer(device, uniformBuffer);
     Hls::DestroyTexture(device, texture);
 
     Hls::DestroyDescriptorPool(device, sDescriptorPool);

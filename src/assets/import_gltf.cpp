@@ -34,22 +34,12 @@ static bool ProcessPrimitiveIndices(Device& device, cgltf_data* data,
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    u64* indices = HLS_ALLOC(scratch, u64, accessor->count);
-    cgltf_accessor_unpack_indices(accessor, indices, sizeof(u64),
+    u32* indices = HLS_ALLOC(scratch, u32, accessor->count);
+    cgltf_accessor_unpack_indices(accessor, indices, sizeof(u32),
                                   accessor->count);
 
-    if (!CreateBuffer(device,
-                      VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
-                      sizeof(u64) * accessor->count, geometry.indexBuffer))
-    {
-        return false;
-    }
-
-    if (!TransferDataToBuffer(device, indices, sizeof(u64) * accessor->count,
-                              geometry.indexBuffer))
+    if (!CreateIndexBuffer(device, indices, static_cast<u32>(accessor->count),
+                           geometry.indexBuffer))
     {
         return false;
     }
@@ -150,18 +140,8 @@ static bool ProcessPrimitiveVertices(Device& device, cgltf_data* data,
         }
     }
 
-    if (!CreateBuffer(device,
-                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
-                      sizeof(Vertex) * vertexCount, geometry.vertexBuffer))
-    {
-        return false;
-    }
-
-    if (!TransferDataToBuffer(device, vertices, sizeof(Vertex) * vertexCount,
-                              geometry.vertexBuffer))
+    if (!CreateStorageBuffer(device, vertices, sizeof(Vertex) * vertexCount,
+                             geometry.vertexBuffer))
     {
         return false;
     }
@@ -283,10 +263,10 @@ void FreeDeviceSceneData(Device& device, SceneData& sceneData)
     {
         for (u64 j = 0; j < sceneData.meshes[i].geometryCount; j++)
         {
-            Hls::DestroyBuffer(device,
-                               sceneData.meshes[i].geometries[j].vertexBuffer);
-            Hls::DestroyBuffer(device,
-                               sceneData.meshes[i].geometries[j].indexBuffer);
+            Hls::DestroyStorageBuffer(
+                device, sceneData.meshes[i].geometries[j].vertexBuffer);
+            Hls::DestroyIndexBuffer(
+                device, sceneData.meshes[i].geometries[j].indexBuffer);
         }
     }
 }

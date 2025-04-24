@@ -1,4 +1,3 @@
-#include "rhi/buffer.h"
 #include "rhi/device.h"
 
 #include "import_image.h"
@@ -125,23 +124,43 @@ void FreeImage(Image& image)
 bool TransferImageDataToTexture(Device& device, const Image& image,
                                 Texture& texture)
 {
-    Buffer transferBuffer;
+    HLS_ASSERT(image.data);
+    HLS_ASSERT(image.width);
+    HLS_ASSERT(image.height);
+    HLS_ASSERT(image.channelCount);
 
     u64 allocSize =
         sizeof(u8) * image.width * image.height * image.channelCount;
-    if (!CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                      VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-                      allocSize, transferBuffer))
+    VkBufferCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    createInfo.size = allocSize;
+    createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    allocCreateInfo.flags =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+        VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT;
+    allocCreateInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+
+    VmaAllocationInfo allocationInfo;
+    VkBuffer stagingBuffer;
+    VmaAllocation allocation;
+    if (vmaCreateBuffer(device.allocator, &createInfo, &allocCreateInfo,
+                        &stagingBuffer, &allocation,
+                        &allocationInfo) != VK_SUCCESS)
     {
         return false;
     }
 
-    if (!MapBuffer(device, transferBuffer))
-    {
-        return false;
-    }
-    memcpy(transferBuffer.mappedPtr, image.data, allocSize);
+    void* mappedPtr = nullptr;
+    bool res =
+        vmaMapMemory(device.allocator, allocation, &mappedPtr) == VK_SUCCESS;
+    HLS_ASSERT(res);
+    memcpy(mappedPtr, image.data, allocSize);
+    vmaUnmapMemory(device.allocator, allocation);
 
     BeginTransfer(device);
     CommandBuffer& cmd = TransferCommandBuffer(device);
@@ -161,7 +180,7 @@ bool TransferImageDataToTexture(Device& device, const Image& image,
     copyRegion.imageExtent.height = image.height;
     copyRegion.imageExtent.depth = 1;
 
-    vkCmdCopyBufferToImage(cmd.handle, transferBuffer.handle, texture.handle,
+    vkCmdCopyBufferToImage(cmd.handle, stagingBuffer, texture.handle,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                            &copyRegion);
 
@@ -169,9 +188,7 @@ bool TransferImageDataToTexture(Device& device, const Image& image,
 
     EndTransfer(device);
 
-    UnmapBuffer(device, transferBuffer);
-    DestroyBuffer(device, transferBuffer);
-
+    vmaDestroyBuffer(device.allocator, stagingBuffer, allocation);
     return true;
 }
 

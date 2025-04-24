@@ -1,6 +1,5 @@
 #include "allocation_callbacks.h"
 
-#include "buffer.h"
 #include "descriptor.h"
 #include "device.h"
 
@@ -51,28 +50,29 @@ bool AllocateDescriptorSets(Device& device, DescriptorPool& descriptorPool,
     return true;
 }
 
-void BindBufferToDescriptorSet(Device& device, const Buffer& buffer, u64 offset,
-                               u64 range, VkDescriptorSet descriptorSet,
-                               VkDescriptorType descriptorType,
-                               u32 bindingIndex)
-{
-    VkDescriptorBufferInfo bufferInfo{};
-    bufferInfo.buffer = buffer.handle;
-    bufferInfo.offset = offset;
-    bufferInfo.range = range;
+// void BindBufferToDescriptorSet(Device& device, const Buffer& buffer, u64
+// offset,
+//                                u64 range, VkDescriptorSet descriptorSet,
+//                                VkDescriptorType descriptorType,
+//                                u32 bindingIndex)
+// {
+//     VkDescriptorBufferInfo bufferInfo{};
+//     bufferInfo.buffer = buffer.handle;
+//     bufferInfo.offset = offset;
+//     bufferInfo.range = range;
 
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = descriptorSet;
-    descriptorWrite.dstBinding = bindingIndex;
-    descriptorWrite.dstArrayElement = 0;
-    descriptorWrite.descriptorType = descriptorType;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pBufferInfo = &bufferInfo;
+//     VkWriteDescriptorSet descriptorWrite{};
+//     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//     descriptorWrite.dstSet = descriptorSet;
+//     descriptorWrite.dstBinding = bindingIndex;
+//     descriptorWrite.dstArrayElement = 0;
+//     descriptorWrite.descriptorType = descriptorType;
+//     descriptorWrite.descriptorCount = 1;
+//     descriptorWrite.pBufferInfo = &bufferInfo;
 
-    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
-                           nullptr);
-}
+//     vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+//                            nullptr);
+// }
 
 void BindTextureToDescriptorSet(Device& device, const Texture& texture,
                                 VkDescriptorSet descriptorSet, u32 bindingIndex)

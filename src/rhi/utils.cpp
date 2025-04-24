@@ -4,7 +4,6 @@
 #include "core/platform.h"
 #include "core/thread_context.h"
 
-#include "buffer.h"
 #include "context.h"
 #include "texture.h"
 #include "utils.h"
