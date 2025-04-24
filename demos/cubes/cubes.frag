@@ -1,12 +1,21 @@
 #version 450
 
-layout(set = 1, binding = 0) uniform sampler2D tex_sampler;
+#extension GL_EXT_nonuniform_qualifier : enable
 
-layout(location = 0) in vec2 in_uvs;
-layout(location = 1) in vec3 in_color;
+layout(push_constant) uniform Indices
+{
+    uint sceneDataIndex;
+    uint textureIndex;
+} uIndices;
+
+layout(set = 0, binding = 2) uniform sampler2D uTextures[];
+
+layout(location = 0) in vec2 inUVs;
+layout(location = 1) in vec3 inColor;
 layout(location = 0) out vec4 outFragColor;
 
 void main()
 {
-    outFragColor = texture(tex_sampler, in_uvs) * vec4(in_color, 1.0f);
+    outFragColor =
+        texture(uTextures[uIndices.textureIndex], inUVs) * vec4(inColor, 1.0f);
 }

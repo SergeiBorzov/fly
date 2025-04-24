@@ -52,6 +52,25 @@ bool CreateUniformBuffer(Device& device, const void* data, u64 size,
         CopyDataToUniformBuffer(device, data, size, 0, uniformBuffer);
     }
 
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = uniformBuffer.handle;
+    bufferInfo.offset = 0;
+    bufferInfo.range = size;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = device.bindlessDescriptorSet;
+    descriptorWrite.dstBinding = HLS_UNIFORM_BUFFER_BINDING_INDEX;
+    descriptorWrite.dstArrayElement = device.bindlessUniformBufferHandleCount;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+
+    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                           nullptr);
+
+    uniformBuffer.bindlessHandle = device.bindlessUniformBufferHandleCount++;
+
     return true;
 }
 

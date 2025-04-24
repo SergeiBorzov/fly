@@ -6,6 +6,9 @@
 
 #define HLS_SWAPCHAIN_IMAGE_MAX_COUNT 8
 #define HLS_FRAME_IN_FLIGHT_COUNT 2
+#define HLS_UNIFORM_BUFFER_BINDING_INDEX 0
+#define HLS_STORAGE_BUFFER_BINDING_INDEX 1
+#define HLS_TEXTURE_BINDING_INDEX 2
 
 namespace Hls
 {
@@ -51,6 +54,9 @@ struct Device
     VkDescriptorSetLayout bindlessDescriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet bindlessDescriptorSet = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
+    u32 bindlessUniformBufferHandleCount = 0;
+    u32 bindlessStorageBufferHandleCount = 0;
+    u32 bindlessTextureHandleCount = 0;
     u32 swapchainTextureCount = 0;
     u32 swapchainTextureIndex = 0;
     u32 frameIndex = 0;

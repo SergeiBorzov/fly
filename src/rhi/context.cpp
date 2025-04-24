@@ -928,6 +928,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
     descriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind =
         true;
     descriptorIndexingFeatures.descriptorBindingPartiallyBound = true;
+    descriptorIndexingFeatures.runtimeDescriptorArray = true;
     descriptorIndexingFeatures.pNext = nullptr;
 
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};

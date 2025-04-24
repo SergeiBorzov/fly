@@ -16,6 +16,11 @@ typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
 
+#define HLS_MAX_U8 0xFFu
+#define HLS_MAX_U16 0xFFFFu
+#define HLS_MAX_U32 0xFFFFFFFFu
+#define HLS_MAX_U64 0xFFFFFFFFFFFFFFFFu
+
 inline f32 MinF32()
 {
     union

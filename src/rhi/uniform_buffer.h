@@ -17,6 +17,7 @@ struct UniformBuffer
     VkBuffer handle = VK_NULL_HANDLE;
     VmaAllocation allocation;
     void* mappedPtr = nullptr;
+    u32 bindlessHandle = HLS_MAX_U32;
 };
 
 bool CreateUniformBuffer(Device& device, const void* data, u64 size,

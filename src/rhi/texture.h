@@ -47,6 +47,7 @@ struct Texture
     u32 width = 0;
     u32 height = 0;
     u32 mipLevelCount = 0;
+    u32 bindlessHandle = HLS_MAX_U32;
 };
 
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,

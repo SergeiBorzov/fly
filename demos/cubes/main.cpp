@@ -5,7 +5,6 @@
 #include "core/thread_context.h"
 
 #include "rhi/context.h"
-#include "rhi/descriptor.h"
 #include "rhi/pipeline.h"
 #include "rhi/texture.h"
 #include "rhi/uniform_buffer.h"
@@ -17,9 +16,8 @@
 
 #include "demos/common/simple_camera_fps.h"
 
-static VkDescriptorSet sTextureDescriptorSet;
-static VkDescriptorSet* sUniformDescriptorSets = nullptr;
-static Hls::DescriptorPool sDescriptorPool = {};
+static Hls::UniformBuffer uniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static Hls::Texture texture;
 
 static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
@@ -79,12 +77,14 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(
-        cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1,
-        &sUniformDescriptorSets[device.frameIndex], 0, nullptr);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipeline.layout, 1, 1, &sTextureDescriptorSet, 0,
-                            nullptr);
+                            pipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+
+    u32 indices[2] = {uniformBuffers[device.frameIndex].bindlessHandle,
+                      texture.bindlessHandle};
+    vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
+                       sizeof(u32) * 2, indices);
     vkCmdDraw(cmd.handle, 36, 10000, 0, 0);
 
     vkCmdEndRendering(cmd.handle);
@@ -141,7 +141,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    Hls::Device& device = context.devices[0];
+    Hls::Device& device = context.devices[1];
 
     Hls::GraphicsPipelineProgrammableStage programmableStage{};
     Hls::ShaderPathMap shaderPathMap{};
@@ -156,57 +156,12 @@ int main(int argc, char* argv[])
         HLS_ERROR("Failed to load and create shader modules");
     }
 
-    VkDescriptorPoolSize poolSizes[2];
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = HLS_FRAME_IN_FLIGHT_COUNT;
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-    poolSizes[1].descriptorCount = 1;
-
-    if (!CreateDescriptorPool(device, poolSizes, 2,
-                              1 + HLS_FRAME_IN_FLIGHT_COUNT, sDescriptorPool))
-    {
-        HLS_ERROR("Failed to create descriptor pool!");
-        return -1;
-    }
-
-    sUniformDescriptorSets =
-        HLS_ALLOC(arena, VkDescriptorSet, HLS_FRAME_IN_FLIGHT_COUNT);
-
-    VkDescriptorSetLayout
-        uniformDescriptorSetLayouts[HLS_FRAME_IN_FLIGHT_COUNT] = {
-            programmableStage[Hls::ShaderType::Vertex]
-                .descriptorSetLayouts[0]
-                .handle,
-            programmableStage[Hls::ShaderType::Vertex]
-                .descriptorSetLayouts[0]
-                .handle};
-    if (!AllocateDescriptorSets(
-            device, sDescriptorPool, uniformDescriptorSetLayouts,
-            HLS_FRAME_IN_FLIGHT_COUNT, sUniformDescriptorSets))
-    {
-        HLS_ERROR("Failed to allocate uniform descriptors");
-        return -1;
-    }
-
-    if (!AllocateDescriptorSets(device, sDescriptorPool,
-                                &programmableStage[Hls::ShaderType::Fragment]
-                                     .descriptorSetLayouts[0]
-                                     .handle,
-                                1, &sTextureDescriptorSet))
-    {
-        HLS_ERROR("Failed to allocate texture descriptor");
-        return -1;
-    }
-
     Hls::Image image;
-    Hls::Path imagePath;
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("default.png"), imagePath);
-    if (!Hls::ImportImageFromFile(imagePath, image))
+    if (!Hls::ImportImageFromFile("default.png", image))
     {
         HLS_ERROR("Failed to load image");
         return -1;
     }
-    Hls::Texture texture;
     if (!Hls::CreateTexture(device, image.width, image.height,
                             VK_FORMAT_R8G8B8A8_SRGB, texture, false, 0))
     {
@@ -219,34 +174,14 @@ int main(int argc, char* argv[])
         return -1;
     }
     Hls::FreeImage(image);
-    Hls::BindTextureToDescriptorSet(device, texture, sTextureDescriptorSet, 0);
-
-    Hls::UniformBuffer uniformBuffer;
-    if (!Hls::CreateUniformBuffer(
-            device, nullptr, sizeof(UniformData) * HLS_FRAME_IN_FLIGHT_COUNT,
-            uniformBuffer))
-    {
-        HLS_ERROR("Failed to create uniform buffer!");
-    }
 
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffer.handle;
-        bufferInfo.offset = i * sizeof(UniformData);
-        bufferInfo.range = sizeof(UniformData);
-
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = sUniformDescriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-
-        vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
-                               nullptr);
+        if (!Hls::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
+                                      uniformBuffers[i]))
+        {
+            HLS_ERROR("Failed to create uniform buffer!");
+        }
     }
 
     Hls::GraphicsPipelineFixedStateStage fixedState{};
@@ -287,8 +222,7 @@ int main(int argc, char* argv[])
                                    time};
 
         Hls::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
-                                     device.frameIndex * sizeof(UniformData),
-                                     uniformBuffer);
+                                     0, uniformBuffers[device.frameIndex]);
 
         Hls::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline);
@@ -296,10 +230,12 @@ int main(int argc, char* argv[])
     }
 
     Hls::WaitAllDevicesIdle(context);
-    Hls::DestroyUniformBuffer(device, uniformBuffer);
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        Hls::DestroyUniformBuffer(device, uniformBuffers[i]);
+    }
     Hls::DestroyTexture(device, texture);
 
-    Hls::DestroyDescriptorPool(device, sDescriptorPool);
     Hls::DestroyGraphicsPipeline(device, graphicsPipeline);
     Hls::DestroyContext(context);
 

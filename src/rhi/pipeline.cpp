@@ -295,42 +295,18 @@ CreatePipelineLayout(Device& device,
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
+    VkPushConstantRange pushConstantRange;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size =
+        sizeof(u32) * 2; // 128 byte is guaranteed by Vulkan
+
     VkPipelineLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-    u32 totalDescriptorSetCount = 0;
-    for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
-    {
-        ShaderType shaderType = static_cast<ShaderType>(i);
-        totalDescriptorSetCount +=
-            programmableState[shaderType].descriptorSetLayoutCount;
-    }
-
-    VkDescriptorSetLayout* totalDescriptorSets = nullptr;
-    if (totalDescriptorSetCount > 0)
-    {
-
-        totalDescriptorSets =
-            HLS_ALLOC(arena, VkDescriptorSetLayout, totalDescriptorSetCount);
-        u32 k = 0;
-        for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
-        {
-            ShaderType shaderType = static_cast<ShaderType>(i);
-            for (u32 j = 0;
-                 j < programmableState[shaderType].descriptorSetLayoutCount;
-                 j++)
-            {
-                totalDescriptorSets[k++] = programmableState[shaderType]
-                                               .descriptorSetLayouts[j]
-                                               .handle;
-            }
-        }
-    }
-
-    createInfo.setLayoutCount = totalDescriptorSetCount;
-    createInfo.pSetLayouts = totalDescriptorSets;
-    createInfo.pushConstantRangeCount = 0;
-    createInfo.pPushConstantRanges = nullptr;
+    createInfo.setLayoutCount = 1;
+    createInfo.pSetLayouts = &device.bindlessDescriptorSetLayout;
+    createInfo.pPushConstantRanges = &pushConstantRange;
+    createInfo.pushConstantRangeCount = 1;
 
     VkResult res =
         vkCreatePipelineLayout(device.logicalDevice, &createInfo,

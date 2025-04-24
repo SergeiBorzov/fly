@@ -189,6 +189,25 @@ bool TransferImageDataToTexture(Device& device, const Image& image,
     EndTransfer(device);
 
     vmaDestroyBuffer(device.allocator, stagingBuffer, allocation);
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = texture.imageView;
+    imageInfo.sampler = texture.sampler;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = device.bindlessDescriptorSet;
+    descriptorWrite.dstBinding = HLS_TEXTURE_BINDING_INDEX;
+    descriptorWrite.dstArrayElement = device.bindlessTextureHandleCount;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                           nullptr);
+
+    texture.bindlessHandle = device.bindlessTextureHandleCount++;
     return true;
 }
 
