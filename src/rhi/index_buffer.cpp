@@ -5,6 +5,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 bool CopyDataToIndexBuffer(Device& device, const u32* indices, u32 indexCount,
                            u32 offsetCount, IndexBuffer& indexBuffer)
@@ -97,4 +99,5 @@ void DestroyIndexBuffer(Device& device, IndexBuffer& indexBuffer)
     indexBuffer.handle = VK_NULL_HANDLE;
 }
 
+} // namespace RHI
 } // namespace Hls

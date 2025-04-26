@@ -30,6 +30,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationLayerCallbackFunc(
 
 namespace Hls
 {
+namespace RHI
+{
+
 bool IsLayerSupported(VkLayerProperties* layerProperties,
                       u32 layerPropertiesCount, const char* layerName)
 {
@@ -998,4 +1001,5 @@ void WaitAllDevicesIdle(Context& context)
     }
 }
 
+} // namespace RHI
 } // namespace Hls

@@ -12,13 +12,15 @@
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
+using namespace Hls;
+
 struct UniformData
 {
-    Hls::Math::Mat4 projection = {};
-    Hls::Math::Mat4 view = {};
+    Math::Mat4 projection = {};
+    Math::Mat4 view = {};
 };
 
-static Hls::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
 static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
@@ -38,22 +40,22 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     HLS_ERROR("GLFW - error: %s", description);
 }
 
-static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline,
+static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                            const Hls::Scene& scene)
 {
-    Hls::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    const Hls::SwapchainTexture& swapchainTexture =
+    const RHI::SwapchainTexture& swapchainTexture =
         RenderFrameSwapchainTexture(device);
     VkRect2D renderArea = {{0, 0},
                            {swapchainTexture.width, swapchainTexture.height}};
-    VkRenderingAttachmentInfo colorAttachment = Hls::ColorAttachmentInfo(
+    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
         swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo depthAttachment = Hls::DepthAttachmentInfo(
+    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
         device.depthTexture.imageView,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo =
-        Hls::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
+        RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -133,7 +135,7 @@ int main(int argc, char* argv[])
     // Create graphics context
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-    Hls::ContextSettings settings{};
+    RHI::ContextSettings settings{};
     settings.deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
@@ -141,28 +143,28 @@ int main(int argc, char* argv[])
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = Hls::GetNativeWindowPtr(window);
 
-    Hls::Context context;
-    if (!Hls::CreateContext(settings, context))
+    RHI::Context context;
+    if (!RHI::CreateContext(settings, context))
     {
         HLS_ERROR("Failed to create context");
         return -1;
     }
-    Hls::Device& device = context.devices[0];
+    RHI::Device& device = context.devices[0];
 
     // Pipeline
-    Hls::GraphicsPipelineProgrammableStage programmableStage{};
-    Hls::ShaderPathMap shaderPathMap{};
+    RHI::GraphicsPipelineProgrammableStage programmableStage{};
+    RHI::ShaderPathMap shaderPathMap{};
     Hls::Path::Create(arena, HLS_STRING8_LITERAL("unlit.vert.spv"),
-                      shaderPathMap[Hls::ShaderType::Vertex]);
+                      shaderPathMap[RHI::ShaderType::Vertex]);
     Hls::Path::Create(arena, HLS_STRING8_LITERAL("unlit.frag.spv"),
-                      shaderPathMap[Hls::ShaderType::Fragment]);
-    if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
+                      shaderPathMap[RHI::ShaderType::Fragment]);
+    if (!RHI::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableStage))
     {
         HLS_ERROR("Failed to load and create shader modules");
     }
 
-    Hls::GraphicsPipelineFixedStateStage fixedState{};
+    RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
     fixedState.pipelineRendering.depthAttachmentFormat =
@@ -173,19 +175,19 @@ int main(int argc, char* argv[])
     fixedState.rasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-    Hls::GraphicsPipeline graphicsPipeline{};
-    if (!Hls::CreateGraphicsPipeline(device, fixedState, programmableStage,
+    RHI::GraphicsPipeline graphicsPipeline{};
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, programmableStage,
                                      graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;
     }
-    Hls::DestroyGraphicsPipelineProgrammableStage(device, programmableStage);
+    RHI::DestroyGraphicsPipelineProgrammableStage(device, programmableStage);
 
     // Camera data
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        if (!Hls::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
+        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
                                       sUniformBuffers[i]))
         {
             HLS_ERROR("Failed to create uniform buffer!");
@@ -216,23 +218,23 @@ int main(int argc, char* argv[])
 
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
-        Hls::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
+        RHI::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
                                      0, sUniformBuffers[device.frameIndex]);
 
-        Hls::BeginRenderFrame(device);
+        RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline, scene);
-        Hls::EndRenderFrame(device);
+        RHI::EndRenderFrame(device);
     }
 
-    Hls::WaitAllDevicesIdle(context);
+    RHI::WaitAllDevicesIdle(context);
 
     Hls::UnloadScene(device, scene);
-    Hls::DestroyGraphicsPipeline(device, graphicsPipeline);
+    RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        Hls::DestroyUniformBuffer(device, sUniformBuffers[i]);
+        RHI::DestroyUniformBuffer(device, sUniformBuffers[i]);
     }
-    Hls::DestroyContext(context);
+    RHI::DestroyContext(context);
 
     glfwDestroyWindow(window);
     glfwTerminate();

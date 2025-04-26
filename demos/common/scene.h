@@ -14,8 +14,8 @@ namespace Hls
 
 struct Submesh
 {
-    StorageBuffer vertexBuffer;
-    IndexBuffer indexBuffer;
+    RHI::StorageBuffer vertexBuffer;
+    RHI::IndexBuffer indexBuffer;
     u32 indexCount = 0;
     u32 materialIndex = 0;
 };
@@ -28,7 +28,7 @@ struct Mesh
 
 struct TextureProperty
 {
-    Hls::Texture texture;
+    RHI::Texture texture;
     Math::Vec2 offset = {0.0f, 0.0f};
     Math::Vec2 scale = {1.0f, 1.0f};
 };
@@ -42,15 +42,15 @@ struct Scene
 {
     Mesh* meshes = nullptr;
     Material* materials = nullptr;
-    Texture* textures = nullptr;
+    RHI::Texture* textures = nullptr;
     u32 materialCount = 0;
     u32 meshCount = 0;
     u32 textureCount = 0;
 };
 
-bool LoadSceneFromGLTF(Arena& arena, Device& device, const char* path,
+bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
                        Scene& scene);
-void UnloadScene(Device& device, Scene& scene);
+void UnloadScene(RHI::Device& device, Scene& scene);
 
 } // namespace Hls
 #endif /* HLS_DEMOS_COMMON_SCENE_H */

@@ -7,11 +7,10 @@
 
 namespace Hls
 {
-struct Device;
-}
-
-namespace Hls
+namespace RHI
 {
+
+struct Device;
 
 struct SwapchainTexture
 {
@@ -55,6 +54,7 @@ bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
                    u32 maxAnisotropy = 8);
 void DestroyTexture(Device& device, Texture& texture);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_RHI_IMAGE_H */

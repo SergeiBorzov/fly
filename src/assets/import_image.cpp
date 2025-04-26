@@ -16,7 +16,7 @@
 namespace Hls
 {
 
-static void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
+static void GenerateMipmaps(RHI::CommandBuffer& cmd, RHI::Texture& texture)
 {
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -121,8 +121,8 @@ void FreeImage(Image& image)
     stbi_image_free(image.data);
 }
 
-bool TransferImageDataToTexture(Device& device, const Image& image,
-                                Texture& texture)
+bool TransferImageDataToTexture(RHI::Device& device, const Image& image,
+                                RHI::Texture& texture)
 {
     HLS_ASSERT(image.data);
     HLS_ASSERT(image.width);
@@ -163,9 +163,9 @@ bool TransferImageDataToTexture(Device& device, const Image& image,
     vmaUnmapMemory(device.allocator, allocation);
 
     BeginTransfer(device);
-    CommandBuffer& cmd = TransferCommandBuffer(device);
+    RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
 
-    RecordTransitionImageLayout(cmd, texture.handle, VK_IMAGE_LAYOUT_UNDEFINED,
+    RHI::RecordTransitionImageLayout(cmd, texture.handle, VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     VkBufferImageCopy copyRegion{};

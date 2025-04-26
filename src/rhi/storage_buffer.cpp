@@ -5,6 +5,9 @@
 
 namespace Hls
 {
+namespace RHI
+{
+
 bool CopyDataToStorageBuffer(Device& device, const void* data, u64 size,
                              u64 offset, StorageBuffer& storageBuffer)
 {
@@ -114,4 +117,5 @@ void DestroyStorageBuffer(Device& device, StorageBuffer& storageBuffer)
     storageBuffer.handle = VK_NULL_HANDLE;
 }
 
+} // namespace RHI
 } // namespace Hls

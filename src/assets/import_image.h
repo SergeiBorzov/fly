@@ -4,9 +4,13 @@
 namespace Hls
 {
 
-struct Path;
+namespace RHI
+{
 struct Device;
 struct Texture;
+} // namespace RHI
+
+struct Path;
 
 struct Image
 {
@@ -20,8 +24,8 @@ bool ImportImageFromFile(const Hls::Path& path, Image& image);
 bool ImportImageFromFile(const char* path, Image& image);
 void FreeImage(Image& image);
 
-bool TransferImageDataToTexture(Device& device, const Image& image,
-                                Texture& texture);
+bool TransferImageDataToTexture(RHI::Device& device, const Image& image,
+                                RHI::Texture& texture);
 
 } // namespace Hls
 

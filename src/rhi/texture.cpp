@@ -21,6 +21,8 @@ static u32 Log2(u32 x)
 
 namespace Hls
 {
+namespace RHI
+{
 
 bool CreateTexture(Device& device, u32 width, u32 height, VkFormat format,
                    Texture& texture, bool generateMipMaps, u32 maxAnisotropy)
@@ -195,4 +197,5 @@ void DestroyDepthTexture(Device& device, DepthTexture& depthTexture)
     depthTexture.handle = VK_NULL_HANDLE;
 }
 
+} // namespace RHI
 } // namespace Hls

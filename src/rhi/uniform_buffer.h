@@ -8,6 +8,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 struct Device;
 
@@ -25,7 +27,7 @@ bool CreateUniformBuffer(Device& device, const void* data, u64 size,
 void DestroyUniformBuffer(Device& device, UniformBuffer& uniformBuffer);
 bool CopyDataToUniformBuffer(Device& device, const void* data, u64 size,
                              u64 offset, UniformBuffer& uniformBuffer);
-
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_RHI_UNIFORM_BUFFER_H */

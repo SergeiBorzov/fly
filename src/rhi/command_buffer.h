@@ -7,6 +7,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 struct Device;
 
@@ -59,6 +61,8 @@ RenderingInfo(const VkRect2D& renderArea,
               u32 colorAttachmentCount,
               const VkRenderingAttachmentInfo* depthAttachment = nullptr,
               const VkRenderingAttachmentInfo* stencilAttachment = nullptr);
+
+} // namespace RHI
 } // namespace Hls
 
 #endif /* End of HLS_COMMAND_BUFFER_H */

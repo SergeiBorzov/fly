@@ -12,12 +12,11 @@
 
 namespace Hls
 {
+namespace RHI
+{
+
 struct Context;
 struct CommandBuffer;
-} // namespace Hls
-
-namespace Hls
-{
 
 struct FrameData
 {
@@ -80,6 +79,7 @@ bool EndRenderFrame(Device& device);
 
 void DeviceWaitIdle(Device& device);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_RHI_DEVICE_H */

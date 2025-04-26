@@ -10,6 +10,8 @@ struct Image;
 
 namespace Hls
 {
+namespace RHI
+{
 
 struct Device;
 struct Buffer;
@@ -40,6 +42,7 @@ bool LoadProgrammableStage(
     Arena& arena, Device& device, const ShaderPathMap& shaderPathMap,
     GraphicsPipelineProgrammableStage& programmableStage);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* End of HLS_RHI_UTILS_H */

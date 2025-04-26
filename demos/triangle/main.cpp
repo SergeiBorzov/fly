@@ -24,19 +24,20 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     HLS_ERROR("GLFW - error: %s", description);
 }
 
-static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline)
+using namespace Hls;
+static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
 {
-    Hls::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    const Hls::SwapchainTexture& swapchainTexture =
+    const RHI::SwapchainTexture& swapchainTexture =
         RenderFrameSwapchainTexture(device);
 
     VkRect2D renderArea = {{0, 0},
                            {swapchainTexture.width, swapchainTexture.height}};
-    VkRenderingAttachmentInfo colorAttachment = Hls::ColorAttachmentInfo(
+    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
         swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo =
-        Hls::RenderingInfo(renderArea, &colorAttachment, 1);
+        RHI::RenderingInfo(renderArea, &colorAttachment, 1);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -96,62 +97,62 @@ int main(int argc, char* argv[])
     // Device extensions
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-    Hls::ContextSettings settings{};
+    RHI::ContextSettings settings{};
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = Hls::GetNativeWindowPtr(window);
 
-    Hls::Context context;
-    if (!Hls::CreateContext(settings, context))
+    RHI::Context context;
+    if (!RHI::CreateContext(settings, context))
     {
         HLS_ERROR("Failed to create context");
         return -1;
     }
 
-    Hls::Device& device = context.devices[0];
+    RHI::Device& device = context.devices[0];
 
-    Hls::GraphicsPipelineProgrammableStage programmableState{};
-    Hls::ShaderPathMap shaderPathMap{};
+    RHI::GraphicsPipelineProgrammableStage programmableState{};
+    RHI::ShaderPathMap shaderPathMap{};
     Hls::Path::Create(arena, HLS_STRING8_LITERAL("triangle.vert.spv"),
-                      shaderPathMap[Hls::ShaderType::Vertex]);
+                      shaderPathMap[RHI::ShaderType::Vertex]);
     Hls::Path::Create(arena, HLS_STRING8_LITERAL("triangle.frag.spv"),
-                      shaderPathMap[Hls::ShaderType::Fragment]);
-    if (!Hls::LoadProgrammableStage(arena, device, shaderPathMap,
+                      shaderPathMap[RHI::ShaderType::Fragment]);
+    if (!RHI::LoadProgrammableStage(arena, device, shaderPathMap,
                                     programmableState))
     {
         HLS_ERROR("Failed to load and create shader modules");
     }
 
-    Hls::GraphicsPipelineFixedStateStage fixedState{};
+    RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
 
-    Hls::GraphicsPipeline graphicsPipeline{};
-    if (!Hls::CreateGraphicsPipeline(device, fixedState, programmableState,
+    RHI::GraphicsPipeline graphicsPipeline{};
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, programmableState,
                                      graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;
     }
-    Hls::DestroyGraphicsPipelineProgrammableStage(device, programmableState);
+    RHI::DestroyGraphicsPipelineProgrammableStage(device, programmableState);
 
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
-        Hls::BeginRenderFrame(device);
+        RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline);
-        Hls::EndRenderFrame(device);
+        RHI::EndRenderFrame(device);
     }
 
-    Hls::WaitAllDevicesIdle(context);
+    RHI::WaitAllDevicesIdle(context);
 
-    Hls::DestroyGraphicsPipeline(device, graphicsPipeline);
-    Hls::DestroyContext(context);
+    RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
+    RHI::DestroyContext(context);
 
     glfwDestroyWindow(window);
     glfwTerminate();

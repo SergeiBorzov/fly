@@ -8,6 +8,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 struct Device;
 
@@ -24,6 +26,7 @@ void DestroyIndexBuffer(Device& device, IndexBuffer& indexBuffer);
 bool CopyDataToIndexBuffer(Device& device, const u32* indices, u32 indexCount,
                            u32 offsetCount, IndexBuffer& storageBuffer);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_RHI_INDEX_BUFFER_H */

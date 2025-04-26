@@ -11,6 +11,8 @@ struct Arena;
 
 namespace Hls
 {
+namespace RHI
+{
 
 struct Device;
 
@@ -138,6 +140,7 @@ void DestroyGraphicsPipeline(Device& device,
 void DestroyGraphicsPipelineProgrammableStage(
     Device& device, GraphicsPipelineProgrammableStage& programmableStage);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_RHI_PIPELINE_H */

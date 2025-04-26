@@ -5,6 +5,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 void* VKAPI_PTR VulkanAlloc(void* pUserData, size_t size, size_t alignment,
                             VkSystemAllocationScope scope)
@@ -37,4 +39,5 @@ const VkAllocationCallbacks* GetVulkanAllocationCallbacks()
     return &allocationCallbacks;
 }
 
+} // namespace RHI
 } // namespace Hls

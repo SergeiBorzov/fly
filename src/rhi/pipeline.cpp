@@ -9,6 +9,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 static VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo(
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -530,4 +532,5 @@ void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
     graphicsPipeline.layout = VK_NULL_HANDLE;
 }
 
+} // namespace RHI
 } // namespace Hls

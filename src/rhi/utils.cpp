@@ -10,6 +10,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 bool LoadProgrammableStage(Arena& arena, Device& device,
                            const ShaderPathMap& shaderPathMap,
@@ -36,8 +38,9 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
             ArenaPopToMarker(scratch, marker);
             return false;
         }
-        if (!Hls::CreateShaderModule(arena, device, spvSource.Data(), spvSource.Size(),
-                                     programmableStage[shaderType]))
+        if (!CreateShaderModule(arena, device, spvSource.Data(),
+                                spvSource.Size(),
+                                programmableStage[shaderType]))
         {
             ArenaPopToMarker(scratch, marker);
             return false;
@@ -50,4 +53,5 @@ bool LoadProgrammableStage(Arena& arena, Device& device,
     return true;
 }
 
+} // namespace RHI
 } // namespace Hls

@@ -3,11 +3,14 @@
 #include "core/thread_context.h"
 
 #include "command_buffer.h"
-#include "context.h"
+#include "device.h"
 
 namespace Hls
 {
-bool CreateCommandBuffers(const Hls::Device& device, VkCommandPool commandPool,
+namespace RHI
+{
+
+bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary)
 {
@@ -54,8 +57,7 @@ bool CreateCommandBuffers(const Hls::Device& device, VkCommandPool commandPool,
     return res == VK_SUCCESS;
 }
 
-void DestroyCommandBuffers(const Hls::Device& device,
-                           CommandBuffer* commandBuffers,
+void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount)
 {
     HLS_ASSERT(commandBuffers);
@@ -301,4 +303,5 @@ RenderingInfo(const VkRect2D& renderArea,
     return renderInfo;
 }
 
+} // namespace RHI
 } // namespace Hls

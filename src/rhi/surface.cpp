@@ -14,6 +14,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 bool CreateSurface(Context& context)
 {
@@ -67,4 +69,5 @@ void PollWindowEvents(Context& context)
 #endif
 }
 
+} // namespace RHI
 } // namespace Hls

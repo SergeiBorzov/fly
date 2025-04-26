@@ -175,6 +175,8 @@ static const char* ColorSpaceToString(VkColorSpaceKHR colorSpace)
 
 namespace Hls
 {
+namespace RHI
+{
 
 /////////////////////////////////////////////////////////////////////////////
 // Swapchain
@@ -942,4 +944,5 @@ void EndTransfer(Device& device)
 
 void DeviceWaitIdle(Device& device) { vkDeviceWaitIdle(device.logicalDevice); }
 
+} // namespace RHI
 } // namespace Hls

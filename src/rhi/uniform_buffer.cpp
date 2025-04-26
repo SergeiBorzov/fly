@@ -5,6 +5,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 bool CopyDataToUniformBuffer(Device& device, const void* data, u64 size,
                              u64 offset, UniformBuffer& uniformBuffer)
@@ -83,4 +85,5 @@ void DestroyUniformBuffer(Device& device, UniformBuffer& uniformBuffer)
     uniformBuffer.handle = VK_NULL_HANDLE;
 }
 
+} // namespace RHI
 } // namespace Hls

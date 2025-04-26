@@ -7,11 +7,10 @@
 
 namespace Hls
 {
-struct Context;
-}
-
-namespace Hls
+namespace RHI
 {
+
+struct Context;
 
 struct PhysicalDeviceInfo
 {
@@ -84,6 +83,7 @@ bool CreateContext(ContextSettings& settings, Context& outContext);
 void DestroyContext(Context& context);
 void WaitAllDevicesIdle(Context& context);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_CONTEXT_H */

@@ -18,7 +18,7 @@ struct Vertex
     f32 uvY;
 };
 
-static bool ProcessPrimitiveIndices(Device& device, cgltf_data* data,
+static bool ProcessPrimitiveIndices(RHI::Device& device, cgltf_data* data,
                                     cgltf_accessor* accessor, Submesh& submesh)
 {
     HLS_ASSERT(data);
@@ -31,8 +31,9 @@ static bool ProcessPrimitiveIndices(Device& device, cgltf_data* data,
     cgltf_accessor_unpack_indices(accessor, indices, sizeof(u32),
                                   accessor->count);
 
-    if (!CreateIndexBuffer(device, indices, static_cast<u32>(accessor->count),
-                           submesh.indexBuffer))
+    if (!RHI::CreateIndexBuffer(device, indices,
+                                static_cast<u32>(accessor->count),
+                                submesh.indexBuffer))
     {
         return false;
     }
@@ -42,7 +43,7 @@ static bool ProcessPrimitiveIndices(Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessPrimitiveVertices(Device& device, cgltf_data* data,
+static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
                                      cgltf_primitive* primitive,
                                      Submesh& submesh)
 {
@@ -142,8 +143,9 @@ static bool ProcessPrimitiveVertices(Device& device, cgltf_data* data,
         ArenaPopToMarker(scratch, loopMarker);
     }
 
-    if (!CreateStorageBuffer(device, vertices, sizeof(Vertex) * vertexCount,
-                             submesh.vertexBuffer))
+    if (!RHI::CreateStorageBuffer(device, vertices,
+                                  sizeof(Vertex) * vertexCount,
+                                  submesh.vertexBuffer))
     {
         return false;
     }
@@ -152,7 +154,7 @@ static bool ProcessPrimitiveVertices(Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessPrimitiveMaterial(Device& device, cgltf_data* data,
+static bool ProcessPrimitiveMaterial(RHI::Device& device, cgltf_data* data,
                                      cgltf_material* material, Submesh& submesh)
 {
     HLS_ASSERT(data);
@@ -168,7 +170,7 @@ static bool ProcessPrimitiveMaterial(Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessPrimitive(Device& device, cgltf_data* data,
+static bool ProcessPrimitive(RHI::Device& device, cgltf_data* data,
                              cgltf_primitive* primitive, Submesh& submesh)
 {
     HLS_ASSERT(data);
@@ -191,7 +193,7 @@ static bool ProcessPrimitive(Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessMaterial(Device& device, cgltf_data* data,
+static bool ProcessMaterial(RHI::Device& device, cgltf_data* data,
                             cgltf_material* material, Scene& scene,
                             Material& hlsMaterial)
 {
@@ -224,8 +226,8 @@ static bool ProcessMaterial(Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessTexture(Device& device, cgltf_data* data,
-                           cgltf_texture* texture, Hls::Texture& hlsTexture)
+static bool ProcessTexture(RHI::Device& device, cgltf_data* data,
+                           cgltf_texture* texture, RHI::Texture& hlsTexture)
 {
     HLS_ASSERT(data);
     HLS_ASSERT(texture);
@@ -242,7 +244,7 @@ static bool ProcessTexture(Device& device, cgltf_data* data,
         return false;
     }
 
-    if (!Hls::CreateTexture(device, image.width, image.height,
+    if (!RHI::CreateTexture(device, image.width, image.height,
                             VK_FORMAT_R8G8B8A8_SRGB, hlsTexture))
     {
         HLS_ERROR("Failed to create texture %s", texture->image->uri);
@@ -259,7 +261,7 @@ static bool ProcessTexture(Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessScene(Arena& arena, Device& device, cgltf_data* data,
+static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
                          cgltf_scene* scene, Scene& hlsScene)
 {
     HLS_ASSERT(data);
@@ -278,7 +280,7 @@ static bool ProcessScene(Arena& arena, Device& device, cgltf_data* data,
     hlsScene.materialCount = static_cast<u32>(data->materials_count);
     hlsScene.materials = HLS_ALLOC(arena, Material, hlsScene.materialCount);
     hlsScene.textureCount = static_cast<u32>(data->textures_count);
-    hlsScene.textures = HLS_ALLOC(arena, Texture, hlsScene.textureCount);
+    hlsScene.textures = HLS_ALLOC(arena, RHI::Texture, hlsScene.textureCount);
 
     for (u64 i = 0; i < data->textures_count; i++)
     {
@@ -313,7 +315,7 @@ static bool ProcessScene(Arena& arena, Device& device, cgltf_data* data,
     return true;
 }
 
-bool LoadSceneFromGLTF(Arena& arena, Device& device, const char* path,
+bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
                        Scene& scene)
 {
     cgltf_options options{};
@@ -333,21 +335,21 @@ bool LoadSceneFromGLTF(Arena& arena, Device& device, const char* path,
     return true;
 }
 
-void UnloadScene(Device& device, Scene& scene)
+void UnloadScene(RHI::Device& device, Scene& scene)
 {
     for (u64 i = 0; i < scene.meshCount; i++)
     {
         for (u64 j = 0; j < scene.meshes[i].submeshCount; j++)
         {
-            Hls::DestroyStorageBuffer(
+            RHI::DestroyStorageBuffer(
                 device, scene.meshes[i].submeshes[j].vertexBuffer);
-            Hls::DestroyIndexBuffer(device,
+            RHI::DestroyIndexBuffer(device,
                                     scene.meshes[i].submeshes[j].indexBuffer);
         }
 
         for (u64 j = 0; j < scene.textureCount; j++)
         {
-            Hls::DestroyTexture(device, scene.textures[j]);
+            RHI::DestroyTexture(device, scene.textures[j]);
         }
     }
 }

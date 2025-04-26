@@ -8,6 +8,8 @@
 
 namespace Hls
 {
+namespace RHI
+{
 
 struct Device;
 
@@ -25,6 +27,7 @@ void DestroyStorageBuffer(Device& device, StorageBuffer& storageBuffer);
 bool CopyDataToStorageBuffer(Device& device, const void* data, u64 size,
                              u64 offset, StorageBuffer& storageBuffer);
 
+} // namespace RHI
 } // namespace Hls
 
 #endif /* HLS_RHI_STORAGE_BUFFER_H */
