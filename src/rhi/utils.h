@@ -1,7 +1,7 @@
 #ifndef HLS_RHI_UTILS_H
 #define HLS_RHI_UTILS_H
 
-#include "core/string8.h"
+#include "core/filesystem.h"
 
 #include "pipeline.h"
 
@@ -14,6 +14,7 @@ namespace Hls
 struct Device;
 struct Buffer;
 struct Texture;
+struct GraphicsPipelineProgrammableStage;
 
 struct ShaderPathMap
 {
