@@ -1,4 +1,14 @@
 filegroup(
+    name = "box_textured_scene",
+    srcs = [
+        "2.0/BoxTextured/glTF/BoxTextured.gltf",
+        "2.0/BoxTextured/glTF/BoxTextured0.bin",
+        "2.0/BoxTextured/glTF/CesiumLogoFlat.png",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
     name = "sponza_scene",
     srcs = [
         "2.0/Sponza/glTF/10381718147657362067.jpg",
@@ -80,7 +90,7 @@ filegroup(
     name = "a_beautiful_game_scene",
     srcs = [
         "2.0/ABeautifulGame/glTF/ABeautifulGame.bin",
-        "2.0/ABeautifulGame/glTf/ABeautifulGame.gltf",
+        "2.0/ABeautifulGame/glTF/ABeautifulGame.gltf",
         "2.0/ABeautifulGame/glTF/bishop_black_base_color.jpg",
         "2.0/ABeautifulGame/glTF/bishop_black_normal.jpg",
         "2.0/ABeautifulGame/glTF/Bishop_black_ORM.jpg",
