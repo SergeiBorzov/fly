@@ -16,6 +16,7 @@ struct StorageBuffer
     VmaAllocationInfo allocationInfo;
     VkBuffer handle = VK_NULL_HANDLE;
     VmaAllocation allocation;
+    u32 bindlessHandle = HLS_MAX_U32;
 };
 
 bool CreateStorageBuffer(Device& device, const void* data, u64 size,

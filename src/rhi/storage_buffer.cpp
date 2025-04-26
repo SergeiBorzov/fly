@@ -1,7 +1,7 @@
 #include "core/assert.h"
 
-#include "storage_buffer.h"
 #include "device.h"
+#include "storage_buffer.h"
 
 namespace Hls
 {
@@ -84,6 +84,24 @@ bool CreateStorageBuffer(Device& device, const void* data, u64 size,
     {
         CopyDataToStorageBuffer(device, data, size, 0, storageBuffer);
     }
+
+    VkDescriptorBufferInfo bufferInfo{};
+    bufferInfo.buffer = storageBuffer.handle;
+    bufferInfo.offset = 0;
+    bufferInfo.range = size;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = device.bindlessDescriptorSet;
+    descriptorWrite.dstBinding = HLS_STORAGE_BUFFER_BINDING_INDEX;
+    descriptorWrite.dstArrayElement = device.bindlessStorageBufferHandleCount;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pBufferInfo = &bufferInfo;
+
+    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                           nullptr);
+    storageBuffer.bindlessHandle = device.bindlessStorageBufferHandleCount++;
 
     return true;
 }

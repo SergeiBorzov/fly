@@ -4,11 +4,11 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "rhi/buffer.h"
 #include "rhi/context.h"
-#include "rhi/descriptor.h"
 #include "rhi/pipeline.h"
+#include "rhi/storage_buffer.h"
 #include "rhi/texture.h"
+#include "rhi/uniform_buffer.h"
 #include "rhi/utils.h"
 
 #include "platform/window.h"
@@ -34,18 +34,15 @@ struct Vertex
 
 struct Mesh
 {
-    Hls::Buffer vertexBuffer;
+    Hls::StorageBuffer vertexBuffer;
     i32 diffuseTexture = -1;
     u64 vertexCount = 0;
-    VkDescriptorSet descriptorSet;
 };
 
-static VkDescriptorSet* sUniformDescriptorSets = nullptr;
-static VkDescriptorSet* sMaterialDescriptorSets = nullptr;
 static Hls::Texture* sTextures = nullptr;
 static u32 sTextureCount = 0;
 
-static Hls::DescriptorPool sDescriptorPool = {};
+static Hls::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
 static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
@@ -159,20 +156,12 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
         mesh.vertexCount = s.faceCount * 3;
         const Vertex* start = &vertices[s.firstFaceIndex * 3];
 
-        if (!Hls::CreateBuffer(device,
-                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                               VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-                               VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
-                               sizeof(Vertex) * mesh.vertexCount,
-                               mesh.vertexBuffer))
+        if (!Hls::CreateStorageBuffer(device, start,
+                                      sizeof(Vertex) * mesh.vertexCount,
+                                      mesh.vertexBuffer))
         {
             return nullptr;
         }
-
-        bool res = TransferDataToBuffer(device, start,
-                                        sizeof(Vertex) * mesh.vertexCount,
-                                        mesh.vertexBuffer);
 
         i32 index = 0;
         for (u32 k = 0; k < textureCount; k++)
@@ -185,8 +174,6 @@ static Mesh* LoadMeshes(Arena& arena, Hls::Device& device, u32& meshCount)
         }
 
         mesh.diffuseTexture = index;
-
-        HLS_ASSERT(res);
     }
 
     for (u32 i = 0; i < textureCount; i++)
@@ -241,19 +228,18 @@ static void RecordCommands(Hls::Device& device, Hls::GraphicsPipeline& pipeline,
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(
-        cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1,
-        &sUniformDescriptorSets[device.frameIndex], 0, nullptr);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+
+    u32 indices[3] = {sUniformBuffers[device.frameIndex].bindlessHandle, 0, 0};
     for (u32 i = 0; i < meshCount; i++)
     {
         const Mesh& mesh = meshes[i];
-
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                pipeline.layout, 1, 1, &meshes[i].descriptorSet,
-                                0, nullptr);
-        vkCmdBindDescriptorSets(
-            cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 2, 1,
-            &sMaterialDescriptorSets[meshes[i].diffuseTexture], 0, nullptr);
+        indices[1] = mesh.vertexBuffer.bindlessHandle;
+        indices[2] = sTextures[mesh.diffuseTexture].bindlessHandle;
+        vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
+                           sizeof(u32) * 3, indices);
         vkCmdDraw(cmd.handle, static_cast<u32>(mesh.vertexCount), 1, 0, 0);
     }
 
@@ -335,94 +321,13 @@ int main(int argc, char* argv[])
     }
     HLS_LOG("Loaded %u meshes", meshCount);
 
-    VkDescriptorPoolSize poolSizes[3];
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = HLS_FRAME_IN_FLIGHT_COUNT;
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[1].descriptorCount = meshCount;
-    poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-    poolSizes[2].descriptorCount = sTextureCount;
-
-    if (!Hls::CreateDescriptorPool(device, poolSizes, 3,
-                                   meshCount + sTextureCount +
-                                       HLS_FRAME_IN_FLIGHT_COUNT,
-                                   sDescriptorPool))
-    {
-        return -1;
-    }
-
-    VkDescriptorSetLayout uniformDescriptorSetLayouts[2] = {
-        programmableStage[Hls::ShaderType::Vertex]
-            .descriptorSetLayouts[0]
-            .handle,
-        programmableStage[Hls::ShaderType::Vertex]
-            .descriptorSetLayouts[0]
-            .handle};
-    sUniformDescriptorSets =
-        HLS_ALLOC(arena, VkDescriptorSet, HLS_FRAME_IN_FLIGHT_COUNT);
-    if (!AllocateDescriptorSets(
-            device, sDescriptorPool, uniformDescriptorSetLayouts,
-            HLS_FRAME_IN_FLIGHT_COUNT, sUniformDescriptorSets))
-    {
-        HLS_ERROR("Failed to allocate uniform descriptors");
-        return -1;
-    }
-
-    for (u32 i = 0; i < meshCount; i++)
-    {
-        if (!AllocateDescriptorSets(device, sDescriptorPool,
-                                    &programmableStage[Hls::ShaderType::Vertex]
-                                         .descriptorSetLayouts[1]
-                                         .handle,
-                                    1, &meshes[i].descriptorSet))
-        {
-            HLS_ERROR("Failed to allocate mesh descriptors");
-            return -1;
-        }
-        Hls::BindBufferToDescriptorSet(device, meshes[i].vertexBuffer, 0,
-                                       sizeof(Vertex) * meshes[i].vertexCount,
-                                       meshes[i].descriptorSet,
-                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0);
-    }
-
-    sMaterialDescriptorSets = HLS_ALLOC(arena, VkDescriptorSet, sTextureCount);
-    for (u32 i = 0; i < sTextureCount; i++)
-    {
-        if (!AllocateDescriptorSets(
-                device, sDescriptorPool,
-                &programmableStage[Hls::ShaderType::Fragment]
-                     .descriptorSetLayouts[0]
-                     .handle,
-                1, &sMaterialDescriptorSets[i]))
-        {
-            HLS_ERROR("Failed to allocate material descriptor set");
-            return -1;
-        }
-        Hls::BindTextureToDescriptorSet(device, sTextures[i],
-                                        sMaterialDescriptorSets[i], 0);
-    }
-
-    Hls::Buffer uniformBuffer;
-    if (!Hls::CreateBuffer(
-            device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-            sizeof(UniformData) * HLS_FRAME_IN_FLIGHT_COUNT, uniformBuffer))
-    {
-        HLS_ERROR("Failed to create uniform buffer!");
-        return -1;
-    }
-    if (!Hls::MapBuffer(device, uniformBuffer))
-    {
-        HLS_ERROR("Failed to map the uniform buffer!");
-        return -1;
-    }
-
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        Hls::BindBufferToDescriptorSet(
-            device, uniformBuffer, i * sizeof(UniformData), sizeof(UniformData),
-            sUniformDescriptorSets[i], VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
+        if (!Hls::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
+                                      sUniformBuffers[i]))
+        {
+            HLS_ERROR("Failed to create uniform buffer!");
+        }
     }
 
     Hls::GraphicsPipelineFixedStateStage fixedState{};
@@ -461,9 +366,8 @@ int main(int argc, char* argv[])
 
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
-        Hls::CopyDataToBuffer(device, uniformBuffer,
-                              device.frameIndex * sizeof(UniformData),
-                              &uniformData, sizeof(UniformData));
+        Hls::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
+                                     0, sUniformBuffers[device.frameIndex]);
 
         Hls::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline, meshes, meshCount);
@@ -479,13 +383,14 @@ int main(int argc, char* argv[])
 
     for (u32 i = 0; i < meshCount; i++)
     {
-        Hls::DestroyBuffer(device, meshes[i].vertexBuffer);
+        Hls::DestroyStorageBuffer(device, meshes[i].vertexBuffer);
     }
 
-    Hls::UnmapBuffer(device, uniformBuffer);
-    Hls::DestroyBuffer(device, uniformBuffer);
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        Hls::DestroyUniformBuffer(device, sUniformBuffers[i]);
+    }
 
-    Hls::DestroyDescriptorPool(device, sDescriptorPool);
     Hls::DestroyGraphicsPipeline(device, graphicsPipeline);
     Hls::DestroyContext(context);
 

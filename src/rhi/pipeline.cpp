@@ -298,8 +298,7 @@ CreatePipelineLayout(Device& device,
     VkPushConstantRange pushConstantRange;
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
     pushConstantRange.offset = 0;
-    pushConstantRange.size =
-        sizeof(u32) * 2; // 128 byte is guaranteed by Vulkan
+    pushConstantRange.size = 128;
 
     VkPipelineLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
