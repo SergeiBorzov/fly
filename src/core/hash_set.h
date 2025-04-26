@@ -1,5 +1,5 @@
-#ifndef HLS_CORE_HASH_TRIE_H
-#define HLS_CORE_HASH_TRIE_H
+#ifndef HLS_CORE_HASH_SET_H
+#define HLS_CORE_HASH_SET_H
 
 #include "arena.h"
 #include "assert.h"
@@ -9,31 +9,31 @@
 namespace Hls
 {
 
-template <typename KeyType, typename ValueType>
-struct HashTrie
+template <typename T>
+struct HashSet
 {
     struct Node
     {
         Node* children[4];
-        KeyType key;
-        ValueType value;
+        T value;
     };
 
-    ValueType* Find(const KeyType& key)
+    bool Has(const T& value)
     {
         Node** node = &root_;
-        Hash<KeyType> hashFunc;
+        Hash<T> hashFunc;
+
         u64 h = hashFunc(value);
         do
         {
             if (!*node)
             {
-                return nullptr;
+                return false;
             }
 
-            if (key == (*node)->key)
+            if (value == (*node)->value)
             {
-                return &(*node)->value;
+                return true;
             }
 
             node = &(*node)->children[h & 3];
@@ -41,39 +41,39 @@ struct HashTrie
             h = hashFunc(value);
         } while (h != 0);
 
-        return nullptr;
+        return false;
     }
 
-    ValueType& Insert(Arena& arena, const KeyType& key,
-                      const ValueType& value = ValueType())
+    void Insert(Arena& arena, const T& value)
     {
         Node** node = &root_;
-        Hash<KeyType> hashFunc;
+        Hash<T> hashFunc;
 
-        u64 h = hashFunc(key);
+        u64 h = hashFunc(value);
         do
         {
             if (!*node)
             {
                 *node = HLS_ALLOC(arena, Node, 1);
-                (*node)->key = key;
                 (*node)->value = value;
                 Hls::MemZero((*node)->children, sizeof(Node*) * 4);
                 count_++;
-                return (*node)->value;
+                return;
             }
 
-            if (key == (*node)->key)
+            if (value == (*node)->value)
             {
-                return (*node)->value;
+                return;
             }
 
             node = &(*node)->children[h & 3];
+            h >>= 2;
+            h = hashFunc(value);
         } while (h != 0);
 
         // TODO: Handle hash collisions, if will ever happen
         HLS_ASSERT(false);
-        return (*node)->value;
+        return;
     }
 
     inline u64 Count() const { return count_; }
@@ -85,4 +85,4 @@ private:
 
 } // namespace Hls
 
-#endif /* HLS_CORE_HASH_TRIE_H */
+#endif /* HLS_CORE_HASH_SET_H */

@@ -93,6 +93,17 @@ cc_library(
 )
 
 cc_library(
+    name = "hash_set",
+    hdrs = [
+        "hash_set.h",
+    ],
+    deps = [
+        "hash",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "string8",
     hdrs = [
         "string8.h",
