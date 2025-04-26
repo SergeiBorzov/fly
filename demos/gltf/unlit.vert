@@ -16,7 +16,7 @@ layout(push_constant) uniform Indices
 {
     uint cameraIndex;
     uint vertexBufferIndex;
-    uint textureIndex;
+    uint albedoTextureIndex;
 } uIndices;
 
 layout(set = 0, binding = 0) uniform CameraMatrices

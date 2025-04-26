@@ -19,19 +19,11 @@ config_setting(
 )
 
 copy_files_to_directory(
-    name = "copy_obj_data",
+    name = "copy_scene_data",
     srcs = [
-        "@sponza_scene//:obj",
+        "@gltf_sample_models//:sponza_scene",
     ],
     output_directory = ".",
-)
-
-copy_files_to_directory(
-    name = "copy_texture_data",
-    srcs = [
-        "@sponza_scene//:textures",
-    ],
-    output_directory = "textures",
 )
 
 glsl_shader(
@@ -50,16 +42,15 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
-        "//src/assets:import",
         "//src/platform:window",
         "//src/rhi:context",
+        "//demos/common:scene",
         "//demos/common:simple_camera_fps",
     ],
     data = [
         ":unlit.frag.spv",
         ":unlit.vert.spv",
-        ":copy_obj_data",
-        ":copy_texture_data",
+        ":copy_scene_data",
     ] + select({
         ":release_build": [
         ],

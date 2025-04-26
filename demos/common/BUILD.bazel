@@ -14,3 +14,20 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+cc_library(
+    name = "scene",
+    hdrs = [
+        "scene.h",
+    ],
+    srcs = [
+        "scene.cpp",
+    ],
+    deps = [
+        "//src/math:math",
+        "//src/assets:import_gltf",
+        "//src/assets:import_image",
+    ],
+    visibility = ["//visibility:public"],
+)
+    
