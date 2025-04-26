@@ -15,6 +15,7 @@ struct Geometry
 {
     Hls::StorageBuffer vertexBuffer;
     Hls::IndexBuffer indexBuffer;
+    u32 indexCount = 0;
 };
 
 struct Mesh

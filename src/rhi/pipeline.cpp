@@ -287,10 +287,8 @@ static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
     return true;
 }
 
-static bool
-CreatePipelineLayout(Device& device,
-                     const GraphicsPipelineProgrammableStage& programmableState,
-                     VkPipelineLayout& pipelineLayout)
+static bool CreatePipelineLayout(Device& device,
+                                 VkPipelineLayout& pipelineLayout)
 {
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
@@ -412,8 +410,7 @@ bool CreateGraphicsPipeline(
                fixedState.pipelineRendering.colorAttachmentCount);
 
     // Programmable state
-    if (!CreatePipelineLayout(device, programmableState,
-                              graphicsPipeline.layout))
+    if (!CreatePipelineLayout(device, graphicsPipeline.layout))
     {
         return false;
     }

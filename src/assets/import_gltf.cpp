@@ -43,6 +43,7 @@ static bool ProcessPrimitiveIndices(Device& device, cgltf_data* data,
     {
         return false;
     }
+    geometry.indexCount = static_cast<u32>(accessor->count);
 
     ArenaPopToMarker(scratch, marker);
     return true;
@@ -112,32 +113,40 @@ static bool ProcessPrimitiveVertices(Device& device, cgltf_data* data,
         cgltf_buffer_view* bv = accessor->buffer_view;
         cgltf_buffer* buffer = bv->buffer;
 
+        ArenaMarker loopMarker = ArenaGetMarker(scratch);
         if (attribute.type == cgltf_attribute_type_position)
         {
+            f32* unpacked = HLS_ALLOC(scratch, f32, vertexCount * 3);
+            cgltf_accessor_unpack_floats(accessor, unpacked, vertexCount * 3);
             for (u64 j = 0; j < vertexCount; j++)
             {
-                cgltf_accessor_unpack_floats(accessor,
-                                             vertices[j].position.data, 3);
+                memcpy(vertices[j].position.data, unpacked + 3 * j,
+                       sizeof(f32) * 3);
+                vertices[j].position *= 0.01f;
             }
         }
         else if (attribute.type == cgltf_attribute_type_normal)
         {
+            f32* unpacked = HLS_ALLOC(scratch, f32, vertexCount * 3);
+            cgltf_accessor_unpack_floats(accessor, unpacked, vertexCount * 3);
             for (u64 j = 0; j < vertexCount; j++)
             {
-                cgltf_accessor_unpack_floats(accessor, vertices[j].normal.data,
-                                             3);
+                memcpy(vertices[j].normal.data, unpacked + 3 * j,
+                       sizeof(f32) * 3);
             }
         }
         else if (attribute.type == cgltf_attribute_type_texcoord)
         {
+            f32* unpacked = HLS_ALLOC(scratch, f32, vertexCount * 2);
+            cgltf_accessor_unpack_floats(accessor, unpacked, vertexCount * 3);
             for (u64 j = 0; j < vertexCount; j++)
             {
-                f32 uv[2];
-                cgltf_accessor_unpack_floats(accessor, uv, 2);
-                vertices[j].uvX = uv[0];
-                vertices[j].uvY = uv[1];
+                vertices[j].uvX = *(unpacked + 2 * j);
+                vertices[j].uvY = *(unpacked + 2 * j + 1);
             }
         }
+
+        ArenaPopToMarker(scratch, loopMarker);
     }
 
     if (!CreateStorageBuffer(device, vertices, sizeof(Vertex) * vertexCount,
@@ -174,35 +183,32 @@ static bool ProcessScene(Arena& arena, Device& device, cgltf_data* data,
     HLS_ASSERT(data);
     HLS_ASSERT(scene);
 
-    u64 meshCount = 0;
-    for (u64 i = 0; i < scene->nodes_count; i++)
+    if (data->meshes_count == 0)
     {
-        meshCount += scene->nodes[i]->mesh != nullptr;
+        return true;
     }
 
-    sceneData.meshes = HLS_ALLOC(arena, Mesh, meshCount);
-    sceneData.meshCount = static_cast<u32>(meshCount);
+    sceneData.meshes = HLS_ALLOC(arena, Mesh, data->meshes_count);
+    sceneData.meshCount = static_cast<u32>(data->meshes_count);
 
-    u64 meshIndex = 0;
-    for (u64 i = 0; i < scene->nodes_count; i++)
+    for (u64 i = 0; i < data->meshes_count; i++)
     {
-        cgltf_mesh* mesh = scene->nodes[i]->mesh;
+        cgltf_mesh* mesh = &data->meshes[i];
         if (mesh)
         {
-            sceneData.meshes[meshIndex].geometries =
+            sceneData.meshes[i].geometries =
                 HLS_ALLOC(arena, Geometry, mesh->primitives_count);
-            sceneData.meshes[meshIndex].geometryCount =
+            sceneData.meshes[i].geometryCount =
                 static_cast<u32>(mesh->primitives_count);
             for (u64 j = 0; j < mesh->primitives_count; j++)
             {
-                if (!ProcessPrimitive(
-                        device, data, &mesh->primitives[j],
-                        sceneData.meshes[meshIndex].geometries[j]))
+                if (!ProcessPrimitive(device, data, &mesh->primitives[j],
+                                      sceneData.meshes[i].geometries[j]))
                 {
                     return false;
                 }
             }
-            meshIndex++;
+            i++;
         }
     }
 
@@ -230,9 +236,10 @@ bool CopyGltfToDevice(Arena& arena, Device& device, cgltf_data* data,
 {
     if (data && data->scene)
     {
-        HLS_LOG("Buffer count: %llu", data->buffers_count);
-        HLS_LOG("Buffer view count: %llu", data->buffer_views_count);
-        ProcessScene(arena, device, data, data->scene, sceneData);
+        if (!ProcessScene(arena, device, data, data->scene, sceneData))
+        {
+            return false;
+        }
     }
 
     return true;
