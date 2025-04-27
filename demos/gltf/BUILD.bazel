@@ -29,11 +29,17 @@ copy_files_to_directory(
 glsl_shader(
     name = "unlit.vert.spv",
     src = "unlit.vert",
+    deps = [
+        "//demos/common:glsl_bindless"
+    ],
 )
 
 glsl_shader(
     name = "unlit.frag.spv",
     src = "unlit.frag",
+    deps = [
+        "//demos/common:glsl_bindless"
+    ],
 )
 
 cc_binary(

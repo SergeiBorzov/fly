@@ -1,21 +1,22 @@
 #version 450
-
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
 
 layout(push_constant) uniform Indices
 {
     uint cameraIndex;
     uint vertexBufferIndex;
     uint albedoTextureIndex;
-}
-uIndices;
+} gIndices;
 
-layout(set = 0, binding = 2) uniform sampler2D uDiffuseSamplers[];
+HLS_REGISTER_TEXTURE_BUFFER(AlbedoTexture, sampler2D)
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    outColor = texture(uDiffuseSamplers[uIndices.albedoTextureIndex], inUV);
+    outColor = texture(
+        HLS_ACCESS_TEXTURE_BUFFER(AlbedoTexture, gIndices.albedoTextureIndex),
+        inUV);
 }

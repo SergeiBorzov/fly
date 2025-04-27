@@ -1,4 +1,13 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_library")
+
+glsl_library(
+    name = "glsl_bindless",
+    hdrs = [
+        "bindless.glsl",
+    ],
+    visibility = ["//visibility:public"]
+)
 
 cc_library(
     name = "simple_camera_fps",

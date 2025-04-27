@@ -76,13 +76,57 @@ glslang_gen_extension_headers = rule(
     },
 )
 
+GlslInfo = provider(
+    fields = [
+        "includes",
+        "headers",
+    ],
+)
+
+def _glsl_library_impl(ctx):
+    includes = {}
+    for hdr in ctx.files.hdrs:
+        includes[hdr.dirname] = True
+
+    runfiles = ctx.runfiles(files = ctx.files.hdrs)
+    default_files = depset(direct = ctx.files.hdrs)
+
+    return [
+        GlslInfo(
+            headers = depset(direct = ctx.files.hdrs),
+            includes = depset(direct = includes.keys())
+        ),
+        DefaultInfo(files = default_files, runfiles = runfiles),
+    ]
+    
+glsl_library = rule(
+    implementation = _glsl_library_impl,
+    attrs = {
+        "hdrs": attr.label_list(
+            mandatory = True,
+            allow_files = True,
+        ),
+    },
+    provides = [DefaultInfo, GlslInfo],
+)
+
 def _glsl_shader_impl(ctx):
     spirv_name = ctx.file.src.basename + ".spv"
     spirv = ctx.actions.declare_file(spirv_name)
+
+    include_args = []
+    include_inputs = []
+    for dep in ctx.attr.deps:
+        for inc in dep[GlslInfo].includes.to_list():
+            include_args.append("-I{}".format(inc))
+
+        for hdr in dep[GlslInfo].headers.to_list():
+            include_inputs.append(hdr)
+            
     ctx.actions.run(
         inputs = [
             ctx.file.src,
-        ],
+        ] + include_inputs,
         outputs = [
             spirv,
         ],
@@ -92,7 +136,7 @@ def _glsl_shader_impl(ctx):
             ctx.file.src.path,
             "-o",
             spirv.path
-        ],
+        ] + include_args,
     )
 
     return [DefaultInfo(files = depset([spirv]))]
@@ -118,6 +162,10 @@ glsl_shader = rule(
                 ".rmiss",
                 ".rcall",
             ],
+        ),
+        "deps": attr.label_list(
+            mandatory = False,
+            providers = [GlslInfo],
         ),
         "_command": attr.label(
             cfg = "exec",

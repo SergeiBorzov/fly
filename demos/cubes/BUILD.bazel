@@ -29,11 +29,17 @@ config_setting(
 glsl_shader(
     name = "cubes.vert.spv",
     src = "cubes.vert",
+    deps = [
+        "//demos/common:glsl_bindless"
+    ],
 )
 
 glsl_shader(
     name = "cubes.frag.spv",
     src = "cubes.frag",
+    deps = [
+        "//demos/common:glsl_bindless"
+    ],
 )
 
 cc_binary(

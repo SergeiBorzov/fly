@@ -1,22 +1,23 @@
 #version 450
 
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
 
 layout(push_constant) uniform Indices
 {
     uint sceneDataIndex;
     uint textureIndex;
-} uIndices;
-
-layout(set = 0, binding = 0) uniform CameraMatrices
-{
-    mat4 projection;
-    mat4 view;
-    float time;
-} uSceneData[];
+}
+gIndices;
 
 layout(location = 0) out vec2 outUVs;
 layout(location = 1) out vec3 outColor;
+
+HLS_REGISTER_UNIFORM_BUFFER(SceneData, {
+    mat4 projection;
+    mat4 view;
+    float time;
+})
 
 const vec3 cubePositions[] = vec3[](
     vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f),
@@ -97,14 +98,17 @@ void main()
         vec3(r, Rand(gl_InstanceIndex % 7), Rand(gl_InstanceIndex % 21)) *
             10.0f -
         vec3(5.0f);
-    vec3 translate = direction * uSceneData[uIndices.sceneDataIndex].time;
 
-    float angle = uSceneData[uIndices.sceneDataIndex].time * r * 5.0f;
+    float time =
+        HLS_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, time);
+    vec3 translate = direction * time;
+    float angle = time * r * 5.0f;
     vec3 worldPos = (RotateY(angle) * RotateX(angle) * RotateZ(angle) *
                      cubePositions[gl_VertexIndex]) +
                     origin + translate;
 
-    gl_Position = uSceneData[uIndices.sceneDataIndex].projection *
-                  uSceneData[uIndices.sceneDataIndex].view *
-                  vec4(worldPos, 1.0f);
+    gl_Position =
+        HLS_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, projection) *
+        HLS_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, view) *
+            vec4(worldPos, 1.0f);
 }
