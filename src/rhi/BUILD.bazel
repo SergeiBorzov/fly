@@ -14,7 +14,7 @@ cc_library(
         "pipeline.h",
         "texture.h",
         "vma.h",
-        "utils.h",
+        "shader_program.h",
     ],
     srcs = [
         "allocation_callbacks.cpp",
@@ -27,13 +27,12 @@ cc_library(
         "uniform_buffer.cpp",
         "pipeline.cpp",
         "texture.cpp",
-        "utils.cpp",
+        "shader_program.cpp",
     ],
     includes = [".."],
     deps = [
         "@volk//:volk",
         "@vma//:vma",
-        "@spirv_reflect//:spirv_reflect",
         "//src/core:core",
     ],
     visibility = ["//visibility:public"],

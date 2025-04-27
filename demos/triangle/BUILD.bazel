@@ -36,6 +36,7 @@ cc_binary(
     deps = [
         "//src/platform:window",
         "//src/rhi:context",
+        "//demos/common:scene",
     ],
     data = [
         ":triangle.frag.spv",

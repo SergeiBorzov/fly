@@ -45,6 +45,7 @@ cc_binary(
         "//src/platform:window",
         "//src/rhi:context",
         "//src/assets:import_image",
+        "//demos/common:scene",
         "//demos/common:simple_camera_fps",
     ],
     data = [

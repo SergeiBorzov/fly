@@ -4,6 +4,9 @@
 
 #include "assets/import_gltf.h"
 #include "assets/import_image.h"
+#include "assets/import_spv.h"
+
+#include "rhi/shader_program.h"
 
 #include "scene.h"
 
@@ -305,6 +308,29 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         cgltf_material* material = &data->materials[i];
         ProcessMaterial(device, data, material, hlsScene,
                         hlsScene.materials[i]);
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
+}
+
+bool LoadShaderFromSpv(RHI::Device& device, const char* path,
+                       RHI::Shader& shader)
+{
+    HLS_ASSERT(path);
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    String8 spvSource = Hls::LoadSpvFromFile(scratch, path);
+    if (!spvSource)
+    {
+        return false;
+    }
+    if (!RHI::CreateShader(device, spvSource.Data(), spvSource.Size(), shader))
+    {
+        ArenaPopToMarker(scratch, marker);
+        return false;
     }
 
     ArenaPopToMarker(scratch, marker);

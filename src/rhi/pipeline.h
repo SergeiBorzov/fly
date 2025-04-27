@@ -1,13 +1,11 @@
 #ifndef HLS_RHI_PIPELINE_H
 #define HLS_RHI_PIPELINE_H
 
-#include "core/assert.h"
-
 #include <volk.h>
 
-#define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
+#include "core/types.h"
 
-struct Arena;
+#define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
 
 namespace Hls
 {
@@ -15,54 +13,7 @@ namespace RHI
 {
 
 struct Device;
-
-struct DescriptorSetLayout
-{
-    VkDescriptorSetLayoutBinding* bindings = nullptr;
-    VkDescriptorSetLayout handle = VK_NULL_HANDLE;
-    u32 bindingCount = 0;
-};
-
-enum class ShaderType
-{
-    Vertex = 0,
-    Fragment = 1,
-    Geometry = 2,
-    Task = 3,
-    Mesh = 4,
-    Count
-};
-
-struct ShaderModule
-{
-    DescriptorSetLayout* descriptorSetLayouts = nullptr;
-    VkShaderModule handle = VK_NULL_HANDLE;
-    u32 descriptorSetLayoutCount = 0;
-};
-
-bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
-                        u64 codeSize, ShaderModule& shaderModule);
-void DestroyShaderModule(Device& device, ShaderModule& shaderModule);
-
-struct GraphicsPipelineProgrammableStage
-{
-    inline ShaderModule& operator[](ShaderType type)
-    {
-        u32 index = static_cast<u32>(type);
-        HLS_ASSERT(index < static_cast<u32>(ShaderType::Count));
-        return stages[index];
-    }
-
-    inline const ShaderModule& operator[](ShaderType type) const
-    {
-        u32 index = static_cast<u32>(type);
-        HLS_ASSERT(index < static_cast<u32>(ShaderType::Count));
-        return stages[index];
-    }
-
-private:
-    ShaderModule stages[ShaderType::Count] = {};
-};
+struct ShaderProgram;
 
 struct GraphicsPipelineFixedStateStage
 {
@@ -131,14 +82,10 @@ struct GraphicsPipeline
 
 bool CreateGraphicsPipeline(
     Device& device, const GraphicsPipelineFixedStateStage& fixedStateStage,
-    const GraphicsPipelineProgrammableStage& programmableStage,
-    GraphicsPipeline& graphicsPipeline);
+    const ShaderProgram& shaderProgram, GraphicsPipeline& graphicsPipeline);
 
 void DestroyGraphicsPipeline(Device& device,
                              GraphicsPipeline& graphicsPipeline);
-
-void DestroyGraphicsPipelineProgrammableStage(
-    Device& device, GraphicsPipelineProgrammableStage& programmableStage);
 
 } // namespace RHI
 } // namespace Hls

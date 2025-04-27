@@ -1,16 +1,46 @@
 #include "core/assert.h"
-#include "core/thread_context.h"
 
 #include "allocation_callbacks.h"
-#include "context.h"
+#include "device.h"
 #include "pipeline.h"
-
-#include <spirv_reflect.h>
+#include "shader_program.h"
 
 namespace Hls
 {
 namespace RHI
 {
+
+static VkShaderStageFlagBits ShaderTypeToVkShaderStage(Shader::Type shaderType)
+{
+    switch (shaderType)
+    {
+        case Shader::Type::Vertex:
+        {
+            return VK_SHADER_STAGE_VERTEX_BIT;
+        }
+        case Shader::Type::Fragment:
+        {
+            return VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
+        case Shader::Type::Geometry:
+        {
+            return VK_SHADER_STAGE_GEOMETRY_BIT;
+        }
+        case Shader::Type::Task:
+        {
+            return VK_SHADER_STAGE_TASK_BIT_EXT;
+        }
+        case Shader::Type::Mesh:
+        {
+            return VK_SHADER_STAGE_MESH_BIT_EXT;
+        }
+        default:
+        {
+            HLS_ASSERT(false);
+            return VK_SHADER_STAGE_VERTEX_BIT;
+        }
+    }
+}
 
 static VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo(
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -175,7 +205,7 @@ static VkPipelineDynamicStateCreateInfo DynamicStateCreateInfo()
     return dynamicState;
 }
 
-VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
+static VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     const VkFormat* colorAttachments, u32 colorAttachmentCount,
     VkFormat depthAttachmentFormat, VkFormat stencilAttachmentFormat)
 {
@@ -197,104 +227,9 @@ VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     return pipelineRendering;
 }
 
-static bool CreateShaderModuleDescriptorSetLayouts(Arena& arena, Device& device,
-                                                   const char* spvSource,
-                                                   u64 codeSize,
-                                                   ShaderModule& shaderModule)
-{
-    HLS_ASSERT(spvSource);
-    HLS_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
-
-    Arena& scratch = GetScratchArena(&arena);
-    ArenaMarker marker = ArenaGetMarker(scratch);
-
-    SpvReflectShaderModule reflectModule;
-    SpvReflectResult res = spvReflectCreateShaderModule(
-        codeSize, reinterpret_cast<const u32*>(spvSource), &reflectModule);
-    if (res != SPV_REFLECT_RESULT_SUCCESS)
-    {
-        return false;
-    }
-
-    u32 descriptorSetCount = 0;
-    res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
-                                            nullptr);
-    if (descriptorSetCount == 0)
-    {
-        return true;
-    }
-
-    SpvReflectDescriptorSet** reflDescriptorSets =
-        HLS_ALLOC(scratch, SpvReflectDescriptorSet*, descriptorSetCount);
-    res = spvReflectEnumerateDescriptorSets(&reflectModule, &descriptorSetCount,
-                                            reflDescriptorSets);
-    if (res != SPV_REFLECT_RESULT_SUCCESS)
-    {
-        ArenaPopToMarker(scratch, marker);
-        return false;
-    }
-
-    shaderModule.descriptorSetLayouts =
-        HLS_ALLOC(arena, DescriptorSetLayout, descriptorSetCount);
-    shaderModule.descriptorSetLayoutCount = descriptorSetCount;
-
-    for (u32 i = 0; i < descriptorSetCount; i++)
-    {
-        SpvReflectDescriptorSet* reflDescriptorSet = reflDescriptorSets[i];
-        DescriptorSetLayout& descriptorSetLayout =
-            shaderModule.descriptorSetLayouts[i];
-
-        VkDescriptorSetLayoutCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-
-        descriptorSetLayout.bindings =
-            HLS_ALLOC(arena, VkDescriptorSetLayoutBinding,
-                      reflDescriptorSet->binding_count);
-        descriptorSetLayout.bindingCount = reflDescriptorSet->binding_count;
-        for (u32 j = 0; j < reflDescriptorSet->binding_count; j++)
-        {
-            SpvReflectDescriptorBinding* reflBinding =
-                reflDescriptorSet->bindings[j];
-            VkDescriptorSetLayoutBinding& layoutBinding =
-                descriptorSetLayout.bindings[j];
-
-            layoutBinding.binding = reflBinding->binding;
-            layoutBinding.descriptorType =
-                static_cast<VkDescriptorType>(reflBinding->descriptor_type);
-            layoutBinding.descriptorCount = 1;
-            for (u32 k = 0; k < reflBinding->array.dims_count; k++)
-            {
-                layoutBinding.descriptorCount *= reflBinding->array.dims[k];
-            }
-            layoutBinding.stageFlags =
-                static_cast<VkShaderStageFlagBits>(reflectModule.shader_stage);
-            layoutBinding.pImmutableSamplers = nullptr;
-        }
-
-        createInfo.bindingCount = reflDescriptorSet->binding_count;
-        createInfo.pBindings = descriptorSetLayout.bindings;
-
-        if (vkCreateDescriptorSetLayout(device.logicalDevice, &createInfo,
-                                        GetVulkanAllocationCallbacks(),
-                                        &descriptorSetLayout.handle) !=
-            VK_SUCCESS)
-        {
-            ArenaPopToMarker(scratch, marker);
-            return false;
-        }
-    }
-
-    ArenaPopToMarker(scratch, marker);
-
-    return true;
-}
-
 static bool CreatePipelineLayout(Device& device,
                                  VkPipelineLayout& pipelineLayout)
 {
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-
     VkPushConstantRange pushConstantRange;
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
     pushConstantRange.offset = 0;
@@ -310,124 +245,35 @@ static bool CreatePipelineLayout(Device& device,
     VkResult res =
         vkCreatePipelineLayout(device.logicalDevice, &createInfo,
                                GetVulkanAllocationCallbacks(), &pipelineLayout);
-    ArenaPopToMarker(arena, marker);
     return res == VK_SUCCESS;
 }
 
-static VkShaderStageFlagBits ShaderTypeToVkShaderStage(ShaderType shaderType)
-{
-    switch (shaderType)
-    {
-        case ShaderType::Vertex:
-        {
-            return VK_SHADER_STAGE_VERTEX_BIT;
-        }
-        case ShaderType::Fragment:
-        {
-            return VK_SHADER_STAGE_FRAGMENT_BIT;
-        }
-        case ShaderType::Geometry:
-        {
-            return VK_SHADER_STAGE_GEOMETRY_BIT;
-        }
-        case ShaderType::Task:
-        {
-            return VK_SHADER_STAGE_TASK_BIT_EXT;
-        }
-        case ShaderType::Mesh:
-        {
-            return VK_SHADER_STAGE_MESH_BIT_EXT;
-        }
-        default:
-        {
-            HLS_ASSERT(false);
-            return VK_SHADER_STAGE_VERTEX_BIT;
-        }
-    }
-}
-
-bool CreateShaderModule(Arena& arena, Device& device, const char* spvSource,
-                        u64 codeSize, ShaderModule& shaderModule)
-{
-    HLS_ASSERT(spvSource);
-    HLS_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
-
-    VkShaderModuleCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = codeSize;
-    createInfo.pCode = reinterpret_cast<const u32*>(spvSource);
-
-    if (vkCreateShaderModule(device.logicalDevice, &createInfo,
-                             GetVulkanAllocationCallbacks(),
-                             &shaderModule.handle) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    if (!CreateShaderModuleDescriptorSetLayouts(arena, device, spvSource,
-                                                codeSize, shaderModule))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-void DestroyShaderModule(Device& device, ShaderModule& shaderModule)
-{
-    for (u32 i = 0; i < shaderModule.descriptorSetLayoutCount; i++)
-    {
-        vkDestroyDescriptorSetLayout(
-            device.logicalDevice, shaderModule.descriptorSetLayouts[i].handle,
-            GetVulkanAllocationCallbacks());
-        shaderModule.descriptorSetLayouts[i].handle = VK_NULL_HANDLE;
-    }
-    vkDestroyShaderModule(device.logicalDevice, shaderModule.handle,
-                          GetVulkanAllocationCallbacks());
-    shaderModule.handle = VK_NULL_HANDLE;
-}
-
-void DestroyGraphicsPipelineProgrammableStage(
-    Device& device, GraphicsPipelineProgrammableStage& programmableStage)
-{
-    for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
-    {
-        ShaderType shaderType = static_cast<ShaderType>(i);
-
-        ShaderModule& shaderModule = programmableStage[shaderType];
-
-        if (shaderModule.handle != VK_NULL_HANDLE)
-        {
-            DestroyShaderModule(device, shaderModule);
-        }
-    }
-}
-
-bool CreateGraphicsPipeline(
-    Device& device, const GraphicsPipelineFixedStateStage& fixedState,
-    const GraphicsPipelineProgrammableStage& programmableState,
-    GraphicsPipeline& graphicsPipeline)
+bool CreateGraphicsPipeline(Device& device,
+                            const GraphicsPipelineFixedStateStage& fixedState,
+                            const ShaderProgram& shaderProgram,
+                            GraphicsPipeline& graphicsPipeline)
 {
     HLS_ASSERT(fixedState.colorBlendState.attachmentCount ==
                fixedState.pipelineRendering.colorAttachmentCount);
 
-    // Programmable state
     if (!CreatePipelineLayout(device, graphicsPipeline.layout))
     {
         return false;
     }
 
+    // Programmable state
     u32 stageCount = 0;
-    VkPipelineShaderStageCreateInfo stages[ShaderType::Count];
+    VkPipelineShaderStageCreateInfo stages[Shader::Type::Count];
 
-    for (u32 i = 0; i < static_cast<u32>(ShaderType::Count); i++)
+    for (u32 i = 0; i < static_cast<u32>(Shader::Type::Count); i++)
     {
-        ShaderType shaderType = static_cast<ShaderType>(i);
-        VkShaderModule shaderModule = programmableState[shaderType].handle;
+        Shader::Type shaderType = static_cast<Shader::Type>(i);
+        VkShaderModule shaderModule = shaderProgram[shaderType].handle;
         if (shaderModule == VK_NULL_HANDLE)
         {
             continue;
         }
+
         stages[stageCount].sType =
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         stages[stageCount].pNext = nullptr;

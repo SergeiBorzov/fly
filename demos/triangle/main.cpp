@@ -6,7 +6,9 @@
 
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/utils.h"
+#include "rhi/shader_program.h"
+
+#include "demos/common/scene.h"
 
 #include "platform/window.h"
 
@@ -113,16 +115,16 @@ int main(int argc, char* argv[])
 
     RHI::Device& device = context.devices[0];
 
-    RHI::GraphicsPipelineProgrammableStage programmableState{};
-    RHI::ShaderPathMap shaderPathMap{};
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("triangle.vert.spv"),
-                      shaderPathMap[RHI::ShaderType::Vertex]);
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("triangle.frag.spv"),
-                      shaderPathMap[RHI::ShaderType::Fragment]);
-    if (!RHI::LoadProgrammableStage(arena, device, shaderPathMap,
-                                    programmableState))
+    RHI::ShaderProgram shaderProgram{};
+    if (!Hls::LoadShaderFromSpv(device, "triangle.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
     {
-        HLS_ERROR("Failed to load and create shader modules");
+        return -1;
+    }
+    if (!Hls::LoadShaderFromSpv(device, "triangle.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return -1;
     }
 
     RHI::GraphicsPipelineFixedStateStage fixedState{};
@@ -132,13 +134,14 @@ int main(int argc, char* argv[])
     fixedState.colorBlendState.attachmentCount = 1;
 
     RHI::GraphicsPipeline graphicsPipeline{};
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, programmableState,
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;
     }
-    RHI::DestroyGraphicsPipelineProgrammableStage(device, programmableState);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     while (!glfwWindowShouldClose(window))
     {

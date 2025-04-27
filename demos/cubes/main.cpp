@@ -6,14 +6,15 @@
 
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
+#include "rhi/shader_program.h"
 #include "rhi/texture.h"
 #include "rhi/uniform_buffer.h"
-#include "rhi/utils.h"
 
 #include "assets/import_image.h"
 
 #include "platform/window.h"
 
+#include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
 using namespace Hls;
@@ -145,17 +146,16 @@ int main(int argc, char* argv[])
 
     RHI::Device& device = context.devices[1];
 
-    RHI::GraphicsPipelineProgrammableStage programmableStage{};
-    RHI::ShaderPathMap shaderPathMap{};
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("cubes.vert.spv"),
-                      shaderPathMap[RHI::ShaderType::Vertex]);
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("cubes.frag.spv"),
-                      shaderPathMap[RHI::ShaderType::Fragment]);
-
-    if (!RHI::LoadProgrammableStage(arena, device, shaderPathMap,
-                                    programmableStage))
+    RHI::ShaderProgram shaderProgram{};
+    if (!Hls::LoadShaderFromSpv(device, "cubes.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
     {
-        HLS_ERROR("Failed to load and create shader modules");
+        return -1;
+    }
+    if (!Hls::LoadShaderFromSpv(device, "cubes.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return -1;
     }
 
     Hls::Image image;
@@ -194,13 +194,14 @@ int main(int argc, char* argv[])
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     RHI::GraphicsPipeline graphicsPipeline{};
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, programmableStage,
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;
     }
-    RHI::DestroyGraphicsPipelineProgrammableStage(device, programmableStage);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Hls::ClockNow();

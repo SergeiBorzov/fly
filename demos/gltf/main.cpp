@@ -5,7 +5,7 @@
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 #include "rhi/uniform_buffer.h"
-#include "rhi/utils.h"
+#include "rhi/shader_program.h"
 
 #include "platform/window.h"
 
@@ -152,16 +152,16 @@ int main(int argc, char* argv[])
     RHI::Device& device = context.devices[0];
 
     // Pipeline
-    RHI::GraphicsPipelineProgrammableStage programmableStage{};
-    RHI::ShaderPathMap shaderPathMap{};
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("unlit.vert.spv"),
-                      shaderPathMap[RHI::ShaderType::Vertex]);
-    Hls::Path::Create(arena, HLS_STRING8_LITERAL("unlit.frag.spv"),
-                      shaderPathMap[RHI::ShaderType::Fragment]);
-    if (!RHI::LoadProgrammableStage(arena, device, shaderPathMap,
-                                    programmableStage))
+    RHI::ShaderProgram shaderProgram{};
+    if (!Hls::LoadShaderFromSpv(device, "unlit.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
     {
-        HLS_ERROR("Failed to load and create shader modules");
+        return -1;
+    }
+    if (!Hls::LoadShaderFromSpv(device, "unlit.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return -1;
     }
 
     RHI::GraphicsPipelineFixedStateStage fixedState{};
@@ -176,13 +176,14 @@ int main(int argc, char* argv[])
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     RHI::GraphicsPipeline graphicsPipeline{};
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, programmableStage,
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      graphicsPipeline))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;
     }
-    RHI::DestroyGraphicsPipelineProgrammableStage(device, programmableStage);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     // Camera data
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)

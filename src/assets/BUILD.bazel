@@ -48,6 +48,21 @@ cc_library(
 )
 
 cc_library(
+    name = "import_spv",
+    hdrs = [
+        "import_spv.h",
+    ],
+    srcs = [
+        "import_spv.cpp",
+    ],
+    includes = [".."],
+    deps = [
+        "//src/core:core",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "import",
     deps = [
         ":import_obj",
