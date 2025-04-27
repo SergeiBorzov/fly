@@ -238,22 +238,18 @@ static bool ProcessTexture(RHI::Device& device, cgltf_data* data,
     }
 
     Hls::Image image;
-    if (!Hls::ImportImageFromFile(texture->image->uri, image))
+    if (!Hls::LoadImageFromFile(texture->image->uri, image))
     {
         HLS_ERROR("Failed to load image %s", texture->image->uri);
         return false;
     }
 
-    if (!RHI::CreateTexture(device, image.width, image.height,
-                            VK_FORMAT_R8G8B8A8_SRGB, hlsTexture))
+    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
+                            image.channelCount, VK_FORMAT_R8G8B8A8_SRGB,
+                            RHI::Sampler::FilterMode::Trilinear,
+                            RHI::Sampler::WrapMode::Repeat, 8, hlsTexture))
     {
         HLS_ERROR("Failed to create texture %s", texture->image->uri);
-        return false;
-    }
-    if (!Hls::TransferImageDataToTexture(device, image, hlsTexture))
-    {
-        HLS_ERROR("Failed to transfer %s image data to texture",
-                  texture->image->uri);
         return false;
     }
     Hls::FreeImage(image);
@@ -320,7 +316,7 @@ bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
 {
     cgltf_options options{};
     cgltf_data* data = nullptr;
-    if (!LoadGltf(path, options, &data))
+    if (!LoadGltfFromFile(path, options, &data))
     {
         return false;
     }

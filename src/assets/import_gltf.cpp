@@ -13,7 +13,8 @@
 namespace Hls
 {
 
-bool LoadGltf(const char* path, const cgltf_options& options, cgltf_data** data)
+bool LoadGltfFromFile(const char* path, const cgltf_options& options,
+                      cgltf_data** data)
 {
     HLS_ASSERT(path);
     if (cgltf_parse_file(&options, path, data) != cgltf_result_success)

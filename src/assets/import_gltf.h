@@ -3,16 +3,12 @@
 
 #include "math/vec.h"
 
-#include "rhi/index_buffer.h"
-#include "rhi/storage_buffer.h"
-#include "rhi/texture.h"
-
 #include <cgltf.h>
 
 namespace Hls
 {
 
-bool LoadGltf(const char* path, const cgltf_options& options,
+bool LoadGltfFromFile(const char* path, const cgltf_options& options,
               cgltf_data** data);
 void FreeGltf(cgltf_data* data);
 

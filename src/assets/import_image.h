@@ -1,14 +1,10 @@
 #ifndef HLS_ASSETS_IMPORT_IMAGE_H
 #define HLS_ASSETS_IMPORT_IMAGE_H
 
+#include "core/types.h"
+
 namespace Hls
 {
-
-namespace RHI
-{
-struct Device;
-struct Texture;
-} // namespace RHI
 
 struct Path;
 
@@ -20,12 +16,9 @@ struct Image
     u32 channelCount = 0;
 };
 
-bool ImportImageFromFile(const Hls::Path& path, Image& image);
-bool ImportImageFromFile(const char* path, Image& image);
+bool LoadImageFromFile(const Hls::Path& path, Image& image);
+bool LoadImageFromFile(const char* path, Image& image);
 void FreeImage(Image& image);
-
-bool TransferImageDataToTexture(RHI::Device& device, const Image& image,
-                                RHI::Texture& texture);
 
 } // namespace Hls
 

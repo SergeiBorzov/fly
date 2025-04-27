@@ -21,9 +21,9 @@ using namespace Hls;
 static RHI::UniformBuffer uniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture texture;
 
-static Hls::SimpleCameraFPS
-    sCamera(Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
-            Math::Vec3(0.0f, 0.0f, -5.0f));
+static Hls::SimpleCameraFPS sCamera(Math::Perspective(45.0f, 1280.0f / 720.0f,
+                                                      0.01f, 100.0f),
+                                    Math::Vec3(0.0f, 0.0f, -5.0f));
 
 struct UniformData
 {
@@ -159,20 +159,17 @@ int main(int argc, char* argv[])
     }
 
     Hls::Image image;
-    if (!Hls::ImportImageFromFile("default.png", image))
+    if (!Hls::LoadImageFromFile("default.png", image))
     {
         HLS_ERROR("Failed to load image");
         return -1;
     }
-    if (!RHI::CreateTexture(device, image.width, image.height,
-                            VK_FORMAT_R8G8B8A8_SRGB, texture, false, 0))
+    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
+                            image.channelCount, VK_FORMAT_R8G8B8A8_SRGB,
+                            RHI::Sampler::FilterMode::Trilinear,
+                            RHI::Sampler::WrapMode::Repeat, 0, texture))
     {
         HLS_ERROR("Failed to create texture");
-        return -1;
-    }
-    if (!Hls::TransferImageDataToTexture(device, image, texture))
-    {
-        HLS_ERROR("Failed to transfer image data to texture");
         return -1;
     }
     Hls::FreeImage(image);

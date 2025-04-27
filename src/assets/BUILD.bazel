@@ -25,7 +25,6 @@ cc_library(
     ],
     includes = [".."],
     deps = [
-        "//src/rhi:context",
         "//src/core:core",
         "@cgltf//:cgltf",
     ],
@@ -42,7 +41,6 @@ cc_library(
     ],
     includes = [".."],
     deps = [
-        "//src/rhi:context",
         "//src/core:core",
         "@stb//:stb_image",
     ],

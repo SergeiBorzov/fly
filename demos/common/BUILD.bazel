@@ -27,6 +27,7 @@ cc_library(
         "//src/math:math",
         "//src/assets:import_gltf",
         "//src/assets:import_image",
+        "//src/rhi:context",
     ],
     visibility = ["//visibility:public"],
 )
