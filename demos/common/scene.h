@@ -48,6 +48,10 @@ struct Scene
     u32 textureCount = 0;
 };
 
+bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
+                         RHI::Sampler::FilterMode filterMode,
+                         RHI::Sampler::WrapMode wrapMode, u32 anisotropy,
+                         RHI::Texture& texture);
 bool LoadShaderFromSpv(RHI::Device& device, const char* path,
                        RHI::Shader& shader);
 bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,

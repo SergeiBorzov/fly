@@ -19,8 +19,8 @@
 
 using namespace Hls;
 
-static RHI::UniformBuffer uniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Texture texture;
+static RHI::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Texture sTexture;
 
 static Hls::SimpleCameraFPS sCamera(Math::Perspective(45.0f, 1280.0f / 720.0f,
                                                       0.01f, 100.0f),
@@ -84,8 +84,8 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
                             pipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
 
-    u32 indices[2] = {uniformBuffers[device.frameIndex].bindlessHandle,
-                      texture.bindlessHandle};
+    u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
+                      sTexture.bindlessHandle};
     vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
                        sizeof(u32) * 2, indices);
     vkCmdDraw(cmd.handle, 36, 10000, 0, 0);
@@ -158,26 +158,19 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    Hls::Image image;
-    if (!Hls::LoadImageFromFile("default.png", image))
-    {
-        HLS_ERROR("Failed to load image");
-        return -1;
-    }
-    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
-                            image.channelCount, VK_FORMAT_R8G8B8A8_SRGB,
-                            RHI::Sampler::FilterMode::Trilinear,
-                            RHI::Sampler::WrapMode::Repeat, 0, texture))
+    if (!Hls::LoadTextureFromFile(device, "default.png",
+                                  VK_FORMAT_R8G8B8A8_SRGB,
+                                  RHI::Sampler::FilterMode::Trilinear,
+                                  RHI::Sampler::WrapMode::Repeat, 0, sTexture))
     {
         HLS_ERROR("Failed to create texture");
         return -1;
     }
-    Hls::FreeImage(image);
 
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
-                                      uniformBuffers[i]))
+                                      sUniformBuffers[i]))
         {
             HLS_ERROR("Failed to create uniform buffer!");
         }
@@ -222,7 +215,7 @@ int main(int argc, char* argv[])
                                    time};
 
         RHI::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
-                                     0, uniformBuffers[device.frameIndex]);
+                                     0, sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline);
@@ -232,9 +225,9 @@ int main(int argc, char* argv[])
     RHI::WaitAllDevicesIdle(context);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        RHI::DestroyUniformBuffer(device, uniformBuffers[i]);
+        RHI::DestroyUniformBuffer(device, sUniformBuffers[i]);
     }
-    RHI::DestroyTexture(device, texture);
+    RHI::DestroyTexture(device, sTexture);
 
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     RHI::DestroyContext(context);

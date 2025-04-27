@@ -337,6 +337,28 @@ bool LoadShaderFromSpv(RHI::Device& device, const char* path,
     return true;
 }
 
+bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
+                         RHI::Sampler::FilterMode filterMode,
+                         RHI::Sampler::WrapMode wrapMode, u32 anisotropy,
+                         RHI::Texture& texture)
+{
+    HLS_ASSERT(path);
+
+    Hls::Image image;
+    if (!Hls::LoadImageFromFile(path, image))
+    {
+        return false;
+    }
+    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
+                            image.channelCount, format, filterMode, wrapMode,
+                            anisotropy, texture))
+    {
+        return false;
+    }
+    Hls::FreeImage(image);
+    return true;
+}
+
 bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
                        Scene& scene)
 {
