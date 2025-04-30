@@ -249,9 +249,6 @@ static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
         return false;
     }
 
-    HLS_LOG("Created storageBuffer with handle %u",
-            scene.materialBuffer.bindlessHandle);
-
     ArenaPopToMarker(scratch, marker);
     return true;
 }
