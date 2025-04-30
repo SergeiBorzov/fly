@@ -28,18 +28,25 @@ struct Mesh
 
 struct TextureProperty
 {
-    RHI::Texture texture;
     Math::Vec2 offset = {0.0f, 0.0f};
     Math::Vec2 scale = {1.0f, 1.0f};
+    u32 textureHandle = HLS_MAX_U32;
+    f32 pad;
+};
+
+struct MaterialData
+{
+    TextureProperty albedoTexture;
 };
 
 struct Material
 {
-    TextureProperty albedoTexture = {};
+    u32 materialHandle = HLS_MAX_U32;
 };
 
 struct Scene
 {
+    RHI::StorageBuffer materialBuffer;
     Mesh* meshes = nullptr;
     Material* materials = nullptr;
     RHI::Texture* textures = nullptr;

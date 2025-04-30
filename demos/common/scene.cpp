@@ -196,36 +196,63 @@ static bool ProcessPrimitive(RHI::Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessMaterial(RHI::Device& device, cgltf_data* data,
-                            cgltf_material* material, Scene& scene,
-                            Material& hlsMaterial)
+static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
+                             Scene& scene)
 {
     HLS_ASSERT(data);
-    HLS_ASSERT(material);
+    if (data->materials_count == 0)
+    {
+        return true;
+    }
 
-    if (!material->has_pbr_metallic_roughness)
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    MaterialData* materialDataBuffer =
+        HLS_ALLOC(scratch, MaterialData, data->materials_count);
+
+    u64 materialDataIndex = 0;
+    for (u64 i = 0; i < data->materials_count; i++)
+    {
+        cgltf_material& material = data->materials[i];
+        MaterialData& materialData = materialDataBuffer[materialDataIndex];
+
+        if (!material.has_pbr_metallic_roughness)
+        {
+            continue;
+        }
+
+        cgltf_texture_view albedoTextureView =
+            material.pbr_metallic_roughness.base_color_texture;
+        if (albedoTextureView.has_transform)
+        {
+            materialData.albedoTexture.offset.x =
+                albedoTextureView.transform.offset[0];
+            materialData.albedoTexture.offset.y =
+                albedoTextureView.transform.offset[1];
+            materialData.albedoTexture.scale.x =
+                albedoTextureView.transform.scale[0];
+            materialData.albedoTexture.scale.y =
+                albedoTextureView.transform.scale[1];
+        }
+
+        u32 textureIndex = static_cast<u32>(
+            cgltf_texture_index(data, albedoTextureView.texture));
+        materialData.albedoTexture.textureHandle = textureIndex;
+
+        materialDataIndex++;
+    }
+
+    if (!RHI::CreateStorageBuffer(device, materialDataBuffer,
+                                  sizeof(MaterialData) * materialDataIndex,
+                                  scene.materialBuffer))
     {
         return false;
     }
 
-    cgltf_texture_view albedoTextureView =
-        material->pbr_metallic_roughness.base_color_texture;
-    if (albedoTextureView.has_transform)
-    {
-        hlsMaterial.albedoTexture.offset.x =
-            albedoTextureView.transform.offset[0];
-        hlsMaterial.albedoTexture.offset.y =
-            albedoTextureView.transform.offset[1];
-        hlsMaterial.albedoTexture.scale.x =
-            albedoTextureView.transform.scale[0];
-        hlsMaterial.albedoTexture.scale.y =
-            albedoTextureView.transform.scale[1];
-    }
+    HLS_LOG("Created storageBuffer with handle %u",
+            scene.materialBuffer.bindlessHandle);
 
-    u32 textureIndex =
-        static_cast<u32>(cgltf_texture_index(data, albedoTextureView.texture));
-    hlsMaterial.albedoTexture.texture = scene.textures[textureIndex];
-
+    ArenaPopToMarker(scratch, marker);
     return true;
 }
 
@@ -303,11 +330,9 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         }
     }
 
-    for (u64 i = 0; i < data->materials_count; i++)
+    if (!ProcessMaterials(device, data, hlsScene))
     {
-        cgltf_material* material = &data->materials[i];
-        ProcessMaterial(device, data, material, hlsScene,
-                        hlsScene.materials[i]);
+        return false;
     }
 
     ArenaPopToMarker(scratch, marker);
@@ -376,13 +401,14 @@ bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
     }
     FreeGltf(data);
 
-    return true;
+    return res;
 }
 
 void UnloadScene(RHI::Device& device, Scene& scene)
 {
     for (u64 i = 0; i < scene.meshCount; i++)
     {
+        RHI::DestroyStorageBuffer(device, scene.materialBuffer);
         for (u64 j = 0; j < scene.meshes[i].submeshCount; j++)
         {
             RHI::DestroyStorageBuffer(

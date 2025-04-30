@@ -7,8 +7,9 @@ layout(location = 0) out vec2 outUV;
 layout(push_constant) uniform Indices
 {
     uint cameraIndex;
+    uint materialBufferIndex;
     uint vertexBufferIndex;
-    uint albedoTextureIndex;
+    uint materialIndex;
 }
 gIndices;
 

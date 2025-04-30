@@ -4,8 +4,8 @@
 
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/uniform_buffer.h"
 #include "rhi/shader_program.h"
+#include "rhi/uniform_buffer.h"
 
 #include "platform/window.h"
 
@@ -77,18 +77,18 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                             pipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
 
-    u32 indices[3] = {sUniformBuffers[device.frameIndex].bindlessHandle, 0, 0};
+    u32 indices[4] = {sUniformBuffers[device.frameIndex].bindlessHandle,
+                      scene.materialBuffer.bindlessHandle, 0, 0};
     for (u32 i = 0; i < scene.meshCount; i++)
     {
         const Hls::Mesh& mesh = scene.meshes[i];
         for (u32 j = 0; j < mesh.submeshCount; j++)
         {
             const Hls::Submesh& submesh = mesh.submeshes[j];
-            indices[1] = submesh.vertexBuffer.bindlessHandle;
-            indices[2] = scene.materials[submesh.materialIndex]
-                             .albedoTexture.texture.bindlessHandle;
+            indices[2] = submesh.vertexBuffer.bindlessHandle;
+            indices[3] = submesh.materialIndex;
             vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
-                               0, sizeof(u32) * 3, indices);
+                               0, sizeof(u32) * 4, indices);
             vkCmdBindIndexBuffer(cmd.handle, submesh.indexBuffer.handle, 0,
                                  VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1, 0, 0, 0);
