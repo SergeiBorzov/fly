@@ -361,11 +361,17 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
         info.accelerationStructureFeatures.pNext = &info.rayQueryFeatures;
 
+        info.shaderDrawParametersFeatures = {};
+        info.shaderDrawParametersFeatures.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
+        info.shaderDrawParametersFeatures.pNext =
+            &info.accelerationStructureFeatures;
+
         info.descriptorIndexingFeatures = {};
         info.descriptorIndexingFeatures.sType =
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
         info.descriptorIndexingFeatures.pNext =
-            &info.accelerationStructureFeatures;
+            &info.shaderDrawParametersFeatures;
 
         info.dynamicRenderingFeatures = {};
         info.dynamicRenderingFeatures.sType =
@@ -606,6 +612,13 @@ static bool PhysicalDeviceSupportsDynamicRenderingFeatures(
     return !requested.dynamicRendering || supported.dynamicRendering;
 }
 
+static bool PhysicalDeviceSupportsShaderDrawParametersFeatures(
+    const VkPhysicalDeviceShaderDrawParametersFeatures& requested,
+    const VkPhysicalDeviceShaderDrawParametersFeatures& supported)
+{
+    return !requested.shaderDrawParameters || supported.shaderDrawParameters;
+}
+
 static bool PhysicalDeviceSupportsRequiredFeatures(
     const VkPhysicalDeviceFeatures2& requested,
     const PhysicalDeviceInfo& supported)
@@ -696,6 +709,20 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
                 if (!PhysicalDeviceSupportsDynamicRenderingFeatures(
                         *requestedDynamicRenderingFeatures,
                         supported.dynamicRenderingFeatures))
+                {
+                    return false;
+                }
+                break;
+            }
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES:
+            {
+                const VkPhysicalDeviceShaderDrawParametersFeatures*
+                    requestedShaderDrawParametersFeatures = reinterpret_cast<
+                        const VkPhysicalDeviceShaderDrawParametersFeatures*>(
+                        currRequestedFeaturePtr);
+                if (!PhysicalDeviceSupportsShaderDrawParametersFeatures(
+                        *requestedShaderDrawParametersFeatures,
+                        supported.shaderDrawParametersFeatures))
                 {
                     return false;
                 }
@@ -916,6 +943,14 @@ bool CreateContext(ContextSettings& settings, Context& context)
     }
 
     // Fundamental always requested features
+    settings.deviceFeatures2.features.multiDrawIndirect = VK_TRUE;
+
+    VkPhysicalDeviceShaderDrawParametersFeatures shaderDrawParametersFeatures{};
+    shaderDrawParametersFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
+    shaderDrawParametersFeatures.shaderDrawParameters = VK_TRUE;
+    shaderDrawParametersFeatures.pNext = nullptr;
+
     VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
     descriptorIndexingFeatures.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
@@ -932,7 +967,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
         true;
     descriptorIndexingFeatures.descriptorBindingPartiallyBound = true;
     descriptorIndexingFeatures.runtimeDescriptorArray = true;
-    descriptorIndexingFeatures.pNext = nullptr;
+    descriptorIndexingFeatures.pNext = &shaderDrawParametersFeatures;
 
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
     dynamicRenderingFeatures.sType =

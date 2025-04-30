@@ -15,7 +15,7 @@ namespace Hls
 struct Submesh
 {
     RHI::StorageBuffer vertexBuffer;
-    RHI::IndexBuffer indexBuffer;
+    u32 indexOffset = 0;
     u32 indexCount = 0;
     u32 materialIndex = 0;
 };
@@ -46,6 +46,7 @@ struct Material
 
 struct Scene
 {
+    RHI::IndexBuffer indexBuffer;
     RHI::StorageBuffer materialBuffer;
     Mesh* meshes = nullptr;
     Material* materials = nullptr;

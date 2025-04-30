@@ -22,6 +22,8 @@ struct PhysicalDeviceInfo
         accelerationStructureFeatures = {};
     VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {};
+    VkPhysicalDeviceShaderDrawParametersFeatures shaderDrawParametersFeatures =
+        {};
     VkPhysicalDeviceProperties properties = {};
     VkPhysicalDeviceMemoryProperties memoryProperties = {};
     VkSurfaceCapabilitiesKHR surfaceCapabilities = {};

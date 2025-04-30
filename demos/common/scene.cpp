@@ -21,31 +21,6 @@ struct Vertex
     f32 uvY;
 };
 
-static bool ProcessPrimitiveIndices(RHI::Device& device, cgltf_data* data,
-                                    cgltf_accessor* accessor, Submesh& submesh)
-{
-    HLS_ASSERT(data);
-    HLS_ASSERT(accessor);
-
-    Arena& scratch = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(scratch);
-
-    u32* indices = HLS_ALLOC(scratch, u32, accessor->count);
-    cgltf_accessor_unpack_indices(accessor, indices, sizeof(u32),
-                                  accessor->count);
-
-    if (!RHI::CreateIndexBuffer(device, indices,
-                                static_cast<u32>(accessor->count),
-                                submesh.indexBuffer))
-    {
-        return false;
-    }
-    submesh.indexCount = static_cast<u32>(accessor->count);
-
-    ArenaPopToMarker(scratch, marker);
-    return true;
-}
-
 static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
                                      cgltf_primitive* primitive,
                                      Submesh& submesh)
@@ -179,14 +154,6 @@ static bool ProcessPrimitive(RHI::Device& device, cgltf_data* data,
     HLS_ASSERT(data);
     HLS_ASSERT(primitive);
 
-    if (primitive->indices)
-    {
-        if (!ProcessPrimitiveIndices(device, data, primitive->indices, submesh))
-        {
-            return false;
-        }
-    }
-
     if (!ProcessPrimitiveVertices(device, data, primitive, submesh))
     {
         return false;
@@ -284,6 +251,62 @@ static bool ProcessTexture(RHI::Device& device, cgltf_data* data,
     return true;
 }
 
+static bool ProcessIndices(RHI::Device& device, cgltf_data* data, Scene& scene)
+{
+    HLS_ASSERT(data);
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    u32 indexCount = 0;
+    for (u64 i = 0; i < data->meshes_count; i++)
+    {
+        cgltf_mesh& mesh = data->meshes[i];
+        for (u64 j = 0; j < mesh.primitives_count; j++)
+        {
+            cgltf_primitive& primitive = mesh.primitives[j];
+            if (primitive.indices)
+            {
+                indexCount += static_cast<u32>(primitive.indices->count);
+            }
+        }
+    }
+
+    if (indexCount == 0)
+    {
+        return false;
+    }
+
+    u32* indices = HLS_ALLOC(scratch, u32, indexCount);
+    u32 offset = 0;
+    for (u64 i = 0; i < data->meshes_count; i++)
+    {
+        cgltf_mesh& mesh = data->meshes[i];
+        for (u64 j = 0; j < mesh.primitives_count; j++)
+        {
+            cgltf_primitive& primitive = mesh.primitives[j];
+            if (primitive.indices)
+            {
+                cgltf_accessor_unpack_indices(primitive.indices,
+                                              indices + offset, sizeof(u32),
+                                              primitive.indices->count);
+                scene.meshes[i].submeshes[j].indexCount =
+                    static_cast<u32>(primitive.indices->count);
+                scene.meshes[i].submeshes[j].indexOffset = offset;
+                offset += static_cast<u32>(primitive.indices->count);
+            }
+        }
+    }
+
+    if (!RHI::CreateIndexBuffer(device, indices, indexCount, scene.indexBuffer))
+    {
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
+}
+
 static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
                          cgltf_scene* scene, Scene& hlsScene)
 {
@@ -310,6 +333,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         ProcessTexture(device, data, &data->textures[i], hlsScene.textures[i]);
     }
 
+    // Process vertices
     for (u64 i = 0; i < data->meshes_count; i++)
     {
         cgltf_mesh* mesh = &data->meshes[i];
@@ -325,6 +349,11 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
                 return false;
             }
         }
+    }
+
+    if (!ProcessIndices(device, data, hlsScene))
+    {
+        return false;
     }
 
     if (!ProcessMaterials(device, data, hlsScene))
@@ -406,12 +435,12 @@ void UnloadScene(RHI::Device& device, Scene& scene)
     for (u64 i = 0; i < scene.meshCount; i++)
     {
         RHI::DestroyStorageBuffer(device, scene.materialBuffer);
+        RHI::DestroyIndexBuffer(device, scene.indexBuffer);
+
         for (u64 j = 0; j < scene.meshes[i].submeshCount; j++)
         {
             RHI::DestroyStorageBuffer(
                 device, scene.meshes[i].submeshes[j].vertexBuffer);
-            RHI::DestroyIndexBuffer(device,
-                                    scene.meshes[i].submeshes[j].indexBuffer);
         }
 
         for (u64 j = 0; j < scene.textureCount; j++)
