@@ -73,6 +73,8 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
+    vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
+                         VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
@@ -89,9 +91,8 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
             indices[3] = submesh.materialIndex;
             vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
                                0, sizeof(u32) * 4, indices);
-            vkCmdBindIndexBuffer(cmd.handle, submesh.indexBuffer.handle, 0,
-                                 VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1, 0, 0, 0);
+            vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1,
+                             submesh.indexOffset, 0, 0);
         }
     }
 
