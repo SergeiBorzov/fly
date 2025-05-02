@@ -2,10 +2,10 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
-#include "rhi/uniform_buffer.h"
 
 #include "platform/window.h"
 
@@ -20,7 +20,7 @@ struct UniformData
     Math::Mat4 view = {};
 };
 
-static RHI::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
 static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
@@ -193,6 +193,7 @@ int main(int argc, char* argv[])
                                       sUniformBuffers[i]))
         {
             HLS_ERROR("Failed to create uniform buffer!");
+            return -1;
         }
     }
 
@@ -220,8 +221,8 @@ int main(int argc, char* argv[])
 
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
-        RHI::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
-                                     0, sUniformBuffers[device.frameIndex]);
+        RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
+                              sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline, scene);
@@ -234,7 +235,7 @@ int main(int argc, char* argv[])
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        RHI::DestroyUniformBuffer(device, sUniformBuffers[i]);
+        RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
     RHI::DestroyContext(context);
 

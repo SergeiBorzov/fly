@@ -3,8 +3,7 @@
 
 #include "math/vec.h"
 
-#include "rhi/index_buffer.h"
-#include "rhi/storage_buffer.h"
+#include "rhi/buffer.h"
 #include "rhi/texture.h"
 
 struct Arena;
@@ -14,7 +13,7 @@ namespace Hls
 
 struct Submesh
 {
-    RHI::StorageBuffer vertexBuffer;
+    RHI::Buffer vertexBuffer;
     u32 indexOffset = 0;
     u32 indexCount = 0;
     u32 materialIndex = 0;
@@ -46,8 +45,8 @@ struct Material
 
 struct Scene
 {
-    RHI::IndexBuffer indexBuffer;
-    RHI::StorageBuffer materialBuffer;
+    RHI::Buffer indexBuffer;
+    RHI::Buffer materialBuffer;
     Mesh* meshes = nullptr;
     Material* materials = nullptr;
     RHI::Texture* textures = nullptr;

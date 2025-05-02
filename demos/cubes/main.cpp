@@ -4,11 +4,11 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 #include "rhi/texture.h"
-#include "rhi/uniform_buffer.h"
 
 #include "assets/import_image.h"
 
@@ -19,7 +19,7 @@
 
 using namespace Hls;
 
-static RHI::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTexture;
 
 static Hls::SimpleCameraFPS sCamera(Math::Perspective(45.0f, 1280.0f / 720.0f,
@@ -214,8 +214,8 @@ int main(int argc, char* argv[])
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView(),
                                    time};
 
-        RHI::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
-                                     0, sUniformBuffers[device.frameIndex]);
+        RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
+                              sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline);
@@ -225,7 +225,7 @@ int main(int argc, char* argv[])
     RHI::WaitAllDevicesIdle(context);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        RHI::DestroyUniformBuffer(device, sUniformBuffers[i]);
+        RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
     RHI::DestroyTexture(device, sTexture);
 

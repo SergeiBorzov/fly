@@ -298,7 +298,8 @@ static bool ProcessIndices(RHI::Device& device, cgltf_data* data, Scene& scene)
         }
     }
 
-    if (!RHI::CreateIndexBuffer(device, indices, indexCount, scene.indexBuffer))
+    if (!RHI::CreateIndexBuffer(device, indices, indexCount * sizeof(u32),
+                                scene.indexBuffer))
     {
         return false;
     }
@@ -434,13 +435,13 @@ void UnloadScene(RHI::Device& device, Scene& scene)
 {
     for (u64 i = 0; i < scene.meshCount; i++)
     {
-        RHI::DestroyStorageBuffer(device, scene.materialBuffer);
-        RHI::DestroyIndexBuffer(device, scene.indexBuffer);
+        RHI::DestroyBuffer(device, scene.materialBuffer);
+        RHI::DestroyBuffer(device, scene.indexBuffer);
 
         for (u64 j = 0; j < scene.meshes[i].submeshCount; j++)
         {
-            RHI::DestroyStorageBuffer(
-                device, scene.meshes[i].submeshes[j].vertexBuffer);
+            RHI::DestroyBuffer(device,
+                               scene.meshes[i].submeshes[j].vertexBuffer);
         }
 
         for (u64 j = 0; j < scene.textureCount; j++)
