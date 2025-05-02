@@ -1,0 +1,72 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(push_constant) uniform Indices
+{
+    uint indirectDrawBufferIndex;
+    uint frustumBufferIndex;
+    uint drawCounterBufferIndex;
+    uint sphereBufferIndex;
+    uint sphereCount;
+}
+gIndices;
+
+HLS_REGISTER_UNIFORM_BUFFER(Frustum, { vec4 planes[6]; })
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, Sphere, { vec4 data; })
+
+HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    uint vertexOffset;
+    uint firstInstance;
+    // uint vertexBufferIndex;
+    // uint materialIndex;
+})
+
+layout(set = 0, binding = HLS_STORAGE_BUFFER_BINDING_INDEX,
+       std430) writeonly buffer DrawCounter
+{
+    uint count;
+}
+gDrawCounters[];
+
+bool IsVisible(vec4 sphere)
+{
+    for (int i = 0; i < 6; i++)
+    {
+        vec4 p = HLS_ACCESS_UNIFORM_BUFFER(Frustum, gIndices.frustumBufferIndex,
+                                           planes)[i];
+        if (dot(p.xyz, sphere.xyz) + p.w < -sphere.w)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= gIndices.sphereCount)
+    {
+        return;
+    }
+
+    vec4 sphere =
+        HLS_ACCESS_STORAGE_BUFFER(Sphere, gIndices.sphereBufferIndex)[index]
+            .data;
+    if (IsVisible(sphere))
+    {
+        gDrawCounters[gIndices.drawCounterBufferIndex].count = 5;
+        uint drawIndex =
+            atomicAdd(gDrawCounters[gIndices.drawCounterBufferIndex].count, 1);
+        HLS_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.indirectDrawBufferIndex)
+        [drawIndex] = DrawCommand(36, 1, 0, 0, 0);
+    }
+}

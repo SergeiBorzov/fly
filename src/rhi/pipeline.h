@@ -13,6 +13,7 @@ namespace RHI
 {
 
 struct Device;
+struct Shader;
 struct ShaderProgram;
 
 struct GraphicsPipelineFixedStateStage
@@ -86,6 +87,15 @@ bool CreateGraphicsPipeline(
 
 void DestroyGraphicsPipeline(Device& device,
                              GraphicsPipeline& graphicsPipeline);
+
+struct ComputePipeline
+{
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline handle = VK_NULL_HANDLE;
+};
+bool CreateComputePipeline(Device& device, const Shader& computeShader,
+                           ComputePipeline& computePipeline);
+void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline);
 
 } // namespace RHI
 } // namespace Hls

@@ -21,6 +21,7 @@ struct Shader
         Geometry = 2,
         Task = 3,
         Mesh = 4,
+        Compute = 5,
         Count,
         Invalid,
     };

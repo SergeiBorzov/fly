@@ -34,6 +34,10 @@ static VkShaderStageFlagBits ShaderTypeToVkShaderStage(Shader::Type shaderType)
         {
             return VK_SHADER_STAGE_MESH_BIT_EXT;
         }
+        case Shader::Type::Compute:
+        {
+            return VK_SHADER_STAGE_COMPUTE_BIT;
+        }
         default:
         {
             HLS_ASSERT(false);
@@ -370,12 +374,59 @@ bool CreateGraphicsPipeline(Device& device,
 
 void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 {
+    HLS_ASSERT(graphicsPipeline.layout != VK_NULL_HANDLE);
+    HLS_ASSERT(graphicsPipeline.handle != VK_NULL_HANDLE);
+
     vkDestroyPipeline(device.logicalDevice, graphicsPipeline.handle,
                       GetVulkanAllocationCallbacks());
     vkDestroyPipelineLayout(device.logicalDevice, graphicsPipeline.layout,
                             GetVulkanAllocationCallbacks());
     graphicsPipeline.handle = VK_NULL_HANDLE;
     graphicsPipeline.layout = VK_NULL_HANDLE;
+}
+
+bool CreateComputePipeline(Device& device, const Shader& computeShader,
+                           ComputePipeline& computePipeline)
+{
+    if (!CreatePipelineLayout(device, computePipeline.layout))
+    {
+        return false;
+    }
+
+    VkPipelineShaderStageCreateInfo stageCreateInfo{};
+    stageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stageCreateInfo.pNext = nullptr;
+    stageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageCreateInfo.module = computeShader.handle;
+    stageCreateInfo.pName = "main";
+
+    VkComputePipelineCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    createInfo.layout = computePipeline.layout;
+    createInfo.stage = stageCreateInfo;
+
+    if (vkCreateComputePipelines(device.logicalDevice, VK_NULL_HANDLE, 1,
+                                 &createInfo, GetVulkanAllocationCallbacks(),
+                                 &computePipeline.handle) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline)
+{
+    HLS_ASSERT(computePipeline.layout != VK_NULL_HANDLE);
+    HLS_ASSERT(computePipeline.handle != VK_NULL_HANDLE);
+
+    vkDestroyPipeline(device.logicalDevice, computePipeline.handle,
+                      GetVulkanAllocationCallbacks());
+    vkDestroyPipelineLayout(device.logicalDevice, computePipeline.layout,
+                            GetVulkanAllocationCallbacks());
+    computePipeline.handle = VK_NULL_HANDLE;
+    computePipeline.layout = VK_NULL_HANDLE;
 }
 
 } // namespace RHI

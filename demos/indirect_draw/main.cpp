@@ -2,11 +2,10 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "rhi/buffer.h"
 #include "rhi/context.h"
-#include "rhi/indirect_draw_buffer.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
-#include "rhi/uniform_buffer.h"
 
 #include "platform/window.h"
 
@@ -32,8 +31,9 @@ struct DrawCommand
     u32 materialIndex = 0;
 };
 
-static RHI::UniformBuffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::IndirectDrawBuffer sIndirectDrawBuffer;
+static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDrawBuffer;
+static RHI::Buffer sIndirectCountBuffer;
 static u32 sDrawCount = 0;
 
 static Hls::SimpleCameraFPS
@@ -157,9 +157,17 @@ int main(int argc, char* argv[])
     }
     RHI::Device& device = context.devices[0];
 
-    // Indirect draw buffer ~ 2MB
-    if (!RHI::CreateIndirectDrawBuffer(
-            device, nullptr, sizeof(DrawCommand) * 100000, sIndirectDrawBuffer))
+    // Create buffer - that holds draw commands
+    if (!RHI::CreateIndirectBuffer(device, false, nullptr,
+                                   sizeof(DrawCommand) * 100000,
+                                   sIndirectDrawBuffer))
+    {
+        return -1;
+    }
+
+    u32 count = 0;
+    if (!RHI::CreateIndirectBuffer(device, true, &count, sizeof(u32),
+                                   sIndirectCountBuffer))
     {
         return -1;
     }
@@ -197,6 +205,20 @@ int main(int argc, char* argv[])
     }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    // Compute pipeline
+    RHI::Shader cullShader;
+    if (!Hls::LoadShaderFromSpv(device, "cull.comp.spv", cullShader))
+    {
+        return -1;
+    }
+    RHI::ComputePipeline cullPipeline{};
+    if (!RHI::CreateComputePipeline(device, cullShader, cullPipeline))
+    {
+        HLS_ERROR("Failed to create cull compute pipeline");
+        return -1;
+    }
+    RHI::DestroyShader(device, cullShader);
 
     // Camera data
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
@@ -239,9 +261,8 @@ int main(int argc, char* argv[])
             drawCommand.materialIndex = submesh.materialIndex;
         }
     }
-    CopyDataToIndirectDrawBuffer(device, drawCommands,
-                                 sizeof(DrawCommand) * sDrawCount, 0,
-                                 sIndirectDrawBuffer);
+    CopyDataToBuffer(device, drawCommands, sizeof(DrawCommand) * sDrawCount, 0,
+                     sIndirectDrawBuffer);
     ArenaPopToMarker(arena, marker);
 
     // Main Loop
@@ -251,7 +272,7 @@ int main(int argc, char* argv[])
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-        
+
         previousFrameTime = currentFrameTime;
         currentFrameTime = Hls::ClockNow();
 
@@ -259,11 +280,10 @@ int main(int argc, char* argv[])
             static_cast<f32>(Hls::ToSeconds(currentFrameTime - loopStartTime));
         f64 deltaTime = Hls::ToSeconds(currentFrameTime - previousFrameTime);
 
-
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
-        RHI::CopyDataToUniformBuffer(device, &uniformData, sizeof(UniformData),
-                                     0, sUniformBuffers[device.frameIndex]);
+        RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
+                              sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline, scene);
@@ -273,11 +293,13 @@ int main(int argc, char* argv[])
     RHI::WaitAllDevicesIdle(context);
 
     Hls::UnloadScene(device, scene);
-    RHI::DestroyIndirectDrawBuffer(device, sIndirectDrawBuffer);
+    RHI::DestroyBuffer(device, sIndirectCountBuffer);
+    RHI::DestroyBuffer(device, sIndirectDrawBuffer);
+    RHI::DestroyComputePipeline(device, cullPipeline);
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        RHI::DestroyUniformBuffer(device, sUniformBuffers[i]);
+        RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
     RHI::DestroyContext(context);
 

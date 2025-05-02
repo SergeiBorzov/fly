@@ -27,10 +27,18 @@ copy_files_to_directory(
 )
 
 glsl_shader(
+    name = "cull.comp.spv",
+    src = "cull.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
     name = "unlit.vert.spv",
     src = "unlit.vert",
     deps = [
-        "//demos/common:glsl_bindless"
+        "//demos/common:glsl_bindless",
     ],
 )
 
@@ -38,7 +46,7 @@ glsl_shader(
     name = "unlit.frag.spv",
     src = "unlit.frag",
     deps = [
-        "//demos/common:glsl_bindless"
+        "//demos/common:glsl_bindless",
     ],
 )
 
@@ -56,6 +64,7 @@ cc_binary(
     data = [
         ":unlit.frag.spv",
         ":unlit.vert.spv",
+        ":cull.comp.spv",
         ":copy_scene_data",
     ] + select({
         ":release_build": [
