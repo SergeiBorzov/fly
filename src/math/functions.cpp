@@ -186,6 +186,9 @@ namespace Hls
 namespace Math
 {
 
+f32 Ceil(f32 value) { return ceilf(value); }
+f32 Floor(f32 value) { return floorf(value); }
+
 f32 Abs(f32 value) { return fabsf(value); }
 f32 Sqrt(f32 value) { return sqrtf(value); }
 

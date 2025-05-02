@@ -121,7 +121,7 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
         ArenaPopToMarker(scratch, loopMarker);
     }
 
-    if (!RHI::CreateStorageBuffer(device, vertices,
+    if (!RHI::CreateStorageBuffer(device, false, vertices,
                                   sizeof(Vertex) * vertexCount,
                                   submesh.vertexBuffer))
     {
@@ -209,7 +209,7 @@ static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
         materialDataIndex++;
     }
 
-    if (!RHI::CreateStorageBuffer(device, materialDataBuffer,
+    if (!RHI::CreateStorageBuffer(device, false, materialDataBuffer,
                                   sizeof(MaterialData) * materialDataIndex,
                                   scene.materialBuffer))
     {

@@ -15,7 +15,7 @@ struct Context;
 struct PhysicalDeviceInfo
 {
     VkPhysicalDeviceFeatures features = {};
-    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {};
+    VkPhysicalDeviceVulkan12Features vulkan12Features = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures =
         {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR

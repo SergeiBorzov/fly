@@ -367,16 +367,15 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
         info.shaderDrawParametersFeatures.pNext =
             &info.accelerationStructureFeatures;
 
-        info.descriptorIndexingFeatures = {};
-        info.descriptorIndexingFeatures.sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-        info.descriptorIndexingFeatures.pNext =
-            &info.shaderDrawParametersFeatures;
+        info.vulkan12Features = {};
+        info.vulkan12Features.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        info.vulkan12Features.pNext = &info.shaderDrawParametersFeatures;
 
         info.dynamicRenderingFeatures = {};
         info.dynamicRenderingFeatures.sType =
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
-        info.dynamicRenderingFeatures.pNext = &info.descriptorIndexingFeatures;
+        info.dynamicRenderingFeatures.pNext = &info.vulkan12Features;
 
         VkPhysicalDeviceFeatures2 deviceFeatures2{};
         deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -479,10 +478,64 @@ static bool PhysicalDeviceSupportsRayTracingPipelineFeatures(
     return true;
 }
 
-static bool PhysicalDeviceSupportsDescriptorIndexingFeatures(
-    const VkPhysicalDeviceDescriptorIndexingFeatures& requested,
-    const VkPhysicalDeviceDescriptorIndexingFeatures& supported)
+static bool PhysicalDeviceSupportsVulkan12Features(
+    const VkPhysicalDeviceVulkan12Features& requested,
+    const VkPhysicalDeviceVulkan12Features& supported)
 {
+    if (requested.samplerMirrorClampToEdge &&
+        !supported.samplerMirrorClampToEdge)
+    {
+        return false;
+    }
+
+    if (requested.drawIndirectCount && !supported.drawIndirectCount)
+    {
+        return false;
+    }
+
+    if (requested.storageBuffer8BitAccess && !supported.storageBuffer8BitAccess)
+    {
+        return false;
+    }
+
+    if (requested.uniformAndStorageBuffer8BitAccess &&
+        !supported.uniformAndStorageBuffer8BitAccess)
+    {
+        return false;
+    }
+
+    if (requested.storagePushConstant8 && !supported.storagePushConstant8)
+    {
+        return false;
+    }
+
+    if (requested.shaderBufferInt64Atomics &&
+        !supported.shaderBufferInt64Atomics)
+    {
+        return false;
+    }
+
+    if (requested.shaderSharedInt64Atomics &&
+        !supported.shaderSharedInt64Atomics)
+    {
+        return false;
+    }
+
+    if (requested.shaderFloat16 && !supported.shaderFloat16)
+    {
+        return false;
+    }
+
+    if (requested.shaderInt8 && !supported.shaderInt8)
+    {
+        return false;
+    }
+
+    if (requested.descriptorIndexing && !supported.descriptorIndexing)
+    {
+        return false;
+    }
+
     if (requested.shaderInputAttachmentArrayDynamicIndexing &&
         !supported.shaderInputAttachmentArrayDynamicIndexing)
     {
@@ -591,6 +644,12 @@ static bool PhysicalDeviceSupportsDescriptorIndexingFeatures(
         return false;
     }
 
+    if (requested.descriptorBindingPartiallyBound &&
+        !supported.descriptorBindingPartiallyBound)
+    {
+        return false;
+    }
+
     if (requested.descriptorBindingVariableDescriptorCount &&
         !supported.descriptorBindingVariableDescriptorCount)
     {
@@ -598,6 +657,100 @@ static bool PhysicalDeviceSupportsDescriptorIndexingFeatures(
     }
 
     if (requested.runtimeDescriptorArray && !supported.runtimeDescriptorArray)
+    {
+        return false;
+    }
+
+    if (requested.samplerFilterMinmax && !supported.samplerFilterMinmax)
+    {
+        return false;
+    }
+
+    if (requested.scalarBlockLayout && !supported.scalarBlockLayout)
+    {
+        return false;
+    }
+
+    if (requested.imagelessFramebuffer && !supported.imagelessFramebuffer)
+    {
+        return false;
+    }
+
+    if (requested.uniformBufferStandardLayout &&
+        !supported.uniformBufferStandardLayout)
+    {
+        return false;
+    }
+
+    if (requested.shaderSubgroupExtendedTypes &&
+        !supported.shaderSubgroupExtendedTypes)
+    {
+        return false;
+    }
+
+    if (requested.separateDepthStencilLayouts &&
+        !supported.separateDepthStencilLayouts)
+    {
+        return false;
+    }
+
+    if (requested.hostQueryReset && !supported.hostQueryReset)
+    {
+        return false;
+    }
+
+    if (requested.timelineSemaphore && !supported.timelineSemaphore)
+    {
+        return false;
+    }
+
+    if (requested.bufferDeviceAddress && !supported.bufferDeviceAddress)
+    {
+        return false;
+    }
+
+    if (requested.bufferDeviceAddressCaptureReplay &&
+        !supported.bufferDeviceAddressCaptureReplay)
+    {
+        return false;
+    }
+
+    if (requested.bufferDeviceAddressMultiDevice &&
+        !supported.bufferDeviceAddressMultiDevice)
+    {
+        return false;
+    }
+
+    if (requested.vulkanMemoryModel && !supported.vulkanMemoryModel)
+    {
+        return false;
+    }
+
+    if (requested.vulkanMemoryModelDeviceScope &&
+        !supported.vulkanMemoryModelDeviceScope)
+    {
+        return false;
+    }
+
+    if (requested.vulkanMemoryModelAvailabilityVisibilityChains &&
+        !supported.vulkanMemoryModelAvailabilityVisibilityChains)
+    {
+        return false;
+    }
+
+    if (requested.shaderOutputViewportIndex &&
+        !supported.shaderOutputViewportIndex)
+    {
+        return false;
+    }
+
+    if (requested.shaderOutputLayer && !supported.shaderOutputLayer)
+    {
+        return false;
+    }
+
+    if (requested.subgroupBroadcastDynamicId &&
+        !supported.subgroupBroadcastDynamicId)
     {
         return false;
     }
@@ -686,15 +839,14 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
                 }
                 break;
             }
-            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES:
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES:
             {
-                const VkPhysicalDeviceDescriptorIndexingFeatures*
-                    requestedDescriptorIndexingFeatures = reinterpret_cast<
-                        const VkPhysicalDeviceDescriptorIndexingFeatures*>(
+                const VkPhysicalDeviceVulkan12Features*
+                    requestedVulkan12Features = reinterpret_cast<
+                        const VkPhysicalDeviceVulkan12Features*>(
                         currRequestedFeaturePtr);
-                if (!PhysicalDeviceSupportsDescriptorIndexingFeatures(
-                        *requestedDescriptorIndexingFeatures,
-                        supported.descriptorIndexingFeatures))
+                if (!PhysicalDeviceSupportsVulkan12Features(
+                        *requestedVulkan12Features, supported.vulkan12Features))
                 {
                     return false;
                 }
@@ -951,29 +1103,25 @@ bool CreateContext(ContextSettings& settings, Context& context)
     shaderDrawParametersFeatures.shaderDrawParameters = VK_TRUE;
     shaderDrawParametersFeatures.pNext = nullptr;
 
-    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
-    descriptorIndexingFeatures.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = true;
-    descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind =
-        true;
-    descriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing =
-        true;
-    descriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind =
-        true;
-    descriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing =
-        true;
-    descriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind =
-        true;
-    descriptorIndexingFeatures.descriptorBindingPartiallyBound = true;
-    descriptorIndexingFeatures.runtimeDescriptorArray = true;
-    descriptorIndexingFeatures.pNext = &shaderDrawParametersFeatures;
+    VkPhysicalDeviceVulkan12Features vulkan12Features{};
+    vulkan12Features.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12Features.shaderSampledImageArrayNonUniformIndexing = true;
+    vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = true;
+    vulkan12Features.shaderUniformBufferArrayNonUniformIndexing = true;
+    vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = true;
+    vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = true;
+    vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = true;
+    vulkan12Features.descriptorBindingPartiallyBound = true;
+    vulkan12Features.runtimeDescriptorArray = true;
+    vulkan12Features.drawIndirectCount = true;
+    vulkan12Features.pNext = &shaderDrawParametersFeatures;
 
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
     dynamicRenderingFeatures.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
     dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
-    dynamicRenderingFeatures.pNext = &descriptorIndexingFeatures;
+    dynamicRenderingFeatures.pNext = &vulkan12Features;
 
     VkPhysicalDeviceSynchronization2Features synchronization2Features{};
     synchronization2Features.sType =

@@ -141,15 +141,18 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
                            nullptr);
     buffer.bindlessHandle = (*pBindlessHandle)++;
 
-    HLS_DEBUG_LOG("Buffer[%llu] created - alloc size %f MB", buffer.handle,
+    HLS_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
+                  buffer.handle, buffer.bindlessHandle,
                   buffer.allocationInfo.size / 1024.0 / 1024.0);
     return true;
 }
 
 void DestroyBuffer(Device& device, Buffer& buffer)
 {
-    HLS_DEBUG_LOG("Buffer[%llu] destroyed - dealloc size: %f MB", buffer.handle,
-                  buffer.allocationInfo.size / 1024.0 / 1024.0);
+    HLS_DEBUG_LOG(
+        "Buffer[%llu] destroyed: bindless handle %u, dealloc size: %f MB",
+        buffer.handle, buffer.bindlessHandle,
+        buffer.allocationInfo.size / 1024.0 / 1024.0);
     HLS_ASSERT(buffer.handle != VK_NULL_HANDLE);
     vmaDestroyBuffer(device.allocator, buffer.handle, buffer.allocation);
     buffer.handle = VK_NULL_HANDLE;
@@ -164,10 +167,10 @@ bool CreateUniformBuffer(Device& device, const void* data, u64 size,
                         data, size, buffer);
 }
 
-bool CreateStorageBuffer(Device& device, const void* data, u64 size,
-                         Buffer& buffer)
+bool CreateStorageBuffer(Device& device, bool hostVisible, const void* data,
+                         u64 size, Buffer& buffer)
 {
-    return CreateBuffer(device, false,
+    return CreateBuffer(device, hostVisible,
                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                         data, size, buffer);
