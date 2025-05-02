@@ -8,10 +8,10 @@
     layout(set = 0, binding = HLS_UNIFORM_BUFFER_BINDING_INDEX)                \
         uniform Name Struct g##Name##s[];
 
-#define HLS_REGISTER_STORAGE_BUFFER(Name, Struct)                              \
+#define HLS_REGISTER_STORAGE_BUFFER(Access, Name, Struct)                      \
     struct Name Struct;                                                        \
     layout(set = 0, binding = HLS_STORAGE_BUFFER_BINDING_INDEX, std430)        \
-        readonly buffer Name##Buffer                                           \
+        Access buffer Name##Buffer                                             \
     {                                                                          \
         Name items[];                                                          \
     }                                                                          \

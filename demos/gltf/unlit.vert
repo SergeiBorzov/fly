@@ -18,7 +18,7 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 view;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(Vertex, {
+HLS_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
     vec3 position;
     float uvX;
     vec3 normal;

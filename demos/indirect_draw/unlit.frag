@@ -18,7 +18,7 @@ struct TextureProperty
     uint pad;
 };
 
-HLS_REGISTER_STORAGE_BUFFER(MaterialData, { TextureProperty albedo; })
+HLS_REGISTER_STORAGE_BUFFER(readonly, MaterialData, { TextureProperty albedo; })
 
 HLS_REGISTER_TEXTURE_BUFFER(AlbedoTexture, sampler2D)
 

@@ -18,14 +18,14 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 view;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(Vertex, {
+HLS_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
     vec3 position;
     float uvX;
     vec3 normal;
     float uvY;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(DrawCommand, {
+HLS_REGISTER_STORAGE_BUFFER(readonly, DrawCommand, {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
@@ -37,7 +37,8 @@ HLS_REGISTER_STORAGE_BUFFER(DrawCommand, {
 
 void main()
 {
-    DrawCommand drawCommand = HLS_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.indirectDrawBufferIndex)[gl_DrawID];
+    DrawCommand drawCommand = HLS_ACCESS_STORAGE_BUFFER(
+        DrawCommand, gIndices.indirectDrawBufferIndex)[gl_DrawID];
     Vertex v = HLS_ACCESS_STORAGE_BUFFER(
         Vertex, drawCommand.vertexBufferIndex)[gl_VertexIndex];
     outUV = vec2(v.uvX, v.uvY);
