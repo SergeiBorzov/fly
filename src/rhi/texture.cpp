@@ -102,11 +102,12 @@ static void GenerateMipmaps(RHI::CommandBuffer& cmd, RHI::Texture& texture)
 
 bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
                    Sampler::WrapMode wrapMode, u32 mipLevelCount,
-                   u32 anisotropy, Sampler& sampler)
+                   Sampler& sampler)
 {
     VkSamplerCreateInfo samplerCreateInfo{};
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
+    u32 anisotropy = 0;
     switch (filterMode)
     {
         case Sampler::FilterMode::Nearest:
@@ -128,6 +129,38 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
             samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
             samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
             samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            break;
+        }
+        case Sampler::FilterMode::Anisotropy2x:
+        {
+            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            anisotropy = 2;
+            break;
+        }
+        case Sampler::FilterMode::Anisotropy4x:
+        {
+            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            anisotropy = 4;
+            break;
+        }
+        case Sampler::FilterMode::Anisotropy8x:
+        {
+            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            anisotropy = 8;
+            break;
+        }
+        case Sampler::FilterMode::Anisotropy16x:
+        {
+            samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+            samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            anisotropy = 16;
             break;
         }
         default:
@@ -192,7 +225,6 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
 
     sampler.filterMode = filterMode;
     sampler.wrapMode = wrapMode;
-    sampler.anisotropy = anisotropy;
     return true;
 }
 
@@ -207,7 +239,7 @@ void DestroySampler(Device& device, Sampler& sampler)
 bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
                    u32 channelCount, VkFormat format,
                    Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                   u32 anisotropy, Texture& texture)
+                   Texture& texture)
 {
     HLS_ASSERT(width > 0);
     HLS_ASSERT(height > 0);
@@ -268,28 +300,7 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
         return false;
     }
 
-    VkSamplerCreateInfo samplerCreateInfo{};
-    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-    samplerCreateInfo.anisotropyEnable = anisotropy > 0;
-    samplerCreateInfo.maxAnisotropy = static_cast<f32>(anisotropy);
-
-    samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerCreateInfo.compareEnable = VK_FALSE;
-    samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerCreateInfo.mipLodBias = 0.0f;
-    samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = static_cast<f32>(mipLevelCount);
-
-    if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount, anisotropy,
+    if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount,
                        texture.sampler))
     {
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -416,8 +427,7 @@ bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
     HLS_ASSERT(texture.sampler.handle != VK_NULL_HANDLE);
 
     if (texture.sampler.filterMode == filterMode &&
-        texture.sampler.wrapMode == wrapMode &&
-        texture.sampler.anisotropy == anisotropy)
+        texture.sampler.wrapMode == wrapMode)
     {
         return true;
     }
@@ -426,7 +436,7 @@ bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
 
     DestroySampler(device, texture.sampler);
     return CreateSampler(device, filterMode, wrapMode, texture.mipLevelCount,
-                         anisotropy, texture.sampler);
+                         texture.sampler);
 }
 
 bool CreateDepthTexture(Device& device, u32 width, u32 height, VkFormat format,

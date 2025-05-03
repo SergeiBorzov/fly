@@ -18,7 +18,11 @@ struct Sampler
     {
         Nearest,
         Bilinear,
-        Trilinear
+        Trilinear,
+        Anisotropy2x,
+        Anisotropy4x,
+        Anisotropy8x,
+        Anisotropy16x
     };
 
     enum class WrapMode
@@ -31,11 +35,10 @@ struct Sampler
     VkSampler handle = VK_NULL_HANDLE;
     FilterMode filterMode = FilterMode::Bilinear;
     WrapMode wrapMode = WrapMode::Repeat;
-    u32 anisotropy = 0;
 };
 bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
                    Sampler::WrapMode wrapMode, u32 mipLevelCount,
-                   u32 anisotropy, Sampler& sampler);
+                   Sampler& sampler);
 void DestroySampler(Device& device, Sampler& sampler);
 
 struct SwapchainTexture
@@ -78,9 +81,9 @@ struct Texture
 bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
                    u32 channelCount, VkFormat format,
                    Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                   u32 anisotropy, Texture& texture);
+                   Texture& texture);
 bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
-                          Sampler::WrapMode wrapMode, u32 anisotropy);
+                          Sampler::WrapMode wrapMode);
 void DestroyTexture(Device& device, Texture& texture);
 
 } // namespace RHI
