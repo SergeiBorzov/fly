@@ -44,6 +44,12 @@ struct BoundingSphereDraw
     u32 indexOffset = 0;
 };
 
+struct MeshNode
+{
+    Math::Mat4 model;
+    Mesh* mesh = nullptr;
+};
+
 struct InstanceData
 {
     Math::Mat4 model;
@@ -88,6 +94,8 @@ struct Scene
     RHI::Buffer materialBuffer;
     RHI::Buffer* vertexBuffers = nullptr;
     RHI::Texture* textures = nullptr;
+    MeshNode* meshNodes = nullptr;
+    u32 meshNodeCount = 0;
     u32 vertexBufferCount = 0;
     u32 materialCount = 0;
     u32 textureCount = 0;

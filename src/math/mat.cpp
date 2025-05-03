@@ -113,6 +113,24 @@ Vec4 operator*(const Mat4& lhs, Vec4 rhs)
     return res;
 }
 
+Mat4 ScaleMatrix(f32 x, f32 y, f32 z)
+{
+    Mat4 res;
+    res.data[0] = x;
+    res.data[5] = y;
+    res.data[10] = z;
+    return res;
+}
+
+Mat4 TranslationMatrix(f32 x, f32 y, f32 z)
+{
+    Mat4 res;
+    res.data[12] = x;
+    res.data[13] = y;
+    res.data[14] = z;
+    return res;
+}
+
 Mat4 Perspective(f32 fovy_degrees, f32 aspect, float near, float far)
 {
     Mat4 res(0.0f);

@@ -4,6 +4,7 @@
 
 layout(push_constant) uniform Indices
 {
+    mat4 model;
     uint cameraIndex;
     uint materialBufferIndex;
     uint vertexBufferIndex;

@@ -275,7 +275,6 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
             {
                 memcpy(vertices[j].position.data, unpacked + 3 * j,
                        sizeof(f32) * 3);
-                vertices[j].position *= 0.01f;
             }
         }
         else if (attribute.type == cgltf_attribute_type_normal)
@@ -366,6 +365,71 @@ static bool ProcessMeshes(RHI::Device& device, cgltf_data* data, Scene& scene,
     return true;
 }
 
+static u32 MeshNodeCount(cgltf_node* node)
+{
+    HLS_ASSERT(node);
+
+    u32 meshNodeCount = static_cast<bool>(node->mesh);
+
+    for (u64 i = 0; i < node->children_count; i++)
+    {
+        meshNodeCount += MeshNodeCount(node->children[i]);
+    }
+
+    return meshNodeCount;
+}
+
+static u32 ProcessMeshNode(cgltf_data* data, cgltf_node* node,
+                           Math::Mat4 parentModel, Scene& scene,
+                           u32 meshNodeIndex)
+{
+    HLS_ASSERT(node);
+    HLS_ASSERT(data);
+
+    Math::Mat4 model;
+    if (node->has_matrix)
+    {
+        model = Math::Mat4(node->matrix, 16);
+    }
+    else
+    {
+        if (node->has_scale)
+        {
+            model = Math::ScaleMatrix(node->scale[0], node->scale[1],
+                                      node->scale[2]);
+        }
+        if (node->has_rotation)
+        {
+            // TODO: Quaternion to rotation matrix
+        }
+        if (node->has_translation)
+        {
+            model *= Math::TranslationMatrix(node->translation[0],
+                                             node->translation[1],
+                                             node->translation[2]);
+        }
+    }
+    model = parentModel * model;
+
+    if (node->mesh)
+    {
+        scene.meshNodes[meshNodeIndex].model = model;
+        u32 meshIndex = static_cast<u32>(cgltf_mesh_index(data, node->mesh));
+        scene.meshNodes[meshNodeIndex].mesh =
+            scene.directDrawData.meshes + meshIndex;
+    }
+
+    meshNodeIndex += static_cast<bool>(node->mesh);
+
+    for (u64 i = 0; i < node->children_count; i++)
+    {
+        meshNodeIndex = ProcessMeshNode(data, node->children[i], model, scene,
+                                        meshNodeIndex);
+    }
+
+    return meshNodeIndex;
+}
+
 static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
                          cgltf_scene* scene, Scene& hlsScene)
 {
@@ -443,6 +507,21 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     {
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
+    }
+
+    u32 meshNodeCount = 0;
+    for (u32 i = 0; i < scene->nodes_count; i++)
+    {
+        meshNodeCount += MeshNodeCount(scene->nodes[i]);
+    }
+    hlsScene.meshNodes = HLS_ALLOC(arena, MeshNode, meshNodeCount);
+    hlsScene.meshNodeCount = meshNodeCount;
+
+    u32 meshNodeIndex = 0;
+    for (u32 i = 0; i < scene->nodes_count; i++)
+    {
+        meshNodeIndex = ProcessMeshNode(data, scene->nodes[i], Math::Mat4(),
+                                        hlsScene, meshNodeIndex);
     }
 
     ArenaPopToMarker(scratch, scratchMarker);

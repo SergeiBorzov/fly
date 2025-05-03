@@ -85,21 +85,26 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
                          VK_INDEX_TYPE_UINT32);
 
-    u32 indices[4] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                      scene.materialBuffer.bindlessHandle, 0, 0};
-    for (u32 i = 0; i < scene.directDrawData.submeshCount; i++)
+    u32 globalIndices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
+                            scene.materialBuffer.bindlessHandle};
+    vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
+                       sizeof(Math::Mat4), sizeof(u32) * 2, globalIndices);
+    for (u32 i = 0; i < scene.meshNodeCount; i++)
     {
-        const Hls::Submesh& submesh = scene.directDrawData.submeshes[i];
-        indices[2] = submesh.vertexBufferIndex;
-        indices[3] = submesh.materialIndex;
-        // HLS_LOG("Push constants env: %u matB: %u vb: %u mat: %u", indices[0],
-        //         indices[1], indices[2], indices[3]);
-        // HLS_LOG("Index count %u, index offset %u", submesh.indexCount,
-        //         submesh.indexOffset);
+        const Hls::MeshNode& meshNode = scene.meshNodes[i];
         vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                           sizeof(u32) * 4, indices);
-        vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1, submesh.indexOffset,
-                         0, 0);
+                           sizeof(Math::Mat4), meshNode.model.data);
+        for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
+        {
+            const Hls::Submesh& submesh = meshNode.mesh->submeshes[j];
+            u32 localIndices[2] = {submesh.vertexBufferIndex,
+                                   submesh.materialIndex};
+            vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
+                               sizeof(Math::Mat4) + sizeof(u32) * 2,
+                               sizeof(u32) * 2, localIndices);
+            vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1,
+                             submesh.indexOffset, 0, 0);
+        }
     }
 
     vkCmdEndRendering(cmd.handle);

@@ -6,6 +6,7 @@ layout(location = 0) out vec2 outUV;
 
 layout(push_constant) uniform Indices
 {
+    mat4 model;
     uint cameraIndex;
     uint materialBufferIndex;
     uint vertexBufferIndex;
@@ -32,6 +33,6 @@ void main()
     outUV = vec2(v.uvX, v.uvY);
     gl_Position =
         HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraIndex, projection) *
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraIndex, view) *
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraIndex, view) * gIndices.model *
         vec4(v.position, 1.0f);
 }

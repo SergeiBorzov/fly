@@ -43,6 +43,9 @@ Mat4 operator*(const Mat4& lhs, const Mat4& rhs);
 
 Vec4 operator*(const Mat4& lhs, Vec4 rhs);
 
+Mat4 ScaleMatrix(f32 x, f32 y, f32 z);
+Mat4 TranslationMatrix(f32 x, f32 y, f32 z);
+
 Mat4 Perspective(f32 fovy, f32 aspect, f32 near, f32 far);
 Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp);
 
