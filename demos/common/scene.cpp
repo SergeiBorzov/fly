@@ -482,12 +482,14 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
 
     if (!ProcessMeshes(device, data, hlsScene, boundingSphereDraws, meshData))
     {
+        ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
 
     if (!ProcessIndices(device, data, hlsScene, boundingSphereDraws))
     {
+        ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
@@ -497,6 +499,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
             sizeof(BoundingSphereDraw) * totalSubmeshCount,
             hlsScene.indirectDrawData.boundingSphereDrawBuffer))
     {
+        ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
@@ -505,6 +508,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
                                   sizeof(MeshData) * totalSubmeshCount,
                                   hlsScene.indirectDrawData.meshDataBuffer))
     {
+        ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
@@ -522,6 +526,36 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     {
         meshNodeIndex = ProcessMeshNode(data, scene->nodes[i], Math::Mat4(),
                                         hlsScene, meshNodeIndex);
+    }
+
+    u32 instanceDataCount = 0;
+    for (u32 i = 0; i < hlsScene.meshNodeCount; i++)
+    {
+        instanceDataCount += hlsScene.meshNodes[i].mesh->submeshCount;
+    }
+
+    InstanceData* instanceData =
+        HLS_ALLOC(scratch, InstanceData, instanceDataCount);
+    u32 index = 0;
+    for (u32 i = 0; i < hlsScene.meshNodeCount; i++)
+    {
+        const MeshNode& meshNode = hlsScene.meshNodes[i];
+        for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
+        {
+            instanceData[index].model = meshNode.model;
+            instanceData[index].meshDataIndex =
+                (hlsScene.directDrawData.submeshes - meshNode.mesh->submeshes) +
+                j;
+        }
+    }
+
+    if (!RHI::CreateStorageBuffer(device, false, instanceData,
+                                  sizeof(InstanceData) * instanceDataCount,
+                                  hlsScene.indirectDrawData.instanceDataBuffer))
+    {
+        ArenaPopToMarker(arena, marker);
+        ArenaPopToMarker(scratch, scratchMarker);
+        return false;
     }
 
     ArenaPopToMarker(scratch, scratchMarker);
@@ -550,8 +584,7 @@ bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
 
 void UnloadScene(RHI::Device& device, Scene& scene)
 {
-    // RHI::DestroyBuffer(device,
-    // scene.indirectDrawData.instanceDataDrawBuffer);
+    RHI::DestroyBuffer(device, scene.indirectDrawData.instanceDataBuffer);
     RHI::DestroyBuffer(device, scene.indirectDrawData.boundingSphereDrawBuffer);
     RHI::DestroyBuffer(device, scene.indirectDrawData.meshDataBuffer);
 

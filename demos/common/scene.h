@@ -67,7 +67,7 @@ struct MeshData
 
 struct IndirectDrawData
 {
-    RHI::Buffer instanceDataDrawBuffer;
+    RHI::Buffer instanceDataBuffer;
     RHI::Buffer boundingSphereDrawBuffer;
     RHI::Buffer meshDataBuffer;
 };
