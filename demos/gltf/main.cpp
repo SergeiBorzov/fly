@@ -26,6 +26,12 @@ static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
             Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
+static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
+                                     const RHI::PhysicalDeviceInfo& info)
+{
+    return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+}
+
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
 {
@@ -73,27 +79,27 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
-                         VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
+    vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
+                         VK_INDEX_TYPE_UINT32);
 
     u32 indices[4] = {sUniformBuffers[device.frameIndex].bindlessHandle,
                       scene.materialBuffer.bindlessHandle, 0, 0};
-    for (u32 i = 0; i < scene.meshCount; i++)
+    for (u32 i = 0; i < scene.directDrawData.submeshCount; i++)
     {
-        const Hls::Mesh& mesh = scene.meshes[i];
-        for (u32 j = 0; j < mesh.submeshCount; j++)
-        {
-            const Hls::Submesh& submesh = mesh.submeshes[j];
-            indices[2] = submesh.vertexBuffer.bindlessHandle;
-            indices[3] = submesh.materialIndex;
-            vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
-                               0, sizeof(u32) * 4, indices);
-            vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1,
-                             submesh.indexOffset, 0, 0);
-        }
+        const Hls::Submesh& submesh = scene.directDrawData.submeshes[i];
+        indices[2] = submesh.vertexBufferIndex;
+        indices[3] = submesh.materialIndex;
+        // HLS_LOG("Push constants env: %u matB: %u vb: %u mat: %u", indices[0],
+        //         indices[1], indices[2], indices[3]);
+        // HLS_LOG("Index count %u, index offset %u", submesh.indexCount,
+        //         submesh.indexOffset);
+        vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
+                           sizeof(u32) * 4, indices);
+        vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1, submesh.indexOffset,
+                         0, 0);
     }
 
     vkCmdEndRendering(cmd.handle);
@@ -137,6 +143,7 @@ int main(int argc, char* argv[])
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
+    settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);

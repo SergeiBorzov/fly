@@ -1,7 +1,7 @@
 #ifndef HLS_DEMOS_COMMON_SCENE_H
 #define HLS_DEMOS_COMMON_SCENE_H
 
-#include "math/vec.h"
+#include "math/mat.h"
 
 #include "rhi/buffer.h"
 #include "rhi/texture.h"
@@ -11,9 +11,10 @@ struct Arena;
 namespace Hls
 {
 
+// CPU based draw call structures
 struct Submesh
 {
-    RHI::Buffer vertexBuffer;
+    u32 vertexBufferIndex = 0;
     u32 indexOffset = 0;
     u32 indexCount = 0;
     u32 materialIndex = 0;
@@ -25,39 +26,76 @@ struct Mesh
     u32 submeshCount = 0;
 };
 
+struct DirectDrawData
+{
+    Submesh* submeshes = nullptr;
+    Mesh* meshes = nullptr;
+    u32 meshCount = 0;
+    u32 submeshCount = 0;
+};
+//
+
+// Indirect draw structures
+struct BoundingSphereDraw
+{
+    Math::Vec3 center;
+    f32 radius = 0.0f;
+    u32 indexCount = 0;
+    u32 indexOffset = 0;
+};
+
+struct InstanceData
+{
+    Math::Mat4 model;
+    u32 meshDataIndex = 0;
+    u32 padding[3] = {0};
+};
+
+struct MeshData
+{
+    // bindless handle to locate vb in shader
+    u32 materialIndex = 0;
+    u32 vertexBufferIndex = 0;
+    u32 boundingSphereDrawIndex = 0;
+};
+
+struct IndirectDrawData
+{
+    RHI::Buffer instanceDataDrawBuffer;
+    RHI::Buffer boundingSphereDrawBuffer;
+    RHI::Buffer meshDataBuffer;
+};
+//
+
 struct TextureProperty
 {
     Math::Vec2 offset = {0.0f, 0.0f};
     Math::Vec2 scale = {1.0f, 1.0f};
     u32 textureHandle = HLS_MAX_U32;
-    f32 pad;
+    u32 pad;
 };
 
-struct MaterialData
+struct PBRMaterialData
 {
     TextureProperty albedoTexture;
 };
 
-struct Material
-{
-    u32 materialHandle = HLS_MAX_U32;
-};
-
 struct Scene
 {
+    IndirectDrawData indirectDrawData;
+    DirectDrawData directDrawData;
     RHI::Buffer indexBuffer;
     RHI::Buffer materialBuffer;
-    Mesh* meshes = nullptr;
-    Material* materials = nullptr;
+    RHI::Buffer* vertexBuffers = nullptr;
     RHI::Texture* textures = nullptr;
+    u32 vertexBufferCount = 0;
     u32 materialCount = 0;
-    u32 meshCount = 0;
     u32 textureCount = 0;
 };
 
 bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
                          RHI::Sampler::FilterMode filterMode,
-                         RHI::Sampler::WrapMode wrapMode, u32 anisotropy,
+                         RHI::Sampler::WrapMode wrapMode,
                          RHI::Texture& texture);
 bool LoadShaderFromSpv(RHI::Device& device, const char* path,
                        RHI::Shader& shader);

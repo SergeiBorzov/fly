@@ -21,12 +21,184 @@ struct Vertex
     f32 uvY;
 };
 
-static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
-                                     cgltf_primitive* primitive,
-                                     Submesh& submesh)
+static bool ProcessIndices(RHI::Device& device, cgltf_data* data, Scene& scene,
+                           BoundingSphereDraw* boundingSphereDraws)
+{
+    HLS_ASSERT(data);
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    u32 indexCount = 0;
+    for (u64 i = 0; i < data->meshes_count; i++)
+    {
+        cgltf_mesh& mesh = data->meshes[i];
+        for (u64 j = 0; j < mesh.primitives_count; j++)
+        {
+            cgltf_primitive& primitive = mesh.primitives[j];
+            if (primitive.indices)
+            {
+                indexCount += static_cast<u32>(primitive.indices->count);
+            }
+        }
+    }
+
+    if (indexCount == 0)
+    {
+        return false;
+    }
+
+    u32* indices = HLS_ALLOC(scratch, u32, indexCount);
+    u32 offset = 0;
+    u32 submeshOffset = 0;
+    for (u64 i = 0; i < data->meshes_count; i++)
+    {
+        cgltf_mesh& mesh = data->meshes[i];
+        for (u64 j = 0; j < mesh.primitives_count; j++)
+        {
+            cgltf_primitive& primitive = mesh.primitives[j];
+            if (primitive.indices)
+            {
+                cgltf_accessor_unpack_indices(primitive.indices,
+                                              indices + offset, sizeof(u32),
+                                              primitive.indices->count);
+                scene.directDrawData.meshes[i].submeshes[j].indexCount =
+                    static_cast<u32>(primitive.indices->count);
+                scene.directDrawData.meshes[i].submeshes[j].indexOffset =
+                    offset;
+                boundingSphereDraws[submeshOffset + j].indexCount =
+                    static_cast<u32>(primitive.indices->count);
+                boundingSphereDraws[submeshOffset + j].indexOffset = offset;
+                offset += static_cast<u32>(primitive.indices->count);
+            }
+            submeshOffset += static_cast<u32>(mesh.primitives_count);
+        }
+    }
+
+    if (!RHI::CreateIndexBuffer(device, indices, indexCount * sizeof(u32),
+                                scene.indexBuffer))
+    {
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
+}
+
+static bool ProcessTextures(Arena& arena, RHI::Device& device, cgltf_data* data,
+                            Scene& scene)
+{
+    HLS_ASSERT(data);
+
+    ArenaMarker marker = ArenaGetMarker(arena);
+    scene.textureCount = static_cast<u32>(data->textures_count);
+    scene.textures = HLS_ALLOC(arena, RHI::Texture, scene.textureCount);
+
+    for (u64 i = 0; i < data->textures_count; i++)
+    {
+        cgltf_texture& texture = data->textures[i];
+
+        if (!texture.image)
+        {
+            ArenaPopToMarker(arena, marker);
+            return false;
+        }
+
+        if (!texture.image->uri)
+        {
+            HLS_ERROR("TODO: Load embedded textures");
+            ArenaPopToMarker(arena, marker);
+            return false;
+        }
+
+        if (!LoadTextureFromFile(
+                device, texture.image->uri, VK_FORMAT_R8G8B8A8_SRGB,
+                RHI::Sampler::FilterMode::Anisotropy8x,
+                RHI::Sampler::WrapMode::Repeat, scene.textures[i]))
+        {
+            HLS_ERROR("Failed to load texture %s", texture.image->uri);
+            ArenaPopToMarker(arena, marker);
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
+                             Scene& scene)
+{
+    HLS_ASSERT(data);
+    if (data->materials_count == 0)
+    {
+        return true;
+    }
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    PBRMaterialData* materialDataBuffer =
+        HLS_ALLOC(scratch, PBRMaterialData, data->materials_count);
+
+    for (u64 i = 0; i < data->materials_count; i++)
+    {
+        cgltf_material& material = data->materials[i];
+        PBRMaterialData& materialData = materialDataBuffer[i];
+
+        if (!material.has_pbr_metallic_roughness)
+        {
+            HLS_ERROR("TODO: Support not only mettalic roughness workflow");
+            ArenaPopToMarker(scratch, marker);
+            return false;
+        }
+
+        cgltf_texture_view albedoTextureView =
+            material.pbr_metallic_roughness.base_color_texture;
+        if (albedoTextureView.has_transform)
+        {
+            materialData.albedoTexture.offset.x =
+                albedoTextureView.transform.offset[0];
+            materialData.albedoTexture.offset.y =
+                albedoTextureView.transform.offset[1];
+            materialData.albedoTexture.scale.x =
+                albedoTextureView.transform.scale[0];
+            materialData.albedoTexture.scale.y =
+                albedoTextureView.transform.scale[1];
+        }
+
+        u32 textureIndex = static_cast<u32>(
+            cgltf_texture_index(data, albedoTextureView.texture));
+        materialData.albedoTexture.textureHandle = textureIndex;
+    }
+
+    if (!RHI::CreateStorageBuffer(device, false, materialDataBuffer,
+                                  sizeof(PBRMaterialData) *
+                                      data->materials_count,
+                                  scene.materialBuffer))
+    {
+        ArenaPopToMarker(scratch, marker);
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
+}
+
+static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
+                           cgltf_primitive* primitive, Submesh& submesh,
+                           BoundingSphereDraw& boundingSphereDraw,
+                           RHI::Buffer& vertexBuffer)
 {
     HLS_ASSERT(data);
     HLS_ASSERT(primitive);
+
+    if (!primitive->material ||
+        !primitive->material->has_pbr_metallic_roughness)
+    {
+        HLS_ERROR("Unsupported material type");
+        return false;
+    }
+
+    submesh.materialIndex =
+        static_cast<u32>(cgltf_material_index(data, primitive->material));
 
     bool isPosPresent = false;
     bool isNormalPresent = false;
@@ -46,6 +218,7 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
             if (accessor->component_type != cgltf_component_type_r_32f &&
                 accessor->type != cgltf_type_vec3)
             {
+                HLS_ERROR("Position has not exactly 3 components");
                 return false;
             }
         }
@@ -55,6 +228,7 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
             if (accessor->component_type != cgltf_component_type_r_32f &&
                 accessor->type != cgltf_type_vec3)
             {
+                HLS_ERROR("Normals has not exactly 3 components");
                 return false;
             }
         }
@@ -64,6 +238,7 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
             if (accessor->component_type != cgltf_component_type_r_32f &&
                 accessor->type != cgltf_type_vec2)
             {
+                HLS_ERROR("Texture coord has not exactly 2 components");
                 return false;
             }
         }
@@ -71,7 +246,13 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
 
     if (!isPosPresent || !isNormalPresent || !isTexCoordPresent)
     {
+        HLS_ERROR("Mesh misses one of position/normal/texCoords");
         return false;
+    }
+
+    if (vertexCount == 0)
+    {
+        return true;
     }
 
     Arena& scratch = GetScratchArena();
@@ -121,10 +302,21 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
         ArenaPopToMarker(scratch, loopMarker);
     }
 
+    // Simple bounding sphere through AABB
+    Math::Vec3 min = vertices[0].position;
+    Math::Vec3 max = vertices[0].position;
+    for (u64 i = 0; i < vertexCount; i++)
+    {
+        min = Math::Min(min, vertices[i].position);
+        max = Math::Max(max, vertices[i].position);
+    }
+    boundingSphereDraw.center = (min + max) * 0.5f;
+    boundingSphereDraw.radius = Math::Length(max - boundingSphereDraw.center);
+
     if (!RHI::CreateStorageBuffer(device, false, vertices,
-                                  sizeof(Vertex) * vertexCount,
-                                  submesh.vertexBuffer))
+                                  sizeof(Vertex) * vertexCount, vertexBuffer))
     {
+        ArenaPopToMarker(scratch, marker);
         return false;
     }
 
@@ -132,179 +324,45 @@ static bool ProcessPrimitiveVertices(RHI::Device& device, cgltf_data* data,
     return true;
 }
 
-static bool ProcessPrimitiveMaterial(RHI::Device& device, cgltf_data* data,
-                                     cgltf_material* material, Submesh& submesh)
+static bool ProcessMeshes(RHI::Device& device, cgltf_data* data, Scene& scene,
+                          BoundingSphereDraw* boundingSphereDraws,
+                          MeshData* meshData)
 {
     HLS_ASSERT(data);
-    HLS_ASSERT(material);
+    HLS_ASSERT(boundingSphereDraws);
+    HLS_ASSERT(meshData);
 
-    if (!material->has_pbr_metallic_roughness)
-    {
-        return false;
-    }
-
-    submesh.materialIndex =
-        static_cast<u32>(cgltf_material_index(data, material));
-    return true;
-}
-
-static bool ProcessPrimitive(RHI::Device& device, cgltf_data* data,
-                             cgltf_primitive* primitive, Submesh& submesh)
-{
-    HLS_ASSERT(data);
-    HLS_ASSERT(primitive);
-
-    if (!ProcessPrimitiveVertices(device, data, primitive, submesh))
-    {
-        return false;
-    }
-
-    ProcessPrimitiveMaterial(device, data, primitive->material, submesh);
-    return true;
-}
-
-static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
-                             Scene& scene)
-{
-    HLS_ASSERT(data);
-    if (data->materials_count == 0)
-    {
-        return true;
-    }
-
-    Arena& scratch = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(scratch);
-    MaterialData* materialDataBuffer =
-        HLS_ALLOC(scratch, MaterialData, data->materials_count);
-
-    u64 materialDataIndex = 0;
-    for (u64 i = 0; i < data->materials_count; i++)
-    {
-        cgltf_material& material = data->materials[i];
-        MaterialData& materialData = materialDataBuffer[materialDataIndex];
-
-        if (!material.has_pbr_metallic_roughness)
-        {
-            continue;
-        }
-
-        cgltf_texture_view albedoTextureView =
-            material.pbr_metallic_roughness.base_color_texture;
-        if (albedoTextureView.has_transform)
-        {
-            materialData.albedoTexture.offset.x =
-                albedoTextureView.transform.offset[0];
-            materialData.albedoTexture.offset.y =
-                albedoTextureView.transform.offset[1];
-            materialData.albedoTexture.scale.x =
-                albedoTextureView.transform.scale[0];
-            materialData.albedoTexture.scale.y =
-                albedoTextureView.transform.scale[1];
-        }
-
-        u32 textureIndex = static_cast<u32>(
-            cgltf_texture_index(data, albedoTextureView.texture));
-        materialData.albedoTexture.textureHandle = textureIndex;
-
-        materialDataIndex++;
-    }
-
-    if (!RHI::CreateStorageBuffer(device, false, materialDataBuffer,
-                                  sizeof(MaterialData) * materialDataIndex,
-                                  scene.materialBuffer))
-    {
-        return false;
-    }
-
-    ArenaPopToMarker(scratch, marker);
-    return true;
-}
-
-static bool ProcessTexture(RHI::Device& device, cgltf_data* data,
-                           cgltf_texture* texture, RHI::Texture& hlsTexture)
-{
-    HLS_ASSERT(data);
-    HLS_ASSERT(texture);
-
-    if (!texture->image || !texture->image->uri)
-    {
-        return false;
-    }
-
-    Hls::Image image;
-    if (!Hls::LoadImageFromFile(texture->image->uri, image))
-    {
-        HLS_ERROR("Failed to load image %s", texture->image->uri);
-        return false;
-    }
-
-    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
-                            image.channelCount, VK_FORMAT_R8G8B8A8_SRGB,
-                            RHI::Sampler::FilterMode::Trilinear,
-                            RHI::Sampler::WrapMode::Repeat, 8, hlsTexture))
-    {
-        HLS_ERROR("Failed to create texture %s", texture->image->uri);
-        return false;
-    }
-    Hls::FreeImage(image);
-
-    return true;
-}
-
-static bool ProcessIndices(RHI::Device& device, cgltf_data* data, Scene& scene)
-{
-    HLS_ASSERT(data);
-
-    Arena& scratch = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(scratch);
-
-    u32 indexCount = 0;
-    for (u64 i = 0; i < data->meshes_count; i++)
-    {
-        cgltf_mesh& mesh = data->meshes[i];
-        for (u64 j = 0; j < mesh.primitives_count; j++)
-        {
-            cgltf_primitive& primitive = mesh.primitives[j];
-            if (primitive.indices)
-            {
-                indexCount += static_cast<u32>(primitive.indices->count);
-            }
-        }
-    }
-
-    if (indexCount == 0)
-    {
-        return false;
-    }
-
-    u32* indices = HLS_ALLOC(scratch, u32, indexCount);
     u32 offset = 0;
-    for (u64 i = 0; i < data->meshes_count; i++)
+    for (u32 i = 0; i < data->meshes_count; i++)
     {
-        cgltf_mesh& mesh = data->meshes[i];
-        for (u64 j = 0; j < mesh.primitives_count; j++)
+        u32 submeshCount = static_cast<u32>(data->meshes[i].primitives_count);
+        scene.directDrawData.meshes[i].submeshes =
+            scene.directDrawData.submeshes + offset;
+        scene.directDrawData.meshes[i].submeshCount = submeshCount;
+
+        for (u32 j = 0; j < submeshCount; j++)
         {
-            cgltf_primitive& primitive = mesh.primitives[j];
-            if (primitive.indices)
+            if (!ProcessSubmesh(device, data, &data->meshes[i].primitives[j],
+                                scene.directDrawData.submeshes[offset + j],
+                                boundingSphereDraws[offset + j],
+                                scene.vertexBuffers[offset + j]))
             {
-                cgltf_accessor_unpack_indices(primitive.indices,
-                                              indices + offset, sizeof(u32),
-                                              primitive.indices->count);
-                scene.meshes[i].submeshes[j].indexCount =
-                    static_cast<u32>(primitive.indices->count);
-                scene.meshes[i].submeshes[j].indexOffset = offset;
-                offset += static_cast<u32>(primitive.indices->count);
+                return false;
             }
+            HLS_ASSERT(scene.vertexBuffers[offset + j].handle !=
+                       VK_NULL_HANDLE);
+            u32 vbBindlessHandle =
+                scene.vertexBuffers[offset + j].bindlessHandle;
+            scene.directDrawData.submeshes[offset + j].vertexBufferIndex =
+                vbBindlessHandle;
+
+            meshData[offset + j].vertexBufferIndex = vbBindlessHandle;
+            meshData[offset + j].boundingSphereDrawIndex = offset + j;
+            meshData[offset + j].materialIndex =
+                scene.directDrawData.submeshes[offset + j].materialIndex;
         }
+        offset += submeshCount;
     }
-
-    if (!RHI::CreateIndexBuffer(device, indices, indexCount * sizeof(u32),
-                                scene.indexBuffer))
-    {
-        return false;
-    }
-
-    ArenaPopToMarker(scratch, marker);
     return true;
 }
 
@@ -319,40 +377,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         return true;
     }
 
-    Arena& scratch = GetScratchArena(&arena);
-    ArenaMarker marker = ArenaGetMarker(arena);
-
-    hlsScene.meshCount = static_cast<u32>(data->meshes_count);
-    hlsScene.meshes = HLS_ALLOC(arena, Mesh, hlsScene.meshCount);
-    hlsScene.materialCount = static_cast<u32>(data->materials_count);
-    hlsScene.materials = HLS_ALLOC(arena, Material, hlsScene.materialCount);
-    hlsScene.textureCount = static_cast<u32>(data->textures_count);
-    hlsScene.textures = HLS_ALLOC(arena, RHI::Texture, hlsScene.textureCount);
-
-    for (u64 i = 0; i < data->textures_count; i++)
-    {
-        ProcessTexture(device, data, &data->textures[i], hlsScene.textures[i]);
-    }
-
-    // Process vertices
-    for (u64 i = 0; i < data->meshes_count; i++)
-    {
-        cgltf_mesh* mesh = &data->meshes[i];
-        hlsScene.meshes[i].submeshes =
-            HLS_ALLOC(arena, Submesh, mesh->primitives_count);
-        hlsScene.meshes[i].submeshCount =
-            static_cast<u32>(mesh->primitives_count);
-        for (u64 j = 0; j < mesh->primitives_count; j++)
-        {
-            if (!ProcessPrimitive(device, data, &mesh->primitives[j],
-                                  hlsScene.meshes[i].submeshes[j]))
-            {
-                return false;
-            }
-        }
-    }
-
-    if (!ProcessIndices(device, data, hlsScene))
+    if (!ProcessTextures(arena, device, data, hlsScene))
     {
         return false;
     }
@@ -362,52 +387,65 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         return false;
     }
 
-    ArenaPopToMarker(scratch, marker);
-    return true;
-}
+    ArenaMarker marker = ArenaGetMarker(arena);
+    hlsScene.directDrawData.meshes = HLS_ALLOC(arena, Mesh, data->meshes_count);
+    hlsScene.directDrawData.meshCount = static_cast<u32>(data->meshes_count);
 
-bool LoadShaderFromSpv(RHI::Device& device, const char* path,
-                       RHI::Shader& shader)
-{
-    HLS_ASSERT(path);
-
-    Arena& scratch = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(scratch);
-
-    String8 spvSource = Hls::LoadSpvFromFile(scratch, path);
-    if (!spvSource)
+    u32 totalSubmeshCount = 0;
+    for (u32 i = 0; i < data->meshes_count; i++)
     {
-        return false;
-    }
-    if (!RHI::CreateShader(device, spvSource.Data(), spvSource.Size(), shader))
-    {
-        ArenaPopToMarker(scratch, marker);
-        return false;
+        u32 submeshCount = static_cast<u32>(data->meshes[i].primitives_count);
+        totalSubmeshCount += static_cast<u32>(data->meshes[i].primitives_count);
     }
 
-    ArenaPopToMarker(scratch, marker);
-    return true;
-}
-
-bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
-                         RHI::Sampler::FilterMode filterMode,
-                         RHI::Sampler::WrapMode wrapMode, u32 anisotropy,
-                         RHI::Texture& texture)
-{
-    HLS_ASSERT(path);
-
-    Hls::Image image;
-    if (!Hls::LoadImageFromFile(path, image))
+    if (totalSubmeshCount == 0)
     {
+        return true;
+    }
+
+    hlsScene.vertexBuffers = HLS_ALLOC(arena, RHI::Buffer, totalSubmeshCount);
+    hlsScene.vertexBufferCount = totalSubmeshCount;
+    hlsScene.directDrawData.submeshes =
+        HLS_ALLOC(arena, Submesh, totalSubmeshCount);
+    hlsScene.directDrawData.submeshCount = totalSubmeshCount;
+
+    Arena& scratch = GetScratchArena(&arena);
+    ArenaMarker scratchMarker = ArenaGetMarker(scratch);
+
+    BoundingSphereDraw* boundingSphereDraws =
+        HLS_ALLOC(scratch, BoundingSphereDraw, totalSubmeshCount);
+    MeshData* meshData = HLS_ALLOC(scratch, MeshData, totalSubmeshCount);
+
+    if (!ProcessMeshes(device, data, hlsScene, boundingSphereDraws, meshData))
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
-    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
-                            image.channelCount, format, filterMode, wrapMode,
-                            anisotropy, texture))
+
+    if (!ProcessIndices(device, data, hlsScene, boundingSphereDraws))
     {
+        ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
-    Hls::FreeImage(image);
+
+    if (!RHI::CreateStorageBuffer(
+            device, false, boundingSphereDraws,
+            sizeof(BoundingSphereDraw) * totalSubmeshCount,
+            hlsScene.indirectDrawData.boundingSphereDrawBuffer))
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
+        return false;
+    }
+
+    if (!RHI::CreateStorageBuffer(device, false, meshData,
+                                  sizeof(MeshData) * totalSubmeshCount,
+                                  hlsScene.indirectDrawData.meshDataBuffer))
+    {
+        ArenaPopToMarker(scratch, scratchMarker);
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, scratchMarker);
     return true;
 }
 
@@ -433,22 +471,67 @@ bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
 
 void UnloadScene(RHI::Device& device, Scene& scene)
 {
-    for (u64 i = 0; i < scene.meshCount; i++)
+    // RHI::DestroyBuffer(device,
+    // scene.indirectDrawData.instanceDataDrawBuffer);
+    RHI::DestroyBuffer(device, scene.indirectDrawData.boundingSphereDrawBuffer);
+    RHI::DestroyBuffer(device, scene.indirectDrawData.meshDataBuffer);
+
+    RHI::DestroyBuffer(device, scene.indexBuffer);
+    RHI::DestroyBuffer(device, scene.materialBuffer);
+
+    for (u64 i = 0; i < scene.vertexBufferCount; i++)
     {
-        RHI::DestroyBuffer(device, scene.materialBuffer);
-        RHI::DestroyBuffer(device, scene.indexBuffer);
-
-        for (u64 j = 0; j < scene.meshes[i].submeshCount; j++)
-        {
-            RHI::DestroyBuffer(device,
-                               scene.meshes[i].submeshes[j].vertexBuffer);
-        }
-
-        for (u64 j = 0; j < scene.textureCount; j++)
-        {
-            RHI::DestroyTexture(device, scene.textures[j]);
-        }
+        RHI::DestroyBuffer(device, scene.vertexBuffers[i]);
     }
+
+    for (u64 i = 0; i < scene.textureCount; i++)
+    {
+        RHI::DestroyTexture(device, scene.textures[i]);
+    }
+}
+
+bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
+                         RHI::Sampler::FilterMode filterMode,
+                         RHI::Sampler::WrapMode wrapMode, RHI::Texture& texture)
+{
+    HLS_ASSERT(path);
+
+    Hls::Image image;
+    if (!Hls::LoadImageFromFile(path, image))
+    {
+        return false;
+    }
+    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
+                            image.channelCount, format, filterMode, wrapMode,
+                            texture))
+    {
+        return false;
+    }
+    Hls::FreeImage(image);
+    return true;
+}
+
+bool LoadShaderFromSpv(RHI::Device& device, const char* path,
+                       RHI::Shader& shader)
+{
+    HLS_ASSERT(path);
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    String8 spvSource = Hls::LoadSpvFromFile(scratch, path);
+    if (!spvSource)
+    {
+        return false;
+    }
+    if (!RHI::CreateShader(device, spvSource.Data(), spvSource.Size(), shader))
+    {
+        ArenaPopToMarker(scratch, marker);
+        return false;
+    }
+
+    ArenaPopToMarker(scratch, marker);
+    return true;
 }
 
 } // namespace Hls
