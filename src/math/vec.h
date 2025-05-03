@@ -369,6 +369,26 @@ inline Vec3 Cross(Vec3 a, Vec3 b)
                 a.x * b.y - a.y * b.x);
 }
 
+inline Vec2 Min(Vec2 a, Vec2 b) { return Vec2(Min(a.x, b.x), Min(a.y, b.y)); }
+inline Vec3 Min(Vec3 a, Vec3 b)
+{
+    return Vec3(Min(a.x, b.x), Min(a.y, b.y), Min(a.z, b.z));
+}
+inline Vec4 Min(Vec4 a, Vec4 b)
+{
+    return Vec4(Min(a.x, b.x), Min(a.y, b.y), Min(a.z, b.z), Min(a.w, b.w));
+}
+
+inline Vec2 Max(Vec2 a, Vec2 b) { return Vec2(Max(a.x, b.x), Max(a.y, b.y)); }
+inline Vec3 Max(Vec3 a, Vec3 b)
+{
+    return Vec3(Max(a.x, b.x), Max(a.y, b.y), Max(a.z, b.z));
+}
+inline Vec4 Max(Vec4 a, Vec4 b)
+{
+    return Vec4(Max(a.x, b.x), Max(a.y, b.y), Max(a.z, b.z), Max(a.w, b.w));
+}
+
 } // namespace Math
 } // namespace Hls
 
