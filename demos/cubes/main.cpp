@@ -161,7 +161,7 @@ int main(int argc, char* argv[])
     if (!Hls::LoadTextureFromFile(device, "default.png",
                                   VK_FORMAT_R8G8B8A8_SRGB,
                                   RHI::Sampler::FilterMode::Trilinear,
-                                  RHI::Sampler::WrapMode::Repeat, 0, sTexture))
+                                  RHI::Sampler::WrapMode::Repeat, sTexture))
     {
         HLS_ERROR("Failed to create texture");
         return -1;
