@@ -9,6 +9,20 @@ filegroup(
 )
 
 filegroup(
+    name = "damaged_helmet_scene",
+    srcs = [
+        "2.0/DamagedHelmet/glTF/DamagedHelmet.gltf",
+        "2.0/DamagedHelmet/glTF/DamagedHelmet.bin",
+        "2.0/DamagedHelmet/glTF/Default_AO.jpg",
+        "2.0/DamagedHelmet/glTF/Default_albedo.jpg",
+        "2.0/DamagedHelmet/glTF/Default_emissive.jpg",
+        "2.0/DamagedHelmet/glTF/Default_metalRoughness.jpg",
+        "2.0/DamagedHelmet/glTF/Default_normal.jpg",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
     name = "sponza_scene",
     srcs = [
         "2.0/Sponza/glTF/10381718147657362067.jpg",
