@@ -164,9 +164,12 @@ static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
                 albedoTextureView.transform.scale[1];
         }
 
-        u32 textureIndex = static_cast<u32>(
-            cgltf_texture_index(data, albedoTextureView.texture));
-        materialData.albedoTexture.textureHandle = textureIndex;
+        if (albedoTextureView.texture)
+        {
+            u32 textureIndex = static_cast<u32>(
+                cgltf_texture_index(data, albedoTextureView.texture));
+            materialData.albedoTexture.textureHandle = textureIndex;
+        }
     }
 
     if (!RHI::CreateStorageBuffer(device, false, materialDataBuffer,
@@ -543,9 +546,9 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
         {
             instanceData[index].model = meshNode.model;
-            instanceData[index].meshDataIndex =
+            instanceData[index].meshDataIndex = static_cast<u32>(
                 (hlsScene.directDrawData.submeshes - meshNode.mesh->submeshes) +
-                j;
+                j);
         }
     }
 
