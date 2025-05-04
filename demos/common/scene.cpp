@@ -278,6 +278,8 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
             {
                 memcpy(vertices[j].position.data, unpacked + 3 * j,
                        sizeof(f32) * 3);
+                // flip x, since we use left handed system
+                vertices[j].position.x *= -1.0f;
             }
         }
         else if (attribute.type == cgltf_attribute_type_normal)
@@ -288,6 +290,8 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
             {
                 memcpy(vertices[j].normal.data, unpacked + 3 * j,
                        sizeof(f32) * 3);
+                // flip x, since we use left handed system
+                vertices[j].normal.x *= -1.0f;
             }
         }
         else if (attribute.type == cgltf_attribute_type_texcoord)
@@ -407,7 +411,7 @@ static u32 ProcessMeshNode(cgltf_data* data, cgltf_node* node,
         }
         if (node->has_translation)
         {
-            model *= Math::TranslationMatrix(node->translation[0],
+            model *= Math::TranslationMatrix(-node->translation[0],
                                              node->translation[1],
                                              node->translation[2]);
         }
