@@ -21,7 +21,7 @@ config_setting(
 copy_files_to_directory(
     name = "copy_scene_data",
     srcs = [
-        "@gltf_sample_models//:sponza_scene",
+        "@gltf_sample_models//:box_textured_scene",
     ],
     output_directory = ".",
 )

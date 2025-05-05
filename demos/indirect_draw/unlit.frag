@@ -4,9 +4,10 @@
 
 layout(push_constant) uniform Indices
 {
+    uint instanceDataBufferIndex;
+    uint meshDataBufferIndex;
     uint cameraIndex;
     uint materialBufferIndex;
-    uint indirectDrawBufferIndex;
 }
 gIndices;
 

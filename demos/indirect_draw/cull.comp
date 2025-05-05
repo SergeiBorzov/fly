@@ -7,18 +7,32 @@ layout(local_size_x = 64) in;
 
 layout(push_constant) uniform Indices
 {
-    uint drawDataBufferIndex;
+    uint instanceDataBufferIndex;
+    uint meshDataBufferIndex;
+    uint boundingSphereDrawBufferIndex;
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
     uint maxDrawCount;
 }
 gIndices;
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, DrawData, {
-    uint indexCount;
-    uint firstIndex;
-    uint vertexBufferIndex;
+HLS_REGISTER_STORAGE_BUFFER(readonly, InstanceData, {
+    mat4 model;
+    uint meshDataIndex;
+    uint pad[3];
+})
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
     uint materialIndex;
+    uint vertexBufferIndex;
+    uint boundingSphereDrawIndex;
+})
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, BoundingSphereDraw, {
+    vec3 center;
+    float radius;
+    uint indexCount;
+    uint indexOffset;
 })
 
 HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
@@ -27,8 +41,6 @@ HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
     uint firstIndex;
     uint vertexOffset;
     uint firstInstance;
-    uint vertexBufferIndex;
-    uint materialIndex;
 })
 
 layout(set = 0,
@@ -38,9 +50,7 @@ layout(set = 0,
 }
 gDrawCountBuffers[];
 
-layout(set = 0)
-
-    void main()
+void main()
 {
     uint index = gl_GlobalInvocationID.x;
     if (index >= gIndices.maxDrawCount)
@@ -51,9 +61,16 @@ layout(set = 0)
     uint drawIndex =
         atomicAdd(gDrawCountBuffers[gIndices.drawCountBufferIndex].count, 1);
 
-    DrawData d = HLS_ACCESS_STORAGE_BUFFER(DrawData,
-                                           gIndices.drawDataBufferIndex)[index];
+    InstanceData instance = HLS_ACCESS_STORAGE_BUFFER(
+        InstanceData, gIndices.instanceDataBufferIndex)[index];
+    MeshData meshData = HLS_ACCESS_STORAGE_BUFFER(
+        MeshData, gIndices.meshDataBufferIndex)[instance.meshDataIndex];
+    BoundingSphereDraw sphereDraw = HLS_ACCESS_STORAGE_BUFFER(
+        BoundingSphereDraw,
+        gIndices
+            .boundingSphereDrawBufferIndex)[meshData.boundingSphereDrawIndex];
+
     HLS_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.drawCommandBufferIndex)
-    [drawIndex] = DrawCommand(d.indexCount, 1, d.firstIndex, 0, 0,
-                              d.vertexBufferIndex, d.materialIndex);
+    [drawIndex] =
+        DrawCommand(sphereDraw.indexCount, 1, sphereDraw.indexOffset, 0, index);
 }

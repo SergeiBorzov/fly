@@ -27,27 +27,23 @@ struct DrawCommand
     u32 firstIndex = 0;
     u32 vertexOffset = 0;
     u32 firstInstance = 0;
-    u32 vertexBufferIndex = 0;
-    u32 materialIndex = 0;
-};
-
-struct DrawData
-{
-    u32 indexCount = 0;
-    u32 firstIndex = 0;
-    u32 vertexBufferIndex = 0;
-    u32 materialIndex = 0;
 };
 
 static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sIndirectDrawBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sIndirectCountBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sDrawDataBuffer;
+
 static u32 sDrawCount = 0;
 
 static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
             Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
+
+static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
+                                     const RHI::PhysicalDeviceInfo& info)
+{
+    return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+}
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -68,6 +64,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                            const Hls::Scene& scene)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    // Clear pass
 
     // Culling pass
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -75,12 +72,15 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
                             cullPipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
-    u32 cullIndices[4] = {
-        sDrawDataBuffer.bindlessHandle,
+    u32 cullIndices[6] = {
+        scene.indirectDrawData.instanceDataBuffer.bindlessHandle,
+        scene.indirectDrawData.meshDataBuffer.bindlessHandle,
+        scene.indirectDrawData.boundingSphereDrawBuffer.bindlessHandle,
         sIndirectDrawBuffers[device.frameIndex].bindlessHandle,
-        sIndirectCountBuffers[device.frameIndex].bindlessHandle, sDrawCount};
+        sIndirectCountBuffers[device.frameIndex].bindlessHandle,
+        sDrawCount};
     vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(u32) * 4, cullIndices);
+                       sizeof(u32) * 6, cullIndices);
 
     vkCmdDispatch(cmd.handle, static_cast<u32>(Math::Ceil(sDrawCount / 64.0f)),
                   1, 1);
@@ -149,11 +149,12 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    u32 indices[3] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                      scene.materialBuffer.bindlessHandle,
-                      sIndirectDrawBuffers[device.frameIndex].bindlessHandle};
+    u32 indices[4] = {scene.indirectDrawData.instanceDataBuffer.bindlessHandle,
+                      scene.indirectDrawData.meshDataBuffer.bindlessHandle,
+                      sUniformBuffers[device.frameIndex].bindlessHandle,
+                      scene.materialBuffer.bindlessHandle};
     vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(u32) * 3, indices);
+                       sizeof(u32) * 4, indices);
 
     vkCmdDrawIndexedIndirectCount(
         cmd.handle, sIndirectDrawBuffers[device.frameIndex].handle, 0,
@@ -200,6 +201,7 @@ int main(int argc, char* argv[])
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
+    settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
@@ -215,12 +217,45 @@ int main(int argc, char* argv[])
     }
     RHI::Device& device = context.devices[0];
 
+    // Scene
+    Hls::Scene scene;
+    if (!Hls::LoadSceneFromGLTF(arena, device, "BoxTextured.gltf", scene))
+    {
+        HLS_ERROR("Failed to load gltf");
+        return -1;
+    }
+
+    // Hack
+    RHI::DestroyBuffer(device, scene.indirectDrawData.instanceDataBuffer);
+
+    sDrawCount = 30000;
+    ArenaMarker marker = ArenaGetMarker(arena);
+    InstanceData* instanceData = HLS_ALLOC(arena, InstanceData, sDrawCount);
+
+    for (u32 i = 0; i < sDrawCount; i++)
+    {
+        f32 randomX = Math::RandomF32(-100.0f, 100.0f);
+        f32 randomY = Math::RandomF32(-2.0f, 2.0f);
+        f32 randomZ = Math::RandomF32(0.0f, 100.0f);
+
+        instanceData[i].model =
+            Math::TranslationMatrix(randomX, randomY, randomZ);
+        instanceData[i].meshDataIndex = 0;
+    }
+    if (!RHI::CreateStorageBuffer(device, false, instanceData,
+                                  sizeof(InstanceData) * sDrawCount,
+                                  scene.indirectDrawData.instanceDataBuffer))
+    {
+        return -1;
+    }
+    ArenaPopToMarker(arena, marker);
+
     // Create buffer - that holds draw commands, and another that holds
     // drawCount
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateIndirectBuffer(device, false, nullptr,
-                                       sizeof(DrawCommand) * 10000,
+                                       sizeof(DrawCommand) * sDrawCount,
                                        sIndirectDrawBuffers[i]))
         {
             return -1;
@@ -255,7 +290,7 @@ int main(int argc, char* argv[])
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     RHI::GraphicsPipeline graphicsPipeline{};
@@ -282,14 +317,6 @@ int main(int argc, char* argv[])
     }
     RHI::DestroyShader(device, cullShader);
 
-    // Scene
-    Hls::Scene scene;
-    if (!Hls::LoadSceneFromGLTF(arena, device, "Sponza.gltf", scene))
-    {
-        HLS_ERROR("Failed to load gltf");
-        return -1;
-    }
-
     // Camera data
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -299,34 +326,6 @@ int main(int argc, char* argv[])
             HLS_ERROR("Failed to create uniform buffer!");
         }
     }
-
-    // Fill indirect draw buffer
-    ArenaMarker marker = ArenaGetMarker(arena);
-    for (u64 i = 0; i < scene.meshCount; i++)
-    {
-        sDrawCount += scene.meshes[i].submeshCount;
-    }
-    DrawData* drawDataBuffer = HLS_ALLOC(arena, DrawData, sDrawCount);
-    u64 index = 0;
-    for (u64 i = 0; i < scene.meshCount; i++)
-    {
-        for (u64 j = 0; j < scene.meshes[i].submeshCount; j++)
-        {
-            Hls::Submesh& submesh = scene.meshes[i].submeshes[j];
-            DrawData& drawData = drawDataBuffer[index++];
-            drawData.indexCount = submesh.indexCount;
-            drawData.firstIndex = submesh.indexOffset;
-            drawData.vertexBufferIndex = submesh.vertexBuffer.bindlessHandle;
-            drawData.materialIndex = submesh.materialIndex;
-        }
-    }
-    if (!RHI::CreateStorageBuffer(device, false, drawDataBuffer,
-                                  sizeof(DrawData) * sDrawCount,
-                                  sDrawDataBuffer))
-    {
-        return -1;
-    }
-    ArenaPopToMarker(arena, marker);
 
     // Main Loop
     u64 previousFrameTime = 0;
@@ -376,7 +375,6 @@ int main(int argc, char* argv[])
     RHI::WaitAllDevicesIdle(context);
 
     Hls::UnloadScene(device, scene);
-    RHI::DestroyBuffer(device, sDrawDataBuffer);
     RHI::DestroyComputePipeline(device, cullPipeline);
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
