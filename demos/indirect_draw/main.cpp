@@ -97,8 +97,16 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
         sIndirectDrawBuffers[device.frameIndex].bindlessHandle,
         sIndirectCountBuffers[device.frameIndex].bindlessHandle,
         sDrawCount};
+
+    f32 frustum[4] = {1.0f / sCamera.GetProjection()[0][0],
+                      -1.0f / sCamera.GetProjection()[1][1], 0.01f, 100.0f};
     vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(u32) * 6, cullIndices);
+                       sizeof(Math::Mat4), &sCamera.GetView());
+    vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL,
+                       sizeof(Math::Mat4), sizeof(u32) * 6, cullIndices);
+    vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL,
+                       sizeof(Math::Mat4) + sizeof(u32) * 6, sizeof(f32) * 4,
+                       frustum);
 
     vkCmdDispatch(cmd.handle, static_cast<u32>(Math::Ceil(sDrawCount / 64.0f)),
                   1, 1);
@@ -362,9 +370,11 @@ int main(int argc, char* argv[])
         f64 deltaTime = Hls::ToSeconds(currentFrameTime - previousFrameTime);
 
         sCamera.Update(window, deltaTime);
-        sTopCamera.SetPosition(sCamera.GetPosition() + Math::Vec3(0.0f, 20.0f, 0.0f));
+        sTopCamera.SetPosition(sCamera.GetPosition() +
+                               Math::Vec3(0.0f, 20.0f, 0.0f));
 
-        UniformData uniformData = {sMainCamera->GetProjection(), sMainCamera->GetView()};
+        UniformData uniformData = {sMainCamera->GetProjection(),
+                                   sMainCamera->GetView()};
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 

@@ -7,12 +7,17 @@ layout(local_size_x = 64) in;
 
 layout(push_constant) uniform Indices
 {
+    mat4 view;
     uint instanceDataBufferIndex;
     uint meshDataBufferIndex;
     uint boundingSphereDrawBufferIndex;
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
     uint maxDrawCount;
+    float htanx;
+    float htany;
+    float near;
+    float far;
 }
 gIndices;
 
@@ -58,9 +63,6 @@ void main()
         return;
     }
 
-    uint drawIndex =
-        atomicAdd(gDrawCountBuffers[gIndices.drawCountBufferIndex].count, 1);
-
     InstanceData instance = HLS_ACCESS_STORAGE_BUFFER(
         InstanceData, gIndices.instanceDataBufferIndex)[index];
     MeshData meshData = HLS_ACCESS_STORAGE_BUFFER(
@@ -70,7 +72,20 @@ void main()
         gIndices
             .boundingSphereDrawBufferIndex)[meshData.boundingSphereDrawIndex];
 
-    HLS_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.drawCommandBufferIndex)
-    [drawIndex] =
-        DrawCommand(sphereDraw.indexCount, 1, sphereDraw.indexOffset, 0, index);
+    vec4 centerVS =
+        gIndices.view * instance.model * vec4(sphereDraw.center, 1.0f);
+
+    bool visible = centerVS.z + sphereDraw.radius > gIndices.near &&
+                   centerVS.z - sphereDraw.radius < gIndices.far;
+    visible = visible && centerVS.z * gIndices.htanx + sphereDraw.radius - abs(centerVS.x) > 0;
+    visible = visible && centerVS.z * gIndices.htany + sphereDraw.radius - abs(centerVS.y) > 0;
+
+    if (visible)
+    {
+        uint drawIndex = atomicAdd(
+            gDrawCountBuffers[gIndices.drawCountBufferIndex].count, 1);
+        HLS_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.drawCommandBufferIndex)
+        [drawIndex] = DrawCommand(sphereDraw.indexCount, 1,
+                                  sphereDraw.indexOffset, 0, index);
+    }
 }
