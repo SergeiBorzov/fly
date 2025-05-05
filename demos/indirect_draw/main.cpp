@@ -39,6 +39,12 @@ static Hls::SimpleCameraFPS
     sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
             Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
+static Hls::SimpleCameraFPS
+    sTopCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
+               Hls::Math::Vec3(0.0f, 20.0f, -5.0f));
+
+static Hls::SimpleCameraFPS* sMainCamera = &sCamera;
+
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)
 {
@@ -51,6 +57,18 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, true);
+    }
+
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS)
+    {
+        if (sMainCamera == &sCamera)
+        {
+            sMainCamera = &sTopCamera;
+        }
+        else
+        {
+            sMainCamera = &sCamera;
+        }
     }
 }
 
@@ -331,6 +349,7 @@ int main(int argc, char* argv[])
     u64 previousFrameTime = 0;
     u64 loopStartTime = Hls::ClockNow();
     u64 currentFrameTime = loopStartTime;
+    sTopCamera.SetPitch(-89.0f);
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -343,7 +362,9 @@ int main(int argc, char* argv[])
         f64 deltaTime = Hls::ToSeconds(currentFrameTime - previousFrameTime);
 
         sCamera.Update(window, deltaTime);
-        UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
+        sTopCamera.SetPosition(sCamera.GetPosition() + Math::Vec3(0.0f, 20.0f, 0.0f));
+
+        UniformData uniformData = {sMainCamera->GetProjection(), sMainCamera->GetView()};
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 
@@ -354,22 +375,6 @@ int main(int argc, char* argv[])
         RHI::BeginRenderFrame(device);
         RecordCommands(device, graphicsPipeline, cullPipeline, scene);
         RHI::EndRenderFrame(device);
-
-        // RHI::DeviceWaitIdle(device);
-        //  for (u32 i = 0; i < sDrawCount; i++)
-        //  {
-        //      DrawCommand* dc = (static_cast<DrawCommand*>(
-        //                             sIndirectDrawBuffers[device.frameIndex]
-        //                                 .allocationInfo.pMappedData) +
-        //                         i);
-        //      HLS_LOG("%u %u %u %u %u %u %u", dc->indexCount,
-        //      dc->instanceCount,
-        //              dc->firstIndex, dc->vertexOffset, dc->firstInstance,
-        //              dc->vertexBufferIndex, dc->materialIndex);
-        //  }
-        //  HLS_LOG("Count %u",
-        //          *(static_cast<u32*>(sIndirectCountBuffers[device.frameIndex]
-        //                                  .allocationInfo.pMappedData)));
     }
 
     RHI::WaitAllDevicesIdle(context);

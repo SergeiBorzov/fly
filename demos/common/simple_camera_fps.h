@@ -21,6 +21,7 @@ public:
     inline const Math::Mat4& GetProjection() const { return projection_; }
     inline const Math::Mat4& GetView() const { return view_; }
 
+    void SetPitch(f32 pitch);
     void Update(GLFWwindow* window, double deltaTime);
 
 private:

@@ -57,6 +57,20 @@ void SimpleCameraFPS::UpdatePosition(GLFWwindow* window, double deltaTime)
     }
 }
 
+void SimpleCameraFPS::SetPitch(f32 pitch)
+{
+    pitch_ = Math::Clamp(pitch, -89.0f, 89.0f);
+
+    Math::Vec3 front(
+        Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
+        Math::Sin(Math::Radians(pitch_)),
+        Math::Sin(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)));
+    front = Normalize(front);
+
+    view_ = Math::LookAt(position_, position_ + front,
+                         Math::Vec3(0.0f, 1.0f, 0.0f));
+}
+
 void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
 {
     double cursorX = 0.0f;
