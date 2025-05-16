@@ -11,6 +11,7 @@ namespace RHI
 {
 
 struct Device;
+struct Buffer;
 
 struct CommandBuffer
 {
@@ -61,6 +62,11 @@ RenderingInfo(const VkRect2D& renderArea,
               u32 colorAttachmentCount,
               const VkRenderingAttachmentInfo* depthAttachment = nullptr,
               const VkRenderingAttachmentInfo* stencilAttachment = nullptr);
+
+VkBufferMemoryBarrier
+BufferMemoryBarrier(const Device& device, const RHI::Buffer& buffer,
+                    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+                    u64 offset = 0, u64 size = VK_WHOLE_SIZE);
 
 } // namespace RHI
 } // namespace Hls

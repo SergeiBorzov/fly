@@ -112,27 +112,14 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                   1, 1);
 
     VkBufferMemoryBarrier barriers[2];
-    barriers[0] = {};
-    barriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    barriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barriers[0].dstAccessMask =
-        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    barriers[0].srcQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
-    barriers[0].dstQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
-    barriers[0].buffer = sIndirectDrawBuffers[device.frameIndex].handle;
-    barriers[0].offset = 0;
-    barriers[0].size = VK_WHOLE_SIZE;
-
-    barriers[1] = {};
-    barriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    barriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barriers[1].dstAccessMask =
-        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-    barriers[1].srcQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
-    barriers[1].dstQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
-    barriers[1].buffer = sIndirectCountBuffers[device.frameIndex].handle;
-    barriers[1].offset = 0;
-    barriers[1].size = VK_WHOLE_SIZE;
+    barriers[0] = RHI::BufferMemoryBarrier(
+        device, sIndirectDrawBuffers[device.frameIndex],
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    barriers[1] = RHI::BufferMemoryBarrier(
+        device, sIndirectCountBuffers[device.frameIndex],
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |

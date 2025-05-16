@@ -3,6 +3,7 @@
 #include "core/thread_context.h"
 
 #include "command_buffer.h"
+#include "buffer.h"
 #include "device.h"
 
 namespace Hls
@@ -301,6 +302,25 @@ RenderingInfo(const VkRect2D& renderArea,
     renderInfo.pStencilAttachment = stencilAttachment;
 
     return renderInfo;
+}
+
+VkBufferMemoryBarrier BufferMemoryBarrier(const Device& device,
+                                          const RHI::Buffer& buffer,
+                                          VkAccessFlags srcAccessMask,
+                                          VkAccessFlags dstAccessMask,
+                                          u64 offset, u64 size)
+{
+    VkBufferMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.srcAccessMask = srcAccessMask;
+    barrier.dstAccessMask = dstAccessMask;
+    barrier.srcQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
+    barrier.dstQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
+    barrier.buffer = buffer.handle;
+    barrier.offset = offset;
+    barrier.size = size;
+
+    return barrier;
 }
 
 } // namespace RHI
