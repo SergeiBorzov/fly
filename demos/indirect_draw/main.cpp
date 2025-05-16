@@ -16,8 +16,13 @@ using namespace Hls;
 
 struct UniformData
 {
-    Math::Mat4 projection = {};
-    Math::Mat4 view = {};
+    Math::Mat4 projection;
+    Math::Mat4 view;
+    Math::Mat4 cullView;
+    f32 hTanX;
+    f32 hTanY;
+    f32 nearPlane;
+    f32 farPlane;
 };
 
 struct DrawCommand
@@ -35,13 +40,11 @@ static RHI::Buffer sIndirectCountBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
 static u32 sDrawCount = 0;
 
-static Hls::SimpleCameraFPS
-    sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
-            Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
+static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
+                                    Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
-static Hls::SimpleCameraFPS
-    sTopCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
-               Hls::Math::Vec3(0.0f, 20.0f, -5.0f));
+static Hls::SimpleCameraFPS sTopCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
+                                       Hls::Math::Vec3(0.0f, 20.0f, -5.0f));
 
 static Hls::SimpleCameraFPS* sMainCamera = &sCamera;
 
@@ -90,24 +93,17 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
                             cullPipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
-    u32 cullIndices[6] = {
+    u32 cullIndices[7] = {
         scene.indirectDrawData.instanceDataBuffer.bindlessHandle,
         scene.indirectDrawData.meshDataBuffer.bindlessHandle,
+        sUniformBuffers[device.frameIndex].bindlessHandle,
         scene.indirectDrawData.boundingSphereDrawBuffer.bindlessHandle,
         sIndirectDrawBuffers[device.frameIndex].bindlessHandle,
         sIndirectCountBuffers[device.frameIndex].bindlessHandle,
         sDrawCount};
 
-    f32 frustum[4] = {1.0f / sCamera.GetProjection()[0][0],
-                      -1.0f / sCamera.GetProjection()[1][1], 0.01f, 100.0f};
     vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(Math::Mat4), &sCamera.GetView());
-    vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL,
-                       sizeof(Math::Mat4), sizeof(u32) * 6, cullIndices);
-    vkCmdPushConstants(cmd.handle, cullPipeline.layout, VK_SHADER_STAGE_ALL,
-                       sizeof(Math::Mat4) + sizeof(u32) * 6, sizeof(f32) * 4,
-                       frustum);
-
+                       sizeof(u32) * 7, cullIndices);
     vkCmdDispatch(cmd.handle, static_cast<u32>(Math::Ceil(sDrawCount / 64.0f)),
                   1, 1);
 
@@ -360,8 +356,15 @@ int main(int argc, char* argv[])
         sTopCamera.SetPosition(sCamera.GetPosition() +
                                Math::Vec3(0.0f, 20.0f, 0.0f));
 
-        UniformData uniformData = {sMainCamera->GetProjection(),
-                                   sMainCamera->GetView()};
+        UniformData uniformData;
+        uniformData.projection = sMainCamera->GetProjection();
+        uniformData.view = sMainCamera->GetView();
+        uniformData.cullView = sCamera.GetView();
+        uniformData.hTanX = Math::Tan(Math::Radians(sMainCamera->GetHorizontalFov()) * 0.5f);
+        uniformData.hTanY = Math::Tan(Math::Radians(sMainCamera->GetVerticalFov()) * 0.5f);
+        uniformData.nearPlane = sMainCamera->GetNear();
+        uniformData.farPlane = sMainCamera->GetFar();
+
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 

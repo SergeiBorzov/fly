@@ -11,7 +11,8 @@ namespace Hls
 class SimpleCameraFPS
 {
 public:
-    SimpleCameraFPS(const Math::Mat4& projection, Math::Vec3 position);
+    SimpleCameraFPS(f32 vFov, f32 aspect, f32 near, f32 far,
+                    Math::Vec3 position);
     Math::Vec3 GetRightVector();
     Math::Vec3 GetUpVector();
     Math::Vec3 GetForwardVector();
@@ -20,6 +21,12 @@ public:
 
     inline const Math::Mat4& GetProjection() const { return projection_; }
     inline const Math::Mat4& GetView() const { return view_; }
+
+    inline f32 GetVerticalFov() const { return vFov_; }
+    inline f32 GetHorizontalFov() const { return vFov_ * aspect_; }
+    inline f32 GetAspect() const { return aspect_; }
+    inline f32 GetNear() const { return near_; }
+    inline f32 GetFar() const { return far_; }
 
     void SetPitch(f32 pitch);
     void Update(GLFWwindow* window, double deltaTime);
@@ -34,8 +41,12 @@ private:
     Hls::Math::Vec3 position_;
     double prevCursorX_ = 0.0;
     double prevCursorY_ = 0.0;
-    f32 yaw_ = 90.0;
-    f32 pitch_ = 0.0;
+    f32 yaw_ = 90.0f;
+    f32 pitch_ = 0.0f;
+    f32 vFov_;
+    f32 aspect_;
+    f32 near_;
+    f32 far_;
 
 public:
     f32 speed = 10.0f;

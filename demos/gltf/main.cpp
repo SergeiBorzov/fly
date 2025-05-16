@@ -18,6 +18,10 @@ struct UniformData
 {
     Math::Mat4 projection = {};
     Math::Mat4 view = {};
+    f32 hTanX;
+    f32 hTanY;
+    f32 near;
+    f32 far;
 };
 
 static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];

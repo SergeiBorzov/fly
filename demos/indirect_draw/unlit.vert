@@ -9,7 +9,7 @@ layout(push_constant) uniform Indices
 {
     uint instanceDataBufferIndex;
     uint meshDataBufferIndex;
-    uint cameraIndex;
+    uint cameraBufferIndex;
     uint materialBufferIndex;
 }
 gIndices;
@@ -17,6 +17,10 @@ gIndices;
 HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
+    float hTanX;
+    float hTanY;
+    float near;
+    float far;
 })
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
@@ -40,9 +44,10 @@ HLS_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
 
 void main()
 {
-    // DrawCommand drawCommand = HLS_ACCESS_STORAGE_BUFFER(
-    //     DrawCommand, gIndices.indirectDrawBufferIndex)[gl_DrawID];
-
+    mat4 projection = HLS_ACCESS_UNIFORM_BUFFER(
+        Camera, gIndices.cameraBufferIndex, projection);
+    mat4 view =
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, view);
     InstanceData instance = HLS_ACCESS_STORAGE_BUFFER(
         InstanceData, gIndices.instanceDataBufferIndex)[gl_InstanceIndex];
     MeshData meshData = HLS_ACCESS_STORAGE_BUFFER(
@@ -52,8 +57,5 @@ void main()
 
     outUV = vec2(v.uvX, v.uvY);
     outMaterialIndex = meshData.materialIndex;
-    gl_Position =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraIndex, projection) *
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraIndex, view) *
-        instance.model * vec4(v.position, 1.0f);
+    gl_Position = projection * view * instance.model * vec4(v.position, 1.0f);
 }

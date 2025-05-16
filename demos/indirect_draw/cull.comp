@@ -7,19 +7,25 @@ layout(local_size_x = 64) in;
 
 layout(push_constant) uniform Indices
 {
-    mat4 view;
     uint instanceDataBufferIndex;
     uint meshDataBufferIndex;
+    uint cameraBufferIndex;
     uint boundingSphereDrawBufferIndex;
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
     uint maxDrawCount;
-    float htanx;
-    float htany;
-    float near;
-    float far;
 }
 gIndices;
+
+HLS_REGISTER_UNIFORM_BUFFER(Camera, {
+    mat4 projection;
+    mat4 view;
+    mat4 cullView;
+    float hTanX;
+    float hTanY;
+    float near;
+    float far;
+})
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, InstanceData, {
     mat4 model;
@@ -63,6 +69,17 @@ void main()
         return;
     }
 
+    mat4 cullView =
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, cullView);
+    float hTanX =
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, hTanX);
+    float hTanY =
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, hTanY);
+    float near =
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, near);
+    float far =
+        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, far);
+
     InstanceData instance = HLS_ACCESS_STORAGE_BUFFER(
         InstanceData, gIndices.instanceDataBufferIndex)[index];
     MeshData meshData = HLS_ACCESS_STORAGE_BUFFER(
@@ -72,13 +89,14 @@ void main()
         gIndices
             .boundingSphereDrawBufferIndex)[meshData.boundingSphereDrawIndex];
 
-    vec4 centerVS =
-        gIndices.view * instance.model * vec4(sphereDraw.center, 1.0f);
+    vec4 centerVS = cullView * instance.model * vec4(sphereDraw.center, 1.0f);
 
-    bool visible = centerVS.z + sphereDraw.radius > gIndices.near &&
-                   centerVS.z - sphereDraw.radius < gIndices.far;
-    visible = visible && centerVS.z * gIndices.htanx + sphereDraw.radius - abs(centerVS.x) > 0;
-    visible = visible && centerVS.z * gIndices.htany + sphereDraw.radius - abs(centerVS.y) > 0;
+    bool visible = centerVS.z + sphereDraw.radius > near &&
+                   centerVS.z - sphereDraw.radius < far;
+    visible =
+        visible && centerVS.z * hTanX + sphereDraw.radius - abs(centerVS.x) > 0;
+    visible =
+        visible && centerVS.z * hTanY + sphereDraw.radius - abs(centerVS.y) > 0;
 
     if (visible)
     {
