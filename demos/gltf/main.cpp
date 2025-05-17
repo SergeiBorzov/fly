@@ -18,17 +18,12 @@ struct UniformData
 {
     Math::Mat4 projection = {};
     Math::Mat4 view = {};
-    f32 hTanX;
-    f32 hTanY;
-    f32 near;
-    f32 far;
 };
 
 static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
-static Hls::SimpleCameraFPS
-    sCamera(Hls::Math::Perspective(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f),
-            Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
+static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
+                                    Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)

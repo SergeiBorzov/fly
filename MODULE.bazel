@@ -164,19 +164,3 @@ external_git_repository.base(
     remote = "https://github.com/KhronosGroup/glTF-Sample-Models.git",
 )
 use_repo(external_git_repository, "gltf_sample_models")
-    
-external_data.base(
-    name = "cube_scene",
-    url = "https://casual-effects.com/g3d/data10/common/model/cube/cube.zip",
-    sha256 = "4d5eb265ec88d34119af155ccfa2013ba96135e161cc7661c709d3df88a49d82",
-    build_file = "//scripts/bazel/target:BUILD.cube_scene.bazel",
-)
-use_repo(external_data, "cube_scene")
-
-external_data.base(
-    name = "sponza_scene",
-    url = "https://casual-effects.com/g3d/data10/common/model/crytek_sponza/sponza.zip",
-    sha256 = "da005cbee0be2df2abc8513f3ceb61bcb6f69aac112babcd9c00169a27c2770c",
-    build_file = "//scripts/bazel/target:BUILD.sponza_scene.bazel",
-)
-use_repo(external_data, "sponza_scene")

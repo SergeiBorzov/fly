@@ -14,7 +14,7 @@ copy_files_to_directory(
 copy_files_to_directory(
     name = "copy_scene_data",
     srcs = [
-        "@cube_scene//:scene_data",
+        "@gltf_sample_models//:box_textured_scene",
     ],
     output_directory = ".",
 )

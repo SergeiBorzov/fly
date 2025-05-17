@@ -85,7 +85,6 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                            const Hls::Scene& scene)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-    // Clear pass
 
     // Culling pass
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,

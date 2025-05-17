@@ -22,8 +22,7 @@ using namespace Hls;
 static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTexture;
 
-static Hls::SimpleCameraFPS sCamera(Math::Perspective(45.0f, 1280.0f / 720.0f,
-                                                      0.01f, 100.0f),
+static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Math::Vec3(0.0f, 0.0f, -5.0f));
 
 struct UniformData
@@ -158,7 +157,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    if (!Hls::LoadTextureFromFile(device, "default.png",
+    if (!Hls::LoadTextureFromFile(device, "CesiumLogoFlat.png",
                                   VK_FORMAT_R8G8B8A8_SRGB,
                                   RHI::Sampler::FilterMode::Trilinear,
                                   RHI::Sampler::WrapMode::Repeat, sTexture))
