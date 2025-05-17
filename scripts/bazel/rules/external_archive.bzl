@@ -2,7 +2,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-def get_external_data(name, url, sha256, build_file):
+def get_external_archive(name, url, sha256, build_file):
     if build_file != "":
         http_archive(
             name = name,

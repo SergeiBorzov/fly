@@ -34,9 +34,9 @@ external_git_repository = use_extension(
     "external_git_repository",
 )
 
-external_data = use_extension(
-    "@helios//scripts/bazel/extensions:external_data.bzl",
-    "external_data",
+external_archive = use_extension(
+    "@helios//scripts/bazel/extensions:external_archive.bzl",
+    "external_archive",
 )
 
 external_git_repository.base(
@@ -133,13 +133,13 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "stb")
 
-external_data.base(
+external_archive.base(
     name = "xxhash",
     url = "https://github.com/Cyan4973/xxHash/archive/refs/tags/v0.8.3.zip",
     sha256 = "db2c12e6f05d45546d3581b6881b25090fd65ab5194891da0b2a1a9c49beda66",
     build_file = "//scripts/bazel/target:BUILD.xxhash.bazel",
 )
-use_repo(external_data, "xxhash")
+use_repo(external_archive, "xxhash")
 
 external_git_repository.base(
     name = "cgltf",
