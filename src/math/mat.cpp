@@ -131,6 +131,49 @@ Mat4 TranslationMatrix(f32 x, f32 y, f32 z)
     return res;
 }
 
+Mat4 RotateX(f32 angle)
+{
+    f32 c = Math::Cos(Math::Radians(angle));
+    f32 s = Math::Sin(Math::Radians(angle));
+
+    Mat4 res;
+    res.data[0] = 1.0f;
+    res.data[5] = c;
+    res.data[6] = s;
+    res.data[9] = -s;
+    res.data[10] = c;
+
+    return res;
+}
+
+Mat4 RotateY(f32 angle)
+{
+    f32 c = Math::Cos(Math::Radians(angle));
+    f32 s = Math::Sin(Math::Radians(angle));
+
+    Mat4 res;
+    res.data[0] = c;
+    res.data[2] = -s;
+    res.data[8] = s;
+    res.data[10] = c;
+
+    return res;
+}
+
+Mat4 RotateZ(f32 angle)
+{
+    f32 c = Math::Cos(Math::Radians(angle));
+    f32 s = Math::Sin(Math::Radians(angle));
+
+    Mat4 res;
+    res.data[0] = c;
+    res.data[1] = s;
+    res.data[4] = -s;
+    res.data[5] = c;
+
+    return res;
+}
+
 Mat4 Perspective(f32 fovy_degrees, f32 aspect, float near, float far)
 {
     Mat4 res(0.0f);
