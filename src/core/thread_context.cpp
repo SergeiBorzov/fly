@@ -49,7 +49,7 @@ void InitThreadContext()
     for (i32 i = 0; i < 2; i++)
     {
         stThreadContext.arenas[i] =
-            ArenaCreate(HLS_SIZE_MB(256), HLS_SIZE_MB(1));
+            ArenaCreate(HLS_SIZE_GB(2), HLS_SIZE_MB(1));
     }
 
     Arena& scratch = stThreadContext.arenas[0];
