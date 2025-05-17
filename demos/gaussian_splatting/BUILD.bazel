@@ -1,0 +1,76 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+
+copy_files_to_directory(
+    name = "copy_vulkan_validation_layer",
+    srcs = [
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
+    ],
+    output_directory = ".",
+)
+
+config_setting(
+    name = "release_build",
+    values = {
+        "compilation_mode": "opt",
+    },
+)
+
+copy_files_to_directory(
+    name = "copy_scene_data",
+    srcs = [
+        "@splat_sample_scenes//:garden",
+    ],
+    output_directory = ".",
+)
+
+# glsl_shader(
+#     name = "cull.comp.spv",
+#     src = "cull.comp",
+#     deps = [
+#         "//demos/common:glsl_bindless",
+#     ],
+# )
+
+glsl_shader(
+    name = "splat.vert.spv",
+    src = "splat.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "splat.frag.spv",
+    src = "splat.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        "//src/platform:window",
+        "//src/rhi:context",
+        "//demos/common:scene",
+        "//demos/common:simple_camera_fps",
+    ],
+    data = [
+        # ":cull.comp.spv",
+        ":splat.vert.spv",
+        ":splat.frag.spv",
+        ":copy_scene_data",
+    ] + select({
+        ":release_build": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    }),
+)

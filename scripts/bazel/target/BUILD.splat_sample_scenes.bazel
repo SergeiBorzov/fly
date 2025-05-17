@@ -1,0 +1,7 @@
+filegroup(
+    name = "garden",
+    srcs = [
+        "garden.splat",
+    ],
+    visibility = ["//visibility:public"],
+)

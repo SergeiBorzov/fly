@@ -164,3 +164,12 @@ external_git_repository.base(
     remote = "https://github.com/KhronosGroup/glTF-Sample-Models.git",
 )
 use_repo(external_git_repository, "gltf_sample_models")
+
+external_git_repository.base(
+    name = "splat_sample_scenes",
+    build_file = "//scripts/bazel/target:BUILD.splat_sample_scenes.bazel",
+    commit = "2c9796f59101d77d23f6eee53baa5018c9a6fcdc",
+    remote = "https://huggingface.co/cakewalk/splat-data.git",
+)
+use_repo(external_git_repository, "splat_sample_scenes")
+
