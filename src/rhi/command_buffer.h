@@ -64,7 +64,7 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* stencilAttachment = nullptr);
 
 VkBufferMemoryBarrier
-BufferMemoryBarrier(const Device& device, const RHI::Buffer& buffer,
+BufferMemoryBarrier(const RHI::Buffer& buffer,
                     VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                     u64 offset = 0, u64 size = VK_WHOLE_SIZE);
 

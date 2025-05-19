@@ -108,12 +108,10 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
 
     VkBufferMemoryBarrier barriers[2];
     barriers[0] = RHI::BufferMemoryBarrier(
-        device, sIndirectDrawBuffers[device.frameIndex],
-        VK_ACCESS_SHADER_WRITE_BIT,
+        sIndirectDrawBuffers[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
     barriers[1] = RHI::BufferMemoryBarrier(
-        device, sIndirectCountBuffers[device.frameIndex],
-        VK_ACCESS_SHADER_WRITE_BIT,
+        sIndirectCountBuffers[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -359,8 +357,10 @@ int main(int argc, char* argv[])
         uniformData.projection = sMainCamera->GetProjection();
         uniformData.view = sMainCamera->GetView();
         uniformData.cullView = sCamera.GetView();
-        uniformData.hTanX = Math::Tan(Math::Radians(sMainCamera->GetHorizontalFov()) * 0.5f);
-        uniformData.hTanY = Math::Tan(Math::Radians(sMainCamera->GetVerticalFov()) * 0.5f);
+        uniformData.hTanX =
+            Math::Tan(Math::Radians(sMainCamera->GetHorizontalFov()) * 0.5f);
+        uniformData.hTanY =
+            Math::Tan(Math::Radians(sMainCamera->GetVerticalFov()) * 0.5f);
         uniformData.nearPlane = sMainCamera->GetNear();
         uniformData.farPlane = sMainCamera->GetFar();
 

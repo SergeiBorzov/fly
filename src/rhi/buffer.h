@@ -21,6 +21,8 @@ struct Buffer
     u32 bindlessHandle = HLS_MAX_U32;
 };
 
+inline void* BufferMappedPtr(Buffer& buffer) { return buffer.allocationInfo.pMappedData; }
+
 bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
                   const void* data, u64 size, Buffer& buffer);
 void DestroyBuffer(Device& device, Buffer& buffer);

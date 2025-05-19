@@ -2,8 +2,8 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "command_buffer.h"
 #include "buffer.h"
+#include "command_buffer.h"
 #include "device.h"
 
 namespace Hls
@@ -304,8 +304,7 @@ RenderingInfo(const VkRect2D& renderArea,
     return renderInfo;
 }
 
-VkBufferMemoryBarrier BufferMemoryBarrier(const Device& device,
-                                          const RHI::Buffer& buffer,
+VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
                                           VkAccessFlags srcAccessMask,
                                           VkAccessFlags dstAccessMask,
                                           u64 offset, u64 size)
@@ -314,8 +313,8 @@ VkBufferMemoryBarrier BufferMemoryBarrier(const Device& device,
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
     barrier.srcAccessMask = srcAccessMask;
     barrier.dstAccessMask = dstAccessMask;
-    barrier.srcQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
-    barrier.dstQueueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.buffer = buffer.handle;
     barrier.offset = offset;
     barrier.size = size;
