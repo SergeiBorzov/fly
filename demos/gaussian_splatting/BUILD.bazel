@@ -26,13 +26,21 @@ copy_files_to_directory(
     output_directory = ".",
 )
 
-# glsl_shader(
-#     name = "cull.comp.spv",
-#     src = "cull.comp",
-#     deps = [
-#         "//demos/common:glsl_bindless",
-#     ],
-# )
+glsl_shader(
+    name = "radix_count.comp.spv",
+    src = "radix_count.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "radix_offset.comp.spv",
+    src = "radix_offset.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
 
 glsl_shader(
     name = "splat.vert.spv",
@@ -62,7 +70,8 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
-        # ":cull.comp.spv",
+        ":radix_count.comp.spv",
+        ":radix_offset.comp.spv",
         ":splat.vert.spv",
         ":splat.frag.spv",
         ":copy_scene_data",

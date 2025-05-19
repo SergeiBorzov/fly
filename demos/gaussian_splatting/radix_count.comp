@@ -1,0 +1,56 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#define WORKGROUP_SIZE 4
+#define INVOCATION_CHUNK_SIZE 1
+#define CHUNK_SIZE WORKGROUP_SIZE* INVOCATION_CHUNK_SIZE
+#define RADIX_BITS 2
+#define RADIX_TABLE_SIZE 4U
+
+layout(local_size_x = WORKGROUP_SIZE) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint pass;
+    uint keyCount;
+    uint keyBufferIndex;
+    uint countBufferIndex;
+}
+gPushConstants;
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+HLS_REGISTER_STORAGE_BUFFER(writeonly, ChunkCounts, { uint count; })
+
+shared uint localHistogram[RADIX_TABLE_SIZE];
+void main()
+{
+    uint localInvocation = gl_LocalInvocationIndex;
+    uint chunkStart = gl_WorkGroupID.x * CHUNK_SIZE;
+
+    if (localInvocation < RADIX_TABLE_SIZE)
+    {
+        localHistogram[localInvocation] = 0;
+    }
+    memoryBarrierShared();
+
+    for (int i = 0; i < INVOCATION_CHUNK_SIZE; i++)
+    {
+        uint keyIndex = chunkStart + localInvocation + i;
+        uint key = keyIndex < gPushConstants.keyCount
+                       ? HLS_ACCESS_STORAGE_BUFFER(
+                             Keys, gPushConstants.keyBufferIndex)[keyIndex]
+                             .key
+                       : 0xFFFFFFFF;
+        uint radix = bitfieldExtract(key, 2 * 0, 2);
+        atomicAdd(localHistogram[radix], 1);
+    }
+    memoryBarrierShared();
+
+    if (localInvocation < RADIX_TABLE_SIZE)
+    {
+        HLS_ACCESS_STORAGE_BUFFER(ChunkCounts, gPushConstants.countBufferIndex)
+        [RADIX_TABLE_SIZE * gl_WorkGroupID.x + localInvocation].count =
+            localHistogram[localInvocation];
+    }
+}

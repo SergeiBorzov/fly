@@ -15,6 +15,8 @@
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
+#include <stdio.h>
+
 using namespace Hls;
 
 #pragma pack(push, 1)
@@ -54,7 +56,9 @@ struct UniformData
     f32 farPlane;
 };
 
+static RHI::Buffer sKeys;
 static RHI::Buffer sSplatBuffer;
+static RHI::Buffer sChunks[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
 static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
@@ -80,10 +84,111 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     HLS_ERROR("GLFW - error: %s", description);
 }
 
-static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
-                           u32 splatCount)
+static RHI::ComputePipeline sCountPipeline;
+static RHI::ComputePipeline sOffsetPipeline;
+static bool CreateComputePipelines(RHI::Device& device)
+{
+    RHI::Shader countShader;
+    if (!Hls::LoadShaderFromSpv(device, "radix_count.comp.spv", countShader))
+    {
+        return false;
+    }
+    if (!RHI::CreateComputePipeline(device, countShader, sCountPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, countShader);
+
+    RHI::Shader offsetShader;
+    if (!Hls::LoadShaderFromSpv(device, "radix_offset.comp.spv", offsetShader))
+    {
+        return false;
+    }
+    if (!RHI::CreateComputePipeline(device, offsetShader, sOffsetPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, offsetShader);
+
+    return true;
+}
+
+static RHI::GraphicsPipeline sGraphicsPipeline;
+static bool CreateGraphicsPipeline(RHI::Device& device)
+{
+    RHI::GraphicsPipelineFixedStateStage fixedState{};
+    fixedState.pipelineRendering.colorAttachments[0] =
+        device.surfaceFormat.format;
+    fixedState.pipelineRendering.depthAttachmentFormat =
+        device.depthTexture.format;
+    fixedState.pipelineRendering.colorAttachmentCount = 1;
+    fixedState.colorBlendState.attachmentCount = 1;
+    fixedState.depthStencilState.depthTestEnable = true;
+    fixedState.inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+
+    RHI::ShaderProgram shaderProgram{};
+    if (!Hls::LoadShaderFromSpv(device, "splat.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
+    if (!Hls::LoadShaderFromSpv(device, "splat.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sGraphicsPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    return true;
+}
+
+static void RecordCommands(RHI::Device& device, u32 splatCount)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    // Compute pass
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sCountPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sCountPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+
+    u32 pushConstants[] = {0, 16, sKeys.bindlessHandle,
+                           sChunks[device.frameIndex].bindlessHandle};
+    vkCmdPushConstants(cmd.handle, sCountPipeline.layout, VK_SHADER_STAGE_ALL,
+                       0, sizeof(pushConstants), pushConstants);
+    vkCmdDispatch(cmd.handle, 4, 1, 1);
+
+    VkBufferMemoryBarrier countToOffsetBarrier = RHI::BufferMemoryBarrier(
+        sChunks[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &countToOffsetBarrier, 0, nullptr);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sOffsetPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sOffsetPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    vkCmdPushConstants(cmd.handle, sOffsetPipeline.layout, VK_SHADER_STAGE_ALL,
+                       0, sizeof(pushConstants), pushConstants);
+    vkCmdDispatch(cmd.handle, 4, 1, 1);
+
+    VkBufferMemoryBarrier offsetToHostBarrier = RHI::BufferMemoryBarrier(
+        sChunks[device.frameIndex],
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_HOST_READ_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr, 1,
+                         &offsetToHostBarrier, 0, nullptr);
 
     // Graphics pass
     const RHI::SwapchainTexture& swapchainTexture =
@@ -100,10 +205,10 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipeline.handle);
+                      sGraphicsPipeline.handle);
 
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipeline.layout, 0, 1,
+                            sGraphicsPipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
 
     VkViewport viewport = {};
@@ -120,8 +225,8 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
 
     u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
                       sSplatBuffer.bindlessHandle};
-    vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(u32) * 2, indices);
+    vkCmdPushConstants(cmd.handle, sGraphicsPipeline.layout,
+                       VK_SHADER_STAGE_ALL, 0, sizeof(u32) * 2, indices);
 
     vkCmdDraw(cmd.handle, 1, splatCount, 0, 0);
     vkCmdEndRendering(cmd.handle);
@@ -226,37 +331,38 @@ int main(int argc, char* argv[])
         }
     }
 
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        device.depthTexture.format;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-
-    RHI::ShaderProgram shaderProgram{};
-    if (!Hls::LoadShaderFromSpv(device, "splat.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    // Compute pipeline
+    u32 keys[] = {3, 2, 2, 3, 0, 1, 1, 0, 0, 1, 2, 3, 2, 1, 0, 3};
+    if (!RHI::CreateStorageBuffer(device, false, keys, sizeof(keys), sKeys))
     {
-        return -1;
-    }
-    if (!Hls::LoadShaderFromSpv(device, "splat.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
+        HLS_ERROR("Failed to create keys buffer");
         return -1;
     }
 
-    RHI::GraphicsPipeline graphicsPipeline{};
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     graphicsPipeline))
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        u32 chunkSize = 4 * 1;
+        if (!RHI::CreateStorageBuffer(device, true, nullptr,
+                                      STACK_ARRAY_COUNT(keys) / chunkSize * 4 *
+                                          sizeof(u32),
+                                      sChunks[i]))
+        {
+            HLS_ERROR("Failed to create chunks buffer");
+            return -1;
+        }
+    }
+
+    if (!CreateComputePipelines(device))
+    {
+        HLS_ERROR("Failed to create compute pipelines");
+        return -1;
+    }
+
+    if (!CreateGraphicsPipeline(device))
     {
         HLS_ERROR("Failed to create graphics pipeline");
         return -1;
     }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Hls::ClockNow();
@@ -286,18 +392,30 @@ int main(int argc, char* argv[])
                               sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
-        RecordCommands(device, graphicsPipeline, splatCount);
+        RecordCommands(device, splatCount);
         RHI::EndRenderFrame(device);
+
+        const u32* pChunkCounts = static_cast<const u32*>(RHI::BufferMappedPtr(
+            sChunks[device.frameIndex]));
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(keys); i++)
+        {
+            printf("%u ", pChunkCounts[i]);
+        }
+        printf("\n");
     }
 
     RHI::WaitAllDevicesIdle(context);
 
-    RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
+    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+    RHI::DestroyComputePipeline(device, sOffsetPipeline);
+    RHI::DestroyComputePipeline(device, sCountPipeline);
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
+        RHI::DestroyBuffer(device, sChunks[i]);
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
     RHI::DestroyBuffer(device, sSplatBuffer);
+    RHI::DestroyBuffer(device, sKeys);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
     glfwTerminate();
