@@ -1,0 +1,64 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#include "radix_sort_common.glsl"
+
+layout(local_size_x = COUNT_WORKGROUP_SIZE) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint pass;
+    uint keyCount;
+    uint keyBufferIndex;
+    uint tileHistogramBufferIndex;
+    uint globalHistogramBufferIndex;
+}
+gPushConstants;
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+HLS_REGISTER_STORAGE_BUFFER(writeonly, TileHistograms, { uint count; })
+HLS_REGISTER_STORAGE_BUFFER(writeonly, GlobalHistrogram, { uint count; })
+
+shared uint localHistogram[RADIX_HISTOGRAM_SIZE];
+void main()
+{
+    uint tid = gl_LocalInvocationIndex;
+    uint tileStart = gl_WorkGroupID.x * COUNT_TILE_SIZE;
+
+    if (tid < RADIX_HISTOGRAM_SIZE)
+    {
+        localHistogram[tid] = 0;
+    }
+    barrier();
+
+    for (int i = 0; i < THREAD_TILE_SIZE; i++)
+    {
+        uint keyIndex = tileStart + tid * THREAD_TILE_SIZE + i;
+        uint key = keyIndex < gPushConstants.keyCount
+                       ? HLS_ACCESS_STORAGE_BUFFER(
+                             Keys, gPushConstants.keyBufferIndex)[keyIndex]
+                             .key
+                       : 0xFFFFFFFF;
+        uint radix = (key >> (RADIX_BIT_COUNT * gPushConstants.pass)) &
+                     (RADIX_HISTOGRAM_SIZE - 1U);
+
+        atomicAdd(localHistogram[radix], 1);
+        barrier();
+    }
+
+    if (tid < RADIX_HISTOGRAM_SIZE)
+    {
+        HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+                                  gPushConstants.tileHistogramBufferIndex)
+        [RADIX_HISTOGRAM_SIZE * gl_WorkGroupID.x + tid].count =
+            localHistogram[tid];
+
+        atomicAdd(
+            HLS_ACCESS_STORAGE_BUFFER(GlobalHistrogram,
+                                      gPushConstants.globalHistogramBufferIndex)
+                [RADIX_HISTOGRAM_SIZE * gPushConstants.pass + tid]
+                    .count,
+            localHistogram[tid]);
+    }
+}

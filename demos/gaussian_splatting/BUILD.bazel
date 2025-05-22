@@ -27,16 +27,24 @@ copy_files_to_directory(
 )
 
 glsl_shader(
-    name = "radix_count.comp.spv",
-    src = "radix_count.comp",
+    name = "radix_count_histogram.comp.spv",
+    src = "radix_count_histogram.comp",
     deps = [
         "//demos/common:glsl_bindless",
     ],
 )
 
 glsl_shader(
-    name = "radix_offset.comp.spv",
-    src = "radix_offset.comp",
+    name = "radix_scan.comp.spv",
+    src = "radix_scan.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "radix_sort.comp.spv",
+    src = "radix_sort.comp",
     deps = [
         "//demos/common:glsl_bindless",
     ],
@@ -63,6 +71,9 @@ cc_binary(
     srcs = [
         "main.cpp",
     ],
+    includes = [
+        "radix_sort_common.glsl"
+    ],
     deps = [
         "//src/platform:window",
         "//src/rhi:context",
@@ -70,8 +81,9 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
-        ":radix_count.comp.spv",
-        ":radix_offset.comp.spv",
+        ":radix_count_histogram.comp.spv",
+        ":radix_scan.comp.spv",
+        ":radix_sort.comp.spv",
         ":splat.vert.spv",
         ":splat.frag.spv",
         ":copy_scene_data",

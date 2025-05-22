@@ -1,0 +1,90 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#include "radix_sort_common.glsl"
+
+layout(local_size_x = COUNT_WORKGROUP_SIZE) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint pass;
+    uint keyCount;
+    uint keyBufferIndex;
+    uint tileHistogramBufferIndex;
+    uint sortedKeyBufferIndex;
+}
+gPushConstants;
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+HLS_REGISTER_STORAGE_BUFFER(readonly, TileHistograms, { uint count; })
+HLS_REGISTER_STORAGE_BUFFER(writeonly, SortedKeys, { uint key; })
+
+shared uint sharedKeys[COUNT_TILE_SIZE];
+shared uint digit[COUNT_TILE_SIZE];
+shared uint localHistogram[RADIX_HISTOGRAM_SIZE];
+//shared uint localOffsets[RADIX_HISTOGRAM_SIZE];
+
+void main()
+{
+    uint tid = gl_LocalInvocationIndex;
+
+    for (uint i = tid; i < RADIX_HISTOGRAM_SIZE; i += gl_WorkGroupSize.x)
+    {
+        localHistogram[i] = 0;
+    }
+    barrier();
+
+    for (uint i = tid; i < COUNT_TILE_SIZE; i += gl_WorkGroupSize.x)
+    {
+        uint keyIndex = gl_WorkGroupID.x*COUNT_TILE_SIZE + i;
+        uint key = keyIndex < gPushConstants.keyCount
+                       ? HLS_ACCESS_STORAGE_BUFFER(
+                             Keys, gPushConstants.keyBufferIndex)[keyIndex]
+                             .key
+                       : 0xFFFFFFFFU;
+        uint keyDigit =
+            (key >>  (RADIX_BIT_COUNT * gPushConstants.pass)) & (RADIX_HISTOGRAM_SIZE - 1);
+        sharedKeys[i] = key;
+        digit[i] = keyDigit;
+        atomicAdd(localHistogram[keyDigit], 1);
+        barrier();
+    }
+    barrier();
+
+    // if (tid == 0)
+    // {
+    //     localOffsets[0] = 0;
+    //     for (uint i = 1; i < RADIX_HISTOGRAM_SIZE; i++)
+    //     {
+    //         localOffsets[i] = localOffsets[i - 1] + localHistogram[i - 1];
+    //     }
+    // }
+    // barrier();
+
+    // Simple but slow way to get rank
+    for (uint i = tid; i < COUNT_TILE_SIZE; i += gl_WorkGroupSize.x)
+    {
+        uint rank = 0;
+        uint threadDigit = digit[i];
+        for (uint j = 0; j < i; j++)
+        {
+            if (digit[j] == threadDigit)
+            {
+                rank++;
+            }
+        }
+
+        uint globalOffset =
+            HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+                                      gPushConstants.tileHistogramBufferIndex)
+                [RADIX_HISTOGRAM_SIZE * gl_WorkGroupID.x + digit[i]]
+                    .count;
+
+        HLS_ACCESS_STORAGE_BUFFER(SortedKeys,
+                                  gPushConstants.sortedKeyBufferIndex)
+        [globalOffset + rank].key = sharedKeys[i];
+    }
+
+    return;
+}
