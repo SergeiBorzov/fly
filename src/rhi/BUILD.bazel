@@ -31,5 +31,11 @@ cc_library(
         "@vma//:vma",
         "//src/core:core",
     ],
+    linkopts = select({
+        "@platforms//os:windows": [
+            "-DEFAULTLIB:user32.lib",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )

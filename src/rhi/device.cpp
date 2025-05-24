@@ -774,13 +774,12 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         return false;
     }
 
-    if (!CreateMainDepthTexture(device))
-    {
-        return false;
-    }
-
     if (context.windowPtr)
     {
+        if (context.windowPtr && !CreateMainDepthTexture(device))
+        {
+            return false;
+        }
         if (!CreateSwapchain(device))
         {
             return false;

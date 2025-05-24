@@ -1,4 +1,4 @@
-#include "src/core/platform.h"
+#include "core/platform.h"
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
 #include <windows.h>
@@ -19,17 +19,19 @@ namespace RHI
 
 bool CreateSurface(Context& context)
 {
+#ifdef HLS_PLATFORM_OS_WINDOWS
     VkWin32SurfaceCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     createInfo.pNext = nullptr;
     createInfo.flags = 0;
-#ifdef HLS_PLATFORM_OS_WINDOWS
     createInfo.hinstance = GetModuleHandle(nullptr);
     createInfo.hwnd = reinterpret_cast<HWND>(context.windowPtr);
-#endif
     return vkCreateWin32SurfaceKHR(context.instance, &createInfo,
                                    GetVulkanAllocationCallbacks(),
                                    &context.surface) == VK_SUCCESS;
+#else
+    return false;
+#endif
 }
 
 void DestroySurface(Context& context)
