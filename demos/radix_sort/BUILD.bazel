@@ -1,0 +1,68 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+
+copy_files_to_directory(
+    name = "copy_vulkan_validation_layer",
+    srcs = [
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
+        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
+    ],
+    output_directory = ".",
+)
+
+config_setting(
+    name = "release_build",
+    values = {
+        "compilation_mode": "opt",
+    },
+)
+
+glsl_shader(
+    name = "radix_count_histogram.comp.spv",
+    src = "radix_count_histogram.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "radix_scan.comp.spv",
+    src = "radix_scan.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "radix_sort.comp.spv",
+    src = "radix_sort.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    includes = [
+        "radix_sort_common.glsl"
+    ],
+    deps = [
+        "//src/rhi:context",
+        "//demos/common:scene",
+    ],
+    data = [
+        ":radix_count_histogram.comp.spv",
+        ":radix_scan.comp.spv",
+        ":radix_sort.comp.spv",
+    ] + select({
+        ":release_build": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    }),
+)
