@@ -19,6 +19,9 @@
 
 using namespace Hls;
 
+#define WINDOW_WIDTH 1959
+#define WINDOW_HEIGHT 1090
+
 #pragma pack(push, 1)
 struct Splat
 {
@@ -37,6 +40,7 @@ struct Splat
 
 struct Vertex
 {
+    Math::Vec4 rotation;
     Math::Vec3 position;
     f32 r;
     Math::Vec3 scale;
@@ -56,8 +60,9 @@ struct UniformData
     f32 farPlane;
 };
 
-static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
-                                    Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
+static Hls::SimpleCameraFPS
+    sCamera(50.15f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
+            100.0f, Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -120,8 +125,20 @@ static bool CreatePipelines(RHI::Device& device)
         device.depthTexture.format;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    fixedState.colorBlendState.attachments[0].blendEnable = true;
+    fixedState.colorBlendState.attachments[0].srcColorBlendFactor =
+        VK_BLEND_FACTOR_SRC_ALPHA;
+    fixedState.colorBlendState.attachments[0].dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    fixedState.colorBlendState.attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
+    fixedState.colorBlendState.attachments[0].srcAlphaBlendFactor =
+        VK_BLEND_FACTOR_SRC_ALPHA;
+    fixedState.colorBlendState.attachments[0].dstAlphaBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    fixedState.colorBlendState.attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
+    fixedState.depthStencilState.depthTestEnable = false;
+    fixedState.inputAssemblyState.topology =
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     RHI::ShaderProgram shaderProgram{};
     if (!Hls::LoadShaderFromSpv(device, "splat.vert.spv",
@@ -172,11 +189,18 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
     Vertex* vertices = HLS_ALLOC(scratch, Vertex, splatCount);
     for (u32 i = 0; i < splatCount; i++)
     {
+        vertices[i].rotation = Math::Normalize(Math::Vec4(
+            ((splats[i].x - 128.0f) / 128.0f),
+            -((splats[i].y - 128.0f) / 128.0f), (splats[i].z - 128.0f) / 128.0f,
+            (splats[i].w - 128.0f) / 128.0f));
         vertices[i].position = Math::Vec3(
             Math::RotateX(25.0f) *
             (Math::Vec4(Math::Vec3(splats[i].position.x, -splats[i].position.y,
                                    splats[i].position.z),
                         1.0f)));
+        // vertices[i].position = Math::Vec3(
+        //     splats[i].position.x, -splats[i].position.y,
+        //     splats[i].position.z);
         vertices[i].scale = splats[i].scale;
         vertices[i].r = splats[i].r / 255.0f;
         vertices[i].g = splats[i].g / 255.0f;
@@ -189,7 +213,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
     {
         return false;
     }
-    //ArenaPopToMarker(scratch, marker);
+    // ArenaPopToMarker(scratch, marker);
 
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -465,10 +489,10 @@ static void GraphicsPass(RHI::Device& device, u32 splatCount, f32 deltaTime)
     vkCmdPushConstants(cmd.handle, sGraphicsPipeline.layout,
                        VK_SHADER_STAGE_ALL, 0, sizeof(u32) * 2, indices);
 
-    static u32 drawCount = 0;
-    drawCount += static_cast<u32>(deltaTime * 10000000);
-    drawCount = (drawCount % splatCount) + 1;
-    vkCmdDraw(cmd.handle, 1, drawCount, 0, 0);
+    // static u32 drawCount = 0;
+    // drawCount += static_cast<u32>(deltaTime * 10000000);
+    // drawCount = (drawCount % splatCount) + 1;
+    vkCmdDraw(cmd.handle, 6, splatCount, 0, 0);
     vkCmdEndRendering(cmd.handle);
 }
 
@@ -504,8 +528,8 @@ int main(int argc, char* argv[])
     }
     glfwSetErrorCallback(ErrorCallbackGLFW);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window =
-        glfwCreateWindow(1280, 720, "Splat viewer", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT,
+                                          "Splat viewer", nullptr, nullptr);
     if (!window)
     {
         HLS_ERROR("Failed to create glfw window");

@@ -25,6 +25,7 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
 })
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {
+    vec4 rotation;
     vec3 position;
     float r;
     vec3 scale;
@@ -41,7 +42,7 @@ HLS_REGISTER_STORAGE_BUFFER(writeonly, Keys, {
 
 uint floatKey(float f)
 {
-    uint x = floatBitsToUint(-f);
+    uint x = floatBitsToUint(f);
     uint key = bool(x & 0x80000000) ? x ^ 0xFFFFFFFF : x ^ 0x80000000;
     return key;
 }
@@ -64,5 +65,5 @@ void main()
     vec4 splatPositionCS = view * vec4(splatPositionWS, 1.0);
 
     HLS_ACCESS_STORAGE_BUFFER(Keys, gPushConstants.pingPongBufferIndex)
-    [gtid] = Keys(floatKey(splatPositionCS.z), gtid);
+    [gtid] = Keys(floatKey(-splatPositionCS.z), gtid);
 }

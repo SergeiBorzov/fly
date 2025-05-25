@@ -22,6 +22,7 @@ HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
 
 struct Splat
 {
+    vec4 rotation;
     vec3 position;
     float r;
     vec3 scale;
