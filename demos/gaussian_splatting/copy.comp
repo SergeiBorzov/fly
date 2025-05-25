@@ -1,0 +1,66 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#include "radix_sort_common.glsl"
+
+layout(local_size_x = COUNT_WORKGROUP_SIZE) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint splatBufferIndex;
+    uint keyValueBufferIndex;
+    uint sortedBufferIndex;
+    uint splatCount;
+}
+gPushConstants;
+
+HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
+    uint key;
+    uint value;
+})
+
+struct Splat
+{
+    vec3 position;
+    float r;
+    vec3 scale;
+    float g;
+    float b;
+    float a;
+    float pad[2];
+};
+
+layout(set = 0, binding = HLS_STORAGE_BUFFER_BINDING_INDEX,
+       std430) readonly buffer InSplats
+{
+    Splat items[];
+}
+gInSplats[];
+
+layout(set = 0, binding = HLS_STORAGE_BUFFER_BINDING_INDEX,
+       std430) writeonly buffer SortedSplats
+{
+    Splat items[];
+}
+gSortedSplats[];
+
+void main()
+{
+    uint gtid = gl_GlobalInvocationID.x;
+
+    if (gtid >= gPushConstants.splatCount)
+    {
+        return;
+    }
+
+    uint index = HLS_ACCESS_STORAGE_BUFFER(
+                     Keys, gPushConstants.keyValueBufferIndex)[gtid]
+                     .value;
+    if (index >= gPushConstants.splatCount)
+    {
+        return;
+    }
+    Splat splat = gInSplats[gPushConstants.splatBufferIndex].items[index];
+    gSortedSplats[gPushConstants.sortedBufferIndex].items[gtid] = splat;
+}

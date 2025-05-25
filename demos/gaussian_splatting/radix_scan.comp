@@ -4,6 +4,7 @@
 
 #include "radix_sort_common.glsl"
 
+#define N SCAN_WORKGROUP_SIZE * 2
 layout(local_size_x = SCAN_WORKGROUP_SIZE) in;
 
 layout(push_constant) uniform PushConstants
@@ -16,23 +17,24 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
+    uint key;
+    uint value;
+})
 HLS_REGISTER_STORAGE_BUFFER(readonly, GlobalHistogram, { uint count; })
 HLS_REGISTER_STORAGE_BUFFER(, TileHistograms, { uint count; })
 
-shared uint tmp[SCAN_WORKGROUP_SIZE * 2];
+shared uint tmp[N];
 void main()
 {
     uint tid = gl_LocalInvocationIndex;
-    uint offset = 1;
-    uint n = SCAN_WORKGROUP_SIZE * 2;
-    uint radix = gl_WorkGroupID.x;
+    uint digit = gl_WorkGroupID.x;
     uint histogramCount =
         (gPushConstants.keyCount + COUNT_TILE_SIZE - 1) / COUNT_TILE_SIZE;
     uint globalHistogramStart = RADIX_HISTOGRAM_SIZE * gPushConstants.pass;
 
     uint globalOffset = 0;
-    for (uint i = 0; i < radix; i++)
+    for (uint i = 0; i < digit; i++)
     {
         globalOffset +=
             HLS_ACCESS_STORAGE_BUFFER(
@@ -42,70 +44,80 @@ void main()
                 .count;
     }
 
-    uint a = RADIX_HISTOGRAM_SIZE * (2 * tid) + radix;
-    uint b = RADIX_HISTOGRAM_SIZE * (2 * tid + 1) + radix;
-    uint sa = 2 * tid;
-    uint sb = 2 * tid + 1;
-
-    tmp[sa] =
-        sa < histogramCount
-            ? HLS_ACCESS_STORAGE_BUFFER(
-                  TileHistograms, gPushConstants.tileHistogramBufferIndex)[a]
-                  .count
-            : 0;
-
-    tmp[sb] =
-        sb < histogramCount
-            ? HLS_ACCESS_STORAGE_BUFFER(
-                  TileHistograms, gPushConstants.tileHistogramBufferIndex)[b]
-                  .count
-            : 0;
-    barrier();
-
-    for (uint i = n >> 1; i > 0; i >>= 1)
+    uint reduction = 0;
+    for (uint j = 0; j < histogramCount; j += N)
     {
-        if (tid < i)
-        {
-            uint l = offset * (2 * tid + 1) - 1;
-            uint r = offset * (2 * tid + 2) - 1;
-            tmp[r] += tmp[l];
-        }
-        offset <<= 1;
+        uint offset = 1;
+        uint a = RADIX_HISTOGRAM_SIZE * (j + 2 * tid) + digit;
+        uint b = RADIX_HISTOGRAM_SIZE * (j + 2 * tid + 1) + digit;
+        uint sa = 2 * tid;
+        uint sb = 2 * tid + 1;
+
+        tmp[sa] = (j + sa < histogramCount)
+                      ? HLS_ACCESS_STORAGE_BUFFER(
+                            TileHistograms,
+                            gPushConstants.tileHistogramBufferIndex)[a]
+                            .count
+                      : 0;
+
+        tmp[sb] = (j + sb < histogramCount)
+                      ? HLS_ACCESS_STORAGE_BUFFER(
+                            TileHistograms,
+                            gPushConstants.tileHistogramBufferIndex)[b]
+                            .count
+                      : 0;
         barrier();
-    }
 
-    if (tid == 0)
-    {
-        tmp[n - 1] = 0;
-    }
-    barrier();
-
-    for (uint i = 1; i < n; i <<= 1)
-    {
-        offset >>= 1;
-        if (tid < i)
+        for (uint i = N >> 1; i > 0; i >>= 1)
         {
-            uint l = offset * (2 * tid + 1) - 1;
-            uint r = offset * (2 * tid + 2) - 1;
-            uint t = tmp[l];
-            tmp[l] = tmp[r];
-            tmp[r] += t;
+            if (tid < i)
+            {
+                uint l = offset * (2 * tid + 1) - 1;
+                uint r = offset * (2 * tid + 2) - 1;
+                tmp[r] += tmp[l];
+            }
+            offset <<= 1;
+            barrier();
+        }
+
+        uint sum = tmp[N - 1];
+        barrier();
+
+        if (tid == 0)
+        {
+            tmp[N - 1] = 0;
         }
         barrier();
-    }
 
-    if (sa < histogramCount)
-    {
-        HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
-                                  gPushConstants.tileHistogramBufferIndex)
-        [a].count = tmp[sa] + globalOffset;
-    }
+        for (uint i = 1; i < N; i <<= 1)
+        {
+            offset >>= 1;
+            if (tid < i)
+            {
+                uint l = offset * (2 * tid + 1) - 1;
+                uint r = offset * (2 * tid + 2) - 1;
+                uint t = tmp[l];
+                tmp[l] = tmp[r];
+                tmp[r] += t;
+            }
+            barrier();
+        }
 
-    if (sb < histogramCount)
-    {
-        HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
-                                  gPushConstants.tileHistogramBufferIndex)
-        [b].count = tmp[sb] + globalOffset;
+        if (j + sa < histogramCount)
+        {
+            HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+                                      gPushConstants.tileHistogramBufferIndex)
+            [a].count = tmp[sa] + reduction + globalOffset;
+        }
+
+        if (j + sb < histogramCount)
+        {
+            HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+                                      gPushConstants.tileHistogramBufferIndex)
+            [b].count = tmp[sb] + reduction + globalOffset;
+        }
+
+        reduction += sum;
     }
 
     return;

@@ -13,17 +13,23 @@ layout(push_constant) uniform PushConstants
     uint keyBufferIndex;
     uint tileHistogramBufferIndex;
     uint sortedKeyBufferIndex;
+    uint valueBufferIndex;
 }
 gPushConstants;
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
+    uint key;
+    uint value;
+})
 HLS_REGISTER_STORAGE_BUFFER(readonly, TileHistograms, { uint count; })
-HLS_REGISTER_STORAGE_BUFFER(writeonly, SortedKeys, { uint key; })
+HLS_REGISTER_STORAGE_BUFFER(writeonly, SortedKeys, {
+    uint key;
+    uint value;
+})
 
-shared uint sharedKeys[COUNT_TILE_SIZE];
+shared Keys sharedKeys[COUNT_TILE_SIZE];
 shared uint digit[COUNT_TILE_SIZE];
 shared uint localHistogram[RADIX_HISTOGRAM_SIZE];
-//shared uint localOffsets[RADIX_HISTOGRAM_SIZE];
 
 void main()
 {
@@ -37,30 +43,20 @@ void main()
 
     for (uint i = tid; i < COUNT_TILE_SIZE; i += gl_WorkGroupSize.x)
     {
-        uint keyIndex = gl_WorkGroupID.x*COUNT_TILE_SIZE + i;
-        uint key = keyIndex < gPushConstants.keyCount
-                       ? HLS_ACCESS_STORAGE_BUFFER(
-                             Keys, gPushConstants.keyBufferIndex)[keyIndex]
-                             .key
-                       : 0xFFFFFFFFU;
+        uint keyIndex = gl_WorkGroupID.x * COUNT_TILE_SIZE + i;
+        Keys keyValue = keyIndex < gPushConstants.keyCount
+                            ? HLS_ACCESS_STORAGE_BUFFER(
+                                  Keys, gPushConstants.keyBufferIndex)[keyIndex]
+                            : Keys(0xFFFFFFFFU, 0xFFFFFFFFU);
         uint keyDigit =
-            (key >>  (RADIX_BIT_COUNT * gPushConstants.pass)) & (RADIX_HISTOGRAM_SIZE - 1);
-        sharedKeys[i] = key;
+            (keyValue.key >> (RADIX_BIT_COUNT * gPushConstants.pass)) &
+            (RADIX_HISTOGRAM_SIZE - 1);
+        sharedKeys[i] = keyValue;
         digit[i] = keyDigit;
         atomicAdd(localHistogram[keyDigit], 1);
         barrier();
     }
     barrier();
-
-    // if (tid == 0)
-    // {
-    //     localOffsets[0] = 0;
-    //     for (uint i = 1; i < RADIX_HISTOGRAM_SIZE; i++)
-    //     {
-    //         localOffsets[i] = localOffsets[i - 1] + localHistogram[i - 1];
-    //     }
-    // }
-    // barrier();
 
     // Simple but slow way to get rank
     for (uint i = tid; i < COUNT_TILE_SIZE; i += gl_WorkGroupSize.x)
@@ -83,7 +79,8 @@ void main()
 
         HLS_ACCESS_STORAGE_BUFFER(SortedKeys,
                                   gPushConstants.sortedKeyBufferIndex)
-        [globalOffset + rank].key = sharedKeys[i];
+        [globalOffset + rank] =
+            SortedKeys(sharedKeys[i].key, sharedKeys[i].value);
     }
 
     return;

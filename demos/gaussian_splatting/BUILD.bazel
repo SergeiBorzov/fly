@@ -27,6 +27,22 @@ copy_files_to_directory(
 )
 
 glsl_shader(
+    name = "cull.comp.spv",
+    src = "cull.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "copy.comp.spv",
+    src = "copy.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
     name = "radix_count_histogram.comp.spv",
     src = "radix_count_histogram.comp",
     deps = [
@@ -81,6 +97,8 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
+        ":cull.comp.spv",
+        ":copy.comp.spv",
         ":radix_count_histogram.comp.spv",
         ":radix_scan.comp.spv",
         ":radix_sort.comp.spv",

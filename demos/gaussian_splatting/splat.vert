@@ -27,6 +27,7 @@ HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {
     float g;
     float b;
     float a;
+    float pad[2];
 })
 
 void main()

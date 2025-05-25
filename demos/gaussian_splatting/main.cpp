@@ -17,8 +17,6 @@
 
 #include "radix_sort_common.glsl"
 
-#include <stdio.h>
-
 using namespace Hls;
 
 #pragma pack(push, 1)
@@ -58,12 +56,6 @@ struct UniformData
     f32 farPlane;
 };
 
-static RHI::Buffer sSplatBuffer;
-static RHI::Buffer sTileHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sGlobalHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sPingPongKeys[2 * HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-
 static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
@@ -87,51 +79,40 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     HLS_ERROR("GLFW - error: %s", description);
 }
 
+static RHI::ComputePipeline sCullPipeline;
+static RHI::ComputePipeline sCopyPipeline;
 static RHI::ComputePipeline sCountPipeline;
 static RHI::ComputePipeline sScanPipeline;
 static RHI::ComputePipeline sSortPipeline;
-static bool CreateComputePipelines(RHI::Device& device)
-{
-    RHI::Shader countShader;
-    if (!Hls::LoadShaderFromSpv(device, "radix_count_histogram.comp.spv",
-                                countShader))
-    {
-        return false;
-    }
-    if (!RHI::CreateComputePipeline(device, countShader, sCountPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, countShader);
-
-    RHI::Shader scanShader;
-    if (!Hls::LoadShaderFromSpv(device, "radix_scan.comp.spv", scanShader))
-    {
-        return false;
-    }
-    if (!RHI::CreateComputePipeline(device, scanShader, sScanPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, scanShader);
-
-    RHI::Shader sortShader;
-    if (!Hls::LoadShaderFromSpv(device, "radix_sort.comp.spv", sortShader))
-    {
-        return false;
-    }
-    if (!RHI::CreateComputePipeline(device, sortShader, sSortPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, sortShader);
-
-    return true;
-}
-
 static RHI::GraphicsPipeline sGraphicsPipeline;
-static bool CreateGraphicsPipeline(RHI::Device& device)
+static bool CreatePipelines(RHI::Device& device)
 {
+    RHI::ComputePipeline* computePipelines[] = {
+        &sCullPipeline, &sCopyPipeline, &sCountPipeline,
+        &sScanPipeline, &sSortPipeline,
+    };
+    const char* computeShaderPaths[] = {
+        "cull.comp.spv",
+        "copy.comp.spv",
+        "radix_count_histogram.comp.spv",
+        "radix_scan.comp.spv",
+        "radix_sort.comp.spv",
+    };
+
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
+    {
+        RHI::Shader shader;
+        if (!Hls::LoadShaderFromSpv(device, computeShaderPaths[i], shader))
+        {
+            return false;
+        }
+        if (!RHI::CreateComputePipeline(device, shader, *computePipelines[i]))
+        {
+            return false;
+        }
+        RHI::DestroyShader(device, shader);
+    }
+
     RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
@@ -165,13 +146,151 @@ static bool CreateGraphicsPipeline(RHI::Device& device)
     return true;
 }
 
-static void RecordCommands(RHI::Device& device, u32 keyCount, u32 splatCount)
+static void DestroyPipelines(RHI::Device& device)
+{
+    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+    RHI::DestroyComputePipeline(device, sScanPipeline);
+    RHI::DestroyComputePipeline(device, sCountPipeline);
+    RHI::DestroyComputePipeline(device, sSortPipeline);
+    RHI::DestroyComputePipeline(device, sCopyPipeline);
+    RHI::DestroyComputePipeline(device, sCullPipeline);
+}
+
+static RHI::Buffer sSplatBuffer;
+static RHI::Buffer sSortedSplatBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sTileHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sGlobalHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sPingPongKeys[2 * HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+
+static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
+                                const u32 splatCount)
+{
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    Vertex* vertices = HLS_ALLOC(scratch, Vertex, splatCount);
+    for (u32 i = 0; i < splatCount; i++)
+    {
+        vertices[i].position = Math::Vec3(
+            Math::RotateX(25.0f) *
+            (Math::Vec4(Math::Vec3(splats[i].position.x, -splats[i].position.y,
+                                   splats[i].position.z),
+                        1.0f)));
+        vertices[i].scale = splats[i].scale;
+        vertices[i].r = splats[i].r / 255.0f;
+        vertices[i].g = splats[i].g / 255.0f;
+        vertices[i].b = splats[i].b / 255.0f;
+        vertices[i].a = splats[i].a / 255.0f;
+    }
+
+    if (!RHI::CreateStorageBuffer(device, false, vertices,
+                                  sizeof(Vertex) * splatCount, sSplatBuffer))
+    {
+        return false;
+    }
+    //ArenaPopToMarker(scratch, marker);
+
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
+                                      sUniformBuffers[i]))
+        {
+            return false;
+        }
+    }
+
+    u32 tileCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(splatCount) / COUNT_TILE_SIZE));
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        if (!RHI::CreateStorageBuffer(device, false, nullptr,
+                                      RADIX_HISTOGRAM_SIZE * tileCount *
+                                          sizeof(u32),
+                                      sTileHistograms[i]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateStorageBuffer(device, false, nullptr,
+                                      sizeof(u32) * RADIX_HISTOGRAM_SIZE *
+                                          RADIX_PASS_COUNT,
+                                      sGlobalHistograms[i]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateStorageBuffer(device, false, vertices,
+                                      sizeof(Vertex) * splatCount,
+                                      sSortedSplatBuffers[i]))
+        {
+            return false;
+        }
+
+        for (u32 j = 0; j < 2; j++)
+        {
+            if (!RHI::CreateStorageBuffer(device, true, nullptr,
+                                          2 * sizeof(u32) * splatCount,
+                                          sPingPongKeys[2 * i + j]))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static void DestroyDeviceBuffers(RHI::Device& device)
+{
+    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        for (u32 j = 0; j < 2; j++)
+        {
+            RHI::DestroyBuffer(device, sPingPongKeys[2 * i + j]);
+        }
+        RHI::DestroyBuffer(device, sTileHistograms[i]);
+        RHI::DestroyBuffer(device, sGlobalHistograms[i]);
+        RHI::DestroyBuffer(device, sUniformBuffers[i]);
+        RHI::DestroyBuffer(device, sSortedSplatBuffers[i]);
+    }
+    RHI::DestroyBuffer(device, sSplatBuffer);
+}
+
+static void CullPass(RHI::Device& device, u32 splatCount)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    // Compute pass
     u32 workGroupCount = static_cast<u32>(
-        Math::Ceil(static_cast<f32>(keyCount) / COUNT_TILE_SIZE));
+        Math::Ceil(static_cast<f32>(splatCount) / COUNT_TILE_SIZE));
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sCullPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sCullPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    u32 pushConstants[] = {sUniformBuffers[device.frameIndex].bindlessHandle,
+                           sSplatBuffer.bindlessHandle,
+                           sPingPongKeys[2 * device.frameIndex].bindlessHandle,
+                           splatCount};
+    vkCmdPushConstants(cmd.handle, sCullPipeline.layout, VK_SHADER_STAGE_ALL, 0,
+                       sizeof(pushConstants), pushConstants);
+    vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
+
+    VkBufferMemoryBarrier cullToSortBarrier = RHI::BufferMemoryBarrier(
+        sPingPongKeys[HLS_FRAME_IN_FLIGHT_COUNT * device.frameIndex],
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &cullToSortBarrier, 0, nullptr);
+}
+
+static void SortPass(RHI::Device& device, u32 splatCount)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    u32 workGroupCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(splatCount) / COUNT_TILE_SIZE));
 
     // Reset global histogram buffer
     vkCmdFillBuffer(cmd.handle, sGlobalHistograms[device.frameIndex].handle, 0,
@@ -186,8 +305,8 @@ static void RecordCommands(RHI::Device& device, u32 keyCount, u32 splatCount)
 
     for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
     {
-        u32 in = 2 * device.frameIndex + (i % 2);
-        u32 out = 2 * device.frameIndex + ((i + 1) % 2);
+        u32 in = (i % 2) + 2 * device.frameIndex;
+        u32 out = ((i + 1) % 2) + 2 * device.frameIndex;
 
         // Calculate count histograms
         vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -197,7 +316,7 @@ static void RecordCommands(RHI::Device& device, u32 keyCount, u32 splatCount)
                                 &device.bindlessDescriptorSet, 0, nullptr);
 
         u32 pushConstants[] = {
-            i, keyCount, sPingPongKeys[in].bindlessHandle,
+            i, splatCount, sPingPongKeys[in].bindlessHandle,
             sTileHistograms[device.frameIndex].bindlessHandle,
             sGlobalHistograms[device.frameIndex].bindlessHandle};
         vkCmdPushConstants(cmd.handle, sCountPipeline.layout,
@@ -250,10 +369,10 @@ static void RecordCommands(RHI::Device& device, u32 keyCount, u32 splatCount)
 
         if (i == RADIX_PASS_COUNT - 1)
         {
-            continue;
+            break;
         }
 
-        VkBufferMemoryBarrier nextPassBarriers[2];
+        VkBufferMemoryBarrier nextPassBarriers[3];
         nextPassBarriers[0] = RHI::BufferMemoryBarrier(
             sPingPongKeys[out], VK_ACCESS_SHADER_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT);
@@ -269,19 +388,46 @@ static void RecordCommands(RHI::Device& device, u32 keyCount, u32 splatCount)
                              nextPassBarriers, 0, nullptr);
     }
 
-    VkBufferMemoryBarrier sortToHostBarriers[2];
-    sortToHostBarriers[0] = RHI::BufferMemoryBarrier(
+    VkBufferMemoryBarrier sortToCopyBarrier = RHI::BufferMemoryBarrier(
         sPingPongKeys[2 * device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_HOST_READ_BIT);
-    sortToHostBarriers[1] = RHI::BufferMemoryBarrier(
-        sPingPongKeys[2 * device.frameIndex + 1], VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_HOST_READ_BIT);
+        VK_ACCESS_SHADER_READ_BIT);
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr,
-                         STACK_ARRAY_COUNT(sortToHostBarriers),
-                         sortToHostBarriers, 0, nullptr);
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &sortToCopyBarrier, 0, nullptr);
+}
 
-    // Graphics pass
+static void CopyPass(RHI::Device& device, u32 splatCount)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    u32 workGroupCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(splatCount) / COUNT_TILE_SIZE));
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sCopyPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sCopyPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    u32 pushConstants[] = {
+        sSplatBuffer.bindlessHandle,
+        sPingPongKeys[2 * device.frameIndex].bindlessHandle,
+        sSortedSplatBuffers[device.frameIndex].bindlessHandle, splatCount};
+    vkCmdPushConstants(cmd.handle, sCopyPipeline.layout, VK_SHADER_STAGE_ALL, 0,
+                       sizeof(pushConstants), pushConstants);
+    vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
+
+    VkBufferMemoryBarrier copyToGraphics = RHI::BufferMemoryBarrier(
+        sSortedSplatBuffers[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 1,
+                         &copyToGraphics, 0, nullptr);
+}
+
+static void GraphicsPass(RHI::Device& device, u32 splatCount, f32 deltaTime)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
     const RHI::SwapchainTexture& swapchainTexture =
         RenderFrameSwapchainTexture(device);
     VkRect2D renderArea = {{0, 0},
@@ -315,12 +461,25 @@ static void RecordCommands(RHI::Device& device, u32 keyCount, u32 splatCount)
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
     u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                      sSplatBuffer.bindlessHandle};
+                      sSortedSplatBuffers[device.frameIndex].bindlessHandle};
     vkCmdPushConstants(cmd.handle, sGraphicsPipeline.layout,
                        VK_SHADER_STAGE_ALL, 0, sizeof(u32) * 2, indices);
 
-    vkCmdDraw(cmd.handle, 1, splatCount, 0, 0);
+    static u32 drawCount = 0;
+    drawCount += static_cast<u32>(deltaTime * 10000000);
+    drawCount = (drawCount % splatCount) + 1;
+    vkCmdDraw(cmd.handle, 1, drawCount, 0, 0);
     vkCmdEndRendering(cmd.handle);
+}
+
+static void ExecuteCommands(RHI::Device& device, u32 splatCount, f64 deltaTime)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    CullPass(device, splatCount);
+    SortPass(device, splatCount);
+    CopyPass(device, splatCount);
+    GraphicsPass(device, splatCount, deltaTime);
 }
 
 int main(int argc, char* argv[])
@@ -330,7 +489,6 @@ int main(int argc, char* argv[])
     {
         return -1;
     }
-    Arena& arena = GetScratchArena();
 
     // Initialize volk, window
     if (volkInitialize() != VK_SUCCESS)
@@ -376,6 +534,7 @@ int main(int argc, char* argv[])
     }
     RHI::Device& device = context.devices[0];
 
+    Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
     String8 data = ReadFileToString(arena, "garden.splat");
     if (!data)
@@ -383,106 +542,20 @@ int main(int argc, char* argv[])
         HLS_ERROR("Failed to read splat file");
         return -1;
     }
-
     u32 splatCount = static_cast<u32>(data.Size() / sizeof(Splat));
+    const Splat* splats = reinterpret_cast<const Splat*>(data.Data());
     HLS_ASSERT(splatCount);
     HLS_LOG("Splat count is %u", splatCount);
 
-    Vertex* vertices = HLS_ALLOC(arena, Vertex, splatCount);
-    const Splat* splats = reinterpret_cast<const Splat*>(data.Data());
-    for (u32 i = 0; i < splatCount; i++)
+    if (!CreateDeviceBuffers(device, splats, splatCount))
     {
-        vertices[i].position = Math::Vec3(
-            Math::RotateX(25.0f) *
-            (Math::Vec4(Math::Vec3(splats[i].position.x, -splats[i].position.y,
-                                   splats[i].position.z),
-                        1.0f)));
-        vertices[i].scale = splats[i].scale;
-        vertices[i].r = splats[i].r / 255.0f;
-        vertices[i].g = splats[i].g / 255.0f;
-        vertices[i].b = splats[i].b / 255.0f;
-        vertices[i].a = splats[i].a / 255.0f;
-    }
-
-    if (!RHI::CreateStorageBuffer(device, false, vertices,
-                                  sizeof(Vertex) * splatCount, sSplatBuffer))
-    {
-        HLS_ERROR("Failed to create storage buffer");
-        return -1;
+        return false;
     }
     ArenaPopToMarker(arena, marker);
 
-    // Camera data
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    if (!CreatePipelines(device))
     {
-        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
-                                      sUniformBuffers[i]))
-        {
-            HLS_ERROR("Failed to create uniform buffer!");
-        }
-    }
-
-    // Compute pipeline
-    u32 keyCount = 7000000;
-    u32* keys = HLS_ALLOC(arena, u32, keyCount);
-    for (u32 i = 0; i < keyCount; i++)
-    {
-        keys[i] = Math::RandomU32(0, 1234567);
-    }
-    // u32 keys[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2,
-    //               2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3};
-
-    // printf("Generated keys: ");
-    // for (u32 i = 0; i < keyCount; i++)
-    // {
-    //     printf("%u ", keys[i]);
-    // }
-    // printf("\n\n");
-
-    u32 tileCount = static_cast<u32>(
-        Math::Ceil(static_cast<f32>(keyCount) / COUNT_TILE_SIZE));
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        if (!RHI::CreateStorageBuffer(device, true, nullptr,
-                                      RADIX_HISTOGRAM_SIZE * tileCount *
-                                          sizeof(u32),
-                                      sTileHistograms[i]))
-        {
-            HLS_ERROR("Failed to create tile histograms buffer");
-            return -1;
-        }
-
-        if (!RHI::CreateStorageBuffer(device, true, nullptr,
-                                      sizeof(u32) * RADIX_HISTOGRAM_SIZE *
-                                          RADIX_PASS_COUNT,
-                                      sGlobalHistograms[i]))
-        {
-            HLS_ERROR("Failed to create global histogram buffer");
-            return -1;
-        }
-
-        for (u32 j = 0; j < 2; j++)
-        {
-            if (!RHI::CreateStorageBuffer(device, true, keys,
-                                          sizeof(u32) * keyCount,
-                                          sPingPongKeys[2 * i + j]))
-            {
-                HLS_ERROR("Failed to create sorted keys buffer");
-                return -1;
-            }
-        }
-    }
-    ArenaPopToMarker(arena, marker);
-
-    if (!CreateComputePipelines(device))
-    {
-        HLS_ERROR("Failed to create compute pipelines");
-        return -1;
-    }
-
-    if (!CreateGraphicsPipeline(device))
-    {
-        HLS_ERROR("Failed to create graphics pipeline");
+        HLS_ERROR("Failed to create pipelines");
         return -1;
     }
 
@@ -513,87 +586,31 @@ int main(int argc, char* argv[])
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 
-        const u32* pSortedKeys = static_cast<const u32*>(
-            RHI::BufferMappedPtr(sPingPongKeys[2 * device.frameIndex]));
-        const u32* pTileHistograms = static_cast<const u32*>(
-            RHI::BufferMappedPtr(sTileHistograms[device.frameIndex]));
-        const u32* pGlobalHistogram = static_cast<const u32*>(
-            RHI::BufferMappedPtr(sGlobalHistograms[device.frameIndex]));
-
         RHI::BeginRenderFrame(device);
-        RecordCommands(device, keyCount, splatCount);
+        ExecuteCommands(device, splatCount, deltaTime);
         RHI::EndRenderFrame(device);
 
-        // RHI::WaitAllDevicesIdle(context);
-
-        // printf("Keys: ");
-        // for (u32 i = 0; i < keyCount; i++)
+        // RHI::DeviceWaitIdle(device);
+        // const u32* keyValues = static_cast<const u32*>(RHI::BufferMappedPtr(
+        //     sPingPongKeys[2 * ((device.frameIndex - 1) %
+        //     HLS_FRAME_IN_FLIGHT_COUNT)]));
+        // static bool flag = true;
+        // if (flag)
         // {
-        //     printf("%u ", pKeys[i]);
-        // }
-        // printf("\n\n");
-
-        RHI::DeviceWaitIdle(device);
-        static bool flag = false;
-
-        if (!flag)
-        {
-            // printf("Sorted keys: ");
-            // for (u32 i = 0; i < keyCount; i++)
-            // {
-            //     printf("%u ", pSortedKeys[i]);
-            // }
-            // printf("\n\n");
-
-            // for (u32 j = 0; j < RADIX_PASS_COUNT; j++)
-            // {
-            //     for (u32 i = 0; i < RADIX_HISTOGRAM_SIZE; i++)
-            //     {
-            //         printf("%u ",
-            //                pGlobalHistogram[RADIX_HISTOGRAM_SIZE * j + i]);
-            //     }
-            //     printf("\n\n");
-            // }
-
-            // for (u32 i = 0; i < tileCount; i++)
-            // {
-            //     for (u32 j = 0; j < RADIX_HISTOGRAM_SIZE; j++)
-            //     {
-            //         printf("[%u][%u]:%u \n", i, j,
-            //                pTileHistograms[i * RADIX_HISTOGRAM_SIZE + j]);
-            //     }
-            // }
-
-            flag = true;
-        }
-
-        // for (u32 i = 0; i < tileCount; i++)
-        // {
-        //     for (u32 j = 0; j < RADIX_HISTOGRAM_SIZE; j++)
+        //     for (u32 i = 0; i < splatCount; i++)
         //     {
-        //         printf("[%u][%u]:%u \n", i, j,
-        //                pTileHistograms[i * RADIX_HISTOGRAM_SIZE + j]);
+        //         HLS_LOG("%u - %u %u", i, keyValues[2 * i],
+        //                 keyValues[2 * i + 1]);
         //     }
+        //     HLS_LOG("");
+        //     // flag = false;
         // }
     }
 
     RHI::WaitAllDevicesIdle(context);
 
-    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
-    RHI::DestroyComputePipeline(device, sScanPipeline);
-    RHI::DestroyComputePipeline(device, sCountPipeline);
-    RHI::DestroyComputePipeline(device, sSortPipeline);
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        for (u32 j = 0; j < 2; j++)
-        {
-            RHI::DestroyBuffer(device, sPingPongKeys[2 * i + j]);
-        }
-        RHI::DestroyBuffer(device, sTileHistograms[i]);
-        RHI::DestroyBuffer(device, sGlobalHistograms[i]);
-        RHI::DestroyBuffer(device, sUniformBuffers[i]);
-    }
-    RHI::DestroyBuffer(device, sSplatBuffer);
+    DestroyPipelines(device);
+    DestroyDeviceBuffers(device);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
     glfwTerminate();
