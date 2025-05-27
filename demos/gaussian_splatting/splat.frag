@@ -10,10 +10,10 @@ layout(location = 0) out vec4 outColor;
 void main()
 {
     float l = -dot(inUV, inUV);
-    if (l < -4.0)
+    if (l < -4.0f)
     {
         discard;
     }
-    float alpha = inColor.a * exp(l);
+    float alpha = inColor.a * exp(l);    
     outColor = vec4(inColor.rgb, alpha);
 }

@@ -3,7 +3,7 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "math/mat.h"
+#include "math/quat.h"
 
 #include "rhi/buffer.h"
 #include "rhi/context.h"
@@ -40,7 +40,7 @@ struct Splat
 
 struct Vertex
 {
-    Math::Vec4 rotation;
+    Math::Quat rotation;
     Math::Vec3 position;
     f32 r;
     Math::Vec3 scale;
@@ -132,9 +132,9 @@ static bool CreatePipelines(RHI::Device& device)
         VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     fixedState.colorBlendState.attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
     fixedState.colorBlendState.attachments[0].srcAlphaBlendFactor =
-        VK_BLEND_FACTOR_SRC_ALPHA;
+        VK_BLEND_FACTOR_ZERO;
     fixedState.colorBlendState.attachments[0].dstAlphaBlendFactor =
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        VK_BLEND_FACTOR_ONE;
     fixedState.colorBlendState.attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
     fixedState.depthStencilState.depthTestEnable = false;
     fixedState.inputAssemblyState.topology =
@@ -189,17 +189,21 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
     Vertex* vertices = HLS_ALLOC(scratch, Vertex, splatCount);
     for (u32 i = 0; i < splatCount; i++)
     {
-        vertices[i].rotation = Math::Normalize(Math::Vec4(
-            ((splats[i].x - 128.0f) / 128.0f),
-            -((splats[i].y - 128.0f) / 128.0f), (splats[i].z - 128.0f) / 128.0f,
-            (splats[i].w - 128.0f) / 128.0f));
-        vertices[i].position = Math::Vec3(
-            Math::RotateX(25.0f) *
-            (Math::Vec4(Math::Vec3(splats[i].position.x, -splats[i].position.y,
-                                   splats[i].position.z),
-                        1.0f)));
+        f32 x = (splats[i].x - 128.0f) / 128.0f;
+        f32 y = (splats[i].y - 128.0f) / 128.0f;
+        f32 z = (splats[i].z - 128.0f) / 128.0f;
+        f32 w = (splats[i].w - 128.0f) / 128.0f;
+
+        Math::Quat q = Math::Conjugate(Math::Normalize(Math::Quat(x, y, z, w)));
+        Math::Quat r1 = Math::AngleAxis(Math::Vec3(0.0f, 0.0f, 1.0f), 180.0f);
+        Math::Quat r2 = Math::AngleAxis(Math::Vec3(1.0f, 0.0f, 0.0f), 25.0f);
+        vertices[i].rotation = q * r2 * r1;
+        vertices[i].position =
+            r2 * r1 *
+            Math::Vec3(splats[i].position.x, splats[i].position.y,
+                       splats[i].position.z);
         // vertices[i].position = Math::Vec3(
-        //     splats[i].position.x, -splats[i].position.y,
+        //     splats[i].position.x, splats[i].position.y,
         //     splats[i].position.z);
         vertices[i].scale = splats[i].scale;
         vertices[i].r = splats[i].r / 255.0f;
@@ -302,8 +306,8 @@ static void CullPass(RHI::Device& device, u32 splatCount)
     vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
     VkBufferMemoryBarrier cullToSortBarrier = RHI::BufferMemoryBarrier(
-        sPingPongKeys[HLS_FRAME_IN_FLIGHT_COUNT * device.frameIndex],
-        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+        sPingPongKeys[2 * device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT);
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
                          &cullToSortBarrier, 0, nullptr);
@@ -446,9 +450,15 @@ static void CopyPass(RHI::Device& device, u32 splatCount)
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 1,
                          &copyToGraphics, 0, nullptr);
+    VkBufferMemoryBarrier cullToCopyBarrier = RHI::BufferMemoryBarrier(
+        sPingPongKeys[2 * device.frameIndex], VK_ACCESS_SHADER_READ_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &cullToCopyBarrier, 0, nullptr);
 }
 
-static void GraphicsPass(RHI::Device& device, u32 splatCount, f32 deltaTime)
+static void GraphicsPass(RHI::Device& device, u32 splatCount)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
@@ -489,21 +499,16 @@ static void GraphicsPass(RHI::Device& device, u32 splatCount, f32 deltaTime)
     vkCmdPushConstants(cmd.handle, sGraphicsPipeline.layout,
                        VK_SHADER_STAGE_ALL, 0, sizeof(u32) * 2, indices);
 
-    // static u32 drawCount = 0;
-    // drawCount += static_cast<u32>(deltaTime * 10000000);
-    // drawCount = (drawCount % splatCount) + 1;
     vkCmdDraw(cmd.handle, 6, splatCount, 0, 0);
     vkCmdEndRendering(cmd.handle);
 }
 
-static void ExecuteCommands(RHI::Device& device, u32 splatCount, f64 deltaTime)
+static void ExecuteCommands(RHI::Device& device, u32 splatCount)
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
     CullPass(device, splatCount);
     SortPass(device, splatCount);
     CopyPass(device, splatCount);
-    GraphicsPass(device, splatCount, deltaTime);
+    GraphicsPass(device, splatCount);
 }
 
 int main(int argc, char* argv[])
@@ -611,24 +616,8 @@ int main(int argc, char* argv[])
                               sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
-        ExecuteCommands(device, splatCount, deltaTime);
+        ExecuteCommands(device, splatCount);
         RHI::EndRenderFrame(device);
-
-        // RHI::DeviceWaitIdle(device);
-        // const u32* keyValues = static_cast<const u32*>(RHI::BufferMappedPtr(
-        //     sPingPongKeys[2 * ((device.frameIndex - 1) %
-        //     HLS_FRAME_IN_FLIGHT_COUNT)]));
-        // static bool flag = true;
-        // if (flag)
-        // {
-        //     for (u32 i = 0; i < splatCount; i++)
-        //     {
-        //         HLS_LOG("%u - %u %u", i, keyValues[2 * i],
-        //                 keyValues[2 * i + 1]);
-        //     }
-        //     HLS_LOG("");
-        //     // flag = false;
-        // }
     }
 
     RHI::WaitAllDevicesIdle(context);

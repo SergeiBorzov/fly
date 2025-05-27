@@ -57,10 +57,10 @@ mat3 scaleMat3(vec3 scale)
 }
 
 const vec2 positions[6] =
-    vec2[6](vec2(-0.5f, -0.5f), vec2(0.5f, -0.5f), vec2(-0.5f, 0.5f),
-            vec2(-0.5f, 0.5f), vec2(0.5f, -0.5f), vec2(0.5f, 0.5f));
+    vec2[6](vec2(-2.0f, -2.0f), vec2(2.0f, -2.0f), vec2(-2.0f, 2.0f),
+            vec2(-2.0f, 2.0f), vec2(2.0f, -2.0f), vec2(2.0f, 2.0f));
 
-#define MAX_SPLAT_SIZE 1024.0f
+#define MAX_SPLAT_SIZE 128.0f
 
 void main()
 {
@@ -74,21 +74,25 @@ void main()
     Splat splat = HLS_ACCESS_STORAGE_BUFFER(
         Splat, gPushConstants.splatBufferIndex)[gl_InstanceIndex];
 
-    mat3 rs = rotMat3(splat.rotation) * scaleMat3(splat.scale);
-    mat3 trs = transpose(rs);
+    vec4 q = normalize(vec4(splat.rotation.x, splat.rotation.y,
+                            splat.rotation.z, splat.rotation.w));
+    mat3 rs = rotMat3(q) * scaleMat3(splat.scale);
 
     vec4 viewPos = view * vec4(splat.position, 1.0f);
     vec4 clipPos = projection * viewPos;
 
-    mat3 cov = rs * trs;
+    mat3 cov = rs * transpose(rs);
     // last column can be zeros, we don't care about z
     // since we just render back to front with blending enabled
-    float f = -projection[1][1] * viewport.y;
+    float fy = 1164.6601287484507;
+    float fx = 1159.5880733038064;
+
+    float f = -projection[1][1] * viewport.y * 0.5f;
     float z2 = viewPos.z * viewPos.z;
-    mat3 j = mat3(f / viewPos.z, 0.0f, -(f * viewPos.x) / z2, 0.0f,
-                  -f / viewPos.z, (f * viewPos.y) / z2, 0.0f, 0.0f, 0.0f);
-    mat3 t = transpose(mat3(view)) * j;
-    mat3 cov2d = transpose(t) * cov * t;
+    mat3 j = mat3(f / viewPos.z, 0.0f, 0.0f, 0.0f, -f / viewPos.z, 0.0f,
+                  -(f * viewPos.x) / z2, (f * viewPos.y) / z2, 0.0f);
+    mat3 t = j * mat3(view);
+    mat3 cov2d = t * cov * transpose(t);
 
     // Note: covariance matrix is symmetric
     float a = cov2d[0][0];
@@ -99,7 +103,12 @@ void main()
     float disc = sqrt(ht * ht - det);
 
     float e1 = ht + disc;
-    float e2 = max(ht - disc, 0.0f);
+    float e2 = ht - disc;
+
+    if (e2 < 0.0)
+    {
+        return;
+    }
 
     vec2 v1 = normalize(vec2(b, e1 - a));
     vec2 v2 = vec2(v1.y, -v1.x);
@@ -107,16 +116,17 @@ void main()
     // Note:
     // 2.0f multiplier covers 95.4% of total data
     // 4.0f multiplie covers 99.99% of total data
-    vec2 s1 = v1 * min(sqrt(e1) * 4.0f, MAX_SPLAT_SIZE) / viewport;
-    vec2 s2 = v2 * min(sqrt(e2) * 4.0f, MAX_SPLAT_SIZE) / viewport;
+    vec2 s1 = v1 * min(sqrt(e1) * 3.0f, MAX_SPLAT_SIZE);
+    vec2 s2 = v2 * min(sqrt(e2) * 3.0f, MAX_SPLAT_SIZE);
 
     vec3 ndcPos = clipPos.xyz / clipPos.w;
 
-    vec2 quadPos = positions[gl_VertexIndex] * 2.0f;
+    vec2 quadPos = positions[gl_VertexIndex];
     gl_Position =
-        vec4(ndcPos.xy + quadPos.x * s1 + quadPos.y * s2, ndcPos.z, 1.0f);
+        vec4(ndcPos.xy + quadPos.x * s1 / viewport + quadPos.y * s2 / viewport,
+             ndcPos.z, 1.0f);
 
-    outUV = quadPos.xy * 4.0f; // [-2, 2]
+    outUV = quadPos;
     vec3 linear = pow(vec3(splat.r, splat.g, splat.b), vec3(2.2));
     outColor = vec4(linear, splat.a);
 }
