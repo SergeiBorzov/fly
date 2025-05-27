@@ -5,3 +5,29 @@ filegroup(
     ],
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "bicycle",
+    srcs = [
+        "bicycle.splat",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "stump",
+    srcs = [
+        "stump.splat",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "truck",
+    srcs = [
+        "truck.splat",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+
