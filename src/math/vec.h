@@ -348,7 +348,7 @@ inline Vec3 Normalize(Vec3 v)
 inline Vec4 Normalize(Vec4 v)
 {
     if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON &&
-        Abs(v.z) < HLS_MATH_EPSILON && Abs(v.w))
+        Abs(v.z) < HLS_MATH_EPSILON && Abs(v.w) < HLS_MATH_EPSILON)
     {
         return Vec4(0.0f);
     }

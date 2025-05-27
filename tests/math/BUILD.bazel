@@ -53,6 +53,19 @@ cc_test(
 )
 
 cc_test(
+    name = "test_quat",
+    size = "small",
+    srcs = [
+        "test_quat.cpp",
+    ],
+    deps = [
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "//src/math:math",
+    ],
+)
+
+cc_test(
     name = "test_functions",
     size = "small",
     srcs = [
