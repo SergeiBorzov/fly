@@ -17,12 +17,16 @@ cc_library(
     includes = [
         "include",
     ],
-    defines = [
-        "VK_ENABLE_BETA_EXTENSIONS",
-        "VK_USE_PLATFORM_WIN32_KHR",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN",
-    ],
+    defines = select({
+        "@platforms//os:windows": [
+            "VK_USE_PLATFORM_WIN32_KHR",
+            "NOMINMAX",
+            "WIN32_LEAN_AND_MEAN",
+        ],
+        "@platforms//os:linux": [
+            "VK_USE_PLATFORM_XCB_KHR",
+        ],
+    }),
     deps = [
         "@vulkan_headers//:vulkan_headers"
     ],
@@ -72,12 +76,18 @@ cc_library(
     deps = [
         ":vulkan_utility_headers",
     ],
-    defines = [
-        "VK_ENABLE_BETA_EXTENSIONS",
-        "VK_USE_PLATFORM_WIN32_KHR",
-        "NOMINMAX",
-        "WIN32_LEAN_AND_MEAN",
-    ],
+    defines = select({
+        "@platforms//os:windows": [
+            "VK_ENABLE_BETA_EXTENSIONS",
+            "VK_USE_PLATFORM_WIN32_KHR",
+            "NOMINMAX",
+            "WIN32_LEAN_AND_MEAN",
+        ],
+        "@platforms//os:linux": [
+            "VK_ENABLE_BETA_EXTENSIONS",
+            "VK_USE_PLATFORM_XCB_KHR",
+        ],
+    }),
     visibility = ["//visibility:public"]
 )
 

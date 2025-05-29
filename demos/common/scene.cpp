@@ -268,7 +268,6 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
     {
         cgltf_attribute& attribute = primitive->attributes[i];
         cgltf_accessor* accessor = attribute.data;
-        cgltf_buffer_view* bv = accessor->buffer_view;
 
         ArenaMarker loopMarker = ArenaGetMarker(scratch);
         if (attribute.type == cgltf_attribute_type_position)
