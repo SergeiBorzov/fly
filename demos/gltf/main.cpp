@@ -7,10 +7,10 @@
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
-#include "platform/window.h"
-
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
+
+#include <GLFW/glfw3.h>
 
 using namespace Hls;
 
@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
-    settings.windowPtr = Hls::GetNativeWindowPtr(window);
+    settings.windowPtr = window;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
