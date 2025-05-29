@@ -13,9 +13,14 @@
 
 #include "demos/common/scene.h"
 
-#include "radix_sort_common.glsl"
-
 #include <stdlib.h>
+
+#define RADIX_PASS_COUNT 4
+#define RADIX_BIT_COUNT 8
+#define RADIX_HISTOGRAM_SIZE (1U << RADIX_BIT_COUNT)
+#define COUNT_WORKGROUP_SIZE 512
+#define COUNT_TILE_SIZE COUNT_WORKGROUP_SIZE
+#define SCAN_WORKGROUP_SIZE (COUNT_WORKGROUP_SIZE / 2)
 
 using namespace Hls;
 
@@ -249,7 +254,6 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
 static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
 {
     RHI::BeginTransfer(device);
-    RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
     RHI::CopyDataToBuffer(device, keys, sizeof(u32) * keyCount, 0,
                           sPingPongKeys[0]);
     RHI::EndTransfer(device);
