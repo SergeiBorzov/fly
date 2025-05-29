@@ -12,10 +12,10 @@
 
 #include "assets/import_image.h"
 
-#include "platform/window.h"
-
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
+
+#include <GLFW/glfw3.h>
 
 using namespace Hls;
 
@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
-    settings.windowPtr = Hls::GetNativeWindowPtr(window);
+    settings.windowPtr = window;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    RHI::Device& device = context.devices[1];
+    RHI::Device& device = context.devices[0];
 
     RHI::ShaderProgram shaderProgram{};
     if (!Hls::LoadShaderFromSpv(device, "cubes.vert.spv",

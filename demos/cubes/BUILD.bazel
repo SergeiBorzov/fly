@@ -48,7 +48,6 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
-        "//src/platform:window",
         "//src/rhi:context",
         "//src/assets:import_image",
         "//demos/common:scene",
