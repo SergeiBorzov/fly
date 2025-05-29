@@ -13,15 +13,17 @@
 namespace Hls
 {
 
-void* GetNativeWindowPtr(GLFWwindow* glfwWindow)
+NativeWindowHandles GetNativeWindowPtr(GLFWwindow* glfwWindow)
 {
+    NativeWindowHandles handles{};
 #ifdef HLS_PLATFORM_OS_WINDOWS
-    return static_cast<void*>(glfwGetWin32Window(glfwWindow));
+    handles.windowPtr = static_cast<void*>(glfwGetWin32Window(glfwWindow));
+    handles.displayPtr = nullptr;
 #elif defined HLS_PLATFORM_OS_LINUX
-    return static_cast<void*>(glfwGetX11Window(glfwWindow));
-#else
-    return nullptr;
+    handles.windowHandle = glfwGetX11Window(glfwWindow);
+    handles.displayPtr = glfwGetX11Display();
 #endif
+    return handles;
 }
 
 } // namespace Hls

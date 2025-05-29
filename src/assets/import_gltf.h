@@ -1,8 +1,6 @@
 #ifndef HLS_ASSETS_IMPORT_GLTF_H
 #define HLS_ASSETS_IMPORT_GLTF_H
 
-#include "math/vec.h"
-
 #include <cgltf.h>
 
 namespace Hls

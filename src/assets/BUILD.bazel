@@ -1,37 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "import_obj",
-    hdrs = [
-        "import_obj.h",
-    ],
-    srcs = [
-        "import_obj.cpp",
-    ],
-    includes = [".."],
-    deps = [
-        "//src/core:core",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "import_gltf",
-    hdrs = [
-        "import_gltf.h",
-    ],
-    srcs = [
-        "import_gltf.cpp",
-    ],
-    includes = [".."],
-    deps = [
-        "//src/core:core",
-        "@cgltf//:cgltf",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
     name = "import_image",
     hdrs = [
         "import_image.h",
@@ -58,6 +27,38 @@ cc_library(
     includes = [".."],
     deps = [
         "//src/core:core",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "import_obj",
+    hdrs = [
+        "import_obj.h",
+    ],
+    srcs = [
+        "import_obj.cpp",
+    ],
+    includes = [".."],
+    deps = [
+        "//src/core:core",
+        "//src/math:math",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "import_gltf",
+    hdrs = [
+        "import_gltf.h",
+    ],
+    srcs = [
+        "import_gltf.cpp",
+    ],
+    includes = [".."],
+    deps = [
+        "//src/core:core",
+        "@cgltf//:cgltf",
     ],
     visibility = ["//visibility:public"],
 )

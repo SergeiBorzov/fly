@@ -16,6 +16,9 @@ cc_library(
         "@platforms//os:windows": [
             "VK_USE_PLATFORM_WIN32_KHR",
         ],
+        "@platforms//os:linux": [
+            "VK_USE_PLATFORM_XLIB_KHR",
+        ],
         "//conditions:default": [],
     }),
     deps = [

@@ -3,7 +3,6 @@
 #include "core/memory.h"
 
 #include "import_gltf.h"
-#include "import_image.h"
 
 #define CGLTF_MALLOC(size) (Hls::Alloc(size))
 #define CGLTF_FREE(size) (Hls::Free(size))

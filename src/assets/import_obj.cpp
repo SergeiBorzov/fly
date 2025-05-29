@@ -735,7 +735,6 @@ bool ParseObj(String8 str, const ObjImportSettings& settings, ObjData& objData)
     const char* p = str.Data();
     const char* end = str.Data() + str.Size();
 
-    u32 shapeStartIndex = 0;
     while (p != end)
     {
         p = SkipWhitespace(p);

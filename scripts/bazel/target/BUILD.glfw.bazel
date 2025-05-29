@@ -35,13 +35,16 @@ cc_library(
             "src/win32_time.c",
             "src/win32_window.c",
         ],
-        "//conditions:default": [
+        "@platforms//os:linux": [
             "src/linux_joystick.c",
             "src/posix_thread.c",
             "src/posix_time.c",
             "src/posix_poll.c",
+            "src/posix_module.c",
+            "src/x11_init.c",
+            "src/x11_monitor.c",
+            "src/x11_window.c",
             "src/glx_context.c",
-            "src/x11_platform.c",
             "src/xkb_unicode.c",
         ],
     }),
@@ -68,12 +71,11 @@ cc_library(
             "src/win32_platform.h",
             "src/win32_time.h",
         ],
-        "//conditions:default": [
+        "@platforms//os:linux": [
             "src/linux_joystick.h",
             "src/posix_thread.h",
             "src/posix_time.h",
             "src/posix_poll.h",
-            "src/glx_context.h",
             "src/x11_platform.h",
             "src/xkb_unicode.h",
         ],
@@ -81,10 +83,11 @@ cc_library(
     includes = [
         "include",
     ],
-    defines = []  + select({
+    defines = [] + select({
         "@platforms//os:osx": ["_GLFW_COCOA"],
         "@platforms//os:windows": ["_GLFW_WIN32"],
-        "//conditions:default": ["_GLFW_X11"],
+        "@platforms//os:linux": ["_GLFW_X11"],
+        "//conditions:default": [],
     }),
     deps = select({
         "@platforms//os:osx": [":glfw-objc"],
