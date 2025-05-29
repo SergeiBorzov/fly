@@ -48,6 +48,7 @@ void InitThreadContext()
     const char* binaryDirectoryPath = GetBinaryDirectoryPath(scratch);
     HLS_ASSERT(binaryDirectoryPath);
     bool res = SetEnv("VK_LAYER_PATH", binaryDirectoryPath);
+    (void)res;
     HLS_ASSERT(res);
     res = chdir(binaryDirectoryPath) == 0;
     HLS_ASSERT(res);

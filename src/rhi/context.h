@@ -5,6 +5,8 @@
 
 #define HLS_PHYSICAL_DEVICE_MAX_COUNT 4
 
+struct GLFWwindow;
+
 namespace Hls
 {
 namespace RHI
@@ -58,7 +60,7 @@ struct ContextSettings
     const char** instanceLayers = nullptr;
     const char** instanceExtensions = nullptr;
     const char** deviceExtensions = nullptr;
-    void* windowPtr = nullptr;
+    GLFWwindow* windowPtr = nullptr;
     IsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback = nullptr;
     DetermineSurfaceFormatFn determineSurfaceFormatCallback = nullptr;
     DeterminePresentModeFn determinePresentModeCallback = nullptr;
@@ -77,7 +79,7 @@ struct Context
     Device devices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-    void* windowPtr = nullptr;
+    GLFWwindow* windowPtr = nullptr;
     u32 deviceCount = 0;
 };
 

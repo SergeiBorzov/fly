@@ -15,6 +15,6 @@ struct NativeWindowHandles
     void* displayPtr;
 };
 
-NativeWindowHandles GetNativeWindowPtr(GLFWwindow* glfwWindow);
+NativeWindowHandles GetNativeWindowHandles(GLFWwindow* glfwWindow);
 
 } // namespace Hls

@@ -49,7 +49,7 @@ struct ShaderProgram
     }
 
 private:
-    Shader shaders[Shader::Type::Count] = {};
+    Shader shaders[static_cast<u32>(Shader::Type::Count)] = {};
 };
 
 } // namespace RHI

@@ -761,16 +761,19 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     if (!CreateVmaAllocator(context, device))
     {
+        HLS_ERROR("Failed to create vma allocator %s", device.name);
         return false;
     }
 
     if (!CreateCommandPool(device))
     {
+        HLS_ERROR("Failed to create command pool %s", device.name);
         return false;
     }
 
     if (!CreateDescriptorPool(device))
     {
+        HLS_ERROR("Failed to create descriptor pool %s", device.name);
         return false;
     }
 
@@ -778,10 +781,12 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
     {
         if (context.windowPtr && !CreateMainDepthTexture(device))
         {
+            HLS_ERROR("Failed to create depth texture %s", device.name);
             return false;
         }
         if (!CreateSwapchain(device))
         {
+            HLS_ERROR("Failed to create swapchain %s", device.name);
             return false;
         }
     }

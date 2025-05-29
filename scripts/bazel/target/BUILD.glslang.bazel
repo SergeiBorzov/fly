@@ -10,8 +10,6 @@ py_binary(
     srcs = [
         "build_info.py"
     ],
-    data = [
-    ],
     visibility = ["//visibility:public"],
     deps = [
     ],
@@ -32,6 +30,7 @@ py_binary(
 glslang_build_info(
     name = "generate_build_info",
     input_file = "build_info.h.tmpl",
+    changes_md_file = "CHANGES.md",
     output_file = "glslang/build_info.h",
     directory = "external/+external_git_repository+glslang",
 )
@@ -136,6 +135,7 @@ cc_library(
         "glslang/MachineIndependent/preprocessor/PpContext.cpp",
         "glslang/MachineIndependent/preprocessor/PpScanner.cpp",
         "glslang/MachineIndependent/preprocessor/PpTokens.cpp",
+        "glslang/MachineIndependent/span.h",
         "glslang/MachineIndependent/propagateNoContraction.cpp",
         # generic code gen sources
         "glslang/GenericCodeGen/CodeGen.cpp",
@@ -156,6 +156,9 @@ cc_library(
         "@platforms//os:windows": [
             "glslang/OSDependent/Windows/ossource.cpp",
         ],
+        "@platforms//os:linux": [
+            "glslang/OSDependent/Unix/ossource.cpp",
+        ],
         "//conditions:default": [],
     }),
     includes = [
@@ -171,6 +174,7 @@ cc_library(
     defines = [
     ],
     deps = [
+        ":glslangValidator_headers",
     ],
     linkopts = [
     ],
@@ -181,6 +185,7 @@ cc_library(
    name = "glslangValidator_headers",
    hdrs = [
        "StandAlone/DirStackFileIncluder.h",
+       "StandAlone/Worklist.h",
        ":glslang/glsl_intrinsic_header.h",
    ],
    visibility = ["//visibility:public"],

@@ -119,6 +119,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
         if (!IsLayerSupported(availableInstanceLayers,
                               availableInstanceLayerCount, totalLayers[i]))
         {
+            HLS_LOG("A");
             HLS_ERROR("Following required instance layer %s is not present",
                       totalLayers[i]);
             return false;
@@ -146,6 +147,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
                                   availableInstanceExtensionCount,
                                   totalExtensions[i]))
         {
+            HLS_LOG("B");
             HLS_ERROR("Following required extension %s is not present",
                       totalExtensions[i]);
             return false;
@@ -158,7 +160,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No Engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_4;
+    appInfo.apiVersion = VK_API_VERSION_1_3;
 
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -195,6 +197,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
 
     if (result != VK_SUCCESS)
     {
+        HLS_LOG("Failed code %d", static_cast<i32>(result));
         return false;
     }
     HLS_DEBUG_LOG("Created vulkan instance");
@@ -880,6 +883,10 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
                 }
                 break;
             }
+            default:
+            {
+                break;
+            }
         }
         currRequestedFeaturePtr = currRequestedFeaturePtr->pNext;
     }
@@ -968,7 +975,6 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
 
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
-        const VkPhysicalDevice physicalDevice = physicalDevices[i];
         const PhysicalDeviceInfo& info = physicalDeviceInfos[i];
 
         if (!PhysicalDeviceSupportsRequiredExtensions(
@@ -1064,8 +1070,6 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
         MIN(HLS_PHYSICAL_DEVICE_MAX_COUNT, suitableDeviceCount);
     for (u32 i = 0; i < context.deviceCount; i++)
     {
-        Device& device = context.devices[i];
-
         context.devices[i] = suitableDevices[i];
         HLS_LOG("Following physical device is suitable and selected - %s",
                 context.devices[i].name);
@@ -1080,6 +1084,7 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
 /////////////////////////////////////////////////////////////////////////////
 bool CreateContext(ContextSettings& settings, Context& context)
 {
+    HLS_LOG("Trying to create instance");
     if (!CreateInstance(settings.instanceLayers, settings.instanceLayerCount,
                         settings.instanceExtensions,
                         settings.instanceExtensionCount, context))
@@ -1091,6 +1096,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
 
     if (context.windowPtr && !CreateSurface(context))
     {
+        HLS_LOG("Failed to create surface");
         return false;
     }
 

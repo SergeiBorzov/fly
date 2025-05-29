@@ -371,6 +371,7 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
         void* mappedPtr = nullptr;
         bool res = vmaMapMemory(device.allocator, allocation, &mappedPtr) ==
                    VK_SUCCESS;
+        (void)res;
         HLS_ASSERT(res);
         memcpy(mappedPtr, data, allocSize);
         vmaUnmapMemory(device.allocator, allocation);

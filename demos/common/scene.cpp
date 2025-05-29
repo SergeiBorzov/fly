@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "core/assert.h"
 #include "core/log.h"
 #include "core/thread_context.h"
@@ -267,7 +269,6 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
         cgltf_attribute& attribute = primitive->attributes[i];
         cgltf_accessor* accessor = attribute.data;
         cgltf_buffer_view* bv = accessor->buffer_view;
-        cgltf_buffer* buffer = bv->buffer;
 
         ArenaMarker loopMarker = ArenaGetMarker(scratch);
         if (attribute.type == cgltf_attribute_type_position)
@@ -465,7 +466,6 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     u32 totalSubmeshCount = 0;
     for (u32 i = 0; i < data->meshes_count; i++)
     {
-        u32 submeshCount = static_cast<u32>(data->meshes[i].primitives_count);
         totalSubmeshCount += static_cast<u32>(data->meshes[i].primitives_count);
     }
 

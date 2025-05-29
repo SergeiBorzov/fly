@@ -3,6 +3,7 @@ def _glslang_build_info_impl(ctx):
     ctx.actions.run(
         inputs = [
             ctx.file.input_file,
+            ctx.file.changes_md_file,
         ],
         outputs = [
             ctx.outputs.output_file,
@@ -25,6 +26,10 @@ glslang_build_info = rule(
         "input_file": attr.label(
             mandatory = True,
             allow_single_file = [".tmpl"],
+        ),
+        "changes_md_file": attr.label(
+            mandatory = True,
+            allow_single_file = [".md"],
         ),
         "directory": attr.string(
             mandatory = True,

@@ -95,8 +95,6 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
 
     pitch_ = Math::Clamp(pitch_, -89.0f, 89.0f);
 
-    Math::Vec3 moveVector = Hls::Math::Vec3(0.0f);
-
     Math::Vec3 front(
         Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
         Math::Sin(Math::Radians(pitch_)),

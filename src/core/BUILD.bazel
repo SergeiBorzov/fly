@@ -149,6 +149,9 @@ cc_library(
     deps = [
         ":assert",
     ],
+    copts = select({
+        "@platforms//os:linux": ["-Wno-format-overflow"],
+    }),
     visibility = ["//visibility:public"],
 )
 

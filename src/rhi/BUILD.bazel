@@ -29,6 +29,7 @@ cc_library(
     deps = [
         "@volk//:volk",
         "@vma//:vma",
+        "@glfw//:glfw",
         "//src/core:core",
     ],
     linkopts = select({

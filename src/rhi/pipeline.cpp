@@ -267,7 +267,8 @@ bool CreateGraphicsPipeline(Device& device,
 
     // Programmable state
     u32 stageCount = 0;
-    VkPipelineShaderStageCreateInfo stages[Shader::Type::Count];
+    VkPipelineShaderStageCreateInfo
+        stages[static_cast<u32>(Shader::Type::Count)];
 
     for (u32 i = 0; i < static_cast<u32>(Shader::Type::Count); i++)
     {

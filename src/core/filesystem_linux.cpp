@@ -204,7 +204,11 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
     }
 
     // Read the file into the string
-    fread(content, 1, fileSize, file);
+    if (fread(content, 1, fileSize, file) != static_cast<size_t>(fileSize))
+    {
+        fclose(file);
+        return String8();
+    }
 
     fclose(file);
 

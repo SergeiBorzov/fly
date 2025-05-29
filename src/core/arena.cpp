@@ -100,6 +100,7 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
         {
             void* res = Hls::PlatformCommitMemory(arena.ptr + arena.capacity,
                                                   arena.capacity);
+            (void)res;
             HLS_ASSERT(res);
             arena.capacity = newCapacity;
         }

@@ -10,7 +10,7 @@
 
 #include "demos/common/scene.h"
 
-#include "platform/window.h"
+#include <GLFW/glfw3.h>
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
-    settings.windowPtr = Hls::GetNativeWindowPtr(window);
+    settings.windowPtr = window;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))

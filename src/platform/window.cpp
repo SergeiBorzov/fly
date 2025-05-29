@@ -4,8 +4,8 @@
 
 #ifdef HLS_PLATFORM_OS_WINDOWS
 #define GLFW_EXPOSE_NATIVE_WIN32
-#elif defined HLS_PLATFORM_OS_LINUX
-// Assuming x11 is used, to be improved
+#elif defined(HLS_PLATFORM_OS_LINUX)
+// Assuming x11 and xcb is used, to be improved
 #define GLFW_EXPOSE_NATIVE_X11
 #endif
 #include <GLFW/glfw3native.h>
@@ -13,7 +13,7 @@
 namespace Hls
 {
 
-NativeWindowHandles GetNativeWindowPtr(GLFWwindow* glfwWindow)
+NativeWindowHandles GetNativeWindowHandles(GLFWwindow* glfwWindow)
 {
     NativeWindowHandles handles{};
 #ifdef HLS_PLATFORM_OS_WINDOWS

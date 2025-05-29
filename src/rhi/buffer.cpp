@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "core/assert.h"
 #include "core/log.h"
 
