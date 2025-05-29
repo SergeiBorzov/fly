@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
-load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader", "glsl_library")
 
 copy_files_to_directory(
     name = "copy_vulkan_validation_layer",
@@ -18,6 +18,14 @@ config_setting(
     },
 )
 
+glsl_library(
+    name = "radix_sort_common",
+    hdrs = [
+        "radix_sort_common.glsl",
+    ],
+    visibility = ["//visibility:public"]
+)
+
 copy_files_to_directory(
     name = "copy_scene_data",
     srcs = [
@@ -31,6 +39,7 @@ glsl_shader(
     src = "cull.comp",
     deps = [
         "//demos/common:glsl_bindless",
+        ":radix_sort_common",
     ],
 )
 
@@ -39,6 +48,7 @@ glsl_shader(
     src = "copy.comp",
     deps = [
         "//demos/common:glsl_bindless",
+        ":radix_sort_common",
     ],
 )
 
@@ -47,6 +57,7 @@ glsl_shader(
     src = "radix_count_histogram.comp",
     deps = [
         "//demos/common:glsl_bindless",
+        ":radix_sort_common",
     ],
 )
 
@@ -55,6 +66,7 @@ glsl_shader(
     src = "radix_scan.comp",
     deps = [
         "//demos/common:glsl_bindless",
+        ":radix_sort_common",
     ],
 )
 
@@ -63,6 +75,7 @@ glsl_shader(
     src = "radix_sort.comp",
     deps = [
         "//demos/common:glsl_bindless",
+        ":radix_sort_common",
     ],
 )
 
@@ -91,7 +104,6 @@ cc_binary(
         "radix_sort_common.glsl"
     ],
     deps = [
-        "//src/platform:window",
         "//src/rhi:context",
         "//demos/common:scene",
         "//demos/common:simple_camera_fps",

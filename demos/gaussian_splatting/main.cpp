@@ -10,17 +10,22 @@
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
-#include "platform/window.h"
-
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
-#include "radix_sort_common.glsl"
+#include <GLFW/glfw3.h>
 
 using namespace Hls;
 
 #define WINDOW_WIDTH 1959
 #define WINDOW_HEIGHT 1090
+
+#define RADIX_PASS_COUNT 4
+#define RADIX_BIT_COUNT 8
+#define RADIX_HISTOGRAM_SIZE (1U << RADIX_BIT_COUNT)
+#define COUNT_WORKGROUP_SIZE 512
+#define COUNT_TILE_SIZE COUNT_WORKGROUP_SIZE
+#define SCAN_WORKGROUP_SIZE (COUNT_WORKGROUP_SIZE / 2)
 
 #pragma pack(push, 1)
 struct Splat
@@ -215,15 +220,16 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
     if (!RHI::CreateStorageBuffer(device, false, vertices,
                                   sizeof(Vertex) * splatCount, sSplatBuffer))
     {
+        ArenaPopToMarker(scratch, marker);
         return false;
     }
-    // ArenaPopToMarker(scratch, marker);
 
     for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
                                       sUniformBuffers[i]))
         {
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
     }
@@ -237,6 +243,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
                                           sizeof(u32),
                                       sTileHistograms[i]))
         {
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
 
@@ -245,6 +252,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
                                           RADIX_PASS_COUNT,
                                       sGlobalHistograms[i]))
         {
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
 
@@ -252,6 +260,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
                                       sizeof(Vertex) * splatCount,
                                       sSortedSplatBuffers[i]))
         {
+            ArenaPopToMarker(scratch, marker);
             return false;
         }
 
@@ -261,10 +270,12 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
                                           2 * sizeof(u32) * splatCount,
                                           sPingPongKeys[2 * i + j]))
             {
+                ArenaPopToMarker(scratch, marker);
                 return false;
             }
         }
     }
+    ArenaPopToMarker(scratch, marker);
 
     return true;
 }
@@ -553,7 +564,7 @@ int main(int argc, char* argv[])
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
-    settings.windowPtr = Hls::GetNativeWindowPtr(window);
+    settings.windowPtr = window;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
