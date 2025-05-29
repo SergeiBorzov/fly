@@ -9,19 +9,9 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-#ifdef HLS_PLATFORM_OS_WINDOWS
 #include <windows.h>
-#endif
 
-#ifdef HLS_PLATFORM_OS_WINDOWS
 #define HLS_PATH_SEPARATOR '\\'
-#define HLS_PATH_SEPARATOR_STRING "\\"
-#elif defined(HLS_PLATFORM_OS_LINUX) || defined(HLS_PLATFORM_OS_MAC_OSX)
-#define HLS_PATH_SEPARATOR '/'
-#define HLS_PATH_SEPARATOR_STRING "/"
-#else
-#error "Not implemented"
-#endif
 
 namespace Hls
 {
@@ -33,7 +23,6 @@ bool IsValidPathString(String8 str)
         return false;
     }
 
-#ifdef HLS_PLATFORM_OS_WINDOWS
     String8 invalidCharacters = HLS_STRING8_LITERAL("<>\"|*");
     for (u64 i = 0; i < str.Size(); i++)
     {
@@ -101,17 +90,15 @@ bool IsValidPathString(String8 str)
     }
 
     return true;
-#endif
-    return false;
 }
 
 bool NormalizePathString(Arena& arena, String8 path, String8& out)
 {
     if (!IsValidPathString(path))
     {
-        return nullptr;
+        return false;
     }
-#ifdef HLS_PLATFORM_OS_WINDOWS
+
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
@@ -261,8 +248,6 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     out = String8(normalized, newSize);
     ArenaPopToMarker(scratch, scratchMarker);
     return true;
-#endif
-    return nullptr;
 }
 
 bool Path::Create(Arena& arena, String8 str, Path& path)
@@ -369,7 +354,6 @@ bool Path::IsAbsolute() const
     {
         return false;
     }
-#ifdef HLS_PLATFORM_OS_WINDOWS
 
     if (data_[0] == '\\' && data_[1] == '\\')
     {
@@ -382,8 +366,6 @@ bool Path::IsAbsolute() const
         return true;
     }
 
-    return false;
-#endif
     return false;
 }
 

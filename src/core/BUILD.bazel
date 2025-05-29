@@ -41,8 +41,9 @@ cc_library(
         "arena.cpp",
         "memory.cpp",
     ] + select({
-        "@platforms//os:osx": [ "memory_osx.cpp" ],
-	    "@platforms//os:windows": [ "memory_windows.cpp" ],
+        "@platforms//os:osx": ["memory_osx.cpp"],
+        "@platforms//os:windows": ["memory_windows.cpp"],
+        "@platforms//os:linux": ["memory_linux.cpp"],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
@@ -57,9 +58,11 @@ cc_library(
     hdrs = [
         "thread_context.h",
     ],
-    srcs = [
-        "thread_context.cpp",
-    ],
+    srcs = select({
+        "@platforms//os:windows": ["thread_context_windows.cpp"],
+        "@platforms//os:linux": ["thread_context_linux.cpp"],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     deps = [
         ":memory",
     ],
@@ -123,9 +126,11 @@ cc_library(
     hdrs = [
         "filesystem.h",
     ],
-    srcs = [
-        "filesystem.cpp",
-    ],
+    srcs = select({
+        "@platforms//os:windows": ["filesystem_windows.cpp"],
+        "@platforms//os:linux": ["filesystem_linux.cpp"],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     deps = [
         ":string8",
         ":thread_context",
@@ -152,9 +157,12 @@ cc_library(
     hdrs = [
         "clock.h",
     ],
-    srcs = [
-        "clock.cpp",
-    ],
+    srcs = select({
+        "@platforms//os:osx": ["clock_osx.cpp"],
+        "@platforms//os:windows": ["clock_windows.cpp"],
+        "@platforms//os:linux": ["clock_linux.cpp"],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     deps = [
         ":types",
         ":platform",

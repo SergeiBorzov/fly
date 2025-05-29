@@ -29,7 +29,17 @@ cc_library(
         "include/mimalloc/types.h",
         "include/mimalloc-stats.h",
         "include/mimalloc.h",
-    ],
+    ] +
+    select({
+        "@platforms//os:linux": [
+            "src/bitmap.h",
+            "src/free.c",
+            "src/alloc-override.c",
+            "src/page-queue.c",
+            "src/prim/unix/prim.c",
+        ],
+        "//conditions:default": [],
+    }),
     linkopts = select({
         "@platforms//os:windows": [
             "-DEFAULTLIB:advapi32.lib",

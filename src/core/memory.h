@@ -11,7 +11,7 @@ inline void* MemZero(void* p, u64 size) { return memset(p, 0, size); }
 
 void* PlatformAlloc(u64 reserveSize, u64 commitSize);
 void* PlatformCommitMemory(void* baseAddress, u64 commitSize);
-bool PlatformDecommitMemory(void* baseAddress);
+bool PlatformDecommitMemory(void* baseAddress, u64 decommitSize);
 void PlatformFree(void* ptr, u64 size);
 
 void* Alloc(u64 size);
