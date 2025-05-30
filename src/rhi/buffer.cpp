@@ -83,6 +83,7 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
     if (hostVisible)
     {
         allocCreateInfo.requiredFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+        allocCreateInfo.requiredFlags |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
         allocCreateInfo.flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
         allocCreateInfo.flags |=
