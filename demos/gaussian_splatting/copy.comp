@@ -11,9 +11,17 @@ layout(push_constant) uniform PushConstants
     uint splatBufferIndex;
     uint keyValueBufferIndex;
     uint sortedBufferIndex;
-    uint splatCount;
+    uint indirectDrawCountBufferIndex;
 }
 gPushConstants;
+
+
+layout(set = 0,
+       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
+{
+    uint count;
+}
+gDrawCountBuffers[];
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
     uint key;
@@ -48,9 +56,11 @@ gSortedSplats[];
 
 void main()
 {
+    uint count =
+        gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex].count;
     uint gtid = gl_GlobalInvocationID.x;
 
-    if (gtid >= gPushConstants.splatCount)
+    if (gtid >= count)
     {
         return;
     }
@@ -58,10 +68,6 @@ void main()
     uint index = HLS_ACCESS_STORAGE_BUFFER(
                      Keys, gPushConstants.keyValueBufferIndex)[gtid]
                      .value;
-    if (index >= gPushConstants.splatCount)
-    {
-        return;
-    }
     Splat splat = gInSplats[gPushConstants.splatBufferIndex].items[index];
     gSortedSplats[gPushConstants.sortedBufferIndex].items[gtid] = splat;
 }

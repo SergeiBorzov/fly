@@ -82,6 +82,7 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 }
 
 static RHI::ComputePipeline sCullPipeline;
+static RHI::ComputePipeline sWriteIndirectDispatchPipeline;
 static RHI::ComputePipeline sCopyPipeline;
 static RHI::ComputePipeline sCountPipeline;
 static RHI::ComputePipeline sScanPipeline;
@@ -90,15 +91,14 @@ static RHI::GraphicsPipeline sGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sCullPipeline, &sCopyPipeline, &sCountPipeline,
+        &sCullPipeline, &sWriteIndirectDispatchPipeline,
+        &sCopyPipeline, &sCountPipeline,
         &sScanPipeline, &sSortPipeline,
     };
     const char* computeShaderPaths[] = {
-        "cull.comp.spv",
-        "copy.comp.spv",
-        "radix_count_histogram.comp.spv",
-        "radix_scan.comp.spv",
-        "radix_sort.comp.spv",
+        "cull.comp.spv",       "write_indirect_dispatch.comp.spv",
+        "copy.comp.spv",       "radix_count_histogram.comp.spv",
+        "radix_scan.comp.spv", "radix_sort.comp.spv",
     };
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -167,6 +167,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sCountPipeline);
     RHI::DestroyComputePipeline(device, sSortPipeline);
     RHI::DestroyComputePipeline(device, sCopyPipeline);
+    RHI::DestroyComputePipeline(device, sWriteIndirectDispatchPipeline);
     RHI::DestroyComputePipeline(device, sCullPipeline);
 }
 
@@ -177,8 +178,12 @@ static RHI::Buffer sTileHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sGlobalHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sPingPongKeys[2 * HLS_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDrawBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDrawCountBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDispatchBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
 
-static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats, u32 splatCount)
+static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
+                                u32 splatCount)
 {
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
@@ -256,9 +261,32 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats, u32 sp
             return false;
         }
 
+        if (!RHI::CreateIndirectBuffer(device, false, nullptr,
+                                       sizeof(VkDrawIndirectCommand),
+                                       sIndirectDrawBuffers[i]))
+        {
+            ArenaPopToMarker(scratch, marker);
+            return false;
+        }
+
+        if (!RHI::CreateIndirectBuffer(device, false, nullptr, sizeof(u32),
+                                       sIndirectDrawCountBuffers[i]))
+        {
+            ArenaPopToMarker(scratch, marker);
+            return false;
+        }
+
+        if (!RHI::CreateIndirectBuffer(device, false, nullptr,
+                                       sizeof(VkDispatchIndirectCommand) * 2,
+                                       sIndirectDispatchBuffers[i]))
+        {
+            ArenaPopToMarker(scratch, marker);
+            return false;
+        }
+
         for (u32 j = 0; j < 2; j++)
         {
-            if (!RHI::CreateStorageBuffer(device, true, nullptr,
+            if (!RHI::CreateStorageBuffer(device, false, nullptr,
                                           2 * sizeof(u32) * splatCount,
                                           sPingPongKeys[2 * i + j]))
             {
@@ -280,6 +308,9 @@ static void DestroyDeviceBuffers(RHI::Device& device)
         {
             RHI::DestroyBuffer(device, sPingPongKeys[2 * i + j]);
         }
+        RHI::DestroyBuffer(device, sIndirectDispatchBuffers[i]);
+        RHI::DestroyBuffer(device, sIndirectDrawCountBuffers[i]);
+        RHI::DestroyBuffer(device, sIndirectDrawBuffers[i]);
         RHI::DestroyBuffer(device, sTileHistograms[i]);
         RHI::DestroyBuffer(device, sGlobalHistograms[i]);
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
@@ -292,6 +323,20 @@ static void CullPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
+    // Reset draw count
+    vkCmdFillBuffer(cmd.handle,
+                    sIndirectDrawCountBuffers[device.frameIndex].handle, 0,
+                    sizeof(u32), 0);
+    VkBufferMemoryBarrier resetToCullBarrier;
+    resetToCullBarrier = RHI::BufferMemoryBarrier(
+        sIndirectDrawCountBuffers[device.frameIndex],
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &resetToCullBarrier, 0, nullptr);
+
+    // Cull splats
     u32 workGroupCount = static_cast<u32>(
         Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
 
@@ -300,28 +345,70 @@ static void CullPass(RHI::Device& device)
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
                             sCullPipeline.layout, 0, 1,
                             &device.bindlessDescriptorSet, 0, nullptr);
-    u32 pushConstants[] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                           sSplatBuffer.bindlessHandle,
-                           sPingPongKeys[2 * device.frameIndex].bindlessHandle,
-                           sSplatCount};
+    u32 pushConstants[] = {
+        sUniformBuffers[device.frameIndex].bindlessHandle,
+        sSplatBuffer.bindlessHandle,
+        sPingPongKeys[2 * device.frameIndex].bindlessHandle,
+        sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
+        sSplatCount};
     vkCmdPushConstants(cmd.handle, sCullPipeline.layout, VK_SHADER_STAGE_ALL, 0,
                        sizeof(pushConstants), pushConstants);
     vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
-    VkBufferMemoryBarrier cullToSortBarrier = RHI::BufferMemoryBarrier(
+    VkBufferMemoryBarrier cullToDispatchBarriers[2];
+    cullToDispatchBarriers[0] = RHI::BufferMemoryBarrier(
         sPingPongKeys[2 * device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_SHADER_READ_BIT);
+    cullToDispatchBarriers[1] = RHI::BufferMemoryBarrier(
+        sIndirectDrawCountBuffers[device.frameIndex],
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT);
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &cullToSortBarrier, 0, nullptr);
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+                         STACK_ARRAY_COUNT(cullToDispatchBarriers),
+                         cullToDispatchBarriers, 0, nullptr);
+}
+
+static void WriteIndirectPass(RHI::Device& device)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sWriteIndirectDispatchPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sWriteIndirectDispatchPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    u32 pushConstants[] = {
+        sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
+        sIndirectDrawBuffers[device.frameIndex].bindlessHandle,
+        sIndirectDispatchBuffers[device.frameIndex].bindlessHandle,
+    };
+    vkCmdPushConstants(cmd.handle, sWriteIndirectDispatchPipeline.layout,
+                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
+                       pushConstants);
+    vkCmdDispatch(cmd.handle, 1, 1, 1);
+
+    VkBufferMemoryBarrier indirectWriteBarriers[3];
+    indirectWriteBarriers[0] = RHI::BufferMemoryBarrier(
+        sIndirectDrawCountBuffers[device.frameIndex], VK_ACCESS_SHADER_READ_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    indirectWriteBarriers[1] = RHI::BufferMemoryBarrier(
+        sIndirectDispatchBuffers[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    indirectWriteBarriers[2] = RHI::BufferMemoryBarrier(
+        sIndirectDrawBuffers[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+                             VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+                         0, 0, nullptr,
+                         STACK_ARRAY_COUNT(indirectWriteBarriers),
+                         indirectWriteBarriers, 0, nullptr);
 }
 
 static void SortPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-    u32 workGroupCount = static_cast<u32>(
-        Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
 
     // Reset global histogram buffer
     vkCmdFillBuffer(cmd.handle, sGlobalHistograms[device.frameIndex].handle, 0,
@@ -347,13 +434,15 @@ static void SortPass(RHI::Device& device)
                                 &device.bindlessDescriptorSet, 0, nullptr);
 
         u32 pushConstants[] = {
-            i, sSplatCount, sPingPongKeys[in].bindlessHandle,
+            i, sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
+            sPingPongKeys[in].bindlessHandle,
             sTileHistograms[device.frameIndex].bindlessHandle,
             sGlobalHistograms[device.frameIndex].bindlessHandle};
         vkCmdPushConstants(cmd.handle, sCountPipeline.layout,
                            VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
                            pushConstants);
-        vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
+        vkCmdDispatchIndirect(
+            cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle, 0);
 
         VkBufferMemoryBarrier countToScanBarriers[2];
         countToScanBarriers[0] = RHI::BufferMemoryBarrier(
@@ -376,7 +465,9 @@ static void SortPass(RHI::Device& device)
         vkCmdPushConstants(cmd.handle, sScanPipeline.layout,
                            VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
                            pushConstants);
-        vkCmdDispatch(cmd.handle, RADIX_HISTOGRAM_SIZE, 1, 1);
+        vkCmdDispatchIndirect(
+            cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle,
+            sizeof(VkDispatchIndirectCommand));
 
         VkBufferMemoryBarrier scanToSortBarrier = RHI::BufferMemoryBarrier(
             sTileHistograms[device.frameIndex],
@@ -396,7 +487,8 @@ static void SortPass(RHI::Device& device)
         vkCmdPushConstants(cmd.handle, sSortPipeline.layout,
                            VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
                            pushConstants);
-        vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
+        vkCmdDispatchIndirect(
+            cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle, 0);
 
         if (i == RADIX_PASS_COUNT - 1)
         {
@@ -431,9 +523,6 @@ static void CopyPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    u32 workGroupCount = static_cast<u32>(
-        Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
-
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
                       sCopyPipeline.handle);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -442,10 +531,12 @@ static void CopyPass(RHI::Device& device)
     u32 pushConstants[] = {
         sSplatBuffer.bindlessHandle,
         sPingPongKeys[2 * device.frameIndex].bindlessHandle,
-        sSortedSplatBuffers[device.frameIndex].bindlessHandle, sSplatCount};
+        sSortedSplatBuffers[device.frameIndex].bindlessHandle,
+        sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle};
     vkCmdPushConstants(cmd.handle, sCopyPipeline.layout, VK_SHADER_STAGE_ALL, 0,
                        sizeof(pushConstants), pushConstants);
-    vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
+    vkCmdDispatchIndirect(
+        cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle, 0);
 
     VkBufferMemoryBarrier copyToGraphics = RHI::BufferMemoryBarrier(
         sSortedSplatBuffers[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
@@ -502,13 +593,18 @@ static void GraphicsPass(RHI::Device& device)
     vkCmdPushConstants(cmd.handle, sGraphicsPipeline.layout,
                        VK_SHADER_STAGE_ALL, 0, sizeof(u32) * 2, indices);
 
-    vkCmdDraw(cmd.handle, 6, sSplatCount, 0, 0);
+    vkCmdDrawIndirectCount(cmd.handle,
+                           sIndirectDrawBuffers[device.frameIndex].handle, 0,
+                           sIndirectDrawCountBuffers[device.frameIndex].handle,
+                           0, 1, sizeof(VkDrawIndirectCommand));
+
     vkCmdEndRendering(cmd.handle);
 }
 
 static void ExecuteCommands(RHI::Device& device)
 {
     CullPass(device);
+    WriteIndirectPass(device);
     SortPass(device);
     CopyPass(device);
     GraphicsPass(device);
@@ -640,6 +736,7 @@ int main(int argc, char* argv[])
 
     if (!LoadNextScene(device))
     {
+        HLS_ERROR("Failed to load scene");
         return -1;
     }
 

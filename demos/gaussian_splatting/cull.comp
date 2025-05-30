@@ -11,6 +11,7 @@ layout(push_constant) uniform PushConstants
     uint cameraBufferIndex;
     uint splatBufferIndex;
     uint pingPongBufferIndex;
+    uint indirectDrawCountBufferIndex;
     uint splatCount;
 }
 gPushConstants;
@@ -39,6 +40,13 @@ HLS_REGISTER_STORAGE_BUFFER(writeonly, Keys, {
     uint value;
 })
 
+layout(set = 0,
+       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
+{
+    uint count;
+}
+gDrawCountBuffers[];
+
 uint floatKey(float f)
 {
     uint x = floatBitsToUint(f);
@@ -63,6 +71,14 @@ void main()
             .position;
     vec4 splatPositionCS = view * vec4(splatPositionWS, 1.0);
 
-    HLS_ACCESS_STORAGE_BUFFER(Keys, gPushConstants.pingPongBufferIndex)
-    [gtid] = Keys(floatKey(-splatPositionCS.z), gtid);
+    bool visible = true;
+    if (visible)
+    {
+        uint drawIndex = atomicAdd(
+            gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex]
+                .count,
+            1);
+        HLS_ACCESS_STORAGE_BUFFER(Keys, gPushConstants.pingPongBufferIndex)
+        [drawIndex] = Keys(floatKey(-splatPositionCS.z), gtid);
+    }
 }

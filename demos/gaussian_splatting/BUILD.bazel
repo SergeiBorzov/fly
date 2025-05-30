@@ -52,6 +52,15 @@ glsl_shader(
 )
 
 glsl_shader(
+    name = "write_indirect_dispatch.comp.spv",
+    src = "write_indirect_dispatch.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+        ":radix_sort_common",
+    ],
+)
+
+glsl_shader(
     name = "copy.comp.spv",
     src = "copy.comp",
     deps = [
@@ -118,6 +127,7 @@ cc_binary(
     ],
     data = [
         ":cull.comp.spv",
+        ":write_indirect_dispatch.comp.spv",
         ":copy.comp.spv",
         ":radix_count_histogram.comp.spv",
         ":radix_scan.comp.spv",

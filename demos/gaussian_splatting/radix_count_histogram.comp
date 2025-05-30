@@ -9,12 +9,19 @@ layout(local_size_x = COUNT_WORKGROUP_SIZE) in;
 layout(push_constant) uniform PushConstants
 {
     uint pass;
-    uint keyCount;
+    uint indirectDrawCountBufferIndex;
     uint keyBufferIndex;
     uint tileHistogramBufferIndex;
     uint globalHistogramBufferIndex;
 }
 gPushConstants;
+
+layout(set = 0,
+       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
+{
+    uint count;
+}
+gDrawCountBuffers[];
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
     uint key;
@@ -29,6 +36,9 @@ void main()
     uint tid = gl_LocalInvocationIndex;
     uint tileStart = gl_WorkGroupID.x * COUNT_TILE_SIZE;
 
+    uint count =
+        gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex].count;
+
     for (uint i = tid; i < RADIX_HISTOGRAM_SIZE; i += gl_WorkGroupSize.x)
     {
         localHistogram[i] = 0;
@@ -38,7 +48,7 @@ void main()
     for (uint i = tid; i < COUNT_TILE_SIZE; i += gl_WorkGroupSize.x)
     {
         uint keyIndex = gl_WorkGroupID.x * COUNT_TILE_SIZE + i;
-        uint key = keyIndex < gPushConstants.keyCount
+        uint key = keyIndex < count
                        ? HLS_ACCESS_STORAGE_BUFFER(
                              Keys, gPushConstants.keyBufferIndex)[keyIndex]
                              .key

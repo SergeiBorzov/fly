@@ -1,0 +1,53 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#include "radix_sort_common.glsl"
+
+layout(local_size_x = 1) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint indirectDrawCountBufferIndex;
+    uint indirectDrawBufferIndex;
+    uint indirectDispatchBufferIndex;
+}
+gPushConstants;
+
+HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+    uint vertexCount;
+    uint instanceCount;
+    uint firstVertex;
+    uint firstInstance;
+})
+
+HLS_REGISTER_STORAGE_BUFFER(writeonly, Dispatch, {
+    uint x;
+    uint y;
+    uint z;
+})
+
+layout(set = 0,
+       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
+{
+    uint count;
+}
+gDrawCountBuffers[];
+
+void main()
+{
+    uint count =
+        gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex].count;
+    uint tileCount = (count + COUNT_WORKGROUP_SIZE - 1) / COUNT_WORKGROUP_SIZE;
+
+    HLS_ACCESS_STORAGE_BUFFER(Dispatch,
+                              gPushConstants.indirectDispatchBufferIndex)
+    [0] = Dispatch(tileCount, 1, 1);
+    HLS_ACCESS_STORAGE_BUFFER(Dispatch,
+                              gPushConstants.indirectDispatchBufferIndex)
+    [1] = Dispatch(RADIX_HISTOGRAM_SIZE, 1, 1);
+
+    HLS_ACCESS_STORAGE_BUFFER(DrawCommand,
+                              gPushConstants.indirectDrawBufferIndex)
+    [0] = DrawCommand(6, count, 0, 0);
+}
