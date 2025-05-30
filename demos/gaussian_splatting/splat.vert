@@ -16,11 +16,8 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
     vec4 viewport;
-    float hTanX;
-    float hTanY;
-    float near;
-    float far;
-    float time;
+    vec4 cameraParameters;
+    vec4 time;
 })
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {

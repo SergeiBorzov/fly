@@ -1,33 +1,12 @@
-filegroup(
-    name = "garden",
-    srcs = [
-        "garden.splat",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "bicycle",
-    srcs = [
-        "bicycle.splat",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "stump",
-    srcs = [
-        "stump.splat",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "truck",
-    srcs = [
-        "truck.splat",
-    ],
-    visibility = ["//visibility:public"],
-)
-
+exports_files([
+    "garden.splat",
+    "bicycle.splat",
+    "stump.splat",
+    "truck.splat",
+    "nike.splat",
+    "plush.splat",
+    "room.splat",
+    "train.splat",
+    "treehill.splat",
+])
 

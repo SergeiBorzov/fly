@@ -29,7 +29,15 @@ glsl_library(
 copy_files_to_directory(
     name = "copy_scene_data",
     srcs = [
-        "@splat_sample_scenes//:garden",
+        "@splat_sample_scenes//:garden.splat",
+        "@splat_sample_scenes//:stump.splat",
+        "@splat_sample_scenes//:bicycle.splat",
+        "@splat_sample_scenes//:truck.splat",
+        "@splat_sample_scenes//:nike.splat",
+        "@splat_sample_scenes//:plush.splat",
+        "@splat_sample_scenes//:room.splat",
+        "@splat_sample_scenes//:train.splat",
+        "@splat_sample_scenes//:treehill.splat",
     ],
     output_directory = ".",
 )
