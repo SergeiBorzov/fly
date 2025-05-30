@@ -15,10 +15,12 @@ gPushConstants;
 HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
+    vec4 viewport;
     float hTanX;
     float hTanY;
     float near;
     float far;
+    float time;
 })
 
 HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {
@@ -64,12 +66,12 @@ const vec2 positions[6] =
 
 void main()
 {
-    vec2 viewport = vec2(1959.0f, 1090.0f);
-
     mat4 projection = HLS_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, projection);
     mat4 view = HLS_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
+    vec4 viewport = HLS_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, viewport);
 
     Splat splat = HLS_ACCESS_STORAGE_BUFFER(
         Splat, gPushConstants.splatBufferIndex)[gl_InstanceIndex];
@@ -122,9 +124,9 @@ void main()
     vec3 ndcPos = clipPos.xyz / clipPos.w;
 
     vec2 quadPos = positions[gl_VertexIndex];
-    gl_Position =
-        vec4(ndcPos.xy + quadPos.x * s1 / viewport + quadPos.y * s2 / viewport,
-             ndcPos.z, 1.0f);
+    gl_Position = vec4(ndcPos.xy + quadPos.x * s1 * viewport.zw +
+                           quadPos.y * s2 * viewport.zw,
+                       ndcPos.z, 1.0f);
 
     outUV = quadPos;
     vec3 linear = pow(vec3(splat.r, splat.g, splat.b), vec3(2.2));

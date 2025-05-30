@@ -17,8 +17,8 @@
 
 using namespace Hls;
 
-#define WINDOW_WIDTH 1959
-#define WINDOW_HEIGHT 1090
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
 
 #define RADIX_PASS_COUNT 4
 #define RADIX_BIT_COUNT 8
@@ -59,14 +59,16 @@ struct UniformData
 {
     Math::Mat4 projection;
     Math::Mat4 view;
+    Math::Vec4 viewport;
     f32 hTanX;
     f32 hTanY;
     f32 nearPlane;
     f32 farPlane;
+    f32 time;
 };
 
 static Hls::SimpleCameraFPS
-    sCamera(50.15f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
+    sCamera(80.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
             100.0f, Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
@@ -623,6 +625,10 @@ int main(int argc, char* argv[])
             Math::Tan(Math::Radians(sCamera.GetVerticalFov()) * 0.5f);
         uniformData.nearPlane = sCamera.GetNear();
         uniformData.farPlane = sCamera.GetFar();
+        uniformData.viewport = Math::Vec4(
+            static_cast<f32>(WINDOW_WIDTH), static_cast<f32>(WINDOW_HEIGHT),
+            1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
+        uniformData.time = time;
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 
