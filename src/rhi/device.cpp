@@ -704,7 +704,7 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     f32 queuePriority = 1.0f;
     VkDeviceQueueCreateInfo* queueCreateInfos =
-        FLY_ALLOC(arena, VkDeviceQueueCreateInfo,
+        FLY_PUSH_ARENA(arena, VkDeviceQueueCreateInfo,
                   1 + static_cast<u32>(static_cast<bool>(context.windowPtr)));
     queueCreateInfos[0] = {};
     queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;

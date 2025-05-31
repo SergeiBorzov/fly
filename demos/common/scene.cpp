@@ -50,7 +50,7 @@ static bool ProcessIndices(RHI::Device& device, cgltf_data* data, Scene& scene,
         return false;
     }
 
-    u32* indices = FLY_ALLOC(scratch, u32, indexCount);
+    u32* indices = FLY_PUSH_ARENA(scratch, u32, indexCount);
     u32 offset = 0;
     u32 submeshOffset = 0;
     for (u64 i = 0; i < data->meshes_count; i++)
@@ -94,7 +94,7 @@ static bool ProcessTextures(Arena& arena, RHI::Device& device, cgltf_data* data,
 
     ArenaMarker marker = ArenaGetMarker(arena);
     scene.textureCount = static_cast<u32>(data->textures_count);
-    scene.textures = FLY_ALLOC(arena, RHI::Texture, scene.textureCount);
+    scene.textures = FLY_PUSH_ARENA(arena, RHI::Texture, scene.textureCount);
 
     for (u64 i = 0; i < data->textures_count; i++)
     {
@@ -138,7 +138,7 @@ static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
     PBRMaterialData* materialDataBuffer =
-        FLY_ALLOC(scratch, PBRMaterialData, data->materials_count);
+        FLY_PUSH_ARENA(scratch, PBRMaterialData, data->materials_count);
 
     for (u64 i = 0; i < data->materials_count; i++)
     {
@@ -263,7 +263,7 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    Vertex* vertices = FLY_ALLOC(scratch, Vertex, vertexCount);
+    Vertex* vertices = FLY_PUSH_ARENA(scratch, Vertex, vertexCount);
     for (u64 i = 0; i < primitive->attributes_count; i++)
     {
         cgltf_attribute& attribute = primitive->attributes[i];
@@ -272,7 +272,7 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
         ArenaMarker loopMarker = ArenaGetMarker(scratch);
         if (attribute.type == cgltf_attribute_type_position)
         {
-            f32* unpacked = FLY_ALLOC(scratch, f32, vertexCount * 3);
+            f32* unpacked = FLY_PUSH_ARENA(scratch, f32, vertexCount * 3);
             cgltf_accessor_unpack_floats(accessor, unpacked, vertexCount * 3);
             for (u64 j = 0; j < vertexCount; j++)
             {
@@ -284,7 +284,7 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
         }
         else if (attribute.type == cgltf_attribute_type_normal)
         {
-            f32* unpacked = FLY_ALLOC(scratch, f32, vertexCount * 3);
+            f32* unpacked = FLY_PUSH_ARENA(scratch, f32, vertexCount * 3);
             cgltf_accessor_unpack_floats(accessor, unpacked, vertexCount * 3);
             for (u64 j = 0; j < vertexCount; j++)
             {
@@ -296,7 +296,7 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
         }
         else if (attribute.type == cgltf_attribute_type_texcoord)
         {
-            f32* unpacked = FLY_ALLOC(scratch, f32, vertexCount * 2);
+            f32* unpacked = FLY_PUSH_ARENA(scratch, f32, vertexCount * 2);
             cgltf_accessor_unpack_floats(accessor, unpacked, vertexCount * 3);
             for (u64 j = 0; j < vertexCount; j++)
             {
@@ -459,7 +459,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     }
 
     ArenaMarker marker = ArenaGetMarker(arena);
-    flyScene.directDrawData.meshes = FLY_ALLOC(arena, Mesh, data->meshes_count);
+    flyScene.directDrawData.meshes = FLY_PUSH_ARENA(arena, Mesh, data->meshes_count);
     flyScene.directDrawData.meshCount = static_cast<u32>(data->meshes_count);
 
     u32 totalSubmeshCount = 0;
@@ -473,18 +473,18 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         return true;
     }
 
-    flyScene.vertexBuffers = FLY_ALLOC(arena, RHI::Buffer, totalSubmeshCount);
+    flyScene.vertexBuffers = FLY_PUSH_ARENA(arena, RHI::Buffer, totalSubmeshCount);
     flyScene.vertexBufferCount = totalSubmeshCount;
     flyScene.directDrawData.submeshes =
-        FLY_ALLOC(arena, Submesh, totalSubmeshCount);
+        FLY_PUSH_ARENA(arena, Submesh, totalSubmeshCount);
     flyScene.directDrawData.submeshCount = totalSubmeshCount;
 
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
     BoundingSphereDraw* boundingSphereDraws =
-        FLY_ALLOC(scratch, BoundingSphereDraw, totalSubmeshCount);
-    MeshData* meshData = FLY_ALLOC(scratch, MeshData, totalSubmeshCount);
+        FLY_PUSH_ARENA(scratch, BoundingSphereDraw, totalSubmeshCount);
+    MeshData* meshData = FLY_PUSH_ARENA(scratch, MeshData, totalSubmeshCount);
 
     if (!ProcessMeshes(device, data, flyScene, boundingSphereDraws, meshData))
     {
@@ -524,7 +524,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     {
         meshNodeCount += MeshNodeCount(scene->nodes[i]);
     }
-    flyScene.meshNodes = FLY_ALLOC(arena, MeshNode, meshNodeCount);
+    flyScene.meshNodes = FLY_PUSH_ARENA(arena, MeshNode, meshNodeCount);
     flyScene.meshNodeCount = meshNodeCount;
 
     u32 meshNodeIndex = 0;
@@ -541,7 +541,7 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     }
 
     InstanceData* instanceData =
-        FLY_ALLOC(scratch, InstanceData, instanceDataCount);
+        FLY_PUSH_ARENA(scratch, InstanceData, instanceDataCount);
     u32 index = 0;
     for (u32 i = 0; i < flyScene.meshNodeCount; i++)
     {

@@ -236,7 +236,7 @@ int main(int argc, char* argv[])
 
     sDrawCount = 30000;
     ArenaMarker marker = ArenaGetMarker(arena);
-    InstanceData* instanceData = FLY_ALLOC(arena, InstanceData, sDrawCount);
+    InstanceData* instanceData = FLY_PUSH_ARENA(arena, InstanceData, sDrawCount);
 
     for (u32 i = 0; i < sDrawCount; i++)
     {

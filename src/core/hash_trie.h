@@ -55,7 +55,7 @@ struct HashTrie
         {
             if (!*node)
             {
-                *node = FLY_ALLOC(arena, Node, 1);
+                *node = FLY_PUSH_ARENA(arena, Node, 1);
                 (*node)->key = key;
                 (*node)->value = value;
                 Fly::MemZero((*node)->children, sizeof(Node*) * 4);

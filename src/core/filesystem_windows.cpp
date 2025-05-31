@@ -102,7 +102,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
-    char* buffer = FLY_ALLOC(scratch, char, path.Size() + 1);
+    char* buffer = FLY_PUSH_ARENA(scratch, char, path.Size() + 1);
     memcpy(buffer, path.Data(), path.Size());
     for (u64 i = 0; i < path.Size(); i++)
     {
@@ -128,7 +128,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     if (slashReplacedPath.StartsWith(extendedLengthPrefix) ||
         slashReplacedPath.StartsWith(devicePathPrefix))
     {
-        char* normalized = FLY_ALLOC(arena, char, slashReplacedPath.Size() + 1);
+        char* normalized = FLY_PUSH_ARENA(arena, char, slashReplacedPath.Size() + 1);
         memcpy(normalized, slashReplacedPath.Data(), slashReplacedPath.Size());
         normalized[slashReplacedPath.Size()] = '\0';
         out = String8(normalized, slashReplacedPath.Size());
@@ -234,7 +234,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     if (newSize == 0)
     {
         newSize = 1;
-        char* normalized = FLY_ALLOC(arena, char, 2);
+        char* normalized = FLY_PUSH_ARENA(arena, char, 2);
         normalized[0] = '.';
         normalized[1] = '\0';
         out = String8(normalized, newSize);
@@ -242,7 +242,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
         return true;
     }
 
-    char* normalized = FLY_ALLOC(arena, char, newSize + 1);
+    char* normalized = FLY_PUSH_ARENA(arena, char, newSize + 1);
     memcpy(normalized, buffer, newSize);
     normalized[newSize] = '\0';
     out = String8(normalized, newSize);
@@ -312,7 +312,7 @@ bool Path::Append(Arena& arena, const Path** paths, u32 pathCount, Path& out)
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
-    char* totalData = FLY_ALLOC(scratch, char, totalSize);
+    char* totalData = FLY_PUSH_ARENA(scratch, char, totalSize);
     u64 offset = 0;
     for (u32 i = 0; i < pathCount; i++)
     {
@@ -408,7 +408,7 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
     fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
 
     // Allocate memory for the string
-    char* content = FLY_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
+    char* content = FLY_PUSH_ARENA_ALIGNED(arena, char, fileSize + 1, align);
 
     if (!content)
     {

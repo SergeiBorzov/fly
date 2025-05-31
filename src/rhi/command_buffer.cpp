@@ -35,7 +35,7 @@ bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
     allocInfo.commandBufferCount = commandBufferCount;
 
     VkCommandBuffer* handles =
-        FLY_ALLOC(arena, VkCommandBuffer, commandBufferCount);
+        FLY_PUSH_ARENA(arena, VkCommandBuffer, commandBufferCount);
     VkResult res =
         vkAllocateCommandBuffers(device.logicalDevice, &allocInfo, handles);
 
@@ -68,7 +68,7 @@ void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
     ArenaMarker marker = ArenaGetMarker(arena);
 
     VkCommandBuffer* handles =
-        FLY_ALLOC(arena, VkCommandBuffer, commandBufferCount);
+        FLY_PUSH_ARENA(arena, VkCommandBuffer, commandBufferCount);
     for (u32 i = 0; i < commandBufferCount; i++)
     {
         handles[i] = commandBuffers[i].handle;

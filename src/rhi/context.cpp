@@ -80,7 +80,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     if (availableInstanceLayerCount > 0)
     {
         availableInstanceLayers =
-            FLY_ALLOC(arena, VkLayerProperties, availableInstanceLayerCount);
+            FLY_PUSH_ARENA(arena, VkLayerProperties, availableInstanceLayerCount);
         vkEnumerateInstanceLayerProperties(&availableInstanceLayerCount,
                                            availableInstanceLayers);
     }
@@ -92,7 +92,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
         nullptr, &availableInstanceExtensionCount, nullptr);
     if (availableInstanceExtensionCount > 0)
     {
-        availableInstanceExtensions = FLY_ALLOC(
+        availableInstanceExtensions = FLY_PUSH_ARENA(
             arena, VkExtensionProperties, availableInstanceExtensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr,
                                                &availableInstanceExtensionCount,
@@ -104,7 +104,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     const char** totalLayers = instanceLayers;
 #ifndef NDEBUG
     totalLayerCount += 1;
-    totalLayers = FLY_ALLOC(arena, const char*, totalLayerCount);
+    totalLayers = FLY_PUSH_ARENA(arena, const char*, totalLayerCount);
     for (u32 i = 0; i < instanceLayerCount; i++)
     {
         FLY_LOG("Requested instance layer %s", instanceLayers[i]);
@@ -132,7 +132,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
 #ifndef NDEBUG
 
     totalExtensionCount += 1;
-    totalExtensions = FLY_ALLOC(arena, const char*, totalExtensionCount);
+    totalExtensions = FLY_PUSH_ARENA(arena, const char*, totalExtensionCount);
     for (u32 i = 0; i < instanceExtensionCount; i++)
     {
         FLY_LOG("Requested instance extension %s", instanceExtensions[i]);
@@ -291,7 +291,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
     }
 
     PhysicalDeviceInfo* physicalDeviceInfos =
-        FLY_ALLOC(arena, PhysicalDeviceInfo, physicalDeviceCount);
+        FLY_PUSH_ARENA(arena, PhysicalDeviceInfo, physicalDeviceCount);
 
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
@@ -311,7 +311,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
         if (info.extensionCount > 0)
         {
             info.extensions =
-                FLY_ALLOC(arena, VkExtensionProperties, info.extensionCount);
+                FLY_PUSH_ARENA(arena, VkExtensionProperties, info.extensionCount);
             vkEnumerateDeviceExtensionProperties(
                 physicalDevice, nullptr, &info.extensionCount, info.extensions);
         }
@@ -328,7 +328,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
                 nullptr);
             if (info.surfaceFormatCount > 0)
             {
-                info.surfaceFormats = FLY_ALLOC(arena, VkSurfaceFormatKHR,
+                info.surfaceFormats = FLY_PUSH_ARENA(arena, VkSurfaceFormatKHR,
                                                 info.surfaceFormatCount);
                 vkGetPhysicalDeviceSurfaceFormatsKHR(
                     physicalDevice, context.surface, &info.surfaceFormatCount,
@@ -342,7 +342,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             if (info.presentModeCount > 0)
             {
                 info.presentModes =
-                    FLY_ALLOC(arena, VkPresentModeKHR, info.presentModeCount);
+                    FLY_PUSH_ARENA(arena, VkPresentModeKHR, info.presentModeCount);
                 vkGetPhysicalDeviceSurfacePresentModesKHR(
                     physicalDevice, context.surface, &info.presentModeCount,
                     info.presentModes);
@@ -392,7 +392,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             physicalDevice, &info.queueFamilyCount, nullptr);
         if (info.queueFamilyCount > 0)
         {
-            info.queueFamilies = FLY_ALLOC(arena, VkQueueFamilyProperties,
+            info.queueFamilies = FLY_PUSH_ARENA(arena, VkQueueFamilyProperties,
                                            info.queueFamilyCount);
             vkGetPhysicalDeviceQueueFamilyProperties(
                 physicalDevice, &info.queueFamilyCount, info.queueFamilies);
@@ -957,7 +957,7 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
     }
 
     VkPhysicalDevice* physicalDevices =
-        FLY_ALLOC(arena, VkPhysicalDevice, physicalDeviceCount);
+        FLY_PUSH_ARENA(arena, VkPhysicalDevice, physicalDeviceCount);
     vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount,
                                physicalDevices);
     const PhysicalDeviceInfo* physicalDeviceInfos =
@@ -967,7 +967,7 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
     LogDetectedPhysicalDevices(physicalDeviceInfos, physicalDeviceCount);
 
     u32 suitableDeviceCount = 0;
-    Device* suitableDevices = FLY_ALLOC(arena, Device, physicalDeviceCount);
+    Device* suitableDevices = FLY_PUSH_ARENA(arena, Device, physicalDeviceCount);
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         suitableDevices[i] = {};

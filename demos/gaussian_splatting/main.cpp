@@ -188,7 +188,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    Vertex* vertices = FLY_ALLOC(scratch, Vertex, splatCount);
+    Vertex* vertices = FLY_PUSH_ARENA(scratch, Vertex, splatCount);
     for (u32 i = 0; i < splatCount; i++)
     {
         f32 x = (splats[i].x - 128.0f) / 128.0f;

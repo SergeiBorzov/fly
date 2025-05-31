@@ -336,7 +336,7 @@ int main(int argc, char* argv[])
     for (u32 i = 0; i < 100; i++)
     {
         u32 keyCount = Math::RandomU32(1, maxKeyCount);
-        u32* keys = FLY_ALLOC(arena, u32, keyCount);
+        u32* keys = FLY_PUSH_ARENA(arena, u32, keyCount);
         for (u32 i = 0; i < keyCount; i++)
         {
             keys[i] = Math::RandomU32(0, 255);

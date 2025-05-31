@@ -124,7 +124,7 @@ String8 String8::FindLast(String8 str, i32 character)
 char* String8::CopyNullTerminate(Arena& arena, String8 str)
 {
     bool isNullTerminated = str[str.Size() - 1] == '\0';
-    char* copyData = FLY_ALLOC(arena, char, str.Size() + !isNullTerminated);
+    char* copyData = FLY_PUSH_ARENA(arena, char, str.Size() + !isNullTerminated);
     memcpy(copyData, str.Data(), str.Size());
     if (!isNullTerminated)
     {

@@ -3,9 +3,9 @@
 
 #include "types.h"
 
-#define FLY_ALLOC(arena, T, count)                                             \
+#define FLY_PUSH_ARENA(arena, T, count)                                             \
     static_cast<T*>(ArenaPushAligned(arena, sizeof(T) * count, alignof(T)))
-#define FLY_ALLOC_ALIGNED(arena, T, count, align)                              \
+#define FLY_PUSH_ARENA_ALIGNED(arena, T, count, align)                              \
     static_cast<T*>(ArenaPushAligned(arena, sizeof(T) * count, align))
 
 #define FLY_SIZE_KB(i) (1024ull * i)

@@ -23,7 +23,7 @@ static const char* GetBinaryDirectoryPath(Arena& arena)
     char* lastSlash = strrchr(buffer, '\\'); // Find the last backslash
     i64 actualLength = lastSlash - buffer + 1;
 
-    char* exeDirPath = FLY_ALLOC(arena, char, actualLength + 1);
+    char* exeDirPath = FLY_PUSH_ARENA(arena, char, actualLength + 1);
     memcpy(exeDirPath, buffer, actualLength);
     exeDirPath[actualLength] = '\0';
 
