@@ -24,7 +24,7 @@ cc_library(
             "WIN32_LEAN_AND_MEAN",
         ],
         "@platforms//os:linux": [
-            "VK_USE_PLATFORM_XCB_KHR",
+            "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
     }),
     deps = [
@@ -85,7 +85,7 @@ cc_library(
         ],
         "@platforms//os:linux": [
             "VK_ENABLE_BETA_EXTENSIONS",
-            "VK_USE_PLATFORM_XCB_KHR",
+            "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
     }),
     visibility = ["//visibility:public"]

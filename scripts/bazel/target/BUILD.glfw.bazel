@@ -1,4 +1,122 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "objc_library")
+load("@helios//scripts/bazel/rules:generate_wayland_protocol.bzl", "generate_wayland_protocol")
+
+generate_wayland_protocol(
+    name = "wayland_protocol_h",
+    protocol_file = "deps/wayland/wayland.xml",
+    output_file = "wayland-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "wayland_protocol_c",
+    protocol_file = "deps/wayland/wayland.xml",
+    output_file = "wayland-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "viewporter_protocol_h",
+    protocol_file = "deps/wayland/viewporter.xml",
+    output_file = "viewporter-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "viewporter_protocol_c",
+    protocol_file = "deps/wayland/viewporter.xml",
+    output_file = "viewporter-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "xdg_shell_protocol_h",
+    protocol_file = "deps/wayland/xdg-shell.xml",
+    output_file = "xdg-shell-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "xdg_shell_protocol_c",
+    protocol_file = "deps/wayland/xdg-shell.xml",
+    output_file = "xdg-shell-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "idle_inhibit_unstable_v1_protocol_h",
+    protocol_file = "deps/wayland/idle-inhibit-unstable-v1.xml",
+    output_file = "idle-inhibit-unstable-v1-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "idle_inhibit_unstable_v1_protocol_c",
+    protocol_file = "deps/wayland/idle-inhibit-unstable-v1.xml",
+    output_file = "idle-inhibit-unstable-v1-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "pointer_constraints_unstable_v1_protocol_h",
+    protocol_file = "deps/wayland/pointer-constraints-unstable-v1.xml",
+    output_file = "pointer-constraints-unstable-v1-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "pointer_constraints_unstable_v1_protocol_c",
+    protocol_file = "deps/wayland/pointer-constraints-unstable-v1.xml",
+    output_file = "pointer-constraints-unstable-v1-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "relative_pointer_unstable_v1_protocol_h",
+    protocol_file = "deps/wayland/relative-pointer-unstable-v1.xml",
+    output_file = "relative-pointer-unstable-v1-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "relative_pointer_unstable_v1_protocol_c",
+    protocol_file = "deps/wayland/relative-pointer-unstable-v1.xml",
+    output_file = "relative-pointer-unstable-v1-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "fractional_scale_v1_protocol_h",
+    protocol_file = "deps/wayland/fractional-scale-v1.xml",
+    output_file = "fractional-scale-v1-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "fractional_scale_v1_protocol_c",
+    protocol_file = "deps/wayland/fractional-scale-v1.xml",
+    output_file = "fractional-scale-v1-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "xdg_activation_v1_protocol_h",
+    protocol_file = "deps/wayland/xdg-activation-v1.xml",
+    output_file = "xdg-activation-v1-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "xdg_activation_v1_protocol_c",
+    protocol_file = "deps/wayland/xdg-activation-v1.xml",
+    output_file = "xdg-activation-v1-client-protocol-code.h",
+    option = "private-code",
+)
+
+generate_wayland_protocol(
+    name = "xdg_decoration_unstable_v1_protocol_h",
+    protocol_file = "deps/wayland/xdg-decoration-unstable-v1.xml",
+    output_file = "xdg-decoration-unstable-v1-client-protocol.h",
+    option = "client-header",
+)
+generate_wayland_protocol(
+    name = "xdg_decoration_unstable_v1_protocol_c",
+    protocol_file = "deps/wayland/xdg-decoration-unstable-v1.xml",
+    output_file = "xdg-decoration-unstable-v1-client-protocol-code.h",
+    option = "private-code",
+)
 
 cc_library(
     name = "glfw",
@@ -41,9 +159,9 @@ cc_library(
             "src/posix_time.c",
             "src/posix_poll.c",
             "src/posix_module.c",
-            "src/x11_init.c",
-            "src/x11_monitor.c",
-            "src/x11_window.c",
+            "src/wl_init.c",
+            "src/wl_monitor.c",
+            "src/wl_window.c",
             "src/glx_context.c",
             "src/xkb_unicode.c",
         ],
@@ -76,8 +194,26 @@ cc_library(
             "src/posix_thread.h",
             "src/posix_time.h",
             "src/posix_poll.h",
-            "src/x11_platform.h",
+            "src/wl_platform.h",
             "src/xkb_unicode.h",
+            ":wayland-client-protocol.h",
+            ":wayland-client-protocol-code.h",
+            ":viewporter-client-protocol.h",
+            ":viewporter-client-protocol-code.h",
+            ":xdg-shell-client-protocol.h",
+            ":xdg-shell-client-protocol-code.h",
+            ":idle-inhibit-unstable-v1-client-protocol.h",
+            ":idle-inhibit-unstable-v1-client-protocol-code.h",
+            ":pointer-constraints-unstable-v1-client-protocol.h",
+            ":pointer-constraints-unstable-v1-client-protocol-code.h",
+            ":relative-pointer-unstable-v1-client-protocol.h",
+            ":relative-pointer-unstable-v1-client-protocol-code.h",
+            ":fractional-scale-v1-client-protocol.h",
+            ":fractional-scale-v1-client-protocol-code.h",
+            ":xdg-activation-v1-client-protocol.h",
+            ":xdg-activation-v1-client-protocol-code.h",
+            ":xdg-decoration-unstable-v1-client-protocol.h",
+            ":xdg-decoration-unstable-v1-client-protocol-code.h",
         ],
     }),
     includes = [
@@ -86,7 +222,7 @@ cc_library(
     defines = [] + select({
         "@platforms//os:osx": ["_GLFW_COCOA"],
         "@platforms//os:windows": ["_GLFW_WIN32"],
-        "@platforms//os:linux": ["_GLFW_X11"],
+        "@platforms//os:linux": ["_GLFW_WAYLAND"],
         "//conditions:default": [],
     }),
     deps = select({

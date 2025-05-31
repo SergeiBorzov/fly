@@ -1,5 +1,3 @@
-""" external/rules/copy_files.bzl """
-
 load ("@bazel_skylib//lib:paths.bzl", "paths")
 
 def _copy_files_to_directory_impl(ctx):

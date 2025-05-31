@@ -17,7 +17,7 @@ cc_library(
             "VK_USE_PLATFORM_WIN32_KHR",
         ],
         "@platforms//os:linux": [
-            "VK_USE_PLATFORM_XCB_KHR",
+            "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
         "//conditions:default": [],
     }),
