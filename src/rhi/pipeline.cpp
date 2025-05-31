@@ -5,7 +5,7 @@
 #include "pipeline.h"
 #include "shader_program.h"
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -40,7 +40,7 @@ static VkShaderStageFlagBits ShaderTypeToVkShaderStage(Shader::Type shaderType)
         }
         default:
         {
-            HLS_ASSERT(false);
+            FLY_ASSERT(false);
             return VK_SHADER_STAGE_VERTEX_BIT;
         }
     }
@@ -80,12 +80,12 @@ static VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo(
     VkPipelineColorBlendStateCreateFlags flags = 0,
     const f32* blendConstants = nullptr, u32 blendConstantCount = 0)
 {
-    HLS_ASSERT(colorBlendAttachments);
-    HLS_ASSERT(colorBlendAttachmentCount > 0);
-    HLS_ASSERT(colorBlendAttachmentCount <=
-               HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT);
-    HLS_ASSERT(blendConstants);
-    HLS_ASSERT(blendConstantCount == 4);
+    FLY_ASSERT(colorBlendAttachments);
+    FLY_ASSERT(colorBlendAttachmentCount > 0);
+    FLY_ASSERT(colorBlendAttachmentCount <=
+               FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT);
+    FLY_ASSERT(blendConstants);
+    FLY_ASSERT(blendConstantCount == 4);
 
     VkPipelineColorBlendStateCreateInfo colorBlendState;
 
@@ -213,10 +213,10 @@ static VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     const VkFormat* colorAttachments, u32 colorAttachmentCount,
     VkFormat depthAttachmentFormat, VkFormat stencilAttachmentFormat)
 {
-    HLS_ASSERT(colorAttachments);
-    HLS_ASSERT(colorAttachmentCount > 0);
-    HLS_ASSERT(colorAttachmentCount <=
-               HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT);
+    FLY_ASSERT(colorAttachments);
+    FLY_ASSERT(colorAttachmentCount > 0);
+    FLY_ASSERT(colorAttachmentCount <=
+               FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT);
 
     VkPipelineRenderingCreateInfo pipelineRendering;
 
@@ -257,7 +257,7 @@ bool CreateGraphicsPipeline(Device& device,
                             const ShaderProgram& shaderProgram,
                             GraphicsPipeline& graphicsPipeline)
 {
-    HLS_ASSERT(fixedState.colorBlendState.attachmentCount ==
+    FLY_ASSERT(fixedState.colorBlendState.attachmentCount ==
                fixedState.pipelineRendering.colorAttachmentCount);
 
     if (!CreatePipelineLayout(device, graphicsPipeline.layout))
@@ -289,7 +289,7 @@ bool CreateGraphicsPipeline(Device& device,
         stages[stageCount].pSpecializationInfo = nullptr;
         stageCount++;
     }
-    HLS_ASSERT(stageCount > 0);
+    FLY_ASSERT(stageCount > 0);
 
     // Fixed state
     VkPipelineViewportStateCreateInfo viewportState =
@@ -375,8 +375,8 @@ bool CreateGraphicsPipeline(Device& device,
 
 void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 {
-    HLS_ASSERT(graphicsPipeline.layout != VK_NULL_HANDLE);
-    HLS_ASSERT(graphicsPipeline.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(graphicsPipeline.layout != VK_NULL_HANDLE);
+    FLY_ASSERT(graphicsPipeline.handle != VK_NULL_HANDLE);
 
     vkDestroyPipeline(device.logicalDevice, graphicsPipeline.handle,
                       GetVulkanAllocationCallbacks());
@@ -419,8 +419,8 @@ bool CreateComputePipeline(Device& device, const Shader& computeShader,
 
 void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline)
 {
-    HLS_ASSERT(computePipeline.layout != VK_NULL_HANDLE);
-    HLS_ASSERT(computePipeline.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(computePipeline.layout != VK_NULL_HANDLE);
+    FLY_ASSERT(computePipeline.handle != VK_NULL_HANDLE);
 
     vkDestroyPipeline(device.logicalDevice, computePipeline.handle,
                       GetVulkanAllocationCallbacks());
@@ -431,4 +431,4 @@ void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline)
 }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

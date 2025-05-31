@@ -17,7 +17,7 @@
 
 #include <stdlib.h>
 
-using namespace Hls;
+using namespace Fly;
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
@@ -66,9 +66,9 @@ struct UniformData
     Math::Vec4 time;             // 160
 };
 
-static Hls::SimpleCameraFPS
+static Fly::SimpleCameraFPS
     sCamera(80.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
-            100.0f, Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
+            100.0f, Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -78,7 +78,7 @@ static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
 
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
-    HLS_ERROR("GLFW - error: %s", description);
+    FLY_ERROR("GLFW - error: %s", description);
 }
 
 static RHI::ComputePipeline sCullPipeline;
@@ -104,7 +104,7 @@ static bool CreatePipelines(RHI::Device& device)
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
         RHI::Shader shader;
-        if (!Hls::LoadShaderFromSpv(device, computeShaderPaths[i], shader))
+        if (!Fly::LoadShaderFromSpv(device, computeShaderPaths[i], shader))
         {
             return false;
         }
@@ -138,12 +138,12 @@ static bool CreatePipelines(RHI::Device& device)
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Hls::LoadShaderFromSpv(device, "splat.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, "splat.vert.spv",
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Hls::LoadShaderFromSpv(device, "splat.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, "splat.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -173,14 +173,14 @@ static void DestroyPipelines(RHI::Device& device)
 
 static u32 sSplatCount;
 static RHI::Buffer sSplatBuffer;
-static RHI::Buffer sSortedSplatBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sTileHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sGlobalHistograms[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sPingPongKeys[2 * HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sIndirectDrawBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sIndirectDrawCountBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sIndirectDispatchBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sSortedSplatBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sTileHistograms[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sGlobalHistograms[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sPingPongKeys[2 * FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDrawBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDrawCountBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sIndirectDispatchBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 
 static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
                                 u32 splatCount)
@@ -188,7 +188,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
     Arena& scratch = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(scratch);
 
-    Vertex* vertices = HLS_ALLOC(scratch, Vertex, splatCount);
+    Vertex* vertices = FLY_ALLOC(scratch, Vertex, splatCount);
     for (u32 i = 0; i < splatCount; i++)
     {
         f32 x = (splats[i].x - 128.0f) / 128.0f;
@@ -221,7 +221,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
         return false;
     }
 
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
                                       sUniformBuffers[i]))
@@ -233,7 +233,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
 
     u32 tileCount = static_cast<u32>(
         Math::Ceil(static_cast<f32>(splatCount) / COUNT_TILE_SIZE));
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateStorageBuffer(device, false, nullptr,
                                       RADIX_HISTOGRAM_SIZE * tileCount *
@@ -302,7 +302,7 @@ static bool CreateDeviceBuffers(RHI::Device& device, const Splat* splats,
 
 static void DestroyDeviceBuffers(RHI::Device& device)
 {
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         for (u32 j = 0; j < 2; j++)
         {
@@ -621,7 +621,7 @@ static bool LoadNextScene(RHI::Device& device)
     static u32 sceneIndex = 0;
     if (!isFirstLoad)
     {
-        for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; ++i)
+        for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; ++i)
         {
             vkWaitForFences(device.logicalDevice, 1,
                             &device.frameData[i].renderFence, VK_TRUE,
@@ -640,13 +640,13 @@ static bool LoadNextScene(RHI::Device& device)
     String8 data = ReadFileToString(arena, splatScenes[sceneIndex]);
     if (!data)
     {
-        HLS_ERROR("Failed to read splat file");
+        FLY_ERROR("Failed to read splat file");
         return false;
     }
     sSplatCount = static_cast<u32>(data.Size() / sizeof(Splat));
     const Splat* splats = reinterpret_cast<const Splat*>(data.Data());
-    HLS_ASSERT(sSplatCount);
-    HLS_LOG("Splat count is %u", sSplatCount);
+    FLY_ASSERT(sSplatCount);
+    FLY_LOG("Splat count is %u", sSplatCount);
 
     if (!CreateDeviceBuffers(device, splats, sSplatCount))
     {
@@ -686,13 +686,13 @@ int main(int argc, char* argv[])
     // Initialize volk, window
     if (volkInitialize() != VK_SUCCESS)
     {
-        HLS_ERROR("Failed to load volk");
+        FLY_ERROR("Failed to load volk");
         return -1;
     }
     glfwInitVulkanLoader(vkGetInstanceProcAddr);
     if (!glfwInit())
     {
-        HLS_ERROR("Failed to init glfw");
+        FLY_ERROR("Failed to init glfw");
         return -1;
     }
     glfwSetErrorCallback(ErrorCallbackGLFW);
@@ -701,7 +701,7 @@ int main(int argc, char* argv[])
                                           "Splat viewer", nullptr, nullptr);
     if (!window)
     {
-        HLS_ERROR("Failed to create glfw window");
+        FLY_ERROR("Failed to create glfw window");
         glfwTerminate();
         return -1;
     }
@@ -722,7 +722,7 @@ int main(int argc, char* argv[])
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
     {
-        HLS_ERROR("Failed to create context");
+        FLY_ERROR("Failed to create context");
         return -1;
     }
     RHI::Device& device = context.devices[0];
@@ -730,28 +730,28 @@ int main(int argc, char* argv[])
 
     if (!CreatePipelines(device))
     {
-        HLS_ERROR("Failed to create pipelines");
+        FLY_ERROR("Failed to create pipelines");
         return -1;
     }
 
     if (!LoadNextScene(device))
     {
-        HLS_ERROR("Failed to load scene");
+        FLY_ERROR("Failed to load scene");
         return -1;
     }
 
     u64 previousFrameTime = 0;
-    u64 loopStartTime = Hls::ClockNow();
+    u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
         previousFrameTime = currentFrameTime;
-        currentFrameTime = Hls::ClockNow();
+        currentFrameTime = Fly::ClockNow();
         f32 time =
-            static_cast<f32>(Hls::ToSeconds(currentFrameTime - loopStartTime));
-        f64 deltaTime = Hls::ToSeconds(currentFrameTime - previousFrameTime);
+            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
+        f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
         sCamera.Update(window, deltaTime);
 
@@ -784,7 +784,7 @@ int main(int argc, char* argv[])
     glfwDestroyWindow(window);
     glfwTerminate();
 
-    HLS_LOG("Shutdown successful");
+    FLY_LOG("Shutdown successful");
     ShutdownLogger();
     ReleaseThreadContext();
     return 0;

@@ -1,9 +1,9 @@
-#ifndef HLS_RHI_SURFACE_H
-#define HLS_RHI_SURFACE_H
+#ifndef FLY_RHI_SURFACE_H
+#define FLY_RHI_SURFACE_H
 
 #include "core/types.h"
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -16,6 +16,6 @@ void GetWindowSize(Context& context, i32& width, i32& height);
 void PollWindowEvents(Context& context);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_RHI_SURFACE_H */
+#endif /* FLY_RHI_SURFACE_H */

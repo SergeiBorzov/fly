@@ -13,7 +13,7 @@ gIndices;
 layout(location = 0) out vec2 outUVs;
 layout(location = 1) out vec3 outColor;
 
-HLS_REGISTER_UNIFORM_BUFFER(SceneData, {
+FLY_REGISTER_UNIFORM_BUFFER(SceneData, {
     mat4 projection;
     mat4 view;
     float time;
@@ -100,7 +100,7 @@ void main()
         vec3(5.0f);
 
     float time =
-        HLS_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, time);
+        FLY_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, time);
     vec3 translate = direction * time;
     float angle = time * r * 5.0f;
     vec3 worldPos = (RotateY(angle) * RotateX(angle) * RotateZ(angle) *
@@ -108,7 +108,7 @@ void main()
                     origin + translate;
 
     gl_Position =
-        HLS_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, projection) *
-        HLS_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, view) *
+        FLY_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, projection) *
+        FLY_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, view) *
             vec4(worldPos, 1.0f);
 }

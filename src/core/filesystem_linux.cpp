@@ -9,9 +9,9 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-#define HLS_PATH_SEPARATOR '/'
+#define FLY_PATH_SEPARATOR '/'
 
-namespace Hls
+namespace Fly
 {
 
 bool IsValidPathString(String8 str)
@@ -39,7 +39,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
         return false;
     }
 
-    char* normalized = HLS_ALLOC(arena, char, path.Size() + 1);
+    char* normalized = FLY_ALLOC(arena, char, path.Size() + 1);
     if (!realpath(path.Data(), normalized))
     {
         return false;
@@ -110,7 +110,7 @@ bool Path::Append(Arena& arena, const Path** paths, u32 pathCount, Path& out)
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
-    char* totalData = HLS_ALLOC(scratch, char, totalSize);
+    char* totalData = FLY_ALLOC(scratch, char, totalSize);
     u64 offset = 0;
     for (u32 i = 0; i < pathCount; i++)
     {
@@ -120,7 +120,7 @@ bool Path::Append(Arena& arena, const Path** paths, u32 pathCount, Path& out)
             offset += paths[i]->Size();
             if (i != pathCount - 1)
             {
-                totalData[offset++] = HLS_PATH_SEPARATOR;
+                totalData[offset++] = FLY_PATH_SEPARATOR;
             }
         }
     }
@@ -172,7 +172,7 @@ bool GetParentDirectoryPath(Arena& arena, const Path& path, Path& out)
     ArenaMarker marker = ArenaGetMarker(scratch);
 
     Path parentDir;
-    Path::Create(scratch, HLS_STRING8_LITERAL(".."), parentDir);
+    Path::Create(scratch, FLY_STRING8_LITERAL(".."), parentDir);
 
     bool res = Path::Append(arena, path, parentDir, out);
     ArenaPopToMarker(scratch, marker);
@@ -195,7 +195,7 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
     fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
 
     // Allocate memory for the string
-    char* content = HLS_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
+    char* content = FLY_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
 
     if (!content)
     {
@@ -220,4 +220,4 @@ String8 ReadFileToString(Arena& arena, const Path& path, u32 align)
     return ReadFileToString(arena, path.ToCStr(), align);
 }
 
-} // namespace Hls
+} // namespace Fly

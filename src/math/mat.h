@@ -1,10 +1,10 @@
-#ifndef HLS_MATH_MAT_H
-#define HLS_MATH_MAT_H
+#ifndef FLY_MATH_MAT_H
+#define FLY_MATH_MAT_H
 
 #include "core/assert.h"
 #include "vec.h"
 
-namespace Hls
+namespace Fly
 {
 namespace Math
 {
@@ -26,13 +26,13 @@ struct Mat4
 
     inline Vec4& operator[](i32 i)
     {
-        HLS_ASSERT(i >= 0 && i < 4);
+        FLY_ASSERT(i >= 0 && i < 4);
         return columns[i];
     }
 
     inline const Vec4& operator[](i32 i) const
     {
-        HLS_ASSERT(i >= 0 && i < 4);
+        FLY_ASSERT(i >= 0 && i < 4);
         return columns[i];
     }
 };
@@ -53,6 +53,6 @@ Mat4 Perspective(f32 fovy, f32 aspect, f32 near, f32 far);
 Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp);
 
 } // namespace Math
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_MATH_MAT_H */
+#endif /* FLY_MATH_MAT_H */

@@ -17,12 +17,12 @@
 
 #include <GLFW/glfw3.h>
 
-using namespace Hls;
+using namespace Fly;
 
-static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTexture;
 
-static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
+static Fly::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Math::Vec3(0.0f, 0.0f, -5.0f));
 
 struct UniformData
@@ -44,7 +44,7 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
-    HLS_ERROR("GLFW - error: %s", description);
+    FLY_ERROR("GLFW - error: %s", description);
 }
 
 static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
@@ -103,14 +103,14 @@ int main(int argc, char* argv[])
 
     if (volkInitialize() != VK_SUCCESS)
     {
-        HLS_ERROR("Failed to load volk");
+        FLY_ERROR("Failed to load volk");
         return -1;
     }
     glfwInitVulkanLoader(vkGetInstanceProcAddr);
 
     if (!glfwInit())
     {
-        HLS_ERROR("Failed to init glfw");
+        FLY_ERROR("Failed to init glfw");
         return -1;
     }
     glfwSetErrorCallback(ErrorCallbackGLFW);
@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
     GLFWwindow* window = glfwCreateWindow(1280, 720, "Cubes", nullptr, nullptr);
     if (!window)
     {
-        HLS_ERROR("Failed to create glfw window");
+        FLY_ERROR("Failed to create glfw window");
         glfwTerminate();
         return -1;
     }
@@ -139,39 +139,39 @@ int main(int argc, char* argv[])
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
     {
-        HLS_ERROR("Failed to create context");
+        FLY_ERROR("Failed to create context");
         return -1;
     }
 
     RHI::Device& device = context.devices[0];
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Hls::LoadShaderFromSpv(device, "cubes.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, "cubes.vert.spv",
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return -1;
     }
-    if (!Hls::LoadShaderFromSpv(device, "cubes.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, "cubes.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return -1;
     }
 
-    if (!Hls::LoadTextureFromFile(device, "CesiumLogoFlat.png",
+    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png",
                                   VK_FORMAT_R8G8B8A8_SRGB,
                                   RHI::Sampler::FilterMode::Trilinear,
                                   RHI::Sampler::WrapMode::Repeat, sTexture))
     {
-        HLS_ERROR("Failed to create texture");
+        FLY_ERROR("Failed to create texture");
         return -1;
     }
 
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
                                       sUniformBuffers[i]))
         {
-            HLS_ERROR("Failed to create uniform buffer!");
+            FLY_ERROR("Failed to create uniform buffer!");
         }
     }
 
@@ -189,23 +189,23 @@ int main(int argc, char* argv[])
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      graphicsPipeline))
     {
-        HLS_ERROR("Failed to create graphics pipeline");
+        FLY_ERROR("Failed to create graphics pipeline");
         return -1;
     }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     u64 previousFrameTime = 0;
-    u64 loopStartTime = Hls::ClockNow();
+    u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
     while (!glfwWindowShouldClose(window))
     {
         previousFrameTime = currentFrameTime;
-        currentFrameTime = Hls::ClockNow();
+        currentFrameTime = Fly::ClockNow();
 
         f32 time =
-            static_cast<f32>(Hls::ToSeconds(currentFrameTime - loopStartTime));
-        f64 deltaTime = Hls::ToSeconds(currentFrameTime - previousFrameTime);
+            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
+        f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
         glfwPollEvents();
 
@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
     }
 
     RHI::WaitAllDevicesIdle(context);
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
@@ -233,7 +233,7 @@ int main(int argc, char* argv[])
 
     glfwDestroyWindow(window);
     glfwTerminate();
-    HLS_LOG("Shutdown successful");
+    FLY_LOG("Shutdown successful");
     ShutdownLogger();
     ReleaseThreadContext();
     return 0;

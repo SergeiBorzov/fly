@@ -4,11 +4,11 @@
 #include <math.h>
 
 #define LUT_TABLE_SIZE 1024
-#define LUT_VALUE_SCALE LUT_TABLE_SIZE / HLS_MATH_TWO_PI
+#define LUT_VALUE_SCALE LUT_TABLE_SIZE / FLY_MATH_TWO_PI
 
 thread_local u32 stSeed = 2025;
 
-namespace Hls
+namespace Fly
 {
 namespace Math
 {
@@ -63,63 +63,63 @@ u32 Rand()
 
 i8 RandomI8(i8 min, i8 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 i16 RandomI16(i16 min, i16 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 i32 RandomI32(i32 min, i32 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 i64 RandomI64(i64 min, i64 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 u8 RandomU8(u8 min, u8 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 u16 RandomU16(u16 min, u16 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 u32 RandomU32(u32 min, u32 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 u64 RandomU64(u64 min, u64 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return Rand() % (max - min + 1) + min;
 }
 
 f32 RandomF32(f32 min, f32 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return (max - min) * (static_cast<f32>(Rand()) / 0xFFFFFFFFu) + min;
 }
 
 f64 RandomF64(f64 min, f64 max)
 {
-    HLS_ASSERT(min <= max);
+    FLY_ASSERT(min <= max);
     return (max - min) * (static_cast<f32>(Rand()) / 0xFFFFFFFFu) + min;
 }
 
 } // namespace Math
-} // namespace Hls
+} // namespace Fly

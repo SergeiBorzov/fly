@@ -3,7 +3,7 @@
 
 #include "src/math/mat.h"
 
-using namespace Hls::Math;
+using namespace Fly::Math;
 
 TEST(Mat4, Constructors)
 {

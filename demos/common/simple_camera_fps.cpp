@@ -2,7 +2,7 @@
 
 #include "simple_camera_fps.h"
 
-namespace Hls
+namespace Fly
 {
 
 SimpleCameraFPS::SimpleCameraFPS(f32 hFov, f32 aspect, f32 near, f32 far,
@@ -113,4 +113,4 @@ void SimpleCameraFPS::Update(GLFWwindow* window, double deltaTime)
     UpdatePosition(window, deltaTime);
 }
 
-} // namespace Hls
+} // namespace Fly

@@ -1,9 +1,9 @@
-#ifndef HLS_RHI_ALLOCATION_CALLBACKS_H
-#define HLS_RHI_ALLOCATION_CALLBACKS_H
+#ifndef FLY_RHI_ALLOCATION_CALLBACKS_H
+#define FLY_RHI_ALLOCATION_CALLBACKS_H
 
 #include <volk.h>
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -18,6 +18,6 @@ void VKAPI_PTR VulkanFree(void* pUserData, void* pMemory);
 const VkAllocationCallbacks* GetVulkanAllocationCallbacks();
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_RHI_ALLOCATION_CALLBACKS_H */
+#endif /* FLY_RHI_ALLOCATION_CALLBACKS_H */

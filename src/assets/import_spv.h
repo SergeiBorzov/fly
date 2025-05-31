@@ -1,11 +1,11 @@
-#ifndef HLS_ASSETS_IMPORT_SPV_H
-#define HLS_ASSETS_IMPORT_SPV_H
+#ifndef FLY_ASSETS_IMPORT_SPV_H
+#define FLY_ASSETS_IMPORT_SPV_H
 
 #include "core/string8.h"
 
 struct Arena;
 
-namespace Hls
+namespace Fly
 {
 
 struct Path;
@@ -13,6 +13,6 @@ struct Path;
 String8 LoadSpvFromFile(Arena& arena, const char* path);
 String8 LoadSpvFromFile(Arena& arena, const Path& path);
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_ASSETS_IMPORT_SPV_H */
+#endif /* FLY_ASSETS_IMPORT_SPV_H */

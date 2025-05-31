@@ -1,13 +1,13 @@
-#ifndef HLS_CONTEXT_H
-#define HLS_CONTEXT_H
+#ifndef FLY_CONTEXT_H
+#define FLY_CONTEXT_H
 
 #include "device.h"
 
-#define HLS_PHYSICAL_DEVICE_MAX_COUNT 4
+#define FLY_PHYSICAL_DEVICE_MAX_COUNT 4
 
 struct GLFWwindow;
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -76,7 +76,7 @@ struct ContextSettings
 
 struct Context
 {
-    Device devices[HLS_PHYSICAL_DEVICE_MAX_COUNT];
+    Device devices[FLY_PHYSICAL_DEVICE_MAX_COUNT];
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     GLFWwindow* windowPtr = nullptr;
@@ -88,6 +88,6 @@ void DestroyContext(Context& context);
 void WaitAllDevicesIdle(Context& context);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_CONTEXT_H */
+#endif /* FLY_CONTEXT_H */

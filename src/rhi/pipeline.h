@@ -1,13 +1,13 @@
-#ifndef HLS_RHI_PIPELINE_H
-#define HLS_RHI_PIPELINE_H
+#ifndef FLY_RHI_PIPELINE_H
+#define FLY_RHI_PIPELINE_H
 
 #include <volk.h>
 
 #include "core/types.h"
 
-#define HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
+#define FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -21,7 +21,7 @@ struct GraphicsPipelineFixedStateStage
     struct
     {
         VkPipelineColorBlendAttachmentState
-            attachments[HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT] = {
+            attachments[FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT] = {
                 VK_FALSE,
                 VK_BLEND_FACTOR_ONE,
                 VK_BLEND_FACTOR_ZERO,
@@ -69,7 +69,7 @@ struct GraphicsPipelineFixedStateStage
         VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
         VkFormat stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
         VkFormat
-            colorAttachments[HLS_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT] =
+            colorAttachments[FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT] =
                 {VK_FORMAT_UNDEFINED};
         u32 colorAttachmentCount = 0;
     } pipelineRendering;
@@ -98,6 +98,6 @@ bool CreateComputePipeline(Device& device, const Shader& computeShader,
 void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_RHI_PIPELINE_H */
+#endif /* FLY_RHI_PIPELINE_H */

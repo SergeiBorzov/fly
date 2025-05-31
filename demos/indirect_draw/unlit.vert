@@ -14,7 +14,7 @@ layout(push_constant) uniform Indices
 }
 gIndices;
 
-HLS_REGISTER_UNIFORM_BUFFER(Camera, {
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
     float hTanX;
@@ -23,20 +23,20 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     float far;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
     vec3 position;
     float uvX;
     vec3 normal;
     float uvY;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, InstanceData, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, InstanceData, {
     mat4 model;
     uint meshDataIndex;
     uint pad[3];
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
     uint materialIndex;
     uint vertexBufferIndex;
     uint boundingSphereDrawIndex;
@@ -44,15 +44,15 @@ HLS_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
 
 void main()
 {
-    mat4 projection = HLS_ACCESS_UNIFORM_BUFFER(
+    mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gIndices.cameraBufferIndex, projection);
     mat4 view =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, view);
-    InstanceData instance = HLS_ACCESS_STORAGE_BUFFER(
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, view);
+    InstanceData instance = FLY_ACCESS_STORAGE_BUFFER(
         InstanceData, gIndices.instanceDataBufferIndex)[gl_InstanceIndex];
-    MeshData meshData = HLS_ACCESS_STORAGE_BUFFER(
+    MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
         MeshData, gIndices.meshDataBufferIndex)[instance.meshDataIndex];
-    Vertex v = HLS_ACCESS_STORAGE_BUFFER(
+    Vertex v = FLY_ACCESS_STORAGE_BUFFER(
         Vertex, meshData.vertexBufferIndex)[gl_VertexIndex];
 
     outUV = vec2(v.uvX, v.uvY);

@@ -9,7 +9,7 @@ static void* AlignPtr(void* ptr, u32 align)
 {
     const uintptr_t addr = (uintptr_t)ptr;
     const u64 mask = align - 1;
-    HLS_ASSERT((align & mask) == 0); // should be power of 2
+    FLY_ASSERT((align & mask) == 0); // should be power of 2
     return (void*)((addr + mask) & ~mask);
 }
 
@@ -32,8 +32,8 @@ Arena ArenaCreate(u64 reservedSize, u64 commitedSize)
     // on some platforms allocation might fail
     // if size is not a multiple of a page size
     arena.ptr =
-        static_cast<u8*>(Hls::PlatformAlloc(reservedSize, commitedSize));
-    HLS_ASSERT(arena.ptr);
+        static_cast<u8*>(Fly::PlatformAlloc(reservedSize, commitedSize));
+    FLY_ASSERT(arena.ptr);
 
     arena.reservedCapacity = reservedSize;
     arena.capacity = commitedSize;
@@ -47,7 +47,7 @@ Arena ArenaCreateInline(u64 commitedSize, void* ptr)
 {
     Arena arena;
     arena.ptr = static_cast<u8*>(ptr);
-    HLS_ASSERT(ptr);
+    FLY_ASSERT(ptr);
 
     arena.capacity = commitedSize;
     arena.size = 0;
@@ -57,7 +57,7 @@ Arena ArenaCreateInline(u64 commitedSize, void* ptr)
 
 void ArenaDestroy(Arena& arena)
 {
-    Hls::PlatformFree(arena.ptr, arena.reservedCapacity);
+    Fly::PlatformFree(arena.ptr, arena.reservedCapacity);
     arena.ptr = nullptr;
     arena.lastAllocSize = 0;
     arena.size = 0;
@@ -67,9 +67,9 @@ void ArenaDestroy(Arena& arena)
 
 void ArenaPop(Arena& arena, void* alignedPtr)
 {
-    HLS_ASSERT(alignedPtr);
+    FLY_ASSERT(alignedPtr);
     u8* rawPtr = static_cast<u8*>(ArenaUnwrapPtr(alignedPtr));
-    HLS_ASSERT(arena.ptr + arena.size - arena.lastAllocSize == rawPtr,
+    FLY_ASSERT(arena.ptr + arena.size - arena.lastAllocSize == rawPtr,
                "Arena popped not the latest allocation: %p vs %p",
                arena.ptr + arena.size - arena.lastAllocSize, rawPtr);
 
@@ -88,7 +88,7 @@ void ArenaPopToMarker(Arena& arena, ArenaMarker marker)
 
 void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
 {
-    HLS_ASSERT(size > 0);
+    FLY_ASSERT(size > 0);
 
     u64 allocSize = size + align + sizeof(ArenaAllocHeader);
 
@@ -98,16 +98,16 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
         u64 newCapacity = 2 * arena.capacity;
         if (newCapacity <= arena.reservedCapacity)
         {
-            void* res = Hls::PlatformCommitMemory(arena.ptr + arena.capacity,
+            void* res = Fly::PlatformCommitMemory(arena.ptr + arena.capacity,
                                                   arena.capacity);
             (void)res;
-            HLS_ASSERT(res);
+            FLY_ASSERT(res);
             arena.capacity = newCapacity;
         }
         else
         {
             // Out of reserved space of addresses
-            HLS_ASSERT(false);
+            FLY_ASSERT(false);
         }
     }
 
@@ -124,7 +124,7 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
     }
 
     ptrdiff_t shift = alignedPtr - (unalignedPtr + sizeof(ArenaAllocHeader));
-    HLS_ASSERT(shift > 0 && shift <= 256, "Supported alignment is up to 256");
+    FLY_ASSERT(shift > 0 && shift <= 256, "Supported alignment is up to 256");
 
     alignedPtr[-1] = static_cast<u8>(shift & 0xFF);
 

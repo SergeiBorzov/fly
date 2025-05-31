@@ -17,9 +17,9 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
-HLS_REGISTER_STORAGE_BUFFER(readonly, GlobalHistogram, { uint count; })
-HLS_REGISTER_STORAGE_BUFFER(, TileHistograms, { uint count; })
+FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+FLY_REGISTER_STORAGE_BUFFER(readonly, GlobalHistogram, { uint count; })
+FLY_REGISTER_STORAGE_BUFFER(, TileHistograms, { uint count; })
 
 shared uint tmp[N];
 void main()
@@ -34,7 +34,7 @@ void main()
     for (uint i = 0; i < digit; i++)
     {
         globalOffset +=
-            HLS_ACCESS_STORAGE_BUFFER(
+            FLY_ACCESS_STORAGE_BUFFER(
                 GlobalHistogram,
                 gPushConstants
                     .globalHistogramBufferIndex)[globalHistogramStart + i]
@@ -51,14 +51,14 @@ void main()
         uint sb = 2 * tid + 1;
 
         tmp[sa] = (j + sa < histogramCount)
-                      ? HLS_ACCESS_STORAGE_BUFFER(
+                      ? FLY_ACCESS_STORAGE_BUFFER(
                             TileHistograms,
                             gPushConstants.tileHistogramBufferIndex)[a]
                             .count
                       : 0;
 
         tmp[sb] = (j + sb < histogramCount)
-                      ? HLS_ACCESS_STORAGE_BUFFER(
+                      ? FLY_ACCESS_STORAGE_BUFFER(
                             TileHistograms,
                             gPushConstants.tileHistogramBufferIndex)[b]
                             .count
@@ -102,14 +102,14 @@ void main()
 
         if (j + sa < histogramCount)
         {
-            HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+            FLY_ACCESS_STORAGE_BUFFER(TileHistograms,
                                       gPushConstants.tileHistogramBufferIndex)
             [a].count = tmp[sa] + reduction + globalOffset;
         }
 
         if (j + sb < histogramCount)
         {
-            HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+            FLY_ACCESS_STORAGE_BUFFER(TileHistograms,
                                       gPushConstants.tileHistogramBufferIndex)
             [b].count = tmp[sb] + reduction + globalOffset;
         }

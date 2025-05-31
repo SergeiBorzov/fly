@@ -1,9 +1,9 @@
-#ifndef HLS_CORE_HASH_H
-#define HLS_CORE_HASH_H
+#ifndef FLY_CORE_HASH_H
+#define FLY_CORE_HASH_H
 
 #include "types.h"
 
-namespace Hls
+namespace Fly
 {
 
 u64 Hash64(void* data, u64 size);
@@ -71,6 +71,6 @@ struct Hash<bool>
     inline u64 operator()(bool key) { return static_cast<u64>(key); }
 };
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_CORE_HASH_H */
+#endif /* FLY_CORE_HASH_H */

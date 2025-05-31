@@ -1,11 +1,11 @@
-#ifndef HLS_FILESYSTEM_H
-#define HLS_FILESYSTEM_H
+#ifndef FLY_FILESYSTEM_H
+#define FLY_FILESYSTEM_H
 
 #include "string8.h"
 
 struct Arena;
 
-namespace Hls
+namespace Fly
 {
 
 struct Path
@@ -21,7 +21,7 @@ public:
 
     inline char operator[](u64 index) const
     {
-        HLS_ASSERT(index < size_);
+        FLY_ASSERT(index < size_);
         return data_[index];
     }
 
@@ -52,6 +52,6 @@ bool GetParentDirectoryPath(Arena& arena, const Path& path, Path& out);
 
 String8 ReadFileToString(Arena& arena, const char* filename, u32 align = 1);
 String8 ReadFileToString(Arena& arena, const Path& path, u32 align = 1);
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_FILESYSTEM_H */
+#endif /* FLY_FILESYSTEM_H */

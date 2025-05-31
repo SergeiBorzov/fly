@@ -17,13 +17,13 @@ gPushConstants;
 
 
 layout(set = 0,
-       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
 {
     uint count;
 }
 gDrawCountBuffers[];
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, {
     uint key;
     uint value;
 })
@@ -40,14 +40,14 @@ struct Splat
     float pad[2];
 };
 
-layout(set = 0, binding = HLS_STORAGE_BUFFER_BINDING_INDEX,
+layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX,
        std430) readonly buffer InSplats
 {
     Splat items[];
 }
 gInSplats[];
 
-layout(set = 0, binding = HLS_STORAGE_BUFFER_BINDING_INDEX,
+layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX,
        std430) writeonly buffer SortedSplats
 {
     Splat items[];
@@ -65,7 +65,7 @@ void main()
         return;
     }
 
-    uint index = HLS_ACCESS_STORAGE_BUFFER(
+    uint index = FLY_ACCESS_STORAGE_BUFFER(
                      Keys, gPushConstants.keyValueBufferIndex)[gtid]
                      .value;
     Splat splat = gInSplats[gPushConstants.splatBufferIndex].items[index];

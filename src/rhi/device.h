@@ -1,16 +1,16 @@
-#ifndef HLS_RHI_DEVICE_H
-#define HLS_RHI_DEVICE_H
+#ifndef FLY_RHI_DEVICE_H
+#define FLY_RHI_DEVICE_H
 
 #include "command_buffer.h"
 #include "texture.h"
 
-#define HLS_SWAPCHAIN_IMAGE_MAX_COUNT 8
-#define HLS_FRAME_IN_FLIGHT_COUNT 2
-#define HLS_UNIFORM_BUFFER_BINDING_INDEX 0
-#define HLS_STORAGE_BUFFER_BINDING_INDEX 1
-#define HLS_TEXTURE_BINDING_INDEX 2
+#define FLY_SWAPCHAIN_IMAGE_MAX_COUNT 8
+#define FLY_FRAME_IN_FLIGHT_COUNT 2
+#define FLY_UNIFORM_BUFFER_BINDING_INDEX 0
+#define FLY_STORAGE_BUFFER_BINDING_INDEX 1
+#define FLY_TEXTURE_BINDING_INDEX 2
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -38,9 +38,9 @@ struct Device
 {
     char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] = {0};
     VmaAllocator allocator = {};
-    SwapchainTexture swapchainTextures[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
+    SwapchainTexture swapchainTextures[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
     DepthTexture depthTexture = {};
-    FrameData frameData[HLS_FRAME_IN_FLIGHT_COUNT];
+    FrameData frameData[FLY_FRAME_IN_FLIGHT_COUNT];
     TransferData transferData = {};
     VkSurfaceFormatKHR surfaceFormat = {};
     Context* context = nullptr;
@@ -80,6 +80,6 @@ bool EndRenderFrame(Device& device);
 void DeviceWaitIdle(Device& device);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_RHI_DEVICE_H */
+#endif /* FLY_RHI_DEVICE_H */

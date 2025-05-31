@@ -1,11 +1,11 @@
-#ifndef HLS_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H
-#define HLS_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H
+#ifndef FLY_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H
+#define FLY_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H
 
 #include "math/mat.h"
 
 struct GLFWwindow;
 
-namespace Hls
+namespace Fly
 {
 
 class SimpleCameraFPS
@@ -36,9 +36,9 @@ private:
     void UpdatePosition(GLFWwindow* window, double deltaTime);
 
 private:
-    Hls::Math::Mat4 projection_;
-    Hls::Math::Mat4 view_;
-    Hls::Math::Vec3 position_;
+    Fly::Math::Mat4 projection_;
+    Fly::Math::Mat4 view_;
+    Fly::Math::Vec3 position_;
     double prevCursorX_ = 0.0;
     double prevCursorY_ = 0.0;
     f32 yaw_ = 90.0f;
@@ -57,6 +57,6 @@ private:
     bool firstFrame_ = true;
 };
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H */
+#endif /* FLY_DEMOS_COMMON_SIMPLE_CAMERA_FPS_H */

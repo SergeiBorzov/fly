@@ -12,7 +12,7 @@
 
 #include <GLFW/glfw3.h>
 
-using namespace Hls;
+using namespace Fly;
 
 struct UniformData
 {
@@ -20,10 +20,10 @@ struct UniformData
     Math::Mat4 view = {};
 };
 
-static RHI::Buffer sUniformBuffers[HLS_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 
-static Hls::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
-                                    Hls::Math::Vec3(0.0f, 0.0f, -5.0f));
+static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
+                                    Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -42,11 +42,11 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
-    HLS_ERROR("GLFW - error: %s", description);
+    FLY_ERROR("GLFW - error: %s", description);
 }
 
 static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
-                           const Hls::Scene& scene)
+                           const Fly::Scene& scene)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
@@ -90,12 +90,12 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                        sizeof(Math::Mat4), sizeof(u32) * 2, globalIndices);
     for (u32 i = 0; i < scene.meshNodeCount; i++)
     {
-        const Hls::MeshNode& meshNode = scene.meshNodes[i];
+        const Fly::MeshNode& meshNode = scene.meshNodes[i];
         vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
                            sizeof(Math::Mat4), meshNode.model.data);
         for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
         {
-            const Hls::Submesh& submesh = meshNode.mesh->submeshes[j];
+            const Fly::Submesh& submesh = meshNode.mesh->submeshes[j];
             u32 localIndices[2] = {submesh.vertexBufferIndex,
                                    submesh.materialIndex};
             vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
@@ -121,13 +121,13 @@ int main(int argc, char* argv[])
     // Initialize volk, window
     if (volkInitialize() != VK_SUCCESS)
     {
-        HLS_ERROR("Failed to load volk");
+        FLY_ERROR("Failed to load volk");
         return -1;
     }
     glfwInitVulkanLoader(vkGetInstanceProcAddr);
     if (!glfwInit())
     {
-        HLS_ERROR("Failed to init glfw");
+        FLY_ERROR("Failed to init glfw");
         return -1;
     }
     glfwSetErrorCallback(ErrorCallbackGLFW);
@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
         glfwCreateWindow(1280, 720, "glTF Viewer", nullptr, nullptr);
     if (!window)
     {
-        HLS_ERROR("Failed to create glfw window");
+        FLY_ERROR("Failed to create glfw window");
         glfwTerminate();
         return -1;
     }
@@ -158,19 +158,19 @@ int main(int argc, char* argv[])
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
     {
-        HLS_ERROR("Failed to create context");
+        FLY_ERROR("Failed to create context");
         return -1;
     }
     RHI::Device& device = context.devices[0];
 
     // Pipeline
     RHI::ShaderProgram shaderProgram{};
-    if (!Hls::LoadShaderFromSpv(device, "unlit.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, "unlit.vert.spv",
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return -1;
     }
-    if (!Hls::LoadShaderFromSpv(device, "unlit.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, "unlit.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return -1;
@@ -191,42 +191,42 @@ int main(int argc, char* argv[])
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      graphicsPipeline))
     {
-        HLS_ERROR("Failed to create graphics pipeline");
+        FLY_ERROR("Failed to create graphics pipeline");
         return -1;
     }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     // Camera data
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
                                       sUniformBuffers[i]))
         {
-            HLS_ERROR("Failed to create uniform buffer!");
+            FLY_ERROR("Failed to create uniform buffer!");
             return -1;
         }
     }
 
     // Scene
-    Hls::Scene scene;
-    if (!Hls::LoadSceneFromGLTF(arena, device, "Sponza.gltf", scene))
+    Fly::Scene scene;
+    if (!Fly::LoadSceneFromGLTF(arena, device, "Sponza.gltf", scene))
     {
-        HLS_ERROR("Failed to load gltf");
+        FLY_ERROR("Failed to load gltf");
         return -1;
     }
 
     u64 previousFrameTime = 0;
-    u64 loopStartTime = Hls::ClockNow();
+    u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
     while (!glfwWindowShouldClose(window))
     {
         previousFrameTime = currentFrameTime;
-        currentFrameTime = Hls::ClockNow();
+        currentFrameTime = Fly::ClockNow();
 
         f32 time =
-            static_cast<f32>(Hls::ToSeconds(currentFrameTime - loopStartTime));
-        f64 deltaTime = Hls::ToSeconds(currentFrameTime - previousFrameTime);
+            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
+        f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
         glfwPollEvents();
 
@@ -242,9 +242,9 @@ int main(int argc, char* argv[])
 
     RHI::WaitAllDevicesIdle(context);
 
-    Hls::UnloadScene(device, scene);
+    Fly::UnloadScene(device, scene);
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
@@ -252,7 +252,7 @@ int main(int argc, char* argv[])
 
     glfwDestroyWindow(window);
     glfwTerminate();
-    HLS_LOG("Shutdown successful");
+    FLY_LOG("Shutdown successful");
 
     ShutdownLogger();
     ReleaseThreadContext();

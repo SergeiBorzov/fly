@@ -21,5 +21,5 @@ void AssertImpl(const char* cond, const char* file, int line, const char* msg,
         printf("\n");
     }
 
-    HLS_ASSERT_BREAK();
+    FLY_ASSERT_BREAK();
 }

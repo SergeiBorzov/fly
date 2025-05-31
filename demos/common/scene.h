@@ -1,5 +1,5 @@
-#ifndef HLS_DEMOS_COMMON_SCENE_H
-#define HLS_DEMOS_COMMON_SCENE_H
+#ifndef FLY_DEMOS_COMMON_SCENE_H
+#define FLY_DEMOS_COMMON_SCENE_H
 
 #include "math/mat.h"
 
@@ -8,7 +8,7 @@
 
 struct Arena;
 
-namespace Hls
+namespace Fly
 {
 
 // CPU based draw call structures
@@ -77,7 +77,7 @@ struct TextureProperty
 {
     Math::Vec2 offset = {0.0f, 0.0f};
     Math::Vec2 scale = {1.0f, 1.0f};
-    u32 textureHandle = HLS_MAX_U32;
+    u32 textureHandle = FLY_MAX_U32;
     u32 pad;
 };
 
@@ -111,5 +111,5 @@ bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,
                        Scene& scene);
 void UnloadScene(RHI::Device& device, Scene& scene);
 
-} // namespace Hls
-#endif /* HLS_DEMOS_COMMON_SCENE_H */
+} // namespace Fly
+#endif /* FLY_DEMOS_COMMON_SCENE_H */

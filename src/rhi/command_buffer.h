@@ -1,11 +1,11 @@
-#ifndef HLS_COMMAND_BUFFER_H
-#define HLS_COMMAND_BUFFER_H
+#ifndef FLY_COMMAND_BUFFER_H
+#define FLY_COMMAND_BUFFER_H
 
 #include "core/types.h"
 
 #include <volk.h>
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -69,6 +69,6 @@ BufferMemoryBarrier(const RHI::Buffer& buffer,
                     u64 offset = 0, u64 size = VK_WHOLE_SIZE);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* End of HLS_COMMAND_BUFFER_H */
+#endif /* End of FLY_COMMAND_BUFFER_H */

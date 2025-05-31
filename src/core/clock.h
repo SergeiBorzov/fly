@@ -1,9 +1,9 @@
-#ifndef HLS_CLOCK_H
-#define HLS_CLOCK_H
+#ifndef FLY_CLOCK_H
+#define FLY_CLOCK_H
 
 #include "types.h"
 
-namespace Hls
+namespace Fly
 {
 
 u64 ClockNow(); // Current system time in nanoseconds
@@ -11,6 +11,6 @@ u64 ClockNow(); // Current system time in nanoseconds
 inline f64 ToSeconds(u64 nanoseconds) { return nanoseconds / 1000000000.0; }
 inline f64 ToMilliseconds(u64 nanoseconds) { return nanoseconds / 1000000.0; }
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* End of HLS_CLOCK_H */
+#endif /* End of FLY_CLOCK_H */

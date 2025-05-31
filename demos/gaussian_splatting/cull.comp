@@ -16,7 +16,7 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-HLS_REGISTER_UNIFORM_BUFFER(Camera, {
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
     vec4 viewport;
@@ -24,7 +24,7 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     vec4 time;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, Splat, {
     vec4 rotation;
     vec3 position;
     float r;
@@ -35,13 +35,13 @@ HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {
     float pad[2];
 })
 
-HLS_REGISTER_STORAGE_BUFFER(writeonly, Keys, {
+FLY_REGISTER_STORAGE_BUFFER(writeonly, Keys, {
     uint key;
     uint value;
 })
 
 layout(set = 0,
-       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
 {
     uint count;
 }
@@ -58,7 +58,7 @@ void main()
 {
     uint gtid = gl_GlobalInvocationID.x;
 
-    mat4 view = HLS_ACCESS_UNIFORM_BUFFER(
+    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
 
     if (gtid >= gPushConstants.splatCount)
@@ -66,11 +66,11 @@ void main()
         return;
     }
 
-    vec4 cameraParameters = HLS_ACCESS_UNIFORM_BUFFER(
+    vec4 cameraParameters = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, cameraParameters);
 
     Splat splat =
-        HLS_ACCESS_STORAGE_BUFFER(Splat, gPushConstants.splatBufferIndex)[gtid];
+        FLY_ACCESS_STORAGE_BUFFER(Splat, gPushConstants.splatBufferIndex)[gtid];
 
     vec4 splatPositionVS = view * vec4(splat.position, 1.0);
     float radius = max(max(splat.scale.x, splat.scale.y), splat.scale.z);
@@ -89,7 +89,7 @@ void main()
             gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex]
                 .count,
             1);
-        HLS_ACCESS_STORAGE_BUFFER(Keys, gPushConstants.pingPongBufferIndex)
+        FLY_ACCESS_STORAGE_BUFFER(Keys, gPushConstants.pingPongBufferIndex)
         [drawIndex] = Keys(floatKey(-splatPositionVS.z), gtid);
     }
 }

@@ -1,11 +1,11 @@
-#ifndef HLS_RHI_IMAGE_H
-#define HLS_RHI_IMAGE_H
+#ifndef FLY_RHI_IMAGE_H
+#define FLY_RHI_IMAGE_H
 
 #include <volk.h>
 
 #include "vma.h"
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -75,7 +75,7 @@ struct Texture
     u32 width = 0;
     u32 height = 0;
     u32 mipLevelCount = 0;
-    u32 bindlessHandle = HLS_MAX_U32;
+    u32 bindlessHandle = FLY_MAX_U32;
 };
 
 bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
@@ -87,6 +87,6 @@ bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
 void DestroyTexture(Device& device, Texture& texture);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_RHI_IMAGE_H */
+#endif /* FLY_RHI_IMAGE_H */

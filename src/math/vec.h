@@ -1,10 +1,10 @@
-#ifndef HLS_MATH_VEC_H
-#define HLS_MATH_VEC_H
+#ifndef FLY_MATH_VEC_H
+#define FLY_MATH_VEC_H
 
 #include "core/assert.h"
 #include "functions.h"
 
-namespace Hls
+namespace Fly
 {
 namespace Math
 {
@@ -71,12 +71,12 @@ struct Vec2
 
     inline f32& operator[](i32 i)
     {
-        HLS_ASSERT(i >= 0 && i < 2);
+        FLY_ASSERT(i >= 0 && i < 2);
         return data[i];
     }
     inline const f32& operator[](i32 i) const
     {
-        HLS_ASSERT(i >= 0 && i < 2);
+        FLY_ASSERT(i >= 0 && i < 2);
         return data[i];
     }
 };
@@ -155,12 +155,12 @@ struct Vec3
 
     inline f32& operator[](i32 i)
     {
-        HLS_ASSERT(i >= 0 && i < 3);
+        FLY_ASSERT(i >= 0 && i < 3);
         return data[i];
     }
     inline const f32& operator[](i32 i) const
     {
-        HLS_ASSERT(i >= 0 && i < 3);
+        FLY_ASSERT(i >= 0 && i < 3);
         return data[i];
     }
 };
@@ -264,12 +264,12 @@ struct Vec4
 
     inline f32& operator[](i32 i)
     {
-        HLS_ASSERT(i >= 0 && i < 4);
+        FLY_ASSERT(i >= 0 && i < 4);
         return data[i];
     }
     inline const f32& operator[](i32 i) const
     {
-        HLS_ASSERT(i >= 0 && i < 4);
+        FLY_ASSERT(i >= 0 && i < 4);
         return data[i];
     }
 };
@@ -324,7 +324,7 @@ inline f32 Length(Vec4 v)
 
 inline Vec2 Normalize(Vec2 v)
 {
-    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON)
+    if (Abs(v.x) < FLY_MATH_EPSILON && Abs(v.y) < FLY_MATH_EPSILON)
     {
         return Vec2(0.0f);
     }
@@ -335,8 +335,8 @@ inline Vec2 Normalize(Vec2 v)
 
 inline Vec3 Normalize(Vec3 v)
 {
-    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON &&
-        Abs(v.z) < HLS_MATH_EPSILON)
+    if (Abs(v.x) < FLY_MATH_EPSILON && Abs(v.y) < FLY_MATH_EPSILON &&
+        Abs(v.z) < FLY_MATH_EPSILON)
     {
         return Vec3(0.0f);
     }
@@ -347,8 +347,8 @@ inline Vec3 Normalize(Vec3 v)
 
 inline Vec4 Normalize(Vec4 v)
 {
-    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON &&
-        Abs(v.z) < HLS_MATH_EPSILON && Abs(v.w) < HLS_MATH_EPSILON)
+    if (Abs(v.x) < FLY_MATH_EPSILON && Abs(v.y) < FLY_MATH_EPSILON &&
+        Abs(v.z) < FLY_MATH_EPSILON && Abs(v.w) < FLY_MATH_EPSILON)
     {
         return Vec4(0.0f);
     }
@@ -390,6 +390,6 @@ inline Vec4 Max(Vec4 a, Vec4 b)
 }
 
 } // namespace Math
-} // namespace Hls
+} // namespace Fly
 
-#endif /* End of HLS_MATH_VEC_H */
+#endif /* End of FLY_MATH_VEC_H */

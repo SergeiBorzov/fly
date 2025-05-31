@@ -22,7 +22,7 @@
 #define COUNT_TILE_SIZE COUNT_WORKGROUP_SIZE
 #define SCAN_WORKGROUP_SIZE (COUNT_WORKGROUP_SIZE / 2)
 
-using namespace Hls;
+using namespace Fly;
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -83,7 +83,7 @@ static f32 sTimestampPeriod;
 static bool CreateComputePipelines(RHI::Device& device)
 {
     RHI::Shader countShader;
-    if (!Hls::LoadShaderFromSpv(device, "radix_count_histogram.comp.spv",
+    if (!Fly::LoadShaderFromSpv(device, "radix_count_histogram.comp.spv",
                                 countShader))
     {
         return false;
@@ -95,7 +95,7 @@ static bool CreateComputePipelines(RHI::Device& device)
     RHI::DestroyShader(device, countShader);
 
     RHI::Shader scanShader;
-    if (!Hls::LoadShaderFromSpv(device, "radix_scan.comp.spv", scanShader))
+    if (!Fly::LoadShaderFromSpv(device, "radix_scan.comp.spv", scanShader))
     {
         return false;
     }
@@ -106,7 +106,7 @@ static bool CreateComputePipelines(RHI::Device& device)
     RHI::DestroyShader(device, scanShader);
 
     RHI::Shader sortShader;
-    if (!Hls::LoadShaderFromSpv(device, "radix_sort.comp.spv", sortShader))
+    if (!Fly::LoadShaderFromSpv(device, "radix_sort.comp.spv", sortShader))
     {
         return false;
     }
@@ -289,7 +289,7 @@ int main(int argc, char* argv[])
     // Initialize volk, window
     if (volkInitialize() != VK_SUCCESS)
     {
-        HLS_ERROR("Failed to load volk");
+        FLY_ERROR("Failed to load volk");
         return -1;
     }
 
@@ -305,7 +305,7 @@ int main(int argc, char* argv[])
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
     {
-        HLS_ERROR("Failed to create context");
+        FLY_ERROR("Failed to create context");
         return -1;
     }
     RHI::Device& device = context.devices[0];
@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
     vkGetPhysicalDeviceProperties(device.physicalDevice, &props);
     if (props.limits.timestampPeriod == 0)
     {
-        HLS_ERROR("Device does not support timestamp queries");
+        FLY_ERROR("Device does not support timestamp queries");
         return -1;
     }
     sTimestampPeriod = props.limits.timestampPeriod;
@@ -322,13 +322,13 @@ int main(int argc, char* argv[])
     u32 maxKeyCount = 7000000;
     if (!CreateDeviceBuffers(device, maxKeyCount))
     {
-        HLS_ERROR("Failed to create device buffers");
+        FLY_ERROR("Failed to create device buffers");
         return -1;
     }
 
     if (!CreateComputePipelines(device))
     {
-        HLS_ERROR("Failed to create compute pipelines");
+        FLY_ERROR("Failed to create compute pipelines");
         return -1;
     }
 
@@ -336,7 +336,7 @@ int main(int argc, char* argv[])
     for (u32 i = 0; i < 100; i++)
     {
         u32 keyCount = Math::RandomU32(1, maxKeyCount);
-        u32* keys = HLS_ALLOC(arena, u32, keyCount);
+        u32* keys = FLY_ALLOC(arena, u32, keyCount);
         for (u32 i = 0; i < keyCount; i++)
         {
             keys[i] = Math::RandomU32(0, 255);
@@ -349,14 +349,14 @@ int main(int argc, char* argv[])
                               VK_QUERY_RESULT_64_BIT |
                                   VK_QUERY_RESULT_WAIT_BIT);
 
-        f64 radixSortTime = Hls::ToMilliseconds(static_cast<u64>(
+        f64 radixSortTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
-        u64 qsortStart = Hls::ClockNow();
+        u64 qsortStart = Fly::ClockNow();
         qsort(keys, keyCount, sizeof(u32), CompareU32);
-        u64 qsortEnd = Hls::ClockNow();
+        u64 qsortEnd = Fly::ClockNow();
 
-        f64 qsortTime = Hls::ToMilliseconds(qsortEnd - qsortStart);
+        f64 qsortTime = Fly::ToMilliseconds(qsortEnd - qsortStart);
 
         const u32* deviceKeys =
             static_cast<const u32*>(RHI::BufferMappedPtr(sPingPongKeys[0]));
@@ -365,12 +365,12 @@ int main(int argc, char* argv[])
         {
             if (keys[i] != deviceKeys[i])
             {
-                HLS_ERROR("[%u]: radix sort implemented incorrectly");
+                FLY_ERROR("[%u]: radix sort implemented incorrectly");
                 return -1;
             }
         }
 
-        HLS_LOG("[%u]: Uniform random elements count %u: radix sort: "
+        FLY_LOG("[%u]: Uniform random elements count %u: radix sort: "
                 "%f ms | qsort: %f ms",
                 i, keyCount, radixSortTime, qsortTime);
         ArenaPopToMarker(arena, marker);
@@ -381,7 +381,7 @@ int main(int argc, char* argv[])
     DestroyComputePipelines(device);
     RHI::DestroyContext(context);
 
-    HLS_LOG("Shutdown successful");
+    FLY_LOG("Shutdown successful");
     ShutdownLogger();
     ReleaseThreadContext();
     return 0;

@@ -1,7 +1,7 @@
 #include "memory.h"
 #include <windows.h>
 
-namespace Hls
+namespace Fly
 {
 
 void* PlatformAlloc(u64 reserveSize, u64 commitSize)
@@ -42,4 +42,4 @@ bool PlatformDecommitMemory(void* baseAddress)
 
 void PlatformFree(void* ptr, u64 size) { VirtualFree(ptr, 0, MEM_RELEASE); }
 
-} // namespace Hls
+} // namespace Fly

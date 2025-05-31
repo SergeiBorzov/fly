@@ -16,21 +16,21 @@ int main()
         return -1;
     }
 
-    u64 hlsStart = Hls::ClockNow();
-    Hls::ObjData objData;
-    Hls::ObjImportSettings settings;
+    u64 flyStart = Fly::ClockNow();
+    Fly::ObjData objData;
+    Fly::ObjImportSettings settings;
     settings.scale = 0.01f;
     settings.uvOriginBottom = false;
     settings.flipFaceOrientation = true;
-    if (!Hls::ImportWavefrontObj("sponza.obj", settings, objData))
+    if (!Fly::ImportWavefrontObj("sponza.obj", settings, objData))
     {
         fprintf(stderr, "Failed to load file. Benchmark is not valid.");
         return -1;
     }
-    u64 hlsEnd = Hls::ClockNow();
+    u64 flyEnd = Fly::ClockNow();
 
     const char* filename = "sponza.obj";
-    u64 tinyobjloaderStart = Hls::ClockNow();
+    u64 tinyobjloaderStart = Fly::ClockNow();
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -43,23 +43,23 @@ int main()
         fprintf(stderr, "Failed to load file. Benchmark is not valid");
         return -1;
     }
-    u64 tinyobjloaderEnd = Hls::ClockNow();
+    u64 tinyobjloaderEnd = Fly::ClockNow();
 
-    u64 hlsTime = hlsEnd - hlsStart;
+    u64 flyTime = flyEnd - flyStart;
     u64 tinyobjloaderTime = tinyobjloaderEnd - tinyobjloaderStart;
 
-    printf("HLS time is %f\n", Hls::ToSeconds(hlsTime));
-    printf("tinyobjloader time is %f\n", Hls::ToSeconds(tinyobjloaderTime));
+    printf("FLY time is %f\n", Fly::ToSeconds(flyTime));
+    printf("tinyobjloader time is %f\n", Fly::ToSeconds(tinyobjloaderTime));
 
-    if (hlsTime < tinyobjloaderTime)
+    if (flyTime < tinyobjloaderTime)
     {
-        f64 ratio = Hls::ToSeconds(tinyobjloaderTime) / Hls::ToSeconds(hlsTime);
-        printf("HLS is %f times faster than tinyobjloader\n", ratio);
+        f64 ratio = Fly::ToSeconds(tinyobjloaderTime) / Fly::ToSeconds(flyTime);
+        printf("FLY is %f times faster than tinyobjloader\n", ratio);
     }
     else
     {
-        f64 ratio = Hls::ToSeconds(tinyobjloaderTime) / Hls::ToSeconds(hlsTime);
-        printf("tinyobjloader is %f times faster than HLS\n", ratio);
+        f64 ratio = Fly::ToSeconds(tinyobjloaderTime) / Fly::ToSeconds(flyTime);
+        printf("tinyobjloader is %f times faster than FLY\n", ratio);
     }
 
     ShutdownLogger();

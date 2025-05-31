@@ -23,7 +23,7 @@ bool InitLogger(const char* filename)
         sLogger.stream = fopen(filename, "a");
         if (sLogger.stream == nullptr)
         {
-            fprintf(stderr, "Hls logger failed to open file: %s", filename);
+            fprintf(stderr, "Fly logger failed to open file: %s", filename);
             return false;
         }
     }
@@ -73,8 +73,8 @@ static const char* LogLevelToString(LogLevel lvl)
 #define TIMESTAMP_MSG_SIZE 20
 static bool WriteTimeStamp(const struct tm* timeInfo, char* buffer, u64 size)
 {
-    HLS_ASSERT(buffer);
-    HLS_ASSERT(size >= TIMESTAMP_MSG_SIZE);
+    FLY_ASSERT(buffer);
+    FLY_ASSERT(size >= TIMESTAMP_MSG_SIZE);
 
     i32 written =
         sprintf(buffer, "%02d/%02d/%02d %02d:%02d:%02d", timeInfo->tm_mday,

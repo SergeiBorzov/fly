@@ -19,7 +19,7 @@ static u32 Log2(u32 x)
     return result;
 }
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -230,7 +230,7 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
 
 void DestroySampler(Device& device, Sampler& sampler)
 {
-    HLS_ASSERT(sampler.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(sampler.handle != VK_NULL_HANDLE);
     vkDestroySampler(device.logicalDevice, sampler.handle,
                      GetVulkanAllocationCallbacks());
     sampler.handle = VK_NULL_HANDLE;
@@ -241,8 +241,8 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
                    Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
                    Texture& texture)
 {
-    HLS_ASSERT(width > 0);
-    HLS_ASSERT(height > 0);
+    FLY_ASSERT(width > 0);
+    FLY_ASSERT(height > 0);
 
     u32 mipLevelCount = 1;
     VkImageUsageFlags usage =
@@ -317,7 +317,7 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
     VkWriteDescriptorSet descriptorWrite{};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrite.dstSet = device.bindlessDescriptorSet;
-    descriptorWrite.dstBinding = HLS_TEXTURE_BINDING_INDEX;
+    descriptorWrite.dstBinding = FLY_TEXTURE_BINDING_INDEX;
     descriptorWrite.dstArrayElement = device.bindlessTextureHandleCount;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
@@ -334,9 +334,9 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
 
     if (data)
     {
-        HLS_ASSERT(width);
-        HLS_ASSERT(height);
-        HLS_ASSERT(channelCount);
+        FLY_ASSERT(width);
+        FLY_ASSERT(height);
+        FLY_ASSERT(channelCount);
 
         u64 allocSize = sizeof(u8) * width * height * channelCount;
         VkBufferCreateInfo createInfo{};
@@ -372,7 +372,7 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
         bool res = vmaMapMemory(device.allocator, allocation, &mappedPtr) ==
                    VK_SUCCESS;
         (void)res;
-        HLS_ASSERT(res);
+        FLY_ASSERT(res);
         memcpy(mappedPtr, data, allocSize);
         vmaUnmapMemory(device.allocator, allocation);
 
@@ -424,8 +424,8 @@ bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
                           Sampler::WrapMode wrapMode, u32 anisotropy,
                           Texture& texture)
 {
-    HLS_ASSERT(texture.handle != VK_NULL_HANDLE);
-    HLS_ASSERT(texture.sampler.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(texture.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(texture.sampler.handle != VK_NULL_HANDLE);
 
     if (texture.sampler.filterMode == filterMode &&
         texture.sampler.wrapMode == wrapMode)
@@ -507,4 +507,4 @@ void DestroyDepthTexture(Device& device, DepthTexture& depthTexture)
 }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

@@ -6,7 +6,7 @@
 #include "buffer.h"
 #include "device.h"
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -14,9 +14,9 @@ namespace RHI
 bool CopyDataToBuffer(Device& device, const void* data, u64 size, u64 offset,
                       Buffer& buffer)
 {
-    HLS_ASSERT(buffer.handle != VK_NULL_HANDLE);
-    HLS_ASSERT(data);
-    HLS_ASSERT(size > 0);
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(data);
+    FLY_ASSERT(size > 0);
 
     if (buffer.allocationInfo.pMappedData)
     {
@@ -50,7 +50,7 @@ bool CopyDataToBuffer(Device& device, const void* data, u64 size, u64 offset,
         return false;
     }
 
-    HLS_ASSERT(allocationInfo.pMappedData);
+    FLY_ASSERT(allocationInfo.pMappedData);
     memcpy(static_cast<u8*>(allocationInfo.pMappedData), data, size);
 
     BeginTransfer(device);
@@ -106,11 +106,11 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
     bool uniformUsage = usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     if (!storageUsage && !uniformUsage)
     {
-        HLS_DEBUG_LOG("Buffer[%llu] created with size %f MB", buffer.handle,
+        FLY_DEBUG_LOG("Buffer[%llu] created with size %f MB", buffer.handle,
                       buffer.allocationInfo.size / 1024.0 / 1024.0);
         return true;
     }
-    HLS_ASSERT(!storageUsage || !uniformUsage);
+    FLY_ASSERT(!storageUsage || !uniformUsage);
 
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = buffer.handle;
@@ -127,7 +127,7 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
     if (uniformUsage)
     {
         pBindlessHandle = &device.bindlessUniformBufferHandleCount;
-        descriptorWrite.dstBinding = HLS_UNIFORM_BUFFER_BINDING_INDEX;
+        descriptorWrite.dstBinding = FLY_UNIFORM_BUFFER_BINDING_INDEX;
         descriptorWrite.dstArrayElement =
             device.bindlessUniformBufferHandleCount;
         descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -135,7 +135,7 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
     else
     {
         pBindlessHandle = &device.bindlessStorageBufferHandleCount;
-        descriptorWrite.dstBinding = HLS_STORAGE_BUFFER_BINDING_INDEX;
+        descriptorWrite.dstBinding = FLY_STORAGE_BUFFER_BINDING_INDEX;
         descriptorWrite.dstArrayElement =
             device.bindlessStorageBufferHandleCount;
         descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -144,7 +144,7 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
                            nullptr);
     buffer.bindlessHandle = (*pBindlessHandle)++;
 
-    HLS_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
+    FLY_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
                   buffer.handle, buffer.bindlessHandle,
                   buffer.allocationInfo.size / 1024.0 / 1024.0);
     return true;
@@ -152,11 +152,11 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
 
 void DestroyBuffer(Device& device, Buffer& buffer)
 {
-    HLS_DEBUG_LOG(
+    FLY_DEBUG_LOG(
         "Buffer[%llu] destroyed: bindless handle %u, dealloc size: %f MB",
         buffer.handle, buffer.bindlessHandle,
         buffer.allocationInfo.size / 1024.0 / 1024.0);
-    HLS_ASSERT(buffer.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
     vmaDestroyBuffer(device.allocator, buffer.handle, buffer.allocation);
     buffer.handle = VK_NULL_HANDLE;
 }
@@ -199,4 +199,4 @@ bool CreateIndirectBuffer(Device& device, bool hostVisible, const void* data,
 }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

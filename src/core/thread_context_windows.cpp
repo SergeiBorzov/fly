@@ -23,7 +23,7 @@ static const char* GetBinaryDirectoryPath(Arena& arena)
     char* lastSlash = strrchr(buffer, '\\'); // Find the last backslash
     i64 actualLength = lastSlash - buffer + 1;
 
-    char* exeDirPath = HLS_ALLOC(arena, char, actualLength + 1);
+    char* exeDirPath = FLY_ALLOC(arena, char, actualLength + 1);
     memcpy(exeDirPath, buffer, actualLength);
     exeDirPath[actualLength] = '\0';
 
@@ -34,16 +34,16 @@ void InitThreadContext()
 {
     for (i32 i = 0; i < 2; i++)
     {
-        stThreadContext.arenas[i] = ArenaCreate(HLS_SIZE_GB(2), HLS_SIZE_MB(1));
+        stThreadContext.arenas[i] = ArenaCreate(FLY_SIZE_GB(2), FLY_SIZE_MB(1));
     }
 
     Arena& scratch = stThreadContext.arenas[0];
     const char* binaryDirectoryPath = GetBinaryDirectoryPath(scratch);
-    HLS_ASSERT(binaryDirectoryPath);
+    FLY_ASSERT(binaryDirectoryPath);
     bool res = SetEnv("VK_LAYER_PATH", binaryDirectoryPath);
-    HLS_ASSERT(res);
+    FLY_ASSERT(res);
     res = SetCurrentDirectory(binaryDirectoryPath);
-    HLS_ASSERT(res);
+    FLY_ASSERT(res);
 }
 
 void ReleaseThreadContext()
@@ -73,6 +73,6 @@ Arena& GetScratchArena(Arena* conflict)
         }
     }
 
-    HLS_ASSERT(index != -1);
+    FLY_ASSERT(index != -1);
     return stThreadContext.arenas[index];
 }

@@ -4,25 +4,25 @@
 #include "src/core/filesystem.h"
 #include "src/core/thread_context.h"
 
-using namespace Hls;
+using namespace Fly;
 
 TEST(Path, Validation)
 {
-#ifdef HLS_PLATFORM_OS_WINDOWS
-    String8 a = HLS_STRING8_LITERAL("C:\\Users\\Username\\Documents\\file.txt");
-    String8 b = HLS_STRING8_LITERAL("D:/Folder/AnotherFile.txt");
-    String8 c = HLS_STRING8_LITERAL("..\\file.txt");
-    String8 d = HLS_STRING8_LITERAL("folder\\subfolder\\file.txt");
-    String8 e = HLS_STRING8_LITERAL("C:/folder/../file.txt");
-    String8 f = HLS_STRING8_LITERAL("..\\folder\\..\\file.txt");
+#ifdef FLY_PLATFORM_OS_WINDOWS
+    String8 a = FLY_STRING8_LITERAL("C:\\Users\\Username\\Documents\\file.txt");
+    String8 b = FLY_STRING8_LITERAL("D:/Folder/AnotherFile.txt");
+    String8 c = FLY_STRING8_LITERAL("..\\file.txt");
+    String8 d = FLY_STRING8_LITERAL("folder\\subfolder\\file.txt");
+    String8 e = FLY_STRING8_LITERAL("C:/folder/../file.txt");
+    String8 f = FLY_STRING8_LITERAL("..\\folder\\..\\file.txt");
     String8 g =
-        HLS_STRING8_LITERAL("\\\\?\\C:\\Users\\Username\\Documents\\file.txt");
-    String8 h = HLS_STRING8_LITERAL("\\\\?\\UNC\\Server\\Share\\file.txt");
-    String8 i = HLS_STRING8_LITERAL("");
-    String8 k = HLS_STRING8_LITERAL("C:\\folder\\|file.txt");
-    String8 l = HLS_STRING8_LITERAL("C:\\??\\InvalidPath");
-    String8 m = HLS_STRING8_LITERAL("//stuff");
-    String8 n = HLS_STRING8_LITERAL("//server\\share");
+        FLY_STRING8_LITERAL("\\\\?\\C:\\Users\\Username\\Documents\\file.txt");
+    String8 h = FLY_STRING8_LITERAL("\\\\?\\UNC\\Server\\Share\\file.txt");
+    String8 i = FLY_STRING8_LITERAL("");
+    String8 k = FLY_STRING8_LITERAL("C:\\folder\\|file.txt");
+    String8 l = FLY_STRING8_LITERAL("C:\\??\\InvalidPath");
+    String8 m = FLY_STRING8_LITERAL("//stuff");
+    String8 n = FLY_STRING8_LITERAL("//server\\share");
 
     EXPECT_TRUE(IsValidPathString(a));
     EXPECT_TRUE(IsValidPathString(b));
@@ -46,74 +46,74 @@ TEST(Path, Normalize)
     InitThreadContext();
     Arena& arena = GetScratchArena();
 
-    String8 a = HLS_STRING8_LITERAL(
+    String8 a = FLY_STRING8_LITERAL(
         "C:\\\\\\Users\\Username\\//Documents\\/\\file.txt");
-    String8 a2 = HLS_STRING8_LITERAL(
+    String8 a2 = FLY_STRING8_LITERAL(
         "C:\\././Users\\.\\.\\.\\Username\\Documents\\.\\file.txt");
     String8 aExpected =
-        HLS_STRING8_LITERAL("C:\\Users\\Username\\Documents\\file.txt");
+        FLY_STRING8_LITERAL("C:\\Users\\Username\\Documents\\file.txt");
     String8 aActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, a, aActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, a, aActual));
     EXPECT_TRUE(aExpected == aActual);
     String8 a2Actual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, a2, a2Actual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, a2, a2Actual));
     EXPECT_TRUE(aExpected == a2Actual);
 
-    String8 b = HLS_STRING8_LITERAL(
+    String8 b = FLY_STRING8_LITERAL(
         "\\\\?\\C:\\Users\\/Username\\Documents\\/file.txt");
     String8 bExpected =
-        HLS_STRING8_LITERAL("\\\\?\\C:\\Users\\Username\\Documents\\file.txt");
+        FLY_STRING8_LITERAL("\\\\?\\C:\\Users\\Username\\Documents\\file.txt");
     String8 bActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, b, bActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, b, bActual));
     EXPECT_TRUE(bExpected == bActual);
 
-    String8 c = HLS_STRING8_LITERAL("//server\\share");
-    String8 cExpected = HLS_STRING8_LITERAL("\\\\server\\share");
+    String8 c = FLY_STRING8_LITERAL("//server\\share");
+    String8 cExpected = FLY_STRING8_LITERAL("\\\\server\\share");
     String8 cActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, c, cActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, c, cActual));
     EXPECT_TRUE(cExpected == cActual);
 
-    String8 d = HLS_STRING8_LITERAL("../../../file2.txt");
-    String8 dExpected = HLS_STRING8_LITERAL("..\\..\\..\\file2.txt");
+    String8 d = FLY_STRING8_LITERAL("../../../file2.txt");
+    String8 dExpected = FLY_STRING8_LITERAL("..\\..\\..\\file2.txt");
     String8 dActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, d, dActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, d, dActual));
     EXPECT_TRUE(dExpected == dActual);
 
-    String8 e = HLS_STRING8_LITERAL("C:\\..\\..\\..\\file3.txt");
-    String8 eExpected = HLS_STRING8_LITERAL("C:\\file3.txt");
+    String8 e = FLY_STRING8_LITERAL("C:\\..\\..\\..\\file3.txt");
+    String8 eExpected = FLY_STRING8_LITERAL("C:\\file3.txt");
     String8 eActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, e, eActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, e, eActual));
     EXPECT_TRUE(eExpected == eActual);
 
     String8 f =
-        HLS_STRING8_LITERAL("D:/dir1/dir2/.\\../../dir3/./dir4/../file.txt");
-    String8 fExpected = HLS_STRING8_LITERAL("D:\\dir3\\file.txt");
+        FLY_STRING8_LITERAL("D:/dir1/dir2/.\\../../dir3/./dir4/../file.txt");
+    String8 fExpected = FLY_STRING8_LITERAL("D:\\dir3\\file.txt");
     String8 fActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, f, fActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, f, fActual));
     EXPECT_TRUE(fExpected == fActual);
 
-    String8 g = HLS_STRING8_LITERAL(".");
-    String8 gExpected = HLS_STRING8_LITERAL(".");
+    String8 g = FLY_STRING8_LITERAL(".");
+    String8 gExpected = FLY_STRING8_LITERAL(".");
     String8 gActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, g, gActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, g, gActual));
     EXPECT_TRUE(gExpected == gActual);
 
-    String8 h = HLS_STRING8_LITERAL("..");
-    String8 hExpected = HLS_STRING8_LITERAL("..");
+    String8 h = FLY_STRING8_LITERAL("..");
+    String8 hExpected = FLY_STRING8_LITERAL("..");
     String8 hActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, h, hActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, h, hActual));
     EXPECT_TRUE(hExpected == hActual);
 
-    String8 i = HLS_STRING8_LITERAL("dir1/..");
-    String8 iExpected = HLS_STRING8_LITERAL(".");
+    String8 i = FLY_STRING8_LITERAL("dir1/..");
+    String8 iExpected = FLY_STRING8_LITERAL(".");
     String8 iActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, i, iActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, i, iActual));
     EXPECT_TRUE(iExpected == iActual);
 
-    String8 j = HLS_STRING8_LITERAL("/file.txt");
-    String8 jExpected = HLS_STRING8_LITERAL("\\file.txt");
+    String8 j = FLY_STRING8_LITERAL("/file.txt");
+    String8 jExpected = FLY_STRING8_LITERAL("\\file.txt");
     String8 jActual;
-    EXPECT_TRUE(Hls::NormalizePathString(arena, j, jActual));
+    EXPECT_TRUE(Fly::NormalizePathString(arena, j, jActual));
     EXPECT_TRUE(jExpected == jActual);
 
     ReleaseThreadContext();
@@ -125,39 +125,39 @@ TEST(Path, Append)
     Arena& arena = GetScratchArena();
 
     Path a;
-    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("."), a));
+    EXPECT_TRUE(Fly::Path::Create(arena, FLY_STRING8_LITERAL("."), a));
     Path aa;
-    EXPECT_TRUE(Hls::Path::Append(arena, a, a, aa));
+    EXPECT_TRUE(Fly::Path::Append(arena, a, a, aa));
     printf("%s vs %s\n", a.ToCStr(), aa.ToCStr());
     EXPECT_TRUE(a == aa);
 
     Path b;
-    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("dir1/dir2"), b));
+    EXPECT_TRUE(Fly::Path::Create(arena, FLY_STRING8_LITERAL("dir1/dir2"), b));
     Path c;
-    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("..\\..\\.."), c));
+    EXPECT_TRUE(Fly::Path::Create(arena, FLY_STRING8_LITERAL("..\\..\\.."), c));
     Path d;
-    EXPECT_TRUE(Hls::Path::Create(arena, HLS_STRING8_LITERAL("../.."), d));
+    EXPECT_TRUE(Fly::Path::Create(arena, FLY_STRING8_LITERAL("../.."), d));
     Path bcExpected;
     EXPECT_TRUE(
-        Hls::Path::Create(arena, HLS_STRING8_LITERAL(".."), bcExpected));
+        Fly::Path::Create(arena, FLY_STRING8_LITERAL(".."), bcExpected));
     Path bcActual;
-    EXPECT_TRUE(Hls::Path::Append(arena, b, c, bcActual));
+    EXPECT_TRUE(Fly::Path::Append(arena, b, c, bcActual));
     EXPECT_TRUE(bcExpected == bcActual);
     Path bdActual;
-    EXPECT_TRUE(Hls::Path::Append(arena, b, d, bdActual));
+    EXPECT_TRUE(Fly::Path::Append(arena, b, d, bdActual));
     EXPECT_TRUE(a == bdActual);
 
     Path e;
     EXPECT_TRUE(
-        Hls::Path::Create(arena, HLS_STRING8_LITERAL("D:/dir1/dir2/.\\"), e));
+        Fly::Path::Create(arena, FLY_STRING8_LITERAL("D:/dir1/dir2/.\\"), e));
     Path f;
-    EXPECT_TRUE(Hls::Path::Create(
-        arena, HLS_STRING8_LITERAL("../../dir3/./dir4/../file.txt"), f));
+    EXPECT_TRUE(Fly::Path::Create(
+        arena, FLY_STRING8_LITERAL("../../dir3/./dir4/../file.txt"), f));
     Path efExpected;
-    EXPECT_TRUE(Hls::Path::Create(
-        arena, HLS_STRING8_LITERAL("D:\\dir3\\file.txt"), efExpected));
+    EXPECT_TRUE(Fly::Path::Create(
+        arena, FLY_STRING8_LITERAL("D:\\dir3\\file.txt"), efExpected));
     Path efActual;
-    EXPECT_TRUE(Hls::Path::Append(arena, e, f, efActual));
+    EXPECT_TRUE(Fly::Path::Append(arena, e, f, efActual));
     EXPECT_TRUE(efExpected == efActual);
 
     ReleaseThreadContext();

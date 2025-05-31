@@ -17,18 +17,18 @@ layout(push_constant) uniform PushConstants
 gPushConstants;
 
 layout(set = 0,
-       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
 {
     uint count;
 }
 gDrawCountBuffers[];
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, {
     uint key;
     uint value;
 })
-HLS_REGISTER_STORAGE_BUFFER(readonly, TileHistograms, { uint count; })
-HLS_REGISTER_STORAGE_BUFFER(writeonly, SortedKeys, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, TileHistograms, { uint count; })
+FLY_REGISTER_STORAGE_BUFFER(writeonly, SortedKeys, {
     uint key;
     uint value;
 })
@@ -53,7 +53,7 @@ void main()
     {
         uint keyIndex = gl_WorkGroupID.x * COUNT_TILE_SIZE + i;
         Keys keyValue = keyIndex < count
-                            ? HLS_ACCESS_STORAGE_BUFFER(
+                            ? FLY_ACCESS_STORAGE_BUFFER(
                                   Keys, gPushConstants.keyBufferIndex)[keyIndex]
                             : Keys(0xFFFFFFFFU, 0xFFFFFFFFU);
         uint keyDigit =
@@ -80,12 +80,12 @@ void main()
         }
 
         uint globalOffset =
-            HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+            FLY_ACCESS_STORAGE_BUFFER(TileHistograms,
                                       gPushConstants.tileHistogramBufferIndex)
                 [RADIX_HISTOGRAM_SIZE * gl_WorkGroupID.x + digit[i]]
                     .count;
 
-        HLS_ACCESS_STORAGE_BUFFER(SortedKeys,
+        FLY_ACCESS_STORAGE_BUFFER(SortedKeys,
                                   gPushConstants.sortedKeyBufferIndex)
         [globalOffset + rank] =
             SortedKeys(sharedKeys[i].key, sharedKeys[i].value);

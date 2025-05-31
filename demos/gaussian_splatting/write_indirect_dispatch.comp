@@ -14,21 +14,21 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
     uint vertexCount;
     uint instanceCount;
     uint firstVertex;
     uint firstInstance;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(writeonly, Dispatch, {
+FLY_REGISTER_STORAGE_BUFFER(writeonly, Dispatch, {
     uint x;
     uint y;
     uint z;
 })
 
 layout(set = 0,
-       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) readonly buffer DrawCount
 {
     uint count;
 }
@@ -40,14 +40,14 @@ void main()
         gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex].count;
     uint tileCount = (count + COUNT_WORKGROUP_SIZE - 1) / COUNT_WORKGROUP_SIZE;
 
-    HLS_ACCESS_STORAGE_BUFFER(Dispatch,
+    FLY_ACCESS_STORAGE_BUFFER(Dispatch,
                               gPushConstants.indirectDispatchBufferIndex)
     [0] = Dispatch(tileCount, 1, 1);
-    HLS_ACCESS_STORAGE_BUFFER(Dispatch,
+    FLY_ACCESS_STORAGE_BUFFER(Dispatch,
                               gPushConstants.indirectDispatchBufferIndex)
     [1] = Dispatch(RADIX_HISTOGRAM_SIZE, 1, 1);
 
-    HLS_ACCESS_STORAGE_BUFFER(DrawCommand,
+    FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
                               gPushConstants.indirectDrawBufferIndex)
     [0] = DrawCommand(6, count, 0, 0);
 }

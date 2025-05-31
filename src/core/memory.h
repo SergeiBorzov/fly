@@ -1,10 +1,10 @@
-#ifndef HLS_CORE_MEMORY_H
-#define HLS_CORE_MEMORY_H
+#ifndef FLY_CORE_MEMORY_H
+#define FLY_CORE_MEMORY_H
 
 #include "types.h"
 #include <string.h> // for memset
 
-namespace Hls
+namespace Fly
 {
 
 inline void* MemZero(void* p, u64 size) { return memset(p, 0, size); }
@@ -20,6 +20,6 @@ void* Realloc(void* p, u64 newSize);
 void* ReallocAligned(void* p, u64 newSize, u32 alignment);
 void Free(void* p);
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_CORE_MEMORY_H */
+#endif /* FLY_CORE_MEMORY_H */

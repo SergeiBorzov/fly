@@ -13,12 +13,12 @@ layout(location = 1) in vec3 inColor;
 
 layout(location = 0) out vec4 outFragColor;
 
-HLS_REGISTER_TEXTURE_BUFFER(Texture, sampler2D)
+FLY_REGISTER_TEXTURE_BUFFER(Texture, sampler2D)
 
 void main()
 {
     outFragColor =
-        texture(HLS_ACCESS_TEXTURE_BUFFER(Texture, gIndices.textureIndex),
+        texture(FLY_ACCESS_TEXTURE_BUFFER(Texture, gIndices.textureIndex),
                 inUVs) *
         vec4(inColor, 1.0f);
 }

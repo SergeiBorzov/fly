@@ -1,11 +1,11 @@
-#ifndef HLS_MATH_QUAT_H
-#define HLS_MATH_QUAT_H
+#ifndef FLY_MATH_QUAT_H
+#define FLY_MATH_QUAT_H
 
 #include "core/assert.h"
 
 #include "vec.h"
 
-namespace Hls
+namespace Fly
 {
 
 namespace Math
@@ -64,8 +64,8 @@ inline Quat Conjugate(Quat q) { return Quat(-q.x, -q.y, -q.z, q.w); }
 
 inline Quat Normalize(Quat v)
 {
-    if (Abs(v.x) < HLS_MATH_EPSILON && Abs(v.y) < HLS_MATH_EPSILON &&
-        Abs(v.z) < HLS_MATH_EPSILON && Abs(v.w) < HLS_MATH_EPSILON)
+    if (Abs(v.x) < FLY_MATH_EPSILON && Abs(v.y) < FLY_MATH_EPSILON &&
+        Abs(v.z) < FLY_MATH_EPSILON && Abs(v.w) < FLY_MATH_EPSILON)
     {
         return Quat(0.0f, 0.0f, 0.0f, 0.0f);
     }
@@ -85,6 +85,6 @@ inline Quat AngleAxis(Vec3 axis, f32 degrees)
 
 } // namespace Math
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_MATH_QUAT_H */
+#endif /* FLY_MATH_QUAT_H */

@@ -12,7 +12,7 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-HLS_REGISTER_UNIFORM_BUFFER(Camera, {
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
     vec4 viewport;
@@ -20,7 +20,7 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     vec4 time;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Splat, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, Splat, {
     vec4 rotation;
     vec3 position;
     float r;
@@ -63,14 +63,14 @@ const vec2 positions[6] =
 
 void main()
 {
-    mat4 projection = HLS_ACCESS_UNIFORM_BUFFER(
+    mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, projection);
-    mat4 view = HLS_ACCESS_UNIFORM_BUFFER(
+    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
-    vec4 viewport = HLS_ACCESS_UNIFORM_BUFFER(
+    vec4 viewport = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, viewport);
 
-    Splat splat = HLS_ACCESS_STORAGE_BUFFER(
+    Splat splat = FLY_ACCESS_STORAGE_BUFFER(
         Splat, gPushConstants.splatBufferIndex)[gl_InstanceIndex];
 
     vec4 q = normalize(vec4(splat.rotation.x, splat.rotation.y,

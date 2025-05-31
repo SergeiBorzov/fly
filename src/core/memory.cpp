@@ -1,7 +1,7 @@
 #include "memory.h"
 #include <mimalloc.h>
 
-namespace Hls
+namespace Fly
 {
 void* Alloc(u64 size) { return mi_malloc(size); }
 
@@ -18,4 +18,4 @@ void* ReallocAligned(void* p, u64 newSize, u32 alignment)
 }
 
 void Free(void* p) { mi_free(p); }
-} // namespace Hls
+} // namespace Fly

@@ -1,10 +1,10 @@
-#ifndef HLS_ASSETS_IMPORT_OBJ_H
-#define HLS_ASSETS_IMPORT_OBJ_H
+#ifndef FLY_ASSETS_IMPORT_OBJ_H
+#define FLY_ASSETS_IMPORT_OBJ_H
 
 #include "math/vec.h"
 #include "core/filesystem.h"
 
-namespace Hls
+namespace Fly
 {
 
 struct ObjImportSettings
@@ -93,6 +93,6 @@ bool ImportWavefrontObj(const Path& path, const ObjImportSettings& settings,
                         ObjData& objData);
 void FreeWavefrontObj(ObjData& objData);
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* End of HLS_ASSETS_IMPORT_OBJ_H */
+#endif /* End of FLY_ASSETS_IMPORT_OBJ_H */

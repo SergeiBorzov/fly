@@ -1,16 +1,16 @@
-#ifndef HLS_MEMORY_ARENA_H
-#define HLS_MEMORY_ARENA_H
+#ifndef FLY_MEMORY_ARENA_H
+#define FLY_MEMORY_ARENA_H
 
 #include "types.h"
 
-#define HLS_ALLOC(arena, T, count)                                             \
+#define FLY_ALLOC(arena, T, count)                                             \
     static_cast<T*>(ArenaPushAligned(arena, sizeof(T) * count, alignof(T)))
-#define HLS_ALLOC_ALIGNED(arena, T, count, align)                              \
+#define FLY_ALLOC_ALIGNED(arena, T, count, align)                              \
     static_cast<T*>(ArenaPushAligned(arena, sizeof(T) * count, align))
 
-#define HLS_SIZE_KB(i) (1024ull * i)
-#define HLS_SIZE_MB(i) (1024ull * 1024ull * i)
-#define HLS_SIZE_GB(i) (1024ull * 1024ull * 1024ull * i)
+#define FLY_SIZE_KB(i) (1024ull * i)
+#define FLY_SIZE_MB(i) (1024ull * 1024ull * i)
+#define FLY_SIZE_GB(i) (1024ull * 1024ull * 1024ull * i)
 
 struct ArenaMarker
 {
@@ -41,4 +41,4 @@ void ArenaPopToMarker(Arena& arena, ArenaMarker marker);
 void ArenaReset(Arena& arena);
 void* ArenaUnwrapPtr(void* ptr);
 
-#endif /* HLS_MEMORY_ARENA_H */
+#endif /* FLY_MEMORY_ARENA_H */

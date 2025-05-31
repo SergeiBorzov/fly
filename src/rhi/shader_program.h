@@ -1,11 +1,11 @@
-#ifndef HLS_RHI_SHADER_PROGRAM_H
-#define HLS_RHI_SHADER_PROGRAM_H
+#ifndef FLY_RHI_SHADER_PROGRAM_H
+#define FLY_RHI_SHADER_PROGRAM_H
 
 #include "core/assert.h"
 #include "core/types.h"
 #include <volk.h>
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -37,14 +37,14 @@ struct ShaderProgram
     inline Shader& operator[](Shader::Type type)
     {
         u32 index = static_cast<u32>(type);
-        HLS_ASSERT(index < static_cast<u32>(Shader::Type::Count));
+        FLY_ASSERT(index < static_cast<u32>(Shader::Type::Count));
         return shaders[index];
     }
 
     inline const Shader& operator[](Shader::Type type) const
     {
         u32 index = static_cast<u32>(type);
-        HLS_ASSERT(index < static_cast<u32>(Shader::Type::Count));
+        FLY_ASSERT(index < static_cast<u32>(Shader::Type::Count));
         return shaders[index];
     }
 
@@ -53,6 +53,6 @@ private:
 };
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* End of HLS_RHI_SHADER_PROGRAM_H */
+#endif /* End of FLY_RHI_SHADER_PROGRAM_H */

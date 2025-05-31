@@ -1,7 +1,7 @@
 #include "mat.h"
 #include "functions.h"
 
-namespace Hls
+namespace Fly
 {
 namespace Math
 {
@@ -20,7 +20,7 @@ Mat4::Mat4(f32 value)
 
 Mat4::Mat4(const f32* values, u32 valueCount)
 {
-    HLS_ASSERT(valueCount == 16);
+    FLY_ASSERT(valueCount == 16);
     for (i32 i = 0; i < 16; i++)
     {
         data[i] = values[i];
@@ -221,4 +221,4 @@ Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
 }
 
 } // namespace Math
-} // namespace Hls
+} // namespace Fly

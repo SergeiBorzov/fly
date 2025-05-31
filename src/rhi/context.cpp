@@ -22,13 +22,13 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationLayerCallbackFunc(
 {
     if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        HLS_DEBUG_LOG("%s", callbackData->pMessage);
+        FLY_DEBUG_LOG("%s", callbackData->pMessage);
     }
     return VK_FALSE;
 }
 #endif
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -80,7 +80,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     if (availableInstanceLayerCount > 0)
     {
         availableInstanceLayers =
-            HLS_ALLOC(arena, VkLayerProperties, availableInstanceLayerCount);
+            FLY_ALLOC(arena, VkLayerProperties, availableInstanceLayerCount);
         vkEnumerateInstanceLayerProperties(&availableInstanceLayerCount,
                                            availableInstanceLayers);
     }
@@ -92,7 +92,7 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
         nullptr, &availableInstanceExtensionCount, nullptr);
     if (availableInstanceExtensionCount > 0)
     {
-        availableInstanceExtensions = HLS_ALLOC(
+        availableInstanceExtensions = FLY_ALLOC(
             arena, VkExtensionProperties, availableInstanceExtensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr,
                                                &availableInstanceExtensionCount,
@@ -104,13 +104,13 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     const char** totalLayers = instanceLayers;
 #ifndef NDEBUG
     totalLayerCount += 1;
-    totalLayers = HLS_ALLOC(arena, const char*, totalLayerCount);
+    totalLayers = FLY_ALLOC(arena, const char*, totalLayerCount);
     for (u32 i = 0; i < instanceLayerCount; i++)
     {
-        HLS_LOG("Requested instance layer %s", instanceLayers[i]);
+        FLY_LOG("Requested instance layer %s", instanceLayers[i]);
         totalLayers[i] = instanceLayers[i];
     }
-    HLS_DEBUG_LOG(
+    FLY_DEBUG_LOG(
         "Adding VK_LAYER_KHRONOS_validation to list of instance layers");
     totalLayers[instanceLayerCount] = "VK_LAYER_KHRONOS_validation";
 #endif
@@ -119,8 +119,8 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
         if (!IsLayerSupported(availableInstanceLayers,
                               availableInstanceLayerCount, totalLayers[i]))
         {
-            HLS_LOG("A");
-            HLS_ERROR("Following required instance layer %s is not present",
+            FLY_LOG("A");
+            FLY_ERROR("Following required instance layer %s is not present",
                       totalLayers[i]);
             return false;
         }
@@ -132,13 +132,13 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
 #ifndef NDEBUG
 
     totalExtensionCount += 1;
-    totalExtensions = HLS_ALLOC(arena, const char*, totalExtensionCount);
+    totalExtensions = FLY_ALLOC(arena, const char*, totalExtensionCount);
     for (u32 i = 0; i < instanceExtensionCount; i++)
     {
-        HLS_LOG("Requested instance extension %s", instanceExtensions[i]);
+        FLY_LOG("Requested instance extension %s", instanceExtensions[i]);
         totalExtensions[i] = instanceExtensions[i];
     }
-    HLS_DEBUG_LOG("Adding VK_EXT_debug_utils to list of instance extensions");
+    FLY_DEBUG_LOG("Adding VK_EXT_debug_utils to list of instance extensions");
     totalExtensions[instanceExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 #endif
     for (u32 i = 0; i < totalExtensionCount; i++)
@@ -147,8 +147,8 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
                                   availableInstanceExtensionCount,
                                   totalExtensions[i]))
         {
-            HLS_LOG("B");
-            HLS_ERROR("Following required extension %s is not present",
+            FLY_LOG("B");
+            FLY_ERROR("Following required extension %s is not present",
                       totalExtensions[i]);
             return false;
         }
@@ -197,10 +197,10 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
 
     if (result != VK_SUCCESS)
     {
-        HLS_LOG("Failed code %d", static_cast<i32>(result));
+        FLY_LOG("Failed code %d", static_cast<i32>(result));
         return false;
     }
-    HLS_DEBUG_LOG("Created vulkan instance");
+    FLY_DEBUG_LOG("Created vulkan instance");
 
     volkLoadInstance(instance);
     context.instance = instance;
@@ -242,8 +242,8 @@ static VkSurfaceFormatKHR
 DefaultDetermineSurfaceFormat(const VkSurfaceFormatKHR* surfaceFormats,
                               u32 surfaceFormatCount)
 {
-    HLS_ASSERT(surfaceFormats);
-    HLS_ASSERT(surfaceFormatCount > 0);
+    FLY_ASSERT(surfaceFormats);
+    FLY_ASSERT(surfaceFormatCount > 0);
 
     VkSurfaceFormatKHR fallbackFormat = surfaceFormats[0];
 
@@ -263,8 +263,8 @@ static VkPresentModeKHR
 DefaultDeterminePresentMode(const VkPresentModeKHR* presentModes,
                             u32 presentModeCount)
 {
-    HLS_ASSERT(presentModes);
-    HLS_ASSERT(presentModeCount > 0);
+    FLY_ASSERT(presentModes);
+    FLY_ASSERT(presentModeCount > 0);
 
     VkPresentModeKHR fallbackPresentMode = VK_PRESENT_MODE_FIFO_KHR;
     for (u32 i = 0; i < presentModeCount; i++)
@@ -283,7 +283,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
                                 VkPhysicalDevice* physicalDevices,
                                 u32 physicalDeviceCount)
 {
-    HLS_ASSERT(physicalDevices);
+    FLY_ASSERT(physicalDevices);
 
     if (physicalDeviceCount == 0)
     {
@@ -291,7 +291,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
     }
 
     PhysicalDeviceInfo* physicalDeviceInfos =
-        HLS_ALLOC(arena, PhysicalDeviceInfo, physicalDeviceCount);
+        FLY_ALLOC(arena, PhysicalDeviceInfo, physicalDeviceCount);
 
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
@@ -311,7 +311,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
         if (info.extensionCount > 0)
         {
             info.extensions =
-                HLS_ALLOC(arena, VkExtensionProperties, info.extensionCount);
+                FLY_ALLOC(arena, VkExtensionProperties, info.extensionCount);
             vkEnumerateDeviceExtensionProperties(
                 physicalDevice, nullptr, &info.extensionCount, info.extensions);
         }
@@ -328,7 +328,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
                 nullptr);
             if (info.surfaceFormatCount > 0)
             {
-                info.surfaceFormats = HLS_ALLOC(arena, VkSurfaceFormatKHR,
+                info.surfaceFormats = FLY_ALLOC(arena, VkSurfaceFormatKHR,
                                                 info.surfaceFormatCount);
                 vkGetPhysicalDeviceSurfaceFormatsKHR(
                     physicalDevice, context.surface, &info.surfaceFormatCount,
@@ -342,7 +342,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             if (info.presentModeCount > 0)
             {
                 info.presentModes =
-                    HLS_ALLOC(arena, VkPresentModeKHR, info.presentModeCount);
+                    FLY_ALLOC(arena, VkPresentModeKHR, info.presentModeCount);
                 vkGetPhysicalDeviceSurfacePresentModesKHR(
                     physicalDevice, context.surface, &info.presentModeCount,
                     info.presentModes);
@@ -392,7 +392,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             physicalDevice, &info.queueFamilyCount, nullptr);
         if (info.queueFamilyCount > 0)
         {
-            info.queueFamilies = HLS_ALLOC(arena, VkQueueFamilyProperties,
+            info.queueFamilies = FLY_ALLOC(arena, VkQueueFamilyProperties,
                                            info.queueFamilyCount);
             vkGetPhysicalDeviceQueueFamilyProperties(
                 physicalDevice, &info.queueFamilyCount, info.queueFamilies);
@@ -898,7 +898,7 @@ static void
 LogDetectedPhysicalDevices(const PhysicalDeviceInfo* physicalDeviceInfos,
                            u32 physicalDeviceCount)
 {
-    HLS_LOG("List of physical devices detected:");
+    FLY_LOG("List of physical devices detected:");
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         const PhysicalDeviceInfo& info = physicalDeviceInfos[i];
@@ -917,7 +917,7 @@ LogDetectedPhysicalDevices(const PhysicalDeviceInfo* physicalDeviceInfos,
         const char* physicalDeviceType =
             PhysicalDeviceTypeToString(info.properties.deviceType);
 
-        HLS_LOG("[%u] - %s -- %s -- VRAM %llu MB", i + 1,
+        FLY_LOG("[%u] - %s -- %s -- VRAM %llu MB", i + 1,
                 info.properties.deviceName, physicalDeviceType, totalMemory);
     }
 }
@@ -952,12 +952,12 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
     vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount, nullptr);
     if (physicalDeviceCount == 0)
     {
-        HLS_ERROR("No physical devices detected");
+        FLY_ERROR("No physical devices detected");
         return false;
     }
 
     VkPhysicalDevice* physicalDevices =
-        HLS_ALLOC(arena, VkPhysicalDevice, physicalDeviceCount);
+        FLY_ALLOC(arena, VkPhysicalDevice, physicalDeviceCount);
     vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount,
                                physicalDevices);
     const PhysicalDeviceInfo* physicalDeviceInfos =
@@ -967,7 +967,7 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
     LogDetectedPhysicalDevices(physicalDeviceInfos, physicalDeviceCount);
 
     u32 suitableDeviceCount = 0;
-    Device* suitableDevices = HLS_ALLOC(arena, Device, physicalDeviceCount);
+    Device* suitableDevices = FLY_ALLOC(arena, Device, physicalDeviceCount);
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         suitableDevices[i] = {};
@@ -1067,11 +1067,11 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
     }
 
     context.deviceCount =
-        MIN(HLS_PHYSICAL_DEVICE_MAX_COUNT, suitableDeviceCount);
+        MIN(FLY_PHYSICAL_DEVICE_MAX_COUNT, suitableDeviceCount);
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         context.devices[i] = suitableDevices[i];
-        HLS_LOG("Following physical device is suitable and selected - %s",
+        FLY_LOG("Following physical device is suitable and selected - %s",
                 context.devices[i].name);
     }
 
@@ -1084,7 +1084,7 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
 /////////////////////////////////////////////////////////////////////////////
 bool CreateContext(ContextSettings& settings, Context& context)
 {
-    HLS_LOG("Trying to create instance");
+    FLY_LOG("Trying to create instance");
     if (!CreateInstance(settings.instanceLayers, settings.instanceLayerCount,
                         settings.instanceExtensions,
                         settings.instanceExtensionCount, context))
@@ -1096,7 +1096,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
 
     if (context.windowPtr && !CreateSurface(context))
     {
-        HLS_LOG("Failed to create surface");
+        FLY_LOG("Failed to create surface");
         return false;
     }
 
@@ -1179,7 +1179,7 @@ void DestroyContext(Context& context)
     }
 
     vkDestroyInstance(context.instance, GetVulkanAllocationCallbacks());
-    HLS_DEBUG_LOG("Vulkan instance is destroyed");
+    FLY_DEBUG_LOG("Vulkan instance is destroyed");
 }
 
 void WaitAllDevicesIdle(Context& context)
@@ -1191,4 +1191,4 @@ void WaitAllDevicesIdle(Context& context)
 }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

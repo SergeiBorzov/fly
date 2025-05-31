@@ -3,7 +3,7 @@
 #include "arena.h"
 #include "string8.h"
 
-namespace Hls
+namespace Fly
 {
 
 bool CharIsAlpha(i32 c)
@@ -124,7 +124,7 @@ String8 String8::FindLast(String8 str, i32 character)
 char* String8::CopyNullTerminate(Arena& arena, String8 str)
 {
     bool isNullTerminated = str[str.Size() - 1] == '\0';
-    char* copyData = HLS_ALLOC(arena, char, str.Size() + !isNullTerminated);
+    char* copyData = FLY_ALLOC(arena, char, str.Size() + !isNullTerminated);
     memcpy(copyData, str.Data(), str.Size());
     if (!isNullTerminated)
     {
@@ -305,4 +305,4 @@ bool String8::ParseU64(String8 str, u64& res)
     return true;
 }
 
-} // namespace Hls
+} // namespace Fly

@@ -1,12 +1,12 @@
-#ifndef HLS_RHI_BUFFER_H
-#define HLS_RHI_BUFFER_H
+#ifndef FLY_RHI_BUFFER_H
+#define FLY_RHI_BUFFER_H
 
 #include <volk.h>
 
 #include "core/types.h"
 #include "vma.h"
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -18,7 +18,7 @@ struct Buffer
     VmaAllocationInfo allocationInfo;
     VkBuffer handle = VK_NULL_HANDLE;
     VmaAllocation allocation;
-    u32 bindlessHandle = HLS_MAX_U32;
+    u32 bindlessHandle = FLY_MAX_U32;
 };
 
 inline void* BufferMappedPtr(Buffer& buffer) { return buffer.allocationInfo.pMappedData; }
@@ -38,6 +38,6 @@ bool CreateIndirectBuffer(Device& device, bool hostVisible, const void* data,
                           u64 size, Buffer& buffer);
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_RHI_BUFFER_H */
+#endif /* FLY_RHI_BUFFER_H */

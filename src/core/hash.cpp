@@ -3,14 +3,14 @@
 
 #define HASH_SEED 2025
 
-namespace Hls
+namespace Fly
 {
 
 u64 Hash64(void* data, u64 size)
 {
-    HLS_ASSERT(data);
-    HLS_ASSERT(size > 0);
+    FLY_ASSERT(data);
+    FLY_ASSERT(size > 0);
     return XXH64(data, size, HASH_SEED);
 }
 
-} // namespace Hls
+} // namespace Fly

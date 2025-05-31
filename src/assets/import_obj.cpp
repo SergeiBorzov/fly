@@ -22,12 +22,12 @@ static const f64 sPowerNeg[20] = {
     1.0e-14, 1.0e-15, 1.0e-16, 1.0e-17, 1.0e-18, 1.0e-19,
 };
 
-namespace Hls
+namespace Fly
 {
 
 static const char* SkipWhitespace(const char* ptr)
 {
-    while (Hls::CharIsWhitespace(*ptr))
+    while (Fly::CharIsWhitespace(*ptr))
         ptr++;
 
     return ptr;
@@ -121,7 +121,7 @@ static Math::Vec3& GetNextVertex(ObjData& objData)
 {
     if (objData.vertexCount >= objData.vertexCapacity)
     {
-        objData.vertices = static_cast<Math::Vec3*>(Hls::Realloc(
+        objData.vertices = static_cast<Math::Vec3*>(Fly::Realloc(
             objData.vertices, sizeof(Math::Vec3) * objData.vertexCapacity * 2));
         objData.vertexCapacity *= 2;
     }
@@ -132,7 +132,7 @@ static Math::Vec3& GetNextNormal(ObjData& objData)
 {
     if (objData.normalCount >= objData.normalCapacity)
     {
-        objData.normals = static_cast<Math::Vec3*>(Hls::Realloc(
+        objData.normals = static_cast<Math::Vec3*>(Fly::Realloc(
             objData.normals, sizeof(Math::Vec3) * objData.normalCapacity * 2));
         objData.normalCapacity *= 2;
     }
@@ -144,7 +144,7 @@ static Math::Vec2& GetNextTexCoord(ObjData& objData)
     if (objData.texCoordCount >= objData.texCoordCapacity)
     {
         objData.texCoords = static_cast<Math::Vec2*>(
-            Hls::Realloc(objData.texCoords,
+            Fly::Realloc(objData.texCoords,
                          sizeof(Math::Vec2) * objData.texCoordCapacity * 2));
         objData.texCoordCapacity *= 2;
     }
@@ -156,7 +156,7 @@ static ObjData::Shape& GetNextShape(ObjData& objData)
     if (objData.shapeCount >= objData.shapeCapacity)
     {
         objData.shapes = static_cast<ObjData::Shape*>(
-            Hls::Realloc(objData.shapes,
+            Fly::Realloc(objData.shapes,
                          sizeof(ObjData::Shape) * objData.shapeCapacity * 2));
         objData.shapeCapacity *= 2;
     }
@@ -167,7 +167,7 @@ static ObjData::Face& GetNextFace(ObjData& objData)
 {
     if (objData.faceCount >= objData.faceCapacity)
     {
-        objData.faces = static_cast<ObjData::Face*>(Hls::Realloc(
+        objData.faces = static_cast<ObjData::Face*>(Fly::Realloc(
             objData.faces, sizeof(ObjData::Face) * objData.faceCapacity * 2));
         objData.faceCapacity *= 2;
     }
@@ -179,7 +179,7 @@ static ObjData::Material& GetNextMaterial(ObjData& objData)
     if (objData.materialCount >= objData.materialCapacity)
     {
         objData.materials = static_cast<ObjData::Material*>(
-            Hls::Realloc(objData.materials, sizeof(ObjData::Material) *
+            Fly::Realloc(objData.materials, sizeof(ObjData::Material) *
                                                 objData.materialCapacity * 2));
         objData.materialCapacity *= 2;
     }
@@ -191,7 +191,7 @@ static const char*& GetNextTexture(ObjData& objData)
     if (objData.textureCount >= objData.textureCapacity)
     {
         objData.textures = static_cast<const char**>(
-            Hls::Realloc(objData.textures,
+            Fly::Realloc(objData.textures,
                          sizeof(const char*) * objData.textureCapacity * 2));
         objData.textureCapacity *= 2;
     }
@@ -394,7 +394,7 @@ static const char* ParseTexture(const char* ptr, ObjData& objData,
     }
 
     u32 count = static_cast<u32>(ptr - start);
-    char* str = static_cast<char*>(Hls::Alloc(sizeof(char) * count + 1));
+    char* str = static_cast<char*>(Fly::Alloc(sizeof(char) * count + 1));
     strncpy(str, start, count);
     str[count] = '\0';
 
@@ -416,7 +416,7 @@ static const char* ParseTexture(const char* ptr, ObjData& objData,
     }
     else
     {
-        Hls::Free(str);
+        Fly::Free(str);
     }
 
     textureHandle = index;
@@ -500,7 +500,7 @@ static const char* ParseMtlLib(const char* ptr, ObjData& objData)
             {
                 p++;
                 if (p[0] == 'e' && p[1] == 'w' && p[2] == 'm' && p[3] == 't' &&
-                    p[4] == 'l' && Hls::CharIsWhitespace(p[5]))
+                    p[4] == 'l' && Fly::CharIsWhitespace(p[5]))
                 {
                     p = ParseMaterialName(p + 5, objData);
                     isAlphaPresent = false;
@@ -700,37 +700,37 @@ bool ParseObj(String8 str, const ObjImportSettings& settings, ObjData& objData)
     objData.vertexCount = 0;
     objData.vertexCapacity = 131136;
     objData.vertices = static_cast<Math::Vec3*>(
-        Hls::Alloc(sizeof(Math::Vec3) * objData.vertexCapacity));
+        Fly::Alloc(sizeof(Math::Vec3) * objData.vertexCapacity));
 
     objData.normalCount = 0;
     objData.normalCapacity = 131136;
     objData.normals = static_cast<Math::Vec3*>(
-        Hls::Alloc(sizeof(Math::Vec3) * objData.normalCapacity));
+        Fly::Alloc(sizeof(Math::Vec3) * objData.normalCapacity));
 
     objData.texCoordCount = 0;
     objData.texCoordCapacity = 131136;
     objData.texCoords = static_cast<Math::Vec2*>(
-        Hls::Alloc(sizeof(Math::Vec2) * objData.texCoordCapacity));
+        Fly::Alloc(sizeof(Math::Vec2) * objData.texCoordCapacity));
 
     objData.faceCount = 0;
     objData.faceCapacity = 131136;
     objData.faces = static_cast<ObjData::Face*>(
-        Hls::Alloc(sizeof(ObjData::Face) * objData.faceCapacity));
+        Fly::Alloc(sizeof(ObjData::Face) * objData.faceCapacity));
 
     objData.shapeCount = 0;
     objData.shapeCapacity = 256;
     objData.shapes = static_cast<ObjData::Shape*>(
-        Hls::Alloc(sizeof(ObjData::Shape) * objData.shapeCapacity));
+        Fly::Alloc(sizeof(ObjData::Shape) * objData.shapeCapacity));
 
     objData.materialCount = 0;
     objData.materialCapacity = 64;
     objData.materials = static_cast<ObjData::Material*>(
-        Hls::Alloc(sizeof(ObjData::Material) * objData.materialCapacity));
+        Fly::Alloc(sizeof(ObjData::Material) * objData.materialCapacity));
 
     objData.textureCount = 0;
     objData.textureCapacity = 64;
     objData.textures = static_cast<const char**>(
-        Hls::Alloc(sizeof(const char*) * objData.textureCapacity));
+        Fly::Alloc(sizeof(const char*) * objData.textureCapacity));
 
     const char* p = str.Data();
     const char* end = str.Data() + str.Size();
@@ -849,7 +849,7 @@ bool ParseObj(String8 str, const ObjImportSettings& settings, ObjData& objData)
             {
                 p++;
                 if (p[0] == 't' && p[1] == 'l' && p[2] == 'l' && p[3] == 'i' &&
-                    p[4] == 'b' && Hls::CharIsWhitespace(p[5]))
+                    p[4] == 'b' && Fly::CharIsWhitespace(p[5]))
                 {
                     p = ParseMtlLib(p + 5, objData);
                 }
@@ -936,14 +936,14 @@ void FreeWavefrontObj(ObjData& objData)
 {
     for (u32 i = 0; i < objData.textureCount; i++)
     {
-        Hls::Free((void*)objData.textures[i]);
+        Fly::Free((void*)objData.textures[i]);
     }
-    Hls::Free(objData.textures);
-    Hls::Free(objData.vertices);
-    Hls::Free(objData.normals);
-    Hls::Free(objData.texCoords);
-    Hls::Free(objData.faces);
-    Hls::Free(objData.shapes);
+    Fly::Free(objData.textures);
+    Fly::Free(objData.vertices);
+    Fly::Free(objData.normals);
+    Fly::Free(objData.texCoords);
+    Fly::Free(objData.faces);
+    Fly::Free(objData.shapes);
 }
 
-} // namespace Hls
+} // namespace Fly

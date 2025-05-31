@@ -23,10 +23,10 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
-    HLS_ERROR("GLFW - error: %s", description);
+    FLY_ERROR("GLFW - error: %s", description);
 }
 
-using namespace Hls;
+using namespace Fly;
 static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
@@ -74,14 +74,14 @@ int main(int argc, char* argv[])
 
     if (volkInitialize() != VK_SUCCESS)
     {
-        HLS_ERROR("Failed to load volk");
+        FLY_ERROR("Failed to load volk");
         return -1;
     }
     glfwInitVulkanLoader(vkGetInstanceProcAddr);
 
     if (!glfwInit())
     {
-        HLS_ERROR("Failed to init glfw");
+        FLY_ERROR("Failed to init glfw");
         return -1;
     }
     glfwSetErrorCallback(ErrorCallbackGLFW);
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
     GLFWwindow* window = glfwCreateWindow(640, 480, "Window", nullptr, nullptr);
     if (!window)
     {
-        HLS_ERROR("Failed to create glfw window");
+        FLY_ERROR("Failed to create glfw window");
         glfwTerminate();
         return -1;
     }
@@ -109,19 +109,19 @@ int main(int argc, char* argv[])
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
     {
-        HLS_ERROR("Failed to create context");
+        FLY_ERROR("Failed to create context");
         return -1;
     }
 
     RHI::Device& device = context.devices[0];
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Hls::LoadShaderFromSpv(device, "triangle.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, "triangle.vert.spv",
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return -1;
     }
-    if (!Hls::LoadShaderFromSpv(device, "triangle.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, "triangle.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return -1;
@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      graphicsPipeline))
     {
-        HLS_ERROR("Failed to create graphics pipeline");
+        FLY_ERROR("Failed to create graphics pipeline");
         return -1;
     }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
 
     glfwDestroyWindow(window);
     glfwTerminate();
-    HLS_LOG("Shutdown successful");
+    FLY_LOG("Shutdown successful");
     ShutdownLogger();
 
     ReleaseThreadContext();

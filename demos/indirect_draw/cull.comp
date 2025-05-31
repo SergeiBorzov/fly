@@ -17,7 +17,7 @@ layout(push_constant) uniform Indices
 }
 gIndices;
 
-HLS_REGISTER_UNIFORM_BUFFER(Camera, {
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
     mat4 cullView;
@@ -27,26 +27,26 @@ HLS_REGISTER_UNIFORM_BUFFER(Camera, {
     float far;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, InstanceData, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, InstanceData, {
     mat4 model;
     uint meshDataIndex;
     uint pad[3];
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
     uint materialIndex;
     uint vertexBufferIndex;
     uint boundingSphereDrawIndex;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, BoundingSphereDraw, {
+FLY_REGISTER_STORAGE_BUFFER(readonly, BoundingSphereDraw, {
     vec3 center;
     float radius;
     uint indexCount;
     uint indexOffset;
 })
 
-HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
@@ -55,7 +55,7 @@ HLS_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
 })
 
 layout(set = 0,
-       binding = HLS_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
 {
     uint count;
 }
@@ -70,21 +70,21 @@ void main()
     }
 
     mat4 cullView =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, cullView);
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, cullView);
     float hTanX =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, hTanX);
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, hTanX);
     float hTanY =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, hTanY);
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, hTanY);
     float near =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, near);
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, near);
     float far =
-        HLS_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, far);
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, far);
 
-    InstanceData instance = HLS_ACCESS_STORAGE_BUFFER(
+    InstanceData instance = FLY_ACCESS_STORAGE_BUFFER(
         InstanceData, gIndices.instanceDataBufferIndex)[index];
-    MeshData meshData = HLS_ACCESS_STORAGE_BUFFER(
+    MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
         MeshData, gIndices.meshDataBufferIndex)[instance.meshDataIndex];
-    BoundingSphereDraw sphereDraw = HLS_ACCESS_STORAGE_BUFFER(
+    BoundingSphereDraw sphereDraw = FLY_ACCESS_STORAGE_BUFFER(
         BoundingSphereDraw,
         gIndices
             .boundingSphereDrawBufferIndex)[meshData.boundingSphereDrawIndex];
@@ -102,7 +102,7 @@ void main()
     {
         uint drawIndex = atomicAdd(
             gDrawCountBuffers[gIndices.drawCountBufferIndex].count, 1);
-        HLS_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.drawCommandBufferIndex)
+        FLY_ACCESS_STORAGE_BUFFER(DrawCommand, gIndices.drawCommandBufferIndex)
         [drawIndex] = DrawCommand(sphereDraw.indexCount, 1,
                                   sphereDraw.indexOffset, 0, index);
     }

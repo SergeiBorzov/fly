@@ -1,5 +1,5 @@
-#ifndef HLS_CORE_THREAD_CONTEXT_H
-#define HLS_CORE_THREAD_CONTEXT_H
+#ifndef FLY_CORE_THREAD_CONTEXT_H
+#define FLY_CORE_THREAD_CONTEXT_H
 
 #include "arena.h"
 
@@ -14,4 +14,4 @@ ThreadContext& GetThreadContext();
 
 Arena& GetScratchArena(Arena* conflict = nullptr);
 
-#endif /* HLS_CORE_THREAD_CONTEXT */
+#endif /* FLY_CORE_THREAD_CONTEXT */

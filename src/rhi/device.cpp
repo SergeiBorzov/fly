@@ -12,7 +12,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define CLAMP(v, min, max) MAX(MIN(v, max), min)
 
-#define HLS_DESCRIPTOR_MAX_COUNT 100000
+#define FLY_DESCRIPTOR_MAX_COUNT 100000
 
 static const char* PresentModeToString(VkPresentModeKHR presentMode)
 {
@@ -173,7 +173,7 @@ static const char* ColorSpaceToString(VkColorSpaceKHR colorSpace)
     }
 }
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -183,7 +183,7 @@ namespace RHI
 /////////////////////////////////////////////////////////////////////////////
 static bool CreateSwapchainImageViews(Device& device)
 {
-    HLS_ASSERT(device.context->windowPtr);
+    FLY_ASSERT(device.context->windowPtr);
     // Create swapchain image views
     for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
@@ -215,7 +215,7 @@ static bool CreateSwapchainImageViews(Device& device)
 
 static void DestroySwapchainImageViews(Device& device)
 {
-    HLS_ASSERT(device.context->windowPtr);
+    FLY_ASSERT(device.context->windowPtr);
 
     for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
@@ -227,8 +227,8 @@ static void DestroySwapchainImageViews(Device& device)
 
 static bool CreateMainDepthTexture(Device& device)
 {
-    HLS_ASSERT(device.context);
-    HLS_ASSERT(device.context->windowPtr);
+    FLY_ASSERT(device.context);
+    FLY_ASSERT(device.context->windowPtr);
 
     i32 width = 0;
     i32 height = 0;
@@ -266,8 +266,8 @@ static void DestroyMainDepthTexture(Device& device)
 static bool CreateSwapchain(Device& device,
                             VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE)
 {
-    HLS_ASSERT(device.context);
-    HLS_ASSERT(device.context->windowPtr);
+    FLY_ASSERT(device.context);
+    FLY_ASSERT(device.context->windowPtr);
 
     i32 width = 0;
     i32 height = 0;
@@ -290,8 +290,8 @@ static bool CreateSwapchain(Device& device,
                           surfaceCapabilities.minImageExtent.height,
                           surfaceCapabilities.maxImageExtent.height);
 
-    HLS_ASSERT(device.graphicsComputeQueueFamilyIndex != -1);
-    HLS_ASSERT(device.presentQueueFamilyIndex != -1);
+    FLY_ASSERT(device.graphicsComputeQueueFamilyIndex != -1);
+    FLY_ASSERT(device.presentQueueFamilyIndex != -1);
 
     u32 queueFamilyIndices[2] = {
         static_cast<u32>(device.graphicsComputeQueueFamilyIndex),
@@ -342,9 +342,9 @@ static bool CreateSwapchain(Device& device,
     {
         return false;
     }
-    HLS_ASSERT(device.swapchainTextureCount <= HLS_SWAPCHAIN_IMAGE_MAX_COUNT);
+    FLY_ASSERT(device.swapchainTextureCount <= FLY_SWAPCHAIN_IMAGE_MAX_COUNT);
 
-    VkImage images[HLS_SWAPCHAIN_IMAGE_MAX_COUNT] = {VK_NULL_HANDLE};
+    VkImage images[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {VK_NULL_HANDLE};
     vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
                             &device.swapchainTextureCount, images);
     for (u32 i = 0; i < device.swapchainTextureCount; i++)
@@ -359,22 +359,22 @@ static bool CreateSwapchain(Device& device,
         return false;
     }
 
-    HLS_LOG("Device %s created new swapchain", device.name);
-    HLS_LOG("Swapchain format: %s",
+    FLY_LOG("Device %s created new swapchain", device.name);
+    FLY_LOG("Swapchain format: %s",
             FormatToString(device.surfaceFormat.format));
-    HLS_LOG("Depth image format %s",
+    FLY_LOG("Depth image format %s",
             FormatToString(device.depthTexture.format));
-    HLS_LOG("Color space: %s",
+    FLY_LOG("Color space: %s",
             ColorSpaceToString(device.surfaceFormat.colorSpace));
-    HLS_LOG("Present mode: %s", PresentModeToString(device.presentMode));
-    HLS_LOG("Swapchain image count: %u", device.swapchainTextureCount);
+    FLY_LOG("Present mode: %s", PresentModeToString(device.presentMode));
+    FLY_LOG("Swapchain image count: %u", device.swapchainTextureCount);
 
     return true;
 }
 
 static void DestroySwapchain(Device& device)
 {
-    HLS_ASSERT(device.context->windowPtr);
+    FLY_ASSERT(device.context->windowPtr);
 
     DestroySwapchainImageViews(device);
     vkDestroySwapchainKHR(device.logicalDevice, device.swapchain,
@@ -383,8 +383,8 @@ static void DestroySwapchain(Device& device)
 
 static bool RecreateSwapchain(Device& device)
 {
-    HLS_ASSERT(device.context);
-    HLS_ASSERT(device.context->windowPtr);
+    FLY_ASSERT(device.context);
+    FLY_ASSERT(device.context->windowPtr);
 
     vkDeviceWaitIdle(device.logicalDevice);
 
@@ -395,7 +395,7 @@ static bool RecreateSwapchain(Device& device)
     }
 
     VkSwapchainKHR oldSwapchain = device.swapchain;
-    VkImageView oldSwapchainImageViews[HLS_SWAPCHAIN_IMAGE_MAX_COUNT];
+    VkImageView oldSwapchainImageViews[FLY_SWAPCHAIN_IMAGE_MAX_COUNT];
     u32 oldSwapchainImageCount = device.swapchainTextureCount;
     for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
@@ -427,9 +427,9 @@ static bool RecreateSwapchain(Device& device)
 static bool CreateDescriptorPool(Device& device)
 {
     VkDescriptorPoolSize poolSizes[3] = {
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, HLS_DESCRIPTOR_MAX_COUNT},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, HLS_DESCRIPTOR_MAX_COUNT},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, HLS_DESCRIPTOR_MAX_COUNT}};
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, FLY_DESCRIPTOR_MAX_COUNT},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, FLY_DESCRIPTOR_MAX_COUNT},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT}};
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -462,11 +462,11 @@ static bool CreateDescriptorPool(Device& device)
     bindingFlagsCreateInfo.pNext = nullptr;
 
     VkDescriptorSetLayoutBinding bindings[3] = {
-        {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, HLS_DESCRIPTOR_MAX_COUNT,
+        {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, FLY_DESCRIPTOR_MAX_COUNT,
          VK_SHADER_STAGE_ALL, nullptr},
-        {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, HLS_DESCRIPTOR_MAX_COUNT,
+        {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, FLY_DESCRIPTOR_MAX_COUNT,
          VK_SHADER_STAGE_ALL, nullptr},
-        {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, HLS_DESCRIPTOR_MAX_COUNT,
+        {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT,
          VK_SHADER_STAGE_ALL, nullptr}};
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
@@ -532,7 +532,7 @@ static bool CreateFrameData(Device& device)
     semaphoreCreateInfo.pNext = nullptr;
     semaphoreCreateInfo.flags = 0;
 
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (vkCreateCommandPool(device.logicalDevice, &createInfo,
                                 GetVulkanAllocationCallbacks(),
@@ -576,7 +576,7 @@ static bool CreateFrameData(Device& device)
 
 static void DestroyFrameData(Device& device)
 {
-    for (u32 i = 0; i < HLS_FRAME_IN_FLIGHT_COUNT; i++)
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         vkDestroySemaphore(device.logicalDevice,
                            device.frameData[i].renderSemaphore,
@@ -680,7 +680,7 @@ static bool CreateVmaAllocator(Context& context, Device& device)
     {
         return false;
     }
-    HLS_DEBUG_LOG("Vma allocator created for device %s", device.name);
+    FLY_DEBUG_LOG("Vma allocator created for device %s", device.name);
 
     return true;
 }
@@ -688,7 +688,7 @@ static bool CreateVmaAllocator(Context& context, Device& device)
 static void DestroyVmaAllocator(Device& device)
 {
     vmaDestroyAllocator(device.allocator);
-    HLS_DEBUG_LOG("Vma allocator destroyed for device %s", device.name);
+    FLY_DEBUG_LOG("Vma allocator destroyed for device %s", device.name);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -704,7 +704,7 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     f32 queuePriority = 1.0f;
     VkDeviceQueueCreateInfo* queueCreateInfos =
-        HLS_ALLOC(arena, VkDeviceQueueCreateInfo,
+        FLY_ALLOC(arena, VkDeviceQueueCreateInfo,
                   1 + static_cast<u32>(static_cast<bool>(context.windowPtr)));
     queueCreateInfos[0] = {};
     queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -746,7 +746,7 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         ArenaPopToMarker(arena, marker);
         return false;
     }
-    HLS_DEBUG_LOG("Vulkan logical device created for %s", device.name);
+    FLY_DEBUG_LOG("Vulkan logical device created for %s", device.name);
 
     vkGetDeviceQueue(device.logicalDevice,
                      device.graphicsComputeQueueFamilyIndex, 0,
@@ -761,19 +761,19 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     if (!CreateVmaAllocator(context, device))
     {
-        HLS_ERROR("Failed to create vma allocator %s", device.name);
+        FLY_ERROR("Failed to create vma allocator %s", device.name);
         return false;
     }
 
     if (!CreateCommandPool(device))
     {
-        HLS_ERROR("Failed to create command pool %s", device.name);
+        FLY_ERROR("Failed to create command pool %s", device.name);
         return false;
     }
 
     if (!CreateDescriptorPool(device))
     {
-        HLS_ERROR("Failed to create descriptor pool %s", device.name);
+        FLY_ERROR("Failed to create descriptor pool %s", device.name);
         return false;
     }
 
@@ -781,12 +781,12 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
     {
         if (context.windowPtr && !CreateMainDepthTexture(device))
         {
-            HLS_ERROR("Failed to create depth texture %s", device.name);
+            FLY_ERROR("Failed to create depth texture %s", device.name);
             return false;
         }
         if (!CreateSwapchain(device))
         {
-            HLS_ERROR("Failed to create swapchain %s", device.name);
+            FLY_ERROR("Failed to create swapchain %s", device.name);
             return false;
         }
     }
@@ -807,7 +807,7 @@ void DestroyLogicalDevice(Device& device)
     DestroyVmaAllocator(device);
 
     vkDestroyDevice(device.logicalDevice, GetVulkanAllocationCallbacks());
-    HLS_DEBUG_LOG("Vulkan logical device %s destroyed", device.name);
+    FLY_DEBUG_LOG("Vulkan logical device %s destroyed", device.name);
 }
 
 CommandBuffer& RenderFrameCommandBuffer(Device& device)
@@ -916,7 +916,7 @@ bool EndRenderFrame(Device& device)
             return false;
         }
     }
-    device.frameIndex = (device.frameIndex + 1) % HLS_FRAME_IN_FLIGHT_COUNT;
+    device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
     return true;
 }
 
@@ -949,4 +949,4 @@ void EndTransfer(Device& device)
 void DeviceWaitIdle(Device& device) { vkDeviceWaitIdle(device.logicalDevice); }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

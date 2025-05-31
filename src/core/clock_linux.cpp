@@ -1,7 +1,7 @@
 #include "clock.h"
 #include <time.h>
 
-namespace Hls
+namespace Fly
 {
 
 u64 ClockNow()
@@ -13,4 +13,4 @@ u64 ClockNow()
     return now;
 }
 
-} // namespace Hls
+} // namespace Fly

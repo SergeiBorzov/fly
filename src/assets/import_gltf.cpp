@@ -4,27 +4,27 @@
 
 #include "import_gltf.h"
 
-#define CGLTF_MALLOC(size) (Hls::Alloc(size))
-#define CGLTF_FREE(size) (Hls::Free(size))
+#define CGLTF_MALLOC(size) (Fly::Alloc(size))
+#define CGLTF_FREE(size) (Fly::Free(size))
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
-namespace Hls
+namespace Fly
 {
 
 bool LoadGltfFromFile(const char* path, const cgltf_options& options,
                       cgltf_data** data)
 {
-    HLS_ASSERT(path);
+    FLY_ASSERT(path);
     if (cgltf_parse_file(&options, path, data) != cgltf_result_success)
     {
-        HLS_ERROR("Failed to parse gltf file: %s", path);
+        FLY_ERROR("Failed to parse gltf file: %s", path);
         return false;
     }
 
     if (cgltf_load_buffers(&options, *data, path) != cgltf_result_success)
     {
-        HLS_ERROR("Failed to load gltf buffers, file: %s", path);
+        FLY_ERROR("Failed to load gltf buffers, file: %s", path);
         return false;
     }
 
@@ -33,8 +33,8 @@ bool LoadGltfFromFile(const char* path, const cgltf_options& options,
 
 void FreeGltf(cgltf_data* data)
 {
-    HLS_ASSERT(data);
+    FLY_ASSERT(data);
     cgltf_free(data);
 }
 
-} // namespace Hls
+} // namespace Fly

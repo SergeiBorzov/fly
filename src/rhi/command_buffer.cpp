@@ -6,7 +6,7 @@
 #include "command_buffer.h"
 #include "device.h"
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -15,8 +15,8 @@ bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary)
 {
-    HLS_ASSERT(commandBuffers);
-    HLS_ASSERT(commandBufferCount > 0);
+    FLY_ASSERT(commandBuffers);
+    FLY_ASSERT(commandBufferCount > 0);
 
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
@@ -35,7 +35,7 @@ bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
     allocInfo.commandBufferCount = commandBufferCount;
 
     VkCommandBuffer* handles =
-        HLS_ALLOC(arena, VkCommandBuffer, commandBufferCount);
+        FLY_ALLOC(arena, VkCommandBuffer, commandBufferCount);
     VkResult res =
         vkAllocateCommandBuffers(device.logicalDevice, &allocInfo, handles);
 
@@ -61,14 +61,14 @@ bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
 void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount)
 {
-    HLS_ASSERT(commandBuffers);
-    HLS_ASSERT(commandBufferCount > 0);
+    FLY_ASSERT(commandBuffers);
+    FLY_ASSERT(commandBufferCount > 0);
 
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
     VkCommandBuffer* handles =
-        HLS_ALLOC(arena, VkCommandBuffer, commandBufferCount);
+        FLY_ALLOC(arena, VkCommandBuffer, commandBufferCount);
     for (u32 i = 0; i < commandBufferCount; i++)
     {
         handles[i] = commandBuffers[i].handle;
@@ -89,7 +89,7 @@ void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
 bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,
                         bool renderPassContinue, bool simultaneousUse)
 {
-    HLS_ASSERT(commandBuffer.state == CommandBuffer::State::Idle);
+    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Idle);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -122,7 +122,7 @@ bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,
 
 bool EndCommandBuffer(CommandBuffer& commandBuffer)
 {
-    HLS_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
 
     VkResult res = vkEndCommandBuffer(commandBuffer.handle);
     if (res != VK_SUCCESS)
@@ -142,7 +142,7 @@ bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          const VkSemaphore* signalSemaphores,
                          u32 signalSemaphoreCount, VkFence fence)
 {
-    HLS_ASSERT(commandBuffer.state == CommandBuffer::State::Recorded);
+    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recorded);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -203,7 +203,7 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout)
 {
-    HLS_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
 
     VkImageAspectFlags aspectMask =
         (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
@@ -235,7 +235,7 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
 void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                       f32 b, f32 a)
 {
-    HLS_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
 
     VkClearColorValue clearValue;
     clearValue = {{r, g, b, a}};
@@ -285,8 +285,8 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* depthAttachment,
               const VkRenderingAttachmentInfo* stencilAttachment)
 {
-    HLS_ASSERT(colorAttachments);
-    HLS_ASSERT(colorAttachmentCount > 0);
+    FLY_ASSERT(colorAttachments);
+    FLY_ASSERT(colorAttachmentCount > 0);
 
     VkRenderingInfo renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -323,4 +323,4 @@ VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
 }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

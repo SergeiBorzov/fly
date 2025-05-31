@@ -16,9 +16,9 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-HLS_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
-HLS_REGISTER_STORAGE_BUFFER(writeonly, TileHistograms, { uint count; })
-HLS_REGISTER_STORAGE_BUFFER(writeonly, GlobalHistrogram, { uint count; })
+FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
+FLY_REGISTER_STORAGE_BUFFER(writeonly, TileHistograms, { uint count; })
+FLY_REGISTER_STORAGE_BUFFER(writeonly, GlobalHistrogram, { uint count; })
 
 shared uint localHistogram[RADIX_HISTOGRAM_SIZE];
 void main()
@@ -36,7 +36,7 @@ void main()
     {
         uint keyIndex = gl_WorkGroupID.x * COUNT_TILE_SIZE + i;
         uint key = keyIndex < gPushConstants.keyCount
-                       ? HLS_ACCESS_STORAGE_BUFFER(
+                       ? FLY_ACCESS_STORAGE_BUFFER(
                              Keys, gPushConstants.keyBufferIndex)[keyIndex]
                              .key
                        : 0xFFFFFFFF;
@@ -49,12 +49,12 @@ void main()
 
     for (uint i = tid; i < RADIX_HISTOGRAM_SIZE; i += gl_WorkGroupSize.x)
     {
-        HLS_ACCESS_STORAGE_BUFFER(TileHistograms,
+        FLY_ACCESS_STORAGE_BUFFER(TileHistograms,
                                   gPushConstants.tileHistogramBufferIndex)
         [RADIX_HISTOGRAM_SIZE * gl_WorkGroupID.x + i].count = localHistogram[i];
 
         atomicAdd(
-            HLS_ACCESS_STORAGE_BUFFER(GlobalHistrogram,
+            FLY_ACCESS_STORAGE_BUFFER(GlobalHistrogram,
                                       gPushConstants.globalHistogramBufferIndex)
                 [RADIX_HISTOGRAM_SIZE * gPushConstants.pass + i]
                     .count,

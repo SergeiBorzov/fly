@@ -1,7 +1,7 @@
 #include "memory.h"
 #include <sys/mman.h>
 
-namespace Hls
+namespace Fly
 {
 
 void* PlatformAlloc(u64 reserveSize, u64 commitSize)
@@ -47,4 +47,4 @@ void PlatformFree(void* reserved, u64 reserveSize)
     munmap(reserved, reserveSize);
 }
 
-} // namespace Hls
+} // namespace Fly

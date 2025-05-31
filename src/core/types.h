@@ -1,5 +1,5 @@
-#ifndef HLS_TYPES_H
-#define HLS_TYPES_H
+#ifndef FLY_TYPES_H
+#define FLY_TYPES_H
 
 #include <stdint.h>
 
@@ -16,10 +16,10 @@ typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
 
-#define HLS_MAX_U8 0xFFu
-#define HLS_MAX_U16 0xFFFFu
-#define HLS_MAX_U32 0xFFFFFFFFu
-#define HLS_MAX_U64 0xFFFFFFFFFFFFFFFFu
+#define FLY_MAX_U8 0xFFu
+#define FLY_MAX_U16 0xFFFFu
+#define FLY_MAX_U32 0xFFFFFFFFu
+#define FLY_MAX_U64 0xFFFFFFFFFFFFFFFFu
 
 inline f32 MinF32()
 {
@@ -67,4 +67,4 @@ inline f32 MinusInfinityF32()
 
 #define STACK_ARRAY_COUNT(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#endif /* End of HLS_TYPES_H */
+#endif /* End of FLY_TYPES_H */

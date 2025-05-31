@@ -3,7 +3,7 @@
 #include "context.h"
 #include <GLFW/glfw3.h>
 
-namespace Hls
+namespace Fly
 {
 namespace RHI
 {
@@ -29,4 +29,4 @@ void GetWindowSize(Context& context, i32& width, i32& height)
 void PollWindowEvents(Context& context) { glfwWaitEvents(); }
 
 } // namespace RHI
-} // namespace Hls
+} // namespace Fly

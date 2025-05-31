@@ -1,20 +1,20 @@
-#ifndef HLS_MATH_FUNCTIONS_H
-#define HLS_MATH_FUNCTIONS_H
+#ifndef FLY_MATH_FUNCTIONS_H
+#define FLY_MATH_FUNCTIONS_H
 
 #include "core/types.h"
 
-#define HLS_MATH_EPSILON (1e-5)
-#define HLS_MATH_PI (3.1415926f)
-#define HLS_MATH_TWO_PI (6.2831853f)
-#define HLS_MATH_HALF_PI (1.5707963f)
+#define FLY_MATH_EPSILON (1e-5)
+#define FLY_MATH_PI (3.1415926f)
+#define FLY_MATH_TWO_PI (6.2831853f)
+#define FLY_MATH_HALF_PI (1.5707963f)
 
-namespace Hls
+namespace Fly
 {
 namespace Math
 {
 
-inline f32 Degrees(f32 radians) { return radians / HLS_MATH_PI * 180.0f; }
-inline f32 Radians(f32 degrees) { return degrees / 180.0f * HLS_MATH_PI; }
+inline f32 Degrees(f32 radians) { return radians / FLY_MATH_PI * 180.0f; }
+inline f32 Radians(f32 degrees) { return degrees / 180.0f * FLY_MATH_PI; }
 inline f32 Min(f32 a, f32 b) { return (a < b) ? a : b; }
 inline f32 Max(f32 a, f32 b) { return (a > b) ? a : b; }
 inline f32 Clamp(f32 value, f32 min, f32 max)
@@ -51,6 +51,6 @@ f32 RandomF32(f32 min, f32 max);
 f64 RandomF64(f64 min, f64 max);
 
 } // namespace Math
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_MATH_MATH_H */
+#endif /* FLY_MATH_MATH_H */

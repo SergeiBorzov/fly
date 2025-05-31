@@ -1,9 +1,9 @@
-#ifndef HLS_ASSETS_IMPORT_IMAGE_H
-#define HLS_ASSETS_IMPORT_IMAGE_H
+#ifndef FLY_ASSETS_IMPORT_IMAGE_H
+#define FLY_ASSETS_IMPORT_IMAGE_H
 
 #include "core/types.h"
 
-namespace Hls
+namespace Fly
 {
 
 struct Path;
@@ -16,10 +16,10 @@ struct Image
     u32 channelCount = 0;
 };
 
-bool LoadImageFromFile(const Hls::Path& path, Image& image);
+bool LoadImageFromFile(const Fly::Path& path, Image& image);
 bool LoadImageFromFile(const char* path, Image& image);
 void FreeImage(Image& image);
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_ASSETS_IMPORT_IMAGE_H */
+#endif /* FLY_ASSETS_IMPORT_IMAGE_H */

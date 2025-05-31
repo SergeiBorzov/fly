@@ -1,12 +1,12 @@
-#ifndef HLS_CORE_STRING8_H
-#define HLS_CORE_STRING8_H
+#ifndef FLY_CORE_STRING8_H
+#define FLY_CORE_STRING8_H
 
 #include "assert.h"
 #include "hash.h"
 
 struct Arena;
 
-namespace Hls
+namespace Fly
 {
 
 bool CharIsAlpha(i32 c);
@@ -24,7 +24,7 @@ struct String8
 
     inline char operator[](u64 index) const
     {
-        HLS_ASSERT(index < size_);
+        FLY_ASSERT(index < size_);
         return data_[index];
     }
 
@@ -67,8 +67,8 @@ struct String8CutPair
     String8 tail = {};
 };
 
-#define HLS_STRING8_LITERAL(str) Hls::String8(str, sizeof(str) - 1)
+#define FLY_STRING8_LITERAL(str) Fly::String8(str, sizeof(str) - 1)
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_CORE_STRING8_H */
+#endif /* FLY_CORE_STRING8_H */

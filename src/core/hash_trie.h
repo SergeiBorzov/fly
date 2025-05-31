@@ -1,12 +1,12 @@
-#ifndef HLS_CORE_HASH_TRIE_H
-#define HLS_CORE_HASH_TRIE_H
+#ifndef FLY_CORE_HASH_TRIE_H
+#define FLY_CORE_HASH_TRIE_H
 
 #include "arena.h"
 #include "assert.h"
 #include "hash.h"
 #include "memory.h"
 
-namespace Hls
+namespace Fly
 {
 
 template <typename KeyType, typename ValueType>
@@ -55,10 +55,10 @@ struct HashTrie
         {
             if (!*node)
             {
-                *node = HLS_ALLOC(arena, Node, 1);
+                *node = FLY_ALLOC(arena, Node, 1);
                 (*node)->key = key;
                 (*node)->value = value;
-                Hls::MemZero((*node)->children, sizeof(Node*) * 4);
+                Fly::MemZero((*node)->children, sizeof(Node*) * 4);
                 count_++;
                 return (*node)->value;
             }
@@ -72,7 +72,7 @@ struct HashTrie
         } while (h != 0);
 
         // TODO: Handle hash collisions, if will ever happen
-        HLS_ASSERT(false);
+        FLY_ASSERT(false);
         return (*node)->value;
     }
 
@@ -83,6 +83,6 @@ private:
     u64 count_ = 0;
 };
 
-} // namespace Hls
+} // namespace Fly
 
-#endif /* HLS_CORE_HASH_TRIE_H */
+#endif /* FLY_CORE_HASH_TRIE_H */

@@ -11,9 +11,9 @@
 
 #include <windows.h>
 
-#define HLS_PATH_SEPARATOR '\\'
+#define FLY_PATH_SEPARATOR '\\'
 
-namespace Hls
+namespace Fly
 {
 
 bool IsValidPathString(String8 str)
@@ -23,7 +23,7 @@ bool IsValidPathString(String8 str)
         return false;
     }
 
-    String8 invalidCharacters = HLS_STRING8_LITERAL("<>\"|*");
+    String8 invalidCharacters = FLY_STRING8_LITERAL("<>\"|*");
     for (u64 i = 0; i < str.Size(); i++)
     {
         // No control sequence characters in path
@@ -102,7 +102,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
-    char* buffer = HLS_ALLOC(scratch, char, path.Size() + 1);
+    char* buffer = FLY_ALLOC(scratch, char, path.Size() + 1);
     memcpy(buffer, path.Data(), path.Size());
     for (u64 i = 0; i < path.Size(); i++)
     {
@@ -123,12 +123,12 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     }
     String8 slashReplacedPath = String8(buffer, bufferSize);
 
-    String8 extendedLengthPrefix = HLS_STRING8_LITERAL("\\\\?\\");
-    String8 devicePathPrefix = HLS_STRING8_LITERAL("\\\\.\\");
+    String8 extendedLengthPrefix = FLY_STRING8_LITERAL("\\\\?\\");
+    String8 devicePathPrefix = FLY_STRING8_LITERAL("\\\\.\\");
     if (slashReplacedPath.StartsWith(extendedLengthPrefix) ||
         slashReplacedPath.StartsWith(devicePathPrefix))
     {
-        char* normalized = HLS_ALLOC(arena, char, slashReplacedPath.Size() + 1);
+        char* normalized = FLY_ALLOC(arena, char, slashReplacedPath.Size() + 1);
         memcpy(normalized, slashReplacedPath.Data(), slashReplacedPath.Size());
         normalized[slashReplacedPath.Size()] = '\0';
         out = String8(normalized, slashReplacedPath.Size());
@@ -169,10 +169,10 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     bool hasRootSegment = irremovablePrefixCount > 0;
     if (irremovablePrefixCount != slashReplacedPath.Size())
     {
-        String8 currentDir = HLS_STRING8_LITERAL(".\\");
-        String8 currentDirLast = HLS_STRING8_LITERAL(".");
-        String8 parentDir = HLS_STRING8_LITERAL("..\\");
-        String8 parentDirLast = HLS_STRING8_LITERAL("..");
+        String8 currentDir = FLY_STRING8_LITERAL(".\\");
+        String8 currentDirLast = FLY_STRING8_LITERAL(".");
+        String8 parentDir = FLY_STRING8_LITERAL("..\\");
+        String8 parentDirLast = FLY_STRING8_LITERAL("..");
         for (u64 i = irremovablePrefixCount; i < bufferSize; i++)
         {
             if (slashReplacedPath[i] == '\\' || i == bufferSize - 1)
@@ -234,7 +234,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     if (newSize == 0)
     {
         newSize = 1;
-        char* normalized = HLS_ALLOC(arena, char, 2);
+        char* normalized = FLY_ALLOC(arena, char, 2);
         normalized[0] = '.';
         normalized[1] = '\0';
         out = String8(normalized, newSize);
@@ -242,7 +242,7 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
         return true;
     }
 
-    char* normalized = HLS_ALLOC(arena, char, newSize + 1);
+    char* normalized = FLY_ALLOC(arena, char, newSize + 1);
     memcpy(normalized, buffer, newSize);
     normalized[newSize] = '\0';
     out = String8(normalized, newSize);
@@ -312,7 +312,7 @@ bool Path::Append(Arena& arena, const Path** paths, u32 pathCount, Path& out)
     Arena& scratch = GetScratchArena(&arena);
     ArenaMarker scratchMarker = ArenaGetMarker(scratch);
 
-    char* totalData = HLS_ALLOC(scratch, char, totalSize);
+    char* totalData = FLY_ALLOC(scratch, char, totalSize);
     u64 offset = 0;
     for (u32 i = 0; i < pathCount; i++)
     {
@@ -322,7 +322,7 @@ bool Path::Append(Arena& arena, const Path** paths, u32 pathCount, Path& out)
             offset += paths[i]->Size();
             if (i != pathCount - 1)
             {
-                totalData[offset++] = HLS_PATH_SEPARATOR;
+                totalData[offset++] = FLY_PATH_SEPARATOR;
             }
         }
     }
@@ -385,7 +385,7 @@ bool GetParentDirectoryPath(Arena& arena, const Path& path, Path& out)
     ArenaMarker marker = ArenaGetMarker(scratch);
 
     Path parentDir;
-    Path::Create(scratch, HLS_STRING8_LITERAL(".."), parentDir);
+    Path::Create(scratch, FLY_STRING8_LITERAL(".."), parentDir);
 
     bool res = Path::Append(arena, path, parentDir, out);
     ArenaPopToMarker(scratch, marker);
@@ -408,7 +408,7 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
     fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
 
     // Allocate memory for the string
-    char* content = HLS_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
+    char* content = FLY_ALLOC_ALIGNED(arena, char, fileSize + 1, align);
 
     if (!content)
     {
@@ -429,4 +429,4 @@ String8 ReadFileToString(Arena& arena, const Path& path, u32 align)
     return ReadFileToString(arena, path.ToCStr(), align);
 }
 
-} // namespace Hls
+} // namespace Fly
