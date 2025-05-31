@@ -67,6 +67,7 @@ cc_library(
         "glslang/OSDependent/osinclude.h",
         # glslang headers
         "glslang/Public/ShaderLang.h",
+        "glslang/Public/ResourceLimits.h",
         "glslang/Include/arrays.h",
         "glslang/Include/BaseTypes.h",
         "glslang/Include/Common.h",
