@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_library")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_library")
 
 glsl_library(
     name = "glsl_bindless",

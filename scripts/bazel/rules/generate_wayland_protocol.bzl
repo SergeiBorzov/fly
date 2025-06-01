@@ -37,7 +37,7 @@ generate_wayland_protocol = rule(
         "_command": attr.label(
             cfg = "exec",
             executable = True,
-            default = Label("@helios//scripts/python:generate_wayland_protocol"),
+            default = Label("@fly//scripts/python:generate_wayland_protocol"),
         ),
     },
 )

@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "objc_library")
-load("@helios//scripts/bazel/rules:generate_wayland_protocol.bzl", "generate_wayland_protocol")
+load("@fly//scripts/bazel/rules:generate_wayland_protocol.bzl", "generate_wayland_protocol")
 
 generate_wayland_protocol(
     name = "wayland_protocol_h",

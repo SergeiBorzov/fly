@@ -27,7 +27,7 @@ copy_files_to_directory = rule(
         "_command": attr.label(
             cfg = "exec",
             executable = True,
-            default = Label("@helios//scripts/python:copy_files"),
+            default = Label("@fly//scripts/python:copy_files"),
         ),
     },
 )

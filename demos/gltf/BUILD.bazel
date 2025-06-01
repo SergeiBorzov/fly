@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
-load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
-load("@helios//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
 
 copy_files_to_directory(
     name = "copy_vulkan_validation_layer",

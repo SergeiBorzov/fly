@@ -1,6 +1,6 @@
 """ external/extensions/external_archive.bzl """
 
-load("@helios//scripts/bazel/rules:external_archive.bzl", "get_external_archive")
+load("@fly//scripts/bazel/rules:external_archive.bzl", "get_external_archive")
 
 def _external_archive_impl(module_ctx):
     for module in module_ctx.modules:

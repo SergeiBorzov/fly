@@ -30,12 +30,12 @@ pip.parse(
 use_repo(pip, "pip")
 
 external_git_repository = use_extension(
-    "@helios//scripts/bazel/extensions:external_git_repository.bzl",
+    "//scripts/bazel/extensions:external_git_repository.bzl",
     "external_git_repository",
 )
 
 external_archive = use_extension(
-    "@helios//scripts/bazel/extensions:external_archive.bzl",
+    "//scripts/bazel/extensions:external_archive.bzl",
     "external_archive",
 )
 

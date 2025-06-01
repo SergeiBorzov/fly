@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary")
-load("@helios//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 
 copy_files_to_directory(
     name = "copy_obj_data",
