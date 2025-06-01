@@ -65,25 +65,19 @@ void ArenaDestroy(Arena& arena)
     arena.reservedCapacity = 0;
 }
 
-void ArenaPop(Arena& arena, void* alignedPtr)
-{
-    FLY_ASSERT(alignedPtr);
-    u8* rawPtr = static_cast<u8*>(ArenaUnwrapPtr(alignedPtr));
-    FLY_ASSERT(arena.ptr + arena.size - arena.lastAllocSize == rawPtr,
-               "Arena popped not the latest allocation: %p vs %p",
-               arena.ptr + arena.size - arena.lastAllocSize, rawPtr);
-
-    ArenaAllocHeader* header = reinterpret_cast<ArenaAllocHeader*>(rawPtr);
-
-    arena.size = arena.size - arena.lastAllocSize;
-    arena.lastAllocSize = header->prevAllocSize;
-}
-
 ArenaMarker ArenaGetMarker(const Arena& arena) { return {arena.size}; }
 
 void ArenaPopToMarker(Arena& arena, ArenaMarker marker)
 {
     arena.size = marker.value;
+
+    if (arena.size < arena.capacity / 4)
+    {
+        u64 newCapacity = arena.capacity / 2;
+        Fly::PlatformDecommitMemory(arena.ptr + newCapacity,
+                                arena.capacity - newCapacity);
+        arena.capacity = newCapacity;
+    }
 }
 
 void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
@@ -133,4 +127,11 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
     return alignedPtr;
 }
 
-void ArenaReset(Arena& arena) { arena.size = 0; }
+void ArenaReset(Arena& arena)
+{
+    u64 resetCapacity = FLY_SIZE_MB(1);
+    arena.size = 0;
+    Fly::PlatformDecommitMemory(arena.ptr + resetCapacity,
+                                arena.capacity - resetCapacity);
+    arena.capacity = resetCapacity;
+}

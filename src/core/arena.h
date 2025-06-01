@@ -36,7 +36,6 @@ Arena ArenaCreateInline(u64 commitedSize, void* ptr);
 void ArenaDestroy(Arena& arena);
 void* ArenaPushAligned(Arena& arena, u64 size, u32 align);
 ArenaMarker ArenaGetMarker(const Arena& arena);
-void ArenaPop(Arena& arena, void* ptr);
 void ArenaPopToMarker(Arena& arena, ArenaMarker marker);
 void ArenaReset(Arena& arena);
 void* ArenaUnwrapPtr(void* ptr);
