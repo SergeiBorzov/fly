@@ -150,6 +150,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "cgltf")
 
 external_git_repository.base(
+    name = "imgui",
+    build_file = "//scripts/bazel/target:BUILD.imgui.bazel",
+    commit = "f5befd2d29e66809cd1110a152e375a7f1981f06",
+    remote = "https://github.com/ocornut/imgui.git",
+)
+use_repo(external_git_repository, "imgui")
+
+external_git_repository.base(
     name = "tinyobjloader",
     build_file = "//scripts/bazel/target:BUILD.tinyobjloader.bazel",
     commit = "3bb554cf74428d7db13418b4aca1b9752a1d2be8",
