@@ -1,0 +1,11 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+    uint tid = gl_LocalInvocationID.x;
+    return;
+}
