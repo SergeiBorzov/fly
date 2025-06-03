@@ -11,6 +11,14 @@ copy_files_to_directory(
     output_directory = ".",
 )
 
+copy_files_to_directory(
+    name = "copy_scene_data",
+    srcs = [
+        "@gltf_sample_models//:box_textured_scene",
+    ],
+    output_directory = ".",
+)
+
 config_setting(
     name = "release_build",
     values = {
@@ -38,6 +46,7 @@ cc_binary(
     ],
     data = [
         ":fft.comp.spv",
+        ":copy_scene_data",
     ] + select({
         ":release_build": [
         ],

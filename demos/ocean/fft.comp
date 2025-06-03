@@ -4,8 +4,70 @@
 
 layout(local_size_x = 256) in;
 
+FLY_REGISTER_STORAGE_BUFFER(, Data, { vec2 value; })
+
+layout(push_constant) uniform FFTParams
+{
+    uint direction;
+    uint stage;
+    uint stageCount;
+    uint dataBufferIndex;
+}
+gPushConstants;
+
+const float PI = 3.14159265358979323846;
+
+uint bitReverse(uint v)
+{
+    v = ((v >> 1) & 0x55555555u) | ((v & 0x55555555u) << 1);
+    v = ((v >> 2) & 0x33333333u) | ((v & 0x33333333u) << 2);
+    v = ((v >> 4) & 0x0F0F0F0Fu) | ((v & 0x0F0F0F0Fu) << 4);
+    v = ((v >> 8) & 0x00FF00FFu) | ((v & 0x00FF00FFu) << 8);
+    v = (v >> 16) | (v << 16);
+    return v;
+}
+
+shared vec2 sharedData[256];
 void main()
 {
-    uint tid = gl_LocalInvocationID.x;
-    return;
+    uint c = gl_LocalInvocationID.x;
+    uint r = gl_WorkGroupID.y;
+
+    uint base = r * gl_WorkGroupSize.x;
+    sharedData[bitReverse(c)] =
+        FLY_ACCESS_STORAGE_BUFFER(Data,
+                                  gPushConstants.dataBufferIndex)[base + c]
+            .value;
+    barrier();
+
+    // Cooley–Tukey FFT
+    for (uint s = 1; s <= 8; ++s)
+    {
+        uint m = 1 << s;
+        uint half_m = m >> 1;
+        uint k = c % half_m;
+        float angle = -2.0 * PI * float(k) / float(m);
+        vec2 w = vec2(cos(angle), sin(angle));
+
+        if ((c % m) < half_m)
+        {
+            uint i = c;
+            uint j = c + half_m;
+
+            vec2 u = sharedData[i];
+            vec2 t = sharedData[j];
+
+            vec2 tw;
+            tw.x = t.x * w.x - t.y * w.y;
+            tw.y = t.x * w.y + t.y * w.x;
+
+            sharedData[i] = u + tw;
+            sharedData[j] = u - tw;
+        }
+        barrier(); // sync after stage
+    }
+
+    // Write result
+    FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
+    [base + c].value = sharedData[c];
 }

@@ -119,7 +119,8 @@ static void DestroyPipelines(RHI::Device& device)
 }
 
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static bool CreateDeviceBuffers(RHI::Device& device)
+static RHI::Texture sTexture;
+static bool CreateDeviceObjects(RHI::Device& device)
 {
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -129,11 +130,22 @@ static bool CreateDeviceBuffers(RHI::Device& device)
             return false;
         }
     }
+
+    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png",
+                                  VK_FORMAT_R8G8B8A8_SRGB,
+                                  RHI::Sampler::FilterMode::Trilinear,
+                                  RHI::Sampler::WrapMode::Repeat, sTexture))
+    {
+        FLY_ERROR("Failed to create texture");
+        return false;
+    }
+
     return true;
 }
 
-static void DestroyDeviceBuffers(RHI::Device& device)
+static void DestroyDeviceObjects(RHI::Device& device)
 {
+    RHI::DestroyTexture(device, sTexture);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
@@ -157,12 +169,12 @@ static void GraphicsPass(RHI::Device& device)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      sGraphicsPipeline.handle);
+    // vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    //                   sGraphicsPipeline.handle);
 
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            sGraphicsPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    // vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    //                         sGraphicsPipeline.layout, 0, 1,
+    //                         &device.bindlessDescriptorSet, 0, nullptr);
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -178,8 +190,7 @@ static void GraphicsPass(RHI::Device& device)
     vkCmdEndRendering(cmd.handle);
 }
 
-static void ExecuteCommands(RHI::Device& device) { // GraphicsPass(device);
-}
+static void ExecuteCommands(RHI::Device& device) { GraphicsPass(device); }
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -249,7 +260,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    if (!CreateDeviceBuffers(device))
+    if (!CreateDeviceObjects(device))
     {
         FLY_ERROR("Failed to create device buffers");
         return -1;
@@ -294,7 +305,7 @@ int main(int argc, char* argv[])
     RHI::WaitAllDevicesIdle(context);
 
     DestroyPipelines(device);
-    DestroyDeviceBuffers(device);
+    DestroyDeviceObjects(device);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
     glfwTerminate();
