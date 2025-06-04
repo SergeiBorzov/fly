@@ -3,6 +3,7 @@
 #include "core/assert.h"
 
 #include "allocation_callbacks.h"
+#include "buffer.h"
 #include "command_buffer.h"
 #include "device.h"
 #include "texture.h"
@@ -23,6 +24,151 @@ namespace Fly
 {
 namespace RHI
 {
+
+u32 GetTexelSize(VkFormat format)
+{
+    switch (format)
+    {
+        case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R8_SNORM:
+        case VK_FORMAT_R8_UINT:
+        case VK_FORMAT_R8_SINT:
+        case VK_FORMAT_R8_SRGB:
+        case VK_FORMAT_S8_UINT:
+        {
+            return 1;
+        }
+
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R8G8_SNORM:
+        case VK_FORMAT_R8G8_UINT:
+        case VK_FORMAT_R8G8_SINT:
+        case VK_FORMAT_R8G8_SRGB:
+        case VK_FORMAT_R16_UNORM:
+        case VK_FORMAT_R16_SNORM:
+        case VK_FORMAT_R16_UINT:
+        case VK_FORMAT_R16_SINT:
+        case VK_FORMAT_R16_SFLOAT:
+        case VK_FORMAT_D16_UNORM:
+        {
+            return 2;
+        }
+
+        case VK_FORMAT_R8G8B8_UNORM:
+        case VK_FORMAT_R8G8B8_SNORM:
+        case VK_FORMAT_R8G8B8_UINT:
+        case VK_FORMAT_R8G8B8_SINT:
+        case VK_FORMAT_R8G8B8_SRGB:
+        case VK_FORMAT_B8G8R8_UNORM:
+        case VK_FORMAT_B8G8R8_SNORM:
+        case VK_FORMAT_B8G8R8_UINT:
+        case VK_FORMAT_B8G8R8_SINT:
+        case VK_FORMAT_B8G8R8_SRGB:
+        {
+            return 3;
+        }
+
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_R8G8B8A8_SNORM:
+        case VK_FORMAT_R8G8B8A8_UINT:
+        case VK_FORMAT_R8G8B8A8_SINT:
+        case VK_FORMAT_R8G8B8A8_SRGB:
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_SNORM:
+        case VK_FORMAT_B8G8R8A8_UINT:
+        case VK_FORMAT_B8G8R8A8_SINT:
+        case VK_FORMAT_B8G8R8A8_SRGB:
+        case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+        case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
+        case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+        case VK_FORMAT_A8B8G8R8_SINT_PACK32:
+        case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+        case VK_FORMAT_R32_UINT:
+        case VK_FORMAT_R32_SINT:
+        case VK_FORMAT_R32_SFLOAT:
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT:
+        {
+            return 4;
+        }
+
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        {
+            return 5;
+        }
+
+        case VK_FORMAT_R16G16B16_UNORM:
+        case VK_FORMAT_R16G16B16_SNORM:
+        case VK_FORMAT_R16G16B16_UINT:
+        case VK_FORMAT_R16G16B16_SINT:
+        case VK_FORMAT_R16G16B16_SFLOAT:
+        {
+            return 6;
+        }
+
+        case VK_FORMAT_R16G16B16A16_UNORM:
+        case VK_FORMAT_R16G16B16A16_SNORM:
+        case VK_FORMAT_R16G16B16A16_UINT:
+        case VK_FORMAT_R16G16B16A16_SINT:
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+        case VK_FORMAT_R32G32_UINT:
+        case VK_FORMAT_R32G32_SINT:
+        case VK_FORMAT_R32G32_SFLOAT:
+        {
+            return 8;
+        }
+
+        case VK_FORMAT_R32G32B32_UINT:
+        case VK_FORMAT_R32G32B32_SINT:
+        case VK_FORMAT_R32G32B32_SFLOAT:
+        {
+            return 12;
+        }
+
+        case VK_FORMAT_R32G32B32A32_UINT:
+        case VK_FORMAT_R32G32B32A32_SINT:
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+        {
+            return 16;
+        }
+
+        default:
+        {
+            FLY_ASSERT(false);
+            return 0;
+        }
+    }
+}
+
+void CopyImageToBuffer(Device& device, const Texture& texture, Buffer& buffer)
+{
+    FLY_ASSERT(texture.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
+
+    BeginTransfer(device);
+    CommandBuffer& cmd = TransferCommandBuffer(device);
+
+    RHI::RecordTransitionImageLayout(cmd, texture.handle,
+                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+    VkBufferImageCopy copyRegion{};
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.mipLevel = 0;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = 1;
+    copyRegion.imageExtent = {texture.width, texture.height, 1};
+
+    vkCmdCopyImageToBuffer(cmd.handle, texture.handle,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           buffer.handle, 1, &copyRegion);
+
+    RHI::RecordTransitionImageLayout(cmd, texture.handle,
+                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    EndTransfer(device);
+}
 
 static void GenerateMipmaps(RHI::CommandBuffer& cmd, RHI::Texture& texture)
 {

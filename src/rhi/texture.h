@@ -11,6 +11,7 @@ namespace RHI
 {
 
 struct Device;
+struct Buffer;
 
 struct Sampler
 {
@@ -85,6 +86,9 @@ bool CreateTexture(Device& device, u8* data, u32 width, u32 height,
 bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
                           Sampler::WrapMode wrapMode);
 void DestroyTexture(Device& device, Texture& texture);
+void CopyImageToBuffer(Device& device, const Texture& texture, Buffer& buffer);
+
+u32 GetTexelSize(VkFormat format);
 
 } // namespace RHI
 } // namespace Fly
