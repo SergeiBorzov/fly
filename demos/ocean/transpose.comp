@@ -1,0 +1,50 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+// Note: Good article
+// https://developer.nvidia.com/blog/efficient-matrix-transpose-cuda-cc/
+
+// Changed workgroup size from 32x8 to 16x16 to avoid bank conflicts on vec2
+// shared array
+#define TILE_DIM 16
+layout(local_size_x = TILE_DIM, local_size_y = TILE_DIM) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint inBufferIndex;
+    uint outBufferIndex;
+    uint width;
+}
+gPushConstants;
+
+layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX) readonly buffer In
+{
+    vec2 texels[];
+}
+gInBuffers[];
+
+layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer Out
+{
+    vec2 texels[];
+}
+gOutBuffers[];
+
+shared vec2 tile[TILE_DIM][TILE_DIM + 1];
+void main()
+{
+    uvec2 tid = gl_LocalInvocationID.xy;
+    uint x = gl_WorkGroupID.x * TILE_DIM + tid.x;
+    uint y = gl_WorkGroupID.y * TILE_DIM + tid.y;
+    uint width = gPushConstants.width;
+
+    tile[tid.y][tid.x] =
+        gInBuffers[gPushConstants.inBufferIndex].texels[y * width + x];
+    barrier();
+
+    x = gl_WorkGroupID.y * TILE_DIM + tid.x;
+    y = gl_WorkGroupID.x * TILE_DIM + tid.y;
+
+    gOutBuffers[gPushConstants.outBufferIndex].texels[y * width + x] =
+        tile[tid.x][tid.y];
+}

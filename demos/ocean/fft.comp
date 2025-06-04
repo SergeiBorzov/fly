@@ -8,9 +8,6 @@ FLY_REGISTER_STORAGE_BUFFER(, Data, { vec2 value; })
 
 layout(push_constant) uniform FFTParams
 {
-    uint direction;
-    uint stage;
-    uint stageCount;
     uint dataBufferIndex;
 }
 gPushConstants;

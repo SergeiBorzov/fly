@@ -41,17 +41,17 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
+static RHI::ComputePipeline sGrayscalePipeline;
 static RHI::ComputePipeline sFFTPipeline;
+static RHI::ComputePipeline sTransposePipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sFFTPipeline,
-    };
+        &sGrayscalePipeline, &sFFTPipeline, &sTransposePipeline};
 
-    const char* computeShaderPaths[] = {
-        "fft.comp.spv",
-    };
+    const char* computeShaderPaths[] = {"grayscale.comp.spv", "fft.comp.spv",
+                                        "transpose.comp.spv"};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -115,13 +115,24 @@ static bool CreatePipelines(RHI::Device& device)
 static void DestroyPipelines(RHI::Device& device)
 {
     // RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+    RHI::DestroyComputePipeline(device, sTransposePipeline);
     RHI::DestroyComputePipeline(device, sFFTPipeline);
+    RHI::DestroyComputePipeline(device, sGrayscalePipeline);
 }
 
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sOceanFrequencyBuffers[2 * FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTexture;
 static bool CreateDeviceObjects(RHI::Device& device)
 {
+    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png", format,
+                                  RHI::Sampler::FilterMode::Trilinear,
+                                  RHI::Sampler::WrapMode::Repeat, sTexture))
+    {
+        return false;
+    }
+
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
@@ -129,15 +140,16 @@ static bool CreateDeviceObjects(RHI::Device& device)
         {
             return false;
         }
-    }
 
-    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png",
-                                  VK_FORMAT_R8G8B8A8_SRGB,
-                                  RHI::Sampler::FilterMode::Trilinear,
-                                  RHI::Sampler::WrapMode::Repeat, sTexture))
-    {
-        FLY_ERROR("Failed to create texture");
-        return false;
+        for (u32 j = 0; j < 2; j++)
+        {
+            if (!RHI::CreateStorageBuffer(device, false, nullptr,
+                                          sizeof(Math::Vec2) * 256 * 256,
+                                          sOceanFrequencyBuffers[i * 2 + j]))
+            {
+                return false;
+            }
+        }
     }
 
     return true;
@@ -145,11 +157,108 @@ static bool CreateDeviceObjects(RHI::Device& device)
 
 static void DestroyDeviceObjects(RHI::Device& device)
 {
+
     RHI::DestroyTexture(device, sTexture);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
+        for (u32 j = 0; j < 2; j++)
+        {
+            RHI::DestroyBuffer(device, sOceanFrequencyBuffers[2 * i + j]);
+        }
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
+}
+
+static void GrayscalePass(RHI::Device& device)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sGrayscalePipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sGrayscalePipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+
+    u32 pushConstants[] = {
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
+        sTexture.bindlessHandle,
+    };
+    vkCmdPushConstants(cmd.handle, sGrayscalePipeline.layout,
+                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
+                       pushConstants);
+    vkCmdDispatch(cmd.handle, 256, 1, 1);
+
+    VkBufferMemoryBarrier grayscaleToFFTBarrier = RHI::BufferMemoryBarrier(
+        sOceanFrequencyBuffers[2 * device.frameIndex],
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &grayscaleToFFTBarrier, 0, nullptr);
+}
+
+static void FFTPass(RHI::Device& device)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sFFTPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sFFTPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    u32 pushConstantsFFTX[] = {
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
+    };
+    vkCmdPushConstants(cmd.handle, sGrayscalePipeline.layout,
+                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstantsFFTX),
+                       pushConstantsFFTX);
+    vkCmdDispatch(cmd.handle, 256, 1, 1);
+    VkBufferMemoryBarrier FFTToTransposeBarrier = RHI::BufferMemoryBarrier(
+        sOceanFrequencyBuffers[2 * device.frameIndex],
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &FFTToTransposeBarrier, 0, nullptr);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sTransposePipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sTransposePipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    u32 pushConstantsTranspose[] = {
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 256};
+    vkCmdPushConstants(cmd.handle, sTransposePipeline.layout,
+                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstantsTranspose),
+                       pushConstantsTranspose);
+    vkCmdDispatch(cmd.handle, 16, 16, 1);
+    VkBufferMemoryBarrier transposeToFFTBarrier = RHI::BufferMemoryBarrier(
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1],
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &transposeToFFTBarrier, 0, nullptr);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      sFFTPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            sFFTPipeline.layout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+    u32 pushConstantsFFTY[] = {
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle,
+    };
+    vkCmdPushConstants(cmd.handle, sGrayscalePipeline.layout,
+                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstantsFFTY),
+                       pushConstantsFFTY);
+    vkCmdDispatch(cmd.handle, 256, 1, 1);
+    VkBufferMemoryBarrier fftToGraphicsBarrier = RHI::BufferMemoryBarrier(
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1],
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                         &fftToGraphicsBarrier, 0, nullptr);
 }
 
 static void GraphicsPass(RHI::Device& device)
@@ -190,7 +299,12 @@ static void GraphicsPass(RHI::Device& device)
     vkCmdEndRendering(cmd.handle);
 }
 
-static void ExecuteCommands(RHI::Device& device) { GraphicsPass(device); }
+static void ExecuteCommands(RHI::Device& device)
+{
+    GrayscalePass(device);
+    FFTPass(device);
+    GraphicsPass(device);
+}
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)

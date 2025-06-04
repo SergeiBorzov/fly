@@ -1,0 +1,32 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint dataBufferIndex;
+    uint textureIndex;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, { vec2 value; })
+FLY_REGISTER_TEXTURE_BUFFER(Texture, sampler2D)
+
+void main()
+{
+    uint c = gl_LocalInvocationID.x;
+    uint r = gl_WorkGroupID.y;
+    uint base = r * gl_WorkGroupSize.x;
+
+    vec2 uv = vec2(float(c) / (gl_WorkGroupSize.x - 1),
+                   float(r) / (gl_WorkGroupSize.x - 1));
+
+    vec3 color =
+        texture(FLY_ACCESS_TEXTURE_BUFFER(Texture, gPushConstants.textureIndex),
+                uv)
+            .rgb;
+    FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
+    [base + c] = Data(vec2((color.r + color.g + color.b) / 3.0f, 0.0f));
+}

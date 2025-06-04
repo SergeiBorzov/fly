@@ -27,6 +27,22 @@ config_setting(
 )
 
 glsl_shader(
+    name = "grayscale.comp.spv",
+    src = "grayscale.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "transpose.comp.spv",
+    src = "transpose.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
     name = "fft.comp.spv",
     src = "fft.comp",
     deps = [
@@ -45,6 +61,8 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
+        ":grayscale.comp.spv",
+        ":transpose.comp.spv",
         ":fft.comp.spv",
         ":copy_scene_data",
     ] + select({
