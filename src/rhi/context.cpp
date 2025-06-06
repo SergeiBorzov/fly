@@ -1118,6 +1118,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
     vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = true;
     vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = true;
     vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = true;
+    vulkan12Features.descriptorBindingStorageImageUpdateAfterBind = true;
     vulkan12Features.descriptorBindingPartiallyBound = true;
     vulkan12Features.runtimeDescriptorArray = true;
     vulkan12Features.drawIndirectCount = true;

@@ -426,15 +426,16 @@ static bool RecreateSwapchain(Device& device)
 
 static bool CreateDescriptorPool(Device& device)
 {
-    VkDescriptorPoolSize poolSizes[3] = {
+    VkDescriptorPoolSize poolSizes[4] = {
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, FLY_DESCRIPTOR_MAX_COUNT},
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, FLY_DESCRIPTOR_MAX_COUNT},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT}};
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, FLY_DESCRIPTOR_MAX_COUNT}};
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     createInfo.pPoolSizes = poolSizes;
-    createInfo.poolSizeCount = 3;
+    createInfo.poolSizeCount = STACK_ARRAY_COUNT(poolSizes);
     createInfo.maxSets = 1;
     createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 
@@ -445,7 +446,9 @@ static bool CreateDescriptorPool(Device& device)
         return false;
     }
 
-    VkDescriptorBindingFlags bindingFlags[3] = {
+    VkDescriptorBindingFlags bindingFlags[] = {
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
@@ -458,21 +461,23 @@ static bool CreateDescriptorPool(Device& device)
     bindingFlagsCreateInfo.sType =
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
     bindingFlagsCreateInfo.pBindingFlags = bindingFlags;
-    bindingFlagsCreateInfo.bindingCount = 3;
+    bindingFlagsCreateInfo.bindingCount = STACK_ARRAY_COUNT(bindingFlags);
     bindingFlagsCreateInfo.pNext = nullptr;
 
-    VkDescriptorSetLayoutBinding bindings[3] = {
+    VkDescriptorSetLayoutBinding bindings[] = {
         {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, FLY_DESCRIPTOR_MAX_COUNT,
          VK_SHADER_STAGE_ALL, nullptr},
         {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, FLY_DESCRIPTOR_MAX_COUNT,
          VK_SHADER_STAGE_ALL, nullptr},
         {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT,
+         VK_SHADER_STAGE_ALL, nullptr},
+        {3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, FLY_DESCRIPTOR_MAX_COUNT,
          VK_SHADER_STAGE_ALL, nullptr}};
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
     descriptorSetLayoutCreateInfo.sType =
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutCreateInfo.bindingCount = 3;
+    descriptorSetLayoutCreateInfo.bindingCount = STACK_ARRAY_COUNT(bindings);
     descriptorSetLayoutCreateInfo.pBindings = bindings;
     descriptorSetLayoutCreateInfo.flags =
         VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
@@ -668,7 +673,7 @@ static bool CreateVmaAllocator(Context& context, Device& device)
 
     VmaAllocatorCreateInfo createInfo{};
     createInfo.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
-    createInfo.vulkanApiVersion = VK_API_VERSION_1_4;
+    createInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     createInfo.physicalDevice = device.physicalDevice;
     createInfo.device = device.logicalDevice;
     createInfo.instance = context.instance;
@@ -703,9 +708,9 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
     ArenaMarker marker = ArenaGetMarker(arena);
 
     f32 queuePriority = 1.0f;
-    VkDeviceQueueCreateInfo* queueCreateInfos =
-        FLY_PUSH_ARENA(arena, VkDeviceQueueCreateInfo,
-                  1 + static_cast<u32>(static_cast<bool>(context.windowPtr)));
+    VkDeviceQueueCreateInfo* queueCreateInfos = FLY_PUSH_ARENA(
+        arena, VkDeviceQueueCreateInfo,
+        1 + static_cast<u32>(static_cast<bool>(context.windowPtr)));
     queueCreateInfos[0] = {};
     queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfos[0].queueFamilyIndex =

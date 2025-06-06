@@ -56,6 +56,7 @@ struct Device
     u32 bindlessUniformBufferHandleCount = 0;
     u32 bindlessStorageBufferHandleCount = 0;
     u32 bindlessTextureHandleCount = 0;
+    u32 bindlessWriteTextureHandleCount = 0;
     u32 swapchainTextureCount = 0;
     u32 swapchainTextureIndex = 0;
     u32 frameIndex = 0;
