@@ -174,6 +174,26 @@ static const char* ColorSpaceToString(VkColorSpaceKHR colorSpace)
     }
 }
 
+static bool CreatePipelineLayout(Fly::RHI::Device& device,
+                                 VkPipelineLayout& pipelineLayout)
+{
+    VkPushConstantRange pushConstantRange;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = 128;
+
+    VkPipelineLayoutCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    createInfo.setLayoutCount = 1;
+    createInfo.pSetLayouts = &device.bindlessDescriptorSetLayout;
+    createInfo.pPushConstantRanges = &pushConstantRange;
+    createInfo.pushConstantRangeCount = 1;
+
+    return vkCreatePipelineLayout(device.logicalDevice, &createInfo,
+                                  Fly::RHI::GetVulkanAllocationCallbacks(),
+                                  &pipelineLayout) == VK_SUCCESS;
+}
+
 namespace Fly
 {
 namespace RHI
@@ -841,6 +861,11 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         }
     }
 
+    if (!CreatePipelineLayout(device, device.pipelineLayout))
+    {
+        return false;
+    }
+
     ArenaPopToMarker(arena, marker);
     return true;
 }
@@ -851,6 +876,8 @@ void DestroyLogicalDevice(Device& device)
     {
         DestroySwapchain(device);
     }
+    vkDestroyPipelineLayout(device.logicalDevice, device.pipelineLayout,
+                            GetVulkanAllocationCallbacks());
     DestroyMainDepthTexture(device);
     DestroyDescriptorPool(device);
     DestroyCommandPool(device);

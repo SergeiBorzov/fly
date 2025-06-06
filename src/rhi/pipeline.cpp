@@ -231,27 +231,6 @@ static VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
     return pipelineRendering;
 }
 
-static bool CreatePipelineLayout(Device& device,
-                                 VkPipelineLayout& pipelineLayout)
-{
-    VkPushConstantRange pushConstantRange;
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = 128;
-
-    VkPipelineLayoutCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    createInfo.setLayoutCount = 1;
-    createInfo.pSetLayouts = &device.bindlessDescriptorSetLayout;
-    createInfo.pPushConstantRanges = &pushConstantRange;
-    createInfo.pushConstantRangeCount = 1;
-
-    VkResult res =
-        vkCreatePipelineLayout(device.logicalDevice, &createInfo,
-                               GetVulkanAllocationCallbacks(), &pipelineLayout);
-    return res == VK_SUCCESS;
-}
-
 bool CreateGraphicsPipeline(Device& device,
                             const GraphicsPipelineFixedStateStage& fixedState,
                             const ShaderProgram& shaderProgram,
@@ -260,10 +239,7 @@ bool CreateGraphicsPipeline(Device& device,
     FLY_ASSERT(fixedState.colorBlendState.attachmentCount ==
                fixedState.pipelineRendering.colorAttachmentCount);
 
-    if (!CreatePipelineLayout(device, graphicsPipeline.layout))
-    {
-        return false;
-    }
+    graphicsPipeline.layout = device.pipelineLayout;
 
     // Programmable state
     u32 stageCount = 0;
@@ -380,8 +356,6 @@ void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 
     vkDestroyPipeline(device.logicalDevice, graphicsPipeline.handle,
                       GetVulkanAllocationCallbacks());
-    vkDestroyPipelineLayout(device.logicalDevice, graphicsPipeline.layout,
-                            GetVulkanAllocationCallbacks());
     graphicsPipeline.handle = VK_NULL_HANDLE;
     graphicsPipeline.layout = VK_NULL_HANDLE;
 }
@@ -389,10 +363,7 @@ void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 bool CreateComputePipeline(Device& device, const Shader& computeShader,
                            ComputePipeline& computePipeline)
 {
-    if (!CreatePipelineLayout(device, computePipeline.layout))
-    {
-        return false;
-    }
+    computePipeline.layout = device.pipelineLayout;
 
     VkPipelineShaderStageCreateInfo stageCreateInfo{};
     stageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -424,8 +395,6 @@ void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline)
 
     vkDestroyPipeline(device.logicalDevice, computePipeline.handle,
                       GetVulkanAllocationCallbacks());
-    vkDestroyPipelineLayout(device.logicalDevice, computePipeline.layout,
-                            GetVulkanAllocationCallbacks());
     computePipeline.handle = VK_NULL_HANDLE;
     computePipeline.layout = VK_NULL_HANDLE;
 }

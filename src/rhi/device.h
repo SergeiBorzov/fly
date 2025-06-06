@@ -71,6 +71,7 @@ struct Device
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSetLayout bindlessDescriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorSet bindlessDescriptorSet = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
     u32 bindlessUniformBufferHandleCount = 0;
     u32 bindlessStorageBufferHandleCount = 0;

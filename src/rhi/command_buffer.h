@@ -12,6 +12,8 @@ namespace RHI
 
 struct Device;
 struct Buffer;
+struct GraphicsPipeline;
+struct ComputePipeline;
 
 struct CommandBuffer
 {
@@ -51,6 +53,13 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
 void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                       f32 b, f32 a);
 
+void BindGraphicsPipeline(Device& device, CommandBuffer& commandBuffer,
+                          const GraphicsPipeline& graphicsPipeline);
+void BindComputePipeline(Device& device, CommandBuffer& commandBuffer,
+                         const ComputePipeline& computePipeline);
+void SetPushConstants(Device& device, CommandBuffer& commandBuffer,
+                      const void* pushConstants, u32 pushConstantsSize, u32 offset = 0);
+
 VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
                                               VkImageLayout imageLayout);
 VkRenderingAttachmentInfo DepthAttachmentInfo(VkImageView imageView,
@@ -63,10 +72,11 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* depthAttachment = nullptr,
               const VkRenderingAttachmentInfo* stencilAttachment = nullptr);
 
-VkBufferMemoryBarrier
-BufferMemoryBarrier(const RHI::Buffer& buffer,
-                    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-                    u64 offset = 0, u64 size = VK_WHOLE_SIZE);
+VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
+                                          VkAccessFlags srcAccessMask,
+                                          VkAccessFlags dstAccessMask,
+                                          u64 offset = 0,
+                                          u64 size = VK_WHOLE_SIZE);
 
 } // namespace RHI
 } // namespace Fly

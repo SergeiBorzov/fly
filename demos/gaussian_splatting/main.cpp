@@ -340,19 +340,14 @@ static void CullPass(RHI::Device& device)
     u32 workGroupCount = static_cast<u32>(
         Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sCullPipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sCullPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sCullPipeline);
     u32 pushConstants[] = {
         sUniformBuffers[device.frameIndex].bindlessHandle,
         sSplatBuffer.bindlessHandle,
         sPingPongKeys[2 * device.frameIndex].bindlessHandle,
         sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
         sSplatCount};
-    vkCmdPushConstants(cmd.handle, sCullPipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(pushConstants), pushConstants);
+    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
     vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
     VkBufferMemoryBarrier cullToDispatchBarriers[2];
@@ -373,19 +368,13 @@ static void WriteIndirectPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sWriteIndirectDispatchPipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sWriteIndirectDispatchPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sWriteIndirectDispatchPipeline);
     u32 pushConstants[] = {
         sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
         sIndirectDrawBuffers[device.frameIndex].bindlessHandle,
         sIndirectDispatchBuffers[device.frameIndex].bindlessHandle,
     };
-    vkCmdPushConstants(cmd.handle, sWriteIndirectDispatchPipeline.layout,
-                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                       pushConstants);
+    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
     vkCmdDispatch(cmd.handle, 1, 1, 1);
 
     VkBufferMemoryBarrier indirectWriteBarriers[3];
@@ -427,20 +416,14 @@ static void SortPass(RHI::Device& device)
         u32 out = ((i + 1) % 2) + 2 * device.frameIndex;
 
         // Calculate count histograms
-        vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          sCountPipeline.handle);
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                sCountPipeline.layout, 0, 1,
-                                &device.bindlessDescriptorSet, 0, nullptr);
-
+        RHI::BindComputePipeline(device, cmd, sCountPipeline);
         u32 pushConstants[] = {
             i, sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
             sPingPongKeys[in].bindlessHandle,
             sTileHistograms[device.frameIndex].bindlessHandle,
             sGlobalHistograms[device.frameIndex].bindlessHandle};
-        vkCmdPushConstants(cmd.handle, sCountPipeline.layout,
-                           VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                           pushConstants);
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
         vkCmdDispatchIndirect(
             cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle, 0);
 
@@ -457,14 +440,9 @@ static void SortPass(RHI::Device& device)
                              countToScanBarriers, 0, nullptr);
 
         // Exclusive prefix sums - global offsets
-        vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          sScanPipeline.handle);
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                sScanPipeline.layout, 0, 1,
-                                &device.bindlessDescriptorSet, 0, nullptr);
-        vkCmdPushConstants(cmd.handle, sScanPipeline.layout,
-                           VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                           pushConstants);
+        RHI::BindComputePipeline(device, cmd, sScanPipeline);
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
         vkCmdDispatchIndirect(
             cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle,
             sizeof(VkDispatchIndirectCommand));
@@ -478,15 +456,10 @@ static void SortPass(RHI::Device& device)
                              nullptr, 1, &scanToSortBarrier, 0, nullptr);
 
         // Sort
-        vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          sSortPipeline.handle);
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                sSortPipeline.layout, 0, 1,
-                                &device.bindlessDescriptorSet, 0, nullptr);
+        RHI::BindComputePipeline(device, cmd, sSortPipeline);
         pushConstants[4] = sPingPongKeys[out].bindlessHandle;
-        vkCmdPushConstants(cmd.handle, sSortPipeline.layout,
-                           VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                           pushConstants);
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
         vkCmdDispatchIndirect(
             cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle, 0);
 
@@ -523,18 +496,13 @@ static void CopyPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sCopyPipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sCopyPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sCopyPipeline);
     u32 pushConstants[] = {
         sSplatBuffer.bindlessHandle,
         sPingPongKeys[2 * device.frameIndex].bindlessHandle,
         sSortedSplatBuffers[device.frameIndex].bindlessHandle,
         sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle};
-    vkCmdPushConstants(cmd.handle, sCopyPipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(pushConstants), pushConstants);
+    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
     vkCmdDispatchIndirect(
         cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle, 0);
 
@@ -569,12 +537,7 @@ static void GraphicsPass(RHI::Device& device)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      sGraphicsPipeline.handle);
-
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            sGraphicsPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindGraphicsPipeline(device, cmd, sGraphicsPipeline);
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -590,9 +553,7 @@ static void GraphicsPass(RHI::Device& device)
 
     u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
                       sSortedSplatBuffers[device.frameIndex].bindlessHandle};
-    vkCmdPushConstants(cmd.handle, sGraphicsPipeline.layout,
-                       VK_SHADER_STAGE_ALL, 0, sizeof(u32) * 2, indices);
-
+    RHI::SetPushConstants(device, cmd, indices, sizeof(indices));
     vkCmdDrawIndirectCount(cmd.handle,
                            sIndirectDrawBuffers[device.frameIndex].handle, 0,
                            sIndirectDrawCountBuffers[device.frameIndex].handle,

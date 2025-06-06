@@ -12,6 +12,8 @@
 
 #include <GLFW/glfw3.h>
 
+using namespace Fly;
+
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
 {
@@ -26,7 +28,6 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-using namespace Fly;
 static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
@@ -42,8 +43,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipeline.handle);
+    RHI::BindGraphicsPipeline(device, cmd, pipeline);
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -65,8 +65,6 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
 int main(int argc, char* argv[])
 {
     InitThreadContext();
-    Arena& arena = GetScratchArena();
-
     if (!InitLogger())
     {
         return -1;
@@ -161,7 +159,6 @@ int main(int argc, char* argv[])
     glfwTerminate();
     FLY_LOG("Shutdown successful");
     ShutdownLogger();
-
     ReleaseThreadContext();
     return 0;
 }

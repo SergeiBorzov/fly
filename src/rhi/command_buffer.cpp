@@ -5,6 +5,7 @@
 #include "buffer.h"
 #include "command_buffer.h"
 #include "device.h"
+#include "pipeline.h"
 
 namespace Fly
 {
@@ -243,6 +244,42 @@ void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
         ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
     vkCmdClearColorImage(commandBuffer.handle, image, VK_IMAGE_LAYOUT_GENERAL,
                          &clearValue, 1, &clearRange);
+}
+
+void BindGraphicsPipeline(Device& device, CommandBuffer& cmd,
+                          const RHI::GraphicsPipeline& graphicsPipeline)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(graphicsPipeline.handle != VK_NULL_HANDLE);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphicsPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            device.pipelineLayout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+}
+
+void BindComputePipeline(Device& device, CommandBuffer& cmd,
+                         const RHI::ComputePipeline& computePipeline)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(computePipeline.handle != VK_NULL_HANDLE);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      computePipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            device.pipelineLayout, 0, 1,
+                            &device.bindlessDescriptorSet, 0, nullptr);
+}
+
+void SetPushConstants(Device& device, CommandBuffer& cmd,
+                      const void* pushConstants, u32 pushConstantsSize,
+                      u32 offset)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
+    vkCmdPushConstants(cmd.handle, device.pipelineLayout, VK_SHADER_STAGE_ALL,
+                       offset, pushConstantsSize, pushConstants);
 }
 
 VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,

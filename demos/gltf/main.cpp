@@ -63,8 +63,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipeline.handle);
+    RHI::BindGraphicsPipeline(device, cmd, pipeline);
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -78,29 +77,26 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            pipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
     vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
                          VK_INDEX_TYPE_UINT32);
 
     u32 globalIndices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
                             scene.materialBuffer.bindlessHandle};
-    vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
-                       sizeof(Math::Mat4), sizeof(u32) * 2, globalIndices);
+    RHI::SetPushConstants(device, cmd, globalIndices, sizeof(globalIndices),
+                          sizeof(Math::Mat4));
     for (u32 i = 0; i < scene.meshNodeCount; i++)
     {
         const Fly::MeshNode& meshNode = scene.meshNodes[i];
-        vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL, 0,
-                           sizeof(Math::Mat4), meshNode.model.data);
+        RHI::SetPushConstants(device, cmd, meshNode.model.data,
+                              sizeof(meshNode.model.data));
         for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
         {
             const Fly::Submesh& submesh = meshNode.mesh->submeshes[j];
             u32 localIndices[2] = {submesh.vertexBufferIndex,
                                    submesh.materialIndex};
-            vkCmdPushConstants(cmd.handle, pipeline.layout, VK_SHADER_STAGE_ALL,
-                               sizeof(Math::Mat4) + sizeof(u32) * 2,
-                               sizeof(u32) * 2, localIndices);
+            RHI::SetPushConstants(device, cmd, localIndices,
+                                  sizeof(localIndices),
+                                  sizeof(Math::Mat4) + sizeof(u32) * 2);
             vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1,
                              submesh.indexOffset, 0, 0);
         }

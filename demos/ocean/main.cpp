@@ -173,19 +173,12 @@ static void GrayscalePass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sGrayscalePipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sGrayscalePipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
-
+    RHI::BindComputePipeline(device, cmd, sGrayscalePipeline);
     u32 pushConstants[] = {
         sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
         sTexture.bindlessHandle,
     };
-    vkCmdPushConstants(cmd.handle, sGrayscalePipeline.layout,
-                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                       pushConstants);
+    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
 
     VkBufferMemoryBarrier grayscaleToFFTBarrier = RHI::BufferMemoryBarrier(
@@ -201,17 +194,12 @@ static void FFTPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sFFTPipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sFFTPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTX[] = {
         sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
     };
-    vkCmdPushConstants(cmd.handle, sGrayscalePipeline.layout,
-                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstantsFFTX),
-                       pushConstantsFFTX);
+    RHI::SetPushConstants(device, cmd, pushConstantsFFTX,
+                          sizeof(pushConstantsFFTX));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
     VkBufferMemoryBarrier FFTToTransposeBarrier = RHI::BufferMemoryBarrier(
         sOceanFrequencyBuffers[2 * device.frameIndex],
@@ -221,17 +209,12 @@ static void FFTPass(RHI::Device& device)
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
                          &FFTToTransposeBarrier, 0, nullptr);
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sTransposePipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sTransposePipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sTransposePipeline);
     u32 pushConstantsTranspose[] = {
         sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
         sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 256};
-    vkCmdPushConstants(cmd.handle, sTransposePipeline.layout,
-                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstantsTranspose),
-                       pushConstantsTranspose);
+    RHI::SetPushConstants(device, cmd, pushConstantsTranspose,
+                          sizeof(pushConstantsTranspose));
     vkCmdDispatch(cmd.handle, 16, 16, 1);
     VkBufferMemoryBarrier transposeToFFTBarrier = RHI::BufferMemoryBarrier(
         sOceanFrequencyBuffers[2 * device.frameIndex + 1],
@@ -241,17 +224,12 @@ static void FFTPass(RHI::Device& device)
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
                          &transposeToFFTBarrier, 0, nullptr);
 
-    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                      sFFTPipeline.handle);
-    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            sFFTPipeline.layout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTY[] = {
         sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle,
     };
-    vkCmdPushConstants(cmd.handle, sGrayscalePipeline.layout,
-                       VK_SHADER_STAGE_ALL, 0, sizeof(pushConstantsFFTY),
-                       pushConstantsFFTY);
+    RHI::SetPushConstants(device, cmd, pushConstantsFFTY,
+                          sizeof(pushConstantsFFTY));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
     VkBufferMemoryBarrier fftToGraphicsBarrier = RHI::BufferMemoryBarrier(
         sOceanFrequencyBuffers[2 * device.frameIndex + 1],

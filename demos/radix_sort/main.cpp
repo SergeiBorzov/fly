@@ -168,18 +168,12 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
         u32 out = (i + 1) % 2;
 
         // Calculate count histograms
-        vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          sCountPipeline.handle);
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                sCountPipeline.layout, 0, 1,
-                                &device.bindlessDescriptorSet, 0, nullptr);
-
+        RHI::BindComputePipeline(device, cmd, sCountPipeline);
         u32 pushConstants[] = {i, keyCount, sPingPongKeys[in].bindlessHandle,
                                sTileHistograms.bindlessHandle,
                                sGlobalHistograms.bindlessHandle};
-        vkCmdPushConstants(cmd.handle, sCountPipeline.layout,
-                           VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                           pushConstants);
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
         VkBufferMemoryBarrier countToScanBarriers[2];
@@ -195,14 +189,9 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
                              countToScanBarriers, 0, nullptr);
 
         // Exclusive prefix sums - global offsets
-        vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          sScanPipeline.handle);
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                sScanPipeline.layout, 0, 1,
-                                &device.bindlessDescriptorSet, 0, nullptr);
-        vkCmdPushConstants(cmd.handle, sScanPipeline.layout,
-                           VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                           pushConstants);
+        RHI::BindComputePipeline(device, cmd, sScanPipeline);
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, RADIX_HISTOGRAM_SIZE, 1, 1);
 
         VkBufferMemoryBarrier scanToSortBarrier = RHI::BufferMemoryBarrier(
@@ -214,15 +203,10 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
                              nullptr, 1, &scanToSortBarrier, 0, nullptr);
 
         // Sort
-        vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          sSortPipeline.handle);
-        vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                sSortPipeline.layout, 0, 1,
-                                &device.bindlessDescriptorSet, 0, nullptr);
+        RHI::BindComputePipeline(device, cmd, sSortPipeline);
         pushConstants[4] = sPingPongKeys[out].bindlessHandle;
-        vkCmdPushConstants(cmd.handle, sSortPipeline.layout,
-                           VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants),
-                           pushConstants);
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
         if (i == RADIX_PASS_COUNT - 1)
