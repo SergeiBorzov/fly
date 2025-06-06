@@ -4,10 +4,10 @@
 #include "assert.h"
 #include "hash.h"
 
-struct Arena;
 
 namespace Fly
 {
+struct Arena;
 
 bool CharIsAlpha(i32 c);
 bool CharIsDigit(i32 c);

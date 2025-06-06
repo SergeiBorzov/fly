@@ -3,10 +3,9 @@
 
 #include "string8.h"
 
-struct Arena;
-
 namespace Fly
 {
+struct Arena;
 
 struct Path
 {

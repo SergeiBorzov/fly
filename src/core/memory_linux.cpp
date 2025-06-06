@@ -1,4 +1,6 @@
+#include "assert.h"
 #include "memory.h"
+
 #include <sys/mman.h>
 
 namespace Fly
@@ -29,6 +31,7 @@ void* PlatformCommitMemory(void* baseAddress, u64 commitSize)
 {
     void* commited = mmap(baseAddress, commitSize, PROT_READ | PROT_WRITE,
                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+
     if (commited == MAP_FAILED)
     {
         return nullptr;

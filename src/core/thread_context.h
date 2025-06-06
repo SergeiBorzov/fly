@@ -3,6 +3,9 @@
 
 #include "arena.h"
 
+namespace Fly
+{
+
 struct ThreadContext
 {
     Arena arenas[2];
@@ -13,5 +16,7 @@ void ReleaseThreadContext();
 ThreadContext& GetThreadContext();
 
 Arena& GetScratchArena(Arena* conflict = nullptr);
+
+} // namespace Fly
 
 #endif /* FLY_CORE_THREAD_CONTEXT */

@@ -3,11 +3,10 @@
 
 #include "core/string8.h"
 
-struct Arena;
 
 namespace Fly
 {
-
+struct Arena;
 struct Path;
 
 String8 LoadSpvFromFile(Arena& arena, const char* path);

@@ -3,9 +3,12 @@
 
 #include <windows.h>
 
+namespace Fly
+{
+
 static thread_local ThreadContext stThreadContext;
 
-bool SetEnv(const char* name, const char* value)
+static bool SetEnv(const char* name, const char* value)
 {
     return _putenv_s(name, value) == 0;
 }
@@ -34,7 +37,8 @@ void InitThreadContext()
 {
     for (i32 i = 0; i < 2; i++)
     {
-        stThreadContext.arenas[i] = ArenaCreate(FLY_SIZE_GB(2), FLY_SIZE_MB(1));
+        stThreadContext.arenas[i] =
+            ArenaCreate(FLY_SIZE_GB(2), FLY_ARENA_MIN_CAPACITY);
     }
 
     Arena& scratch = stThreadContext.arenas[0];
@@ -76,3 +80,5 @@ Arena& GetScratchArena(Arena* conflict)
     FLY_ASSERT(index != -1);
     return stThreadContext.arenas[index];
 }
+
+} // namespace Fly

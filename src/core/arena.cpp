@@ -13,6 +13,9 @@ static void* AlignPtr(void* ptr, u32 align)
     return (void*)((addr + mask) & ~mask);
 }
 
+namespace Fly
+{
+
 void* ArenaUnwrapPtr(void* alignedPtr)
 {
     u8* byteAlignedPtr = static_cast<u8*>(alignedPtr);
@@ -34,24 +37,13 @@ Arena ArenaCreate(u64 reservedSize, u64 commitedSize)
     arena.ptr =
         static_cast<u8*>(Fly::PlatformAlloc(reservedSize, commitedSize));
     FLY_ASSERT(arena.ptr);
+    FLY_ASSERT(commitedSize >= FLY_ARENA_MIN_CAPACITY);
 
     arena.reservedCapacity = reservedSize;
     arena.capacity = commitedSize;
     arena.size = 0;
     arena.lastAllocSize = 0;
 
-    return arena;
-}
-
-Arena ArenaCreateInline(u64 commitedSize, void* ptr)
-{
-    Arena arena;
-    arena.ptr = static_cast<u8*>(ptr);
-    FLY_ASSERT(ptr);
-
-    arena.capacity = commitedSize;
-    arena.size = 0;
-    arena.lastAllocSize = 0;
     return arena;
 }
 
@@ -71,11 +63,12 @@ void ArenaPopToMarker(Arena& arena, ArenaMarker marker)
 {
     arena.size = marker.value;
 
-    if (arena.size < arena.capacity / 4)
+    if (arena.capacity > FLY_ARENA_MIN_CAPACITY &&
+        arena.size < arena.capacity / 4)
     {
         u64 newCapacity = arena.capacity / 2;
         Fly::PlatformDecommitMemory(arena.ptr + newCapacity,
-                                arena.capacity - newCapacity);
+                                    arena.capacity - newCapacity);
         arena.capacity = newCapacity;
     }
 }
@@ -129,9 +122,10 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
 
 void ArenaReset(Arena& arena)
 {
-    u64 resetCapacity = FLY_SIZE_MB(1);
     arena.size = 0;
-    Fly::PlatformDecommitMemory(arena.ptr + resetCapacity,
-                                arena.capacity - resetCapacity);
-    arena.capacity = resetCapacity;
+    Fly::PlatformDecommitMemory(arena.ptr + FLY_ARENA_MIN_CAPACITY,
+                                arena.capacity - FLY_ARENA_MIN_CAPACITY);
+    arena.capacity = FLY_ARENA_MIN_CAPACITY;
 }
+
+} // namespace Fly

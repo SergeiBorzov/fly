@@ -6,10 +6,10 @@
 #include "rhi/buffer.h"
 #include "rhi/texture.h"
 
-struct Arena;
 
 namespace Fly
 {
+struct Arena;
 
 // CPU based draw call structures
 struct Submesh
