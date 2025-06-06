@@ -22,7 +22,7 @@ using namespace Fly;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTexture;
 
-static Fly::SimpleCameraFPS sCamera(45.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
+static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
                                     Math::Vec3(0.0f, 0.0f, -5.0f));
 
 struct UniformData
@@ -30,7 +30,7 @@ struct UniformData
     Math::Mat4 projection = {};
     Math::Mat4 view = {};
     f32 time = 0.0f;
-    f32 padding[15] = {0.0f};
+    f32 pad[3];
 };
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,

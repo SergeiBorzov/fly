@@ -459,7 +459,8 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
     }
 
     ArenaMarker marker = ArenaGetMarker(arena);
-    flyScene.directDrawData.meshes = FLY_PUSH_ARENA(arena, Mesh, data->meshes_count);
+    flyScene.directDrawData.meshes =
+        FLY_PUSH_ARENA(arena, Mesh, data->meshes_count);
     flyScene.directDrawData.meshCount = static_cast<u32>(data->meshes_count);
 
     u32 totalSubmeshCount = 0;
@@ -473,7 +474,8 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         return true;
     }
 
-    flyScene.vertexBuffers = FLY_PUSH_ARENA(arena, RHI::Buffer, totalSubmeshCount);
+    flyScene.vertexBuffers =
+        FLY_PUSH_ARENA(arena, RHI::Buffer, totalSubmeshCount);
     flyScene.vertexBufferCount = totalSubmeshCount;
     flyScene.directDrawData.submeshes =
         FLY_PUSH_ARENA(arena, Submesh, totalSubmeshCount);
@@ -619,8 +621,9 @@ bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
     {
         return false;
     }
-    if (!RHI::CreateTexture(device, image.data, image.width, image.height,
-                            image.channelCount, format, filterMode, wrapMode,
+    u64 imageSize = image.width * image.height * image.channelCount;
+    if (!RHI::CreateTexture(device, image.data, imageSize, image.width,
+                            image.height, format, filterMode, wrapMode,
                             texture))
     {
         return false;

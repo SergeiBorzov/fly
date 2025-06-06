@@ -7,6 +7,7 @@
 #include "allocation_callbacks.h"
 #include "context.h"
 #include "surface.h"
+#include "texture.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -239,19 +240,60 @@ static bool CreateMainDepthTexture(Device& device)
         GetWindowSize(*device.context, width, height);
     }
 
-    VkFormat format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-    if (!CreateDepthTexture(device, static_cast<u32>(width),
-                            static_cast<u32>(height), format,
-                            device.depthTexture))
+    VkImageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    createInfo.flags = 0;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    createInfo.extent.width = static_cast<u32>(width);
+    createInfo.extent.height = static_cast<u32>(height);
+    createInfo.extent.depth = 1;
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    createInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    allocCreateInfo.requiredFlags =
+        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo,
+                       &device.depthTexture.image,
+                       &device.depthTexture.allocation,
+                       &device.depthTexture.allocationInfo) != VK_SUCCESS)
     {
         return false;
     }
 
-    // Depth image transition to writeable
+    VkImageViewCreateInfo viewCreateInfo{};
+    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewCreateInfo.image = device.depthTexture.image;
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewCreateInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    viewCreateInfo.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
+                          GetVulkanAllocationCallbacks(),
+                          &device.depthTexture.imageView) != VK_SUCCESS)
+    {
+        vmaDestroyImage(device.allocator, device.depthTexture.image,
+                        device.depthTexture.allocation);
+        return false;
+    }
+
     BeginTransfer(device);
     CommandBuffer& cmd = device.transferData.commandBuffer;
     RecordTransitionImageLayout(
-        cmd, device.depthTexture.handle, VK_IMAGE_LAYOUT_UNDEFINED,
+        cmd, device.depthTexture.image, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     EndTransfer(device);
 
@@ -260,7 +302,10 @@ static bool CreateMainDepthTexture(Device& device)
 
 static void DestroyMainDepthTexture(Device& device)
 {
-    DestroyDepthTexture(device, device.depthTexture);
+    vkDestroyImageView(device.logicalDevice, device.depthTexture.imageView,
+                       GetVulkanAllocationCallbacks());
+    vmaDestroyImage(device.allocator, device.depthTexture.image,
+                    device.depthTexture.allocation);
 }
 
 static bool CreateSwapchain(Device& device,

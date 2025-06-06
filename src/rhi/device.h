@@ -2,7 +2,7 @@
 #define FLY_RHI_DEVICE_H
 
 #include "command_buffer.h"
-#include "texture.h"
+#include "vma.h"
 
 #define FLY_SWAPCHAIN_IMAGE_MAX_COUNT 8
 #define FLY_FRAME_IN_FLIGHT_COUNT 2
@@ -32,6 +32,25 @@ struct TransferData
     CommandBuffer commandBuffer = {};
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkFence transferFence = VK_NULL_HANDLE;
+};
+
+struct SwapchainTexture
+{
+    VkImage handle = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    u32 width = 0;
+    u32 height = 0;
+};
+
+struct DepthTexture
+{
+    VmaAllocationInfo allocationInfo;
+    VkImage image = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    VkFormat format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    VmaAllocation allocation;
+    u32 width = 0;
+    u32 height = 0;
 };
 
 struct Device
