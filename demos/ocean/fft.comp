@@ -28,7 +28,7 @@ shared vec2 sharedData[256];
 void main()
 {
     uint c = gl_LocalInvocationID.x;
-    uint r = gl_WorkGroupID.y;
+    uint r = gl_WorkGroupID.x;
 
     uint base = r * gl_WorkGroupSize.x;
     sharedData[bitReverse(c)] =

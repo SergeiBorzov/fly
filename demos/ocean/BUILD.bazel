@@ -50,6 +50,27 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "copy.comp.spv",
+    src = "copy.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "screen_quad.vert.spv",
+    src = "screen_quad.vert",
+)
+
+glsl_shader(
+    name = "screen_quad.frag.spv",
+    src = "screen_quad.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -61,6 +82,9 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
+        ":screen_quad.vert.spv",
+        ":screen_quad.frag.spv",
+        ":copy.comp.spv",
         ":grayscale.comp.spv",
         ":transpose.comp.spv",
         ":fft.comp.spv",

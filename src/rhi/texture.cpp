@@ -460,9 +460,10 @@ bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
         return false;
     }
+    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageLayout = targetImageLayout;
     imageInfo.imageView = texture.imageView;
     imageInfo.sampler = texture.sampler.handle;
 
@@ -478,7 +479,6 @@ bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
     vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
                            nullptr);
 
-    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     texture.bindlessHandle = device.bindlessTextureHandleCount++;
     texture.width = width;
     texture.height = height;
@@ -527,10 +527,160 @@ bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
 
         DestroyBuffer(device, stagingBuffer);
     }
+    else
+    {
+        BeginTransfer(device);
+        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+        RHI::RecordTransitionImageLayout(
+            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, targetImageLayout);
+        EndTransfer(device);
+    }
+
     texture.imageLayout = targetImageLayout;
 
-    FLY_DEBUG_LOG("Texture [%llu] created with size %f MB", texture.image,
-                  texture.allocationInfo.size / 1024.0 / 1024.0);
+    FLY_DEBUG_LOG("Texture [%llu] created with size %f MB: bindless handle %u",
+                  texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
+                  texture.bindlessHandle);
+    return true;
+}
+
+bool CreateReadWriteTexture(Device& device, void* data, u64 dataSize, u32 width,
+                            u32 height, VkFormat format,
+                            Sampler::FilterMode filterMode,
+                            Sampler::WrapMode wrapMode, Texture& texture)
+{
+    FLY_ASSERT(width > 0);
+    FLY_ASSERT(height > 0);
+    FLY_ASSERT(dataSize == GetTexelSize(format) * width * height);
+
+    u32 mipLevelCount = 1;
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                              VK_IMAGE_USAGE_SAMPLED_BIT |
+                              VK_IMAGE_USAGE_STORAGE_BIT;
+    if (filterMode != Sampler::FilterMode::Nearest)
+    {
+        mipLevelCount = Log2(MAX(width, height)) + 1;
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+
+    texture.image = CreateVulkanImage2D(
+        device, texture.allocationInfo, texture.allocation, usage, format,
+        VK_IMAGE_TILING_OPTIMAL, width, height, mipLevelCount);
+    if (texture.image == VK_NULL_HANDLE)
+    {
+        return false;
+    }
+
+    texture.imageView =
+        CreateVulkanImageView2D(device, texture.image, format, mipLevelCount,
+                                VK_IMAGE_ASPECT_COLOR_BIT);
+    if (!texture.imageView)
+    {
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount,
+                       texture.sampler))
+    {
+        vkDestroyImageView(device.logicalDevice, texture.imageView,
+                           GetVulkanAllocationCallbacks());
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = targetImageLayout;
+    imageInfo.imageView = texture.imageView;
+    imageInfo.sampler = texture.sampler.handle;
+
+    VkWriteDescriptorSet descriptorWrites[2];
+    for (u32 i = 0; i < 2; i++)
+    {
+        descriptorWrites[i] = {};
+        descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[i].dstSet = device.bindlessDescriptorSet;
+        descriptorWrites[i].descriptorCount = 1;
+        descriptorWrites[i].pImageInfo = &imageInfo;
+    }
+    descriptorWrites[0].dstBinding = FLY_TEXTURE_BINDING_INDEX;
+    descriptorWrites[0].dstArrayElement = device.bindlessTextureHandleCount;
+    descriptorWrites[0].descriptorType =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrites[1].dstBinding = FLY_STORAGE_TEXTURE_BINDING_INDEX;
+    descriptorWrites[1].dstArrayElement =
+        device.bindlessWriteTextureHandleCount;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    vkUpdateDescriptorSets(device.logicalDevice,
+                           STACK_ARRAY_COUNT(descriptorWrites),
+                           descriptorWrites, 0, nullptr);
+
+    texture.bindlessHandle = device.bindlessTextureHandleCount++;
+    texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
+
+    texture.width = width;
+    texture.height = height;
+    texture.format = format;
+    texture.mipLevelCount = mipLevelCount;
+
+    if (data)
+    {
+        RHI::Buffer stagingBuffer;
+        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
+                          dataSize, stagingBuffer))
+        {
+            DestroySampler(device, texture.sampler);
+            vkDestroyImageView(device.logicalDevice, texture.imageView,
+                               GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, texture.image,
+                            texture.allocation);
+            return false;
+        }
+
+        BeginTransfer(device);
+        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+
+        RHI::RecordTransitionImageLayout(cmd, texture.image,
+                                         VK_IMAGE_LAYOUT_UNDEFINED,
+                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion{};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent.width = width;
+        copyRegion.imageExtent.height = height;
+        copyRegion.imageExtent.depth = 1;
+
+        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                               &copyRegion);
+
+        GenerateMipmaps(cmd, texture, targetImageLayout);
+        EndTransfer(device);
+
+        DestroyBuffer(device, stagingBuffer);
+    }
+    else
+    {
+        BeginTransfer(device);
+        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+        RHI::RecordTransitionImageLayout(
+            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, targetImageLayout);
+        EndTransfer(device);
+    }
+    texture.imageLayout = targetImageLayout;
+
+    FLY_DEBUG_LOG("Texture [%llu] created with size %f MB: bindless %u storage "
+                  "bindless handle %u",
+                  texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
+                  texture.bindlessHandle, texture.bindlessStorageHandle);
     return true;
 }
 

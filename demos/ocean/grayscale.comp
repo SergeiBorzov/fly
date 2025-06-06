@@ -17,7 +17,7 @@ FLY_REGISTER_TEXTURE_BUFFER(Texture, sampler2D)
 void main()
 {
     uint c = gl_LocalInvocationID.x;
-    uint r = gl_WorkGroupID.y;
+    uint r = gl_WorkGroupID.x;
     uint base = r * gl_WorkGroupSize.x;
 
     vec2 uv = vec2(float(c) / (gl_WorkGroupSize.x - 1),

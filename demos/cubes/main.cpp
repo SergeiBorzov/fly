@@ -65,6 +65,9 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
     RHI::BindGraphicsPipeline(device, cmd, pipeline);
+    u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
+                      sTexture.bindlessHandle};
+    RHI::SetPushConstants(device, cmd, indices, sizeof(indices));
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -78,9 +81,6 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                      sTexture.bindlessHandle};
-    RHI::SetPushConstants(device, cmd, indices, sizeof(indices));
     vkCmdDraw(cmd.handle, 36, 10000, 0, 0);
 
     vkCmdEndRendering(cmd.handle);

@@ -14,8 +14,8 @@
 
 using namespace Fly;
 
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
+#define WINDOW_WIDTH 512
+#define WINDOW_HEIGHT 512
 
 struct UniformData
 {
@@ -44,14 +44,16 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 static RHI::ComputePipeline sGrayscalePipeline;
 static RHI::ComputePipeline sFFTPipeline;
 static RHI::ComputePipeline sTransposePipeline;
+static RHI::ComputePipeline sCopyPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sGrayscalePipeline, &sFFTPipeline, &sTransposePipeline};
+        &sGrayscalePipeline, &sFFTPipeline, &sTransposePipeline,
+        &sCopyPipeline};
 
     const char* computeShaderPaths[] = {"grayscale.comp.spv", "fft.comp.spv",
-                                        "transpose.comp.spv"};
+                                        "transpose.comp.spv", "copy.comp.spv"};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -67,54 +69,43 @@ static bool CreatePipelines(RHI::Device& device)
         RHI::DestroyShader(device, shader);
     }
 
-    // RHI::GraphicsPipelineFixedStateStage fixedState{};
-    // fixedState.pipelineRendering.colorAttachments[0] =
-    //     device.surfaceFormat.format;
-    // fixedState.pipelineRendering.depthAttachmentFormat =
-    //     device.depthTexture.format;
-    // fixedState.pipelineRendering.colorAttachmentCount = 1;
-    // fixedState.colorBlendState.attachmentCount = 1;
-    // fixedState.colorBlendState.attachments[0].blendEnable = true;
-    // fixedState.colorBlendState.attachments[0].srcColorBlendFactor =
-    //     VK_BLEND_FACTOR_SRC_ALPHA;
-    // fixedState.colorBlendState.attachments[0].dstColorBlendFactor =
-    //     VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    // fixedState.colorBlendState.attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
-    // fixedState.colorBlendState.attachments[0].srcAlphaBlendFactor =
-    //     VK_BLEND_FACTOR_ZERO;
-    // fixedState.colorBlendState.attachments[0].dstAlphaBlendFactor =
-    //     VK_BLEND_FACTOR_ONE;
-    // fixedState.colorBlendState.attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
-    // fixedState.depthStencilState.depthTestEnable = false;
-    // fixedState.inputAssemblyState.topology =
-    //     VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    RHI::GraphicsPipelineFixedStateStage fixedState{};
+    fixedState.pipelineRendering.colorAttachments[0] =
+        device.surfaceFormat.format;
+    fixedState.pipelineRendering.depthAttachmentFormat =
+        device.depthTexture.format;
+    fixedState.pipelineRendering.colorAttachmentCount = 1;
+    fixedState.colorBlendState.attachmentCount = 1;
+    fixedState.inputAssemblyState.topology =
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    // RHI::ShaderProgram shaderProgram{};
-    // if (!Fly::LoadShaderFromSpv(device, "splat.vert.spv",
-    //                             shaderProgram[RHI::Shader::Type::Vertex]))
-    // {
-    //     return false;
-    // }
-    // if (!Fly::LoadShaderFromSpv(device, "splat.frag.spv",
-    //                             shaderProgram[RHI::Shader::Type::Fragment]))
-    // {
-    //     return false;
-    // }
+    RHI::ShaderProgram shaderProgram{};
+    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
+    if (!Fly::LoadShaderFromSpv(device, "screen_quad.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
 
-    // if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-    //                                  sGraphicsPipeline))
-    // {
-    //     return false;
-    // }
-    // RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    // RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sGraphicsPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     return true;
 }
 
 static void DestroyPipelines(RHI::Device& device)
 {
-    // RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+    RHI::DestroyComputePipeline(device, sCopyPipeline);
     RHI::DestroyComputePipeline(device, sTransposePipeline);
     RHI::DestroyComputePipeline(device, sFFTPipeline);
     RHI::DestroyComputePipeline(device, sGrayscalePipeline);
@@ -123,12 +114,22 @@ static void DestroyPipelines(RHI::Device& device)
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sOceanFrequencyBuffers[2 * FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTexture;
+static RHI::Texture sHeightMap;
+
 static bool CreateDeviceObjects(RHI::Device& device)
 {
-    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png", format,
-                                  RHI::Sampler::FilterMode::Trilinear,
+    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png",
+                                  VK_FORMAT_R8G8B8A8_SRGB,
+                                  RHI::Sampler::FilterMode::Nearest,
                                   RHI::Sampler::WrapMode::Repeat, sTexture))
+    {
+        return false;
+    }
+
+    if (!RHI::CreateReadWriteTexture(
+            device, nullptr, 256 * 256 * sizeof(u8), 256, 256,
+            VK_FORMAT_R8_UNORM, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Repeat, sHeightMap))
     {
         return false;
     }
@@ -158,6 +159,7 @@ static bool CreateDeviceObjects(RHI::Device& device)
 static void DestroyDeviceObjects(RHI::Device& device)
 {
 
+    RHI::DestroyTexture(device, sHeightMap);
     RHI::DestroyTexture(device, sTexture);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -188,6 +190,37 @@ static void GrayscalePass(RHI::Device& device)
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
                          &grayscaleToFFTBarrier, 0, nullptr);
+}
+
+static void CopyPass(RHI::Device& device)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    RHI::BindComputePipeline(device, cmd, sCopyPipeline);
+    u32 pushConstants[] = {
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
+        sHeightMap.bindlessStorageHandle};
+    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
+    vkCmdDispatch(cmd.handle, 256, 1, 1);
+
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = sHeightMap.image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
+                         0, nullptr, 1, &barrier);
 }
 
 static void FFTPass(RHI::Device& device)
@@ -256,12 +289,9 @@ static void GraphicsPass(RHI::Device& device)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    // vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-    //                   sGraphicsPipeline.handle);
-
-    // vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-    //                         sGraphicsPipeline.layout, 0, 1,
-    //                         &device.bindlessDescriptorSet, 0, nullptr);
+    RHI::BindGraphicsPipeline(device, cmd, sGraphicsPipeline);
+    u32 pushConstants[] = {sHeightMap.bindlessHandle};
+    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -274,13 +304,17 @@ static void GraphicsPass(RHI::Device& device)
 
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
+
+    vkCmdDraw(cmd.handle, 6, 1, 0, 0);
+
     vkCmdEndRendering(cmd.handle);
 }
 
 static void ExecuteCommands(RHI::Device& device)
 {
     GrayscalePass(device);
-    FFTPass(device);
+    // FFTPass(device);
+    CopyPass(device);
     GraphicsPass(device);
 }
 

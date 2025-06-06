@@ -57,31 +57,20 @@ struct Texture
     u32 height = 0;
     u32 mipLevelCount = 0;
     u32 bindlessHandle = FLY_MAX_U32;
+    u32 bindlessStorageHandle = FLY_MAX_U32;
 };
 bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
                    u32 height, VkFormat format, Sampler::FilterMode filterMode,
                    Sampler::WrapMode wrapMode, Texture& texture);
+bool CreateReadWriteTexture(Device& device, void* data, u64 dataSize, u32 width,
+                            u32 height, VkFormat format,
+                            Sampler::FilterMode filterMode,
+                            Sampler::WrapMode wrapMode, Texture& texture);
 void DestroyTexture(Device& device, Texture& texture);
 bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
                           Sampler::WrapMode wrapMode);
 void CopyTextureToBuffer(Device& device, const Texture& texture,
                          Buffer& buffer);
-
-struct ReadWriteTexture
-{
-    VmaAllocationInfo allocationInfo;
-    Sampler sampler;
-    VmaAllocation allocation;
-    VkImage image = VK_NULL_HANDLE;
-    VkImageView imageView = VK_NULL_HANDLE;
-    VkFormat format = VK_FORMAT_UNDEFINED;
-    VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    u32 width = 0;
-    u32 height = 0;
-    u32 mipLevelCount = 0;
-    u32 bindlessReadHandle = FLY_MAX_U32;
-    u32 bindlessWriteHandle = FLY_MAX_U32;
-};
 
 } // namespace RHI
 } // namespace Fly

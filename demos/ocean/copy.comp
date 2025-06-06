@@ -1,0 +1,29 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint dataBufferIndex;
+    uint textureIndex;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, Data, { vec2 value; })
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RTextures, image2D, r8)
+
+void main()
+{
+    uint c = gl_LocalInvocationID.x;
+    uint r = gl_WorkGroupID.x;
+    uint base = r * gl_WorkGroupSize.x;
+
+    Data data = FLY_ACCESS_STORAGE_BUFFER(
+        Data, gPushConstants.dataBufferIndex)[base + c];
+
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(RTextures,
+                                                 gPushConstants.textureIndex),
+               ivec2(c, r), vec4(data.value.x, 0.0f, 0.0f, 0.0f));
+}
