@@ -9,6 +9,8 @@ FLY_REGISTER_STORAGE_BUFFER(, Data, { vec2 value; })
 layout(push_constant) uniform FFTParams
 {
     uint dataBufferIndex;
+    uint isInverse;
+    uint scale;
 }
 gPushConstants;
 
@@ -31,7 +33,7 @@ void main()
     uint r = gl_WorkGroupID.x;
 
     uint base = r * gl_WorkGroupSize.x;
-    sharedData[bitReverse(c)] =
+    sharedData[bitReverse(c) >> 24] =
         FLY_ACCESS_STORAGE_BUFFER(Data,
                                   gPushConstants.dataBufferIndex)[base + c]
             .value;
@@ -43,7 +45,8 @@ void main()
         uint m = 1 << s;
         uint half_m = m >> 1;
         uint k = c % half_m;
-        float angle = -2.0 * PI * float(k) / float(m);
+        float dir = gPushConstants.isInverse == 0 ? -1.0f : 1.0f;
+        float angle = dir * 2.0 * PI * float(k) / float(m);
         vec2 w = vec2(cos(angle), sin(angle));
 
         if ((c % m) < half_m)
@@ -66,5 +69,5 @@ void main()
 
     // Write result
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
-    [base + c].value = sharedData[c];
+    [base + c].value = sharedData[c] / gPushConstants.scale;
 }

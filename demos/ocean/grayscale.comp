@@ -27,6 +27,8 @@ void main()
         texture(FLY_ACCESS_TEXTURE_BUFFER(Texture, gPushConstants.textureIndex),
                 uv)
             .rgb;
+    float luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
-    [base + c] = Data(vec2((color.r + color.g + color.b) / 3.0f, 0.0f));
+    [base + c] = Data(vec2(luminance, 0.0f));
 }

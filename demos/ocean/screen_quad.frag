@@ -16,5 +16,6 @@ void main()
         texture(FLY_ACCESS_TEXTURE_BUFFER(Texture, gPushConstants.textureIndex),
                 inUV)
             .r;
+    value = pow(value, 1.0 / 2.2);
     outFragColor = vec4(value, value, value, 1.0f);
 }
