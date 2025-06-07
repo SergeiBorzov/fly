@@ -14,7 +14,7 @@ layout(push_constant) uniform FFTParams
 }
 gPushConstants;
 
-const float PI = 3.14159265358979323846;
+#define PI (3.14159265f)
 
 uint bitReverse(uint v)
 {
@@ -64,10 +64,9 @@ void main()
             sharedData[i] = u + tw;
             sharedData[j] = u - tw;
         }
-        barrier(); // sync after stage
+        barrier();
     }
 
-    // Write result
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
     [base + c].value = sharedData[c] / gPushConstants.scale;
 }

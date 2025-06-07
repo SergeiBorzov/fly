@@ -14,8 +14,8 @@
 
 using namespace Fly;
 
-#define WINDOW_WIDTH 512
-#define WINDOW_HEIGHT 512
+#define WINDOW_WIDTH 1024
+#define WINDOW_HEIGHT 1024
 
 struct UniformData
 {
@@ -23,7 +23,19 @@ struct UniformData
     Math::Mat4 view;             // 64
     Math::Vec4 viewport;         // 128
     Math::Vec4 cameraParameters; // 144
-    Math::Vec4 time;             // 160
+};
+
+struct JonswapPushConstants
+{
+    u32 dataBufferIndex = 0;
+    u32 width = 256;
+    f32 fetch = 1000.0f;
+    f32 windSpeed = 2.0f;
+    f32 theta0 = 0.0f;
+    f32 s = 10.0f;
+    f32 c = 1.0f;
+    f32 l = 1024.0f;
+    float time = 0.0f;
 };
 
 static Fly::SimpleCameraFPS
@@ -41,19 +53,18 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static RHI::ComputePipeline sGrayscalePipeline;
 static RHI::ComputePipeline sFFTPipeline;
 static RHI::ComputePipeline sTransposePipeline;
+static RHI::ComputePipeline sJonswapPipeline;
 static RHI::ComputePipeline sCopyPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sGrayscalePipeline, &sFFTPipeline, &sTransposePipeline,
-        &sCopyPipeline};
+        &sFFTPipeline, &sTransposePipeline, &sJonswapPipeline, &sCopyPipeline};
 
-    const char* computeShaderPaths[] = {"grayscale.comp.spv", "fft.comp.spv",
-                                        "transpose.comp.spv", "copy.comp.spv"};
+    const char* computeShaderPaths[] = {"fft.comp.spv", "transpose.comp.spv",
+                                        "jonswap.comp.spv", "copy.comp.spv"};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -106,26 +117,19 @@ static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyComputePipeline(device, sCopyPipeline);
+    RHI::DestroyComputePipeline(device, sJonswapPipeline);
     RHI::DestroyComputePipeline(device, sTransposePipeline);
     RHI::DestroyComputePipeline(device, sFFTPipeline);
-    RHI::DestroyComputePipeline(device, sGrayscalePipeline);
 }
+
+static f32 sTime;
 
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sOceanFrequencyBuffers[2 * FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sHeightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Texture sTexture;
 
 static bool CreateDeviceObjects(RHI::Device& device)
 {
-    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png",
-                                  VK_FORMAT_R8G8B8A8_SRGB,
-                                  RHI::Sampler::FilterMode::Nearest,
-                                  RHI::Sampler::WrapMode::Repeat, sTexture))
-    {
-        return false;
-    }
-
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
@@ -158,8 +162,6 @@ static bool CreateDeviceObjects(RHI::Device& device)
 
 static void DestroyDeviceObjects(RHI::Device& device)
 {
-
-    RHI::DestroyTexture(device, sTexture);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         for (u32 j = 0; j < 2; j++)
@@ -171,52 +173,53 @@ static void DestroyDeviceObjects(RHI::Device& device)
     }
 }
 
-static void GrayscalePass(RHI::Device& device)
+static void JonswapPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    // RHI::FillBuffer(cmd, sOceanFrequencyBuffers[2 * device.frameIndex], 0);
-    // VkBufferMemoryBarrier resetToGrayscaleBarrier = RHI::BufferMemoryBarrier(
-    //     sOceanFrequencyBuffers[2 * device.frameIndex],
-    //     VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-    // vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-    //                      1, &resetToGrayscaleBarrier, 0, nullptr);
+    RHI::BindComputePipeline(device, cmd, sJonswapPipeline);
 
-    RHI::BindComputePipeline(device, cmd, sGrayscalePipeline);
-    u32 pushConstants[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
-        sTexture.bindlessHandle,
-    };
-    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
+    JonswapPushConstants pushConstants;
+    pushConstants.dataBufferIndex =
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle;
+    pushConstants.width = 256;
+    pushConstants.fetch = 500000.0f;
+    pushConstants.windSpeed = 30.0f;
+    pushConstants.theta0 = 0.0f;
+    pushConstants.s = 10.0f;
+    pushConstants.c = 1.0f;
+    // pushConstants.c = (pushConstants.s + 1.0f) / FLY_MATH_TWO_PI;
+    pushConstants.l = 512.0f;
+    pushConstants.time = sTime;
+    RHI::SetPushConstants(device, cmd, &pushConstants, sizeof(pushConstants));
+
     vkCmdDispatch(cmd.handle, 256, 1, 1);
-
-    VkBufferMemoryBarrier grayscaleToFFTBarrier = RHI::BufferMemoryBarrier(
+    VkBufferMemoryBarrier jonswapToIFFTBarrier = RHI::BufferMemoryBarrier(
         sOceanFrequencyBuffers[2 * device.frameIndex],
         VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &grayscaleToFFTBarrier, 0, nullptr);
+                         &jonswapToIFFTBarrier, 0, nullptr);
 }
 
-static void FFTPass(RHI::Device& device)
+static void IFFTPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
     RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTX[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 0, 1};
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 1, 256};
     RHI::SetPushConstants(device, cmd, pushConstantsFFTX,
                           sizeof(pushConstantsFFTX));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
-    VkBufferMemoryBarrier FFTToTransposeBarrier = RHI::BufferMemoryBarrier(
+    VkBufferMemoryBarrier IFFTToTransposeBarrier = RHI::BufferMemoryBarrier(
         sOceanFrequencyBuffers[2 * device.frameIndex],
         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_SHADER_READ_BIT);
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &FFTToTransposeBarrier, 0, nullptr);
+                         &IFFTToTransposeBarrier, 0, nullptr);
 
     RHI::BindComputePipeline(device, cmd, sTransposePipeline);
     u32 pushConstantsTranspose[] = {
@@ -235,71 +238,18 @@ static void FFTPass(RHI::Device& device)
 
     RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTY[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 0, 1};
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 1,
+        256};
     RHI::SetPushConstants(device, cmd, pushConstantsFFTY,
                           sizeof(pushConstantsFFTY));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
-    // VkBufferMemoryBarrier fftToGraphicsBarrier = RHI::BufferMemoryBarrier(
-    //     sOceanFrequencyBuffers[2 * device.frameIndex + 1],
-    //     VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-    // vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-    //                      1, &fftToGraphicsBarrier, 0, nullptr);
-    VkBufferMemoryBarrier fftToInverseBarrier = RHI::BufferMemoryBarrier(
-        sOceanFrequencyBuffers[2 * device.frameIndex + 1],
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &fftToInverseBarrier, 0, nullptr);
-}
-
-static void IFFTPass(RHI::Device& device)
-{
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-    RHI::BindComputePipeline(device, cmd, sFFTPipeline);
-    u32 pushConstantsFFTX[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 1,
-        256};
-    RHI::SetPushConstants(device, cmd, pushConstantsFFTX,
-                          sizeof(pushConstantsFFTX));
-    vkCmdDispatch(cmd.handle, 256, 1, 1);
-    VkBufferMemoryBarrier IFFTToTransposeBarrier = RHI::BufferMemoryBarrier(
+    VkBufferMemoryBarrier fftToCopyBarrier = RHI::BufferMemoryBarrier(
         sOceanFrequencyBuffers[2 * device.frameIndex + 1],
         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         VK_ACCESS_SHADER_READ_BIT);
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &IFFTToTransposeBarrier, 0, nullptr);
-
-    RHI::BindComputePipeline(device, cmd, sTransposePipeline);
-    u32 pushConstantsTranspose[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle,
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 256};
-    RHI::SetPushConstants(device, cmd, pushConstantsTranspose,
-                          sizeof(pushConstantsTranspose));
-    vkCmdDispatch(cmd.handle, 16, 16, 1);
-    VkBufferMemoryBarrier transposeToFFTBarrier = RHI::BufferMemoryBarrier(
-        sOceanFrequencyBuffers[2 * device.frameIndex],
-        VK_ACCESS_SHADER_WRITE_BIT,
-        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &transposeToFFTBarrier, 0, nullptr);
-
-    RHI::BindComputePipeline(device, cmd, sFFTPipeline);
-    u32 pushConstantsFFTY[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 1, 256};
-    RHI::SetPushConstants(device, cmd, pushConstantsFFTY,
-                          sizeof(pushConstantsFFTY));
-    vkCmdDispatch(cmd.handle, 256, 1, 1);
-    VkBufferMemoryBarrier fftToGraphicsBarrier = RHI::BufferMemoryBarrier(
-        sOceanFrequencyBuffers[2 * device.frameIndex],
-        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
-                         &fftToGraphicsBarrier, 0, nullptr);
+                         &fftToCopyBarrier, 0, nullptr);
 }
 
 static void CopyPass(RHI::Device& device)
@@ -308,7 +258,7 @@ static void CopyPass(RHI::Device& device)
 
     RHI::BindComputePipeline(device, cmd, sCopyPipeline);
     u32 pushConstants[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle,
         sHeightMaps[device.frameIndex].bindlessStorageHandle};
     RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
@@ -373,8 +323,7 @@ static void GraphicsPass(RHI::Device& device)
 
 static void ExecuteCommands(RHI::Device& device)
 {
-    GrayscalePass(device);
-    FFTPass(device);
+    JonswapPass(device);
     IFFTPass(device);
     CopyPass(device);
     GraphicsPass(device);
@@ -419,7 +368,6 @@ int main(int argc, char* argv[])
         glfwTerminate();
         return -1;
     }
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Create graphics context
@@ -463,7 +411,7 @@ int main(int argc, char* argv[])
 
         previousFrameTime = currentFrameTime;
         currentFrameTime = Fly::ClockNow();
-        f32 time =
+        sTime =
             static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
@@ -481,7 +429,6 @@ int main(int argc, char* argv[])
         uniformData.viewport = Math::Vec4(
             static_cast<f32>(WINDOW_WIDTH), static_cast<f32>(WINDOW_HEIGHT),
             1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
-        uniformData.time.x = time;
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 

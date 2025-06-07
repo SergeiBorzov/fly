@@ -1,0 +1,110 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#define G (9.81f)
+#define PI (3.14159265f)
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint dataBufferIndex;
+    uint width;
+    float fetch;
+    float windSpeed;
+    float theta0; // wind direction
+    float s;
+    float c;
+    float l;
+    float time;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, { vec2 value; })
+
+float Hash(vec2 n, float seed)
+{
+    return fract(sin(dot(n + seed, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+// Box-Muller transform using two hashed values
+float GaussianHash(vec2 n, float seed)
+{
+    float u1 = Hash(n, seed);
+    float u2 = Hash(n, seed + 1.0);
+    float r = sqrt(-2.0 * log(max(u1, 1e-6)));
+    float theta = 2.0 * PI * u2;
+    return r * cos(theta);
+}
+
+vec2 GetK(int i, int j, int n, float l)
+{
+    float dk = 2.0f * PI / l;
+    int halfN = n / 2;
+
+    float kx = (i < halfN) ? i : i - n;
+    float ky = (j < halfN) ? j : j - n;
+
+    return vec2(kx, ky) * dk;
+}
+
+float Jonswap(float w, float fetch, float windSpeed)
+{
+    const float y = 3.3;
+    const float wp = 22.0f * pow((windSpeed * fetch / (G * G)), -0.33f);
+    const float sigma = w > wp ? 0.09f : 0.07f;
+    const float alpha =
+        0.076f * pow((G * fetch / (windSpeed * windSpeed)), -0.22f);
+    const float r = exp(-((w - wp) * (w - wp)) / (2 * sigma * sigma * wp * wp));
+
+    return ((alpha * G * G) / pow(w, 5.0f)) *
+           exp(-(5.0f / 4.0f) * pow(wp / w, 4.0f)) * pow(y, r);
+}
+
+float DirectionalSpread(float theta, float theta0, float s, float c)
+{
+    float delta = 0.5 * (theta - theta0);
+    return c * pow(max(0.0, cos(delta)), s);
+}
+
+float Jonswap2D(vec2 k, float fetch, float windSpeed, float theta0, float s,
+                float c)
+{
+    float kl = length(k);
+    if (kl < 1e-4f)
+        return 0.0f;
+
+    float theta = atan(k.y, k.x);
+    float j = Jonswap(sqrt(G * kl), fetch, windSpeed);
+    float d = DirectionalSpread(theta, theta0, s, c);
+    return j * d * (sqrt(G / kl)) / (2.0f * kl);
+}
+
+void main()
+{
+    uint c = gl_LocalInvocationID.x;
+    uint r = gl_WorkGroupID.x;
+    uint base = r * gl_WorkGroupSize.x;
+
+    vec2 uv = vec2(c / (gPushConstants.width - 1.0f),
+                   r / (gPushConstants.width - 1.0f));
+
+    vec2 k = GetK(int(c), int(r), int(gPushConstants.width), gPushConstants.l);
+    float phase = sqrt(G * length(k)) * gPushConstants.time;
+    float cosPhase = cos(phase);
+    float sinPhase = sin(phase);
+
+    float j2d =
+        Jonswap2D(k, gPushConstants.fetch, gPushConstants.windSpeed,
+                  gPushConstants.theta0, gPushConstants.s, gPushConstants.c);
+
+    vec2 w = vec2(GaussianHash(uv, 0.0f), GaussianHash(uv, 1.0f));
+    w = sqrt(j2d * 0.5f) * w;
+    
+    w.x = cosPhase * w.x - sin(phase) * w.y;
+    w.y = sinPhase * w.x + cos(phase) * w.y;
+
+    FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
+    [base + c].value = vec2(w.x, w.y);
+}

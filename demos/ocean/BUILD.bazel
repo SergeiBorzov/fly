@@ -11,27 +11,11 @@ copy_files_to_directory(
     output_directory = ".",
 )
 
-copy_files_to_directory(
-    name = "copy_scene_data",
-    srcs = [
-        "@gltf_sample_models//:box_textured_scene",
-    ],
-    output_directory = ".",
-)
-
 config_setting(
     name = "release_build",
     values = {
         "compilation_mode": "opt",
     },
-)
-
-glsl_shader(
-    name = "grayscale.comp.spv",
-    src = "grayscale.comp",
-    deps = [
-        "//demos/common:glsl_bindless",
-    ],
 )
 
 glsl_shader(
@@ -45,6 +29,14 @@ glsl_shader(
 glsl_shader(
     name = "fft.comp.spv",
     src = "fft.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "jonswap.comp.spv",
+    src = "jonswap.comp",
     deps = [
         "//demos/common:glsl_bindless",
     ],
@@ -85,10 +77,9 @@ cc_binary(
         ":screen_quad.vert.spv",
         ":screen_quad.frag.spv",
         ":copy.comp.spv",
-        ":grayscale.comp.spv",
         ":transpose.comp.spv",
         ":fft.comp.spv",
-        ":copy_scene_data",
+        ":jonswap.comp.spv",
     ] + select({
         ":release_build": [
         ],
