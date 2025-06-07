@@ -58,7 +58,10 @@ void BindGraphicsPipeline(Device& device, CommandBuffer& commandBuffer,
 void BindComputePipeline(Device& device, CommandBuffer& commandBuffer,
                          const ComputePipeline& computePipeline);
 void SetPushConstants(Device& device, CommandBuffer& commandBuffer,
-                      const void* pushConstants, u32 pushConstantsSize, u32 offset = 0);
+                      const void* pushConstants, u32 pushConstantsSize,
+                      u32 offset = 0);
+void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value = 0,
+                u64 offset = 0, u64 size = 0);
 
 VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
                                               VkImageLayout imageLayout);

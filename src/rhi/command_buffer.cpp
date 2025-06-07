@@ -282,6 +282,19 @@ void SetPushConstants(Device& device, CommandBuffer& cmd,
                        offset, pushConstantsSize, pushConstants);
 }
 
+void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,
+                u64 size)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
+
+    if (size == 0)
+    {
+        size = VK_WHOLE_SIZE;
+    }
+    vkCmdFillBuffer(cmd.handle, buffer.handle, offset, size, value);
+}
+
 VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
                                               VkImageLayout imageLayout)
 {

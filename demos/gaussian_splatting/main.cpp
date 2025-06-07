@@ -324,9 +324,8 @@ static void CullPass(RHI::Device& device)
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
     // Reset draw count
-    vkCmdFillBuffer(cmd.handle,
-                    sIndirectDrawCountBuffers[device.frameIndex].handle, 0,
-                    sizeof(u32), 0);
+    RHI::FillBuffer(cmd, sIndirectDrawCountBuffers[device.frameIndex],
+                    0);
     VkBufferMemoryBarrier resetToCullBarrier;
     resetToCullBarrier = RHI::BufferMemoryBarrier(
         sIndirectDrawCountBuffers[device.frameIndex],
@@ -400,8 +399,7 @@ static void SortPass(RHI::Device& device)
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
     // Reset global histogram buffer
-    vkCmdFillBuffer(cmd.handle, sGlobalHistograms[device.frameIndex].handle, 0,
-                    sizeof(u32) * RADIX_HISTOGRAM_SIZE * RADIX_PASS_COUNT, 0);
+    RHI::FillBuffer(cmd, sGlobalHistograms[device.frameIndex], 0);
     VkBufferMemoryBarrier resetToCountBarrier;
     resetToCountBarrier = RHI::BufferMemoryBarrier(
         sGlobalHistograms[device.frameIndex], VK_ACCESS_TRANSFER_WRITE_BIT,
