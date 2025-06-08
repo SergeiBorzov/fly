@@ -3,12 +3,17 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "rhi/allocation_callbacks.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
+
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 
 #include <GLFW/glfw3.h>
 
@@ -19,24 +24,10 @@ using namespace Fly;
 
 struct UniformData
 {
-    Math::Mat4 projection;       // 0
-    Math::Mat4 view;             // 64
-    Math::Vec4 viewport;         // 128
-    Math::Vec4 cameraParameters; // 144
+    Math::Vec4 fetchSpeedDirSpread;
+    Math::Vec4 normalizationDomainTime;
 };
-
-struct JonswapPushConstants
-{
-    u32 dataBufferIndex = 0;
-    u32 width = 256;
-    f32 fetch = 1000.0f;
-    f32 windSpeed = 2.0f;
-    f32 theta0 = 0.0f;
-    f32 s = 10.0f;
-    f32 c = 1.0f;
-    f32 l = 1024.0f;
-    float time = 0.0f;
-};
+static UniformData sUniformData;
 
 static Fly::SimpleCameraFPS
     sCamera(80.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
@@ -124,10 +115,83 @@ static void DestroyPipelines(RHI::Device& device)
 
 static f32 sTime;
 
+static VkDescriptorPool sImGuiDescriptorPool;
+static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
+                               GLFWwindow* window)
+{
+    VkDescriptorPoolSize poolSizes[] = {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE},
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolInfo.maxSets = 0;
+    for (VkDescriptorPoolSize& poolSize : poolSizes)
+        poolInfo.maxSets += poolSize.descriptorCount;
+    poolInfo.poolSizeCount = static_cast<u32>(STACK_ARRAY_COUNT(poolSizes));
+    poolInfo.pPoolSizes = poolSizes;
+    if (vkCreateDescriptorPool(device.logicalDevice, &poolInfo,
+                               RHI::GetVulkanAllocationCallbacks(),
+                               &sImGuiDescriptorPool) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.ApiVersion = VK_API_VERSION_1_3;
+    initInfo.Instance = context.instance;
+    initInfo.PhysicalDevice = device.physicalDevice;
+    initInfo.Device = device.logicalDevice;
+    initInfo.Queue = device.graphicsComputeQueue;
+    initInfo.DescriptorPool = sImGuiDescriptorPool;
+    initInfo.MinImageCount = device.swapchainTextureCount;
+    initInfo.ImageCount = device.swapchainTextureCount;
+    initInfo.UseDynamicRendering = true;
+
+    initInfo.PipelineRenderingCreateInfo = {};
+    initInfo.PipelineRenderingCreateInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    initInfo.PipelineRenderingCreateInfo.depthAttachmentFormat =
+        VK_FORMAT_D32_SFLOAT_S8_UINT;
+    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &device.surfaceFormat.format;
+
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    initInfo.Allocator = RHI::GetVulkanAllocationCallbacks();
+
+    if (!ImGui_ImplVulkan_Init(&initInfo))
+    {
+        return false;
+    }
+    if (!ImGui_ImplVulkan_CreateFontsTexture())
+    {
+        return false;
+    }
+    return true;
+}
+
+static void DestroyImGuiContext(RHI::Device& device)
+{
+    ImGui_ImplVulkan_Shutdown();
+    vkDestroyDescriptorPool(device.logicalDevice, sImGuiDescriptorPool,
+                            RHI::GetVulkanAllocationCallbacks());
+}
+
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sOceanFrequencyBuffers[2 * FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sHeightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
-
 static bool CreateDeviceObjects(RHI::Device& device)
 {
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
@@ -179,18 +243,9 @@ static void JonswapPass(RHI::Device& device)
 
     RHI::BindComputePipeline(device, cmd, sJonswapPipeline);
 
-    JonswapPushConstants pushConstants;
-    pushConstants.dataBufferIndex =
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle;
-    pushConstants.width = 256;
-    pushConstants.fetch = 500000.0f;
-    pushConstants.windSpeed = 30.0f;
-    pushConstants.theta0 = 0.0f;
-    pushConstants.s = 10.0f;
-    pushConstants.c = 1.0f;
-    // pushConstants.c = (pushConstants.s + 1.0f) / FLY_MATH_TWO_PI;
-    pushConstants.l = 512.0f;
-    pushConstants.time = sTime;
+    u32 pushConstants[] = {
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle,
+        sUniformBuffers[device.frameIndex].bindlessHandle, 256};
     RHI::SetPushConstants(device, cmd, &pushConstants, sizeof(pushConstants));
 
     vkCmdDispatch(cmd.handle, 256, 1, 1);
@@ -250,6 +305,36 @@ static void IFFTPass(RHI::Device& device)
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
                          &fftToCopyBarrier, 0, nullptr);
+}
+
+static void ProcessImGuiFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    {
+        ImGui::Begin("Ocean parameters");
+
+        ImGui::SliderFloat("Fetch", &sUniformData.fetchSpeedDirSpread.x, 0.0f,
+                           1000000.0f, "%.1f");
+        ImGui::SliderFloat("Wind Speed", &sUniformData.fetchSpeedDirSpread.y,
+                           0.0f, 50.0f, "%.2f");
+        ImGui::SliderFloat("Theta 0", &sUniformData.fetchSpeedDirSpread.z,
+                           -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
+        ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 0.01f,
+                           100.0f, "%.2f");
+        ImGui::SliderFloat("Normalization scalar",
+                           &sUniformData.normalizationDomainTime.x, 0.0f, 10.0f,
+                           "%.2f");
+        ImGui::SliderFloat("Domain size",
+                           &sUniformData.normalizationDomainTime.y, 128.0f,
+                           8192.0f, "%.1f");
+
+        ImGui::End();
+    }
+
+    ImGui::Render();
 }
 
 static void CopyPass(RHI::Device& device)
@@ -318,6 +403,7 @@ static void GraphicsPass(RHI::Device& device)
 
     vkCmdDraw(cmd.handle, 6, 1, 0, 0);
 
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
     vkCmdEndRendering(cmd.handle);
 }
 
@@ -402,9 +488,19 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    if (!CreateImGuiContext(context, device, window))
+    {
+        FLY_ERROR("Failed to create imgui context");
+        return -1;
+    }
+
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
+
+    sUniformData.fetchSpeedDirSpread =
+        Math::Vec4(500000.0f, 30.0f, 0.0f, 10.0f);
+    sUniformData.normalizationDomainTime = Math::Vec4(1, 512.0f, 0.0f, 0.0f);
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -415,21 +511,11 @@ int main(int argc, char* argv[])
             static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
+        sUniformData.normalizationDomainTime.z = sTime;
         sCamera.Update(window, deltaTime);
 
-        UniformData uniformData;
-        uniformData.projection = sCamera.GetProjection();
-        uniformData.view = sCamera.GetView();
-        uniformData.cameraParameters.x =
-            Math::Tan(Math::Radians(sCamera.GetHorizontalFov()) * 0.5f);
-        uniformData.cameraParameters.y =
-            Math::Tan(Math::Radians(sCamera.GetVerticalFov()) * 0.5f);
-        uniformData.cameraParameters.z = sCamera.GetNear();
-        uniformData.cameraParameters.w = sCamera.GetFar();
-        uniformData.viewport = Math::Vec4(
-            static_cast<f32>(WINDOW_WIDTH), static_cast<f32>(WINDOW_HEIGHT),
-            1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
-        RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
+        ProcessImGuiFrame();
+        RHI::CopyDataToBuffer(device, &sUniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 
         RHI::BeginRenderFrame(device);
@@ -441,6 +527,7 @@ int main(int argc, char* argv[])
 
     DestroyPipelines(device);
     DestroyDeviceObjects(device);
+    DestroyImGuiContext(device);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
     glfwTerminate();

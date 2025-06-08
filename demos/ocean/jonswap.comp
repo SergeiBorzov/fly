@@ -10,16 +10,15 @@ layout(local_size_x = 256) in;
 layout(push_constant) uniform PushConstants
 {
     uint dataBufferIndex;
+    uint uniformBufferIndex;
     uint width;
-    float fetch;
-    float windSpeed;
-    float theta0; // wind direction
-    float s;
-    float c;
-    float l;
-    float time;
 }
 gPushConstants;
+
+FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
+    vec4 fetchSpeedDirSpread;
+    vec4 normalizationDomainTime;
+})
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, { vec2 value; })
 
@@ -90,18 +89,25 @@ void main()
     vec2 uv = vec2(c / (gPushConstants.width - 1.0f),
                    r / (gPushConstants.width - 1.0f));
 
-    vec2 k = GetK(int(c), int(r), int(gPushConstants.width), gPushConstants.l);
-    float phase = sqrt(G * length(k)) * gPushConstants.time;
+    vec4 fetchSpeedDirSpread = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, fetchSpeedDirSpread);
+    vec4 normalizationDomainTime = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex,
+        normalizationDomainTime);
+
+    vec2 k = GetK(int(c), int(r), int(gPushConstants.width),
+                  normalizationDomainTime.y);
+    float phase = sqrt(G * length(k)) * normalizationDomainTime.z;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
-    float j2d =
-        Jonswap2D(k, gPushConstants.fetch, gPushConstants.windSpeed,
-                  gPushConstants.theta0, gPushConstants.s, gPushConstants.c);
+    float j2d = Jonswap2D(k, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y,
+                          fetchSpeedDirSpread.z, fetchSpeedDirSpread.w,
+                          normalizationDomainTime.x);
 
     vec2 w = vec2(GaussianHash(uv, 0.0f), GaussianHash(uv, 1.0f));
     w = sqrt(j2d * 0.5f) * w;
-    
+
     w.x = cosPhase * w.x - sin(phase) * w.y;
     w.y = sinPhase * w.x + cos(phase) * w.y;
 

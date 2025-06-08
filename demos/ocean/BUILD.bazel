@@ -69,6 +69,7 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
+        "@imgui//:imgui",
         "//src/rhi:context",
         "//demos/common:scene",
         "//demos/common:simple_camera_fps",
