@@ -63,6 +63,22 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "ocean.vert.spv",
+    src = "ocean.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "ocean.frag.spv",
+    src = "ocean.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -77,6 +93,8 @@ cc_binary(
     data = [
         ":screen_quad.vert.spv",
         ":screen_quad.frag.spv",
+        ":ocean.vert.spv",
+        ":ocean.frag.spv",
         ":copy.comp.spv",
         ":transpose.comp.spv",
         ":fft.comp.spv",

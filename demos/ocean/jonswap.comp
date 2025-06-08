@@ -16,6 +16,8 @@ layout(push_constant) uniform PushConstants
 gPushConstants;
 
 FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
+    mat4 projection;
+    mat4 view;
     vec4 fetchSpeedDirSpread;
     vec4 normalizationDomainTime;
 })
@@ -106,11 +108,11 @@ void main()
                           normalizationDomainTime.x);
 
     vec2 w = vec2(GaussianHash(uv, 0.0f), GaussianHash(uv, 1.0f));
-    w = sqrt(j2d * 0.5f) * w;
+    float a = sqrt(j2d * 0.5f);
 
-    w.x = cosPhase * w.x - sin(phase) * w.y;
-    w.y = sinPhase * w.x + cos(phase) * w.y;
+    float x = cosPhase * w.x - sin(phase) * w.y;
+    float y = sinPhase * w.x + cos(phase) * w.y;
 
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
-    [base + c].value = vec2(w.x, w.y);
+    [base + c].value = a * vec2(x, y);
 }

@@ -19,19 +19,27 @@
 
 using namespace Fly;
 
-#define WINDOW_WIDTH 1024
-#define WINDOW_HEIGHT 1024
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
+
+struct Vertex
+{
+    Math::Vec2 position;
+    Math::Vec2 uv;
+};
 
 struct UniformData
 {
+    Math::Mat4 projection;
+    Math::Mat4 view;
     Math::Vec4 fetchSpeedDirSpread;
     Math::Vec4 normalizationDomainTime;
 };
 static UniformData sUniformData;
 
 static Fly::SimpleCameraFPS
-    sCamera(80.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
-            100.0f, Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
+    sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
+            300.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -49,6 +57,8 @@ static RHI::ComputePipeline sTransposePipeline;
 static RHI::ComputePipeline sJonswapPipeline;
 static RHI::ComputePipeline sCopyPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
+static RHI::GraphicsPipeline sWireframeGraphicsPipeline;
+static RHI::GraphicsPipeline* sCurrentGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
@@ -78,16 +88,19 @@ static bool CreatePipelines(RHI::Device& device)
         device.depthTexture.format;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
+    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
     fixedState.inputAssemblyState.topology =
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, "ocean.vert.spv",
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, "ocean.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -95,6 +108,12 @@ static bool CreatePipelines(RHI::Device& device)
 
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      sGraphicsPipeline))
+    {
+        return false;
+    }
+    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sWireframeGraphicsPipeline))
     {
         return false;
     }
@@ -106,14 +125,13 @@ static bool CreatePipelines(RHI::Device& device)
 
 static void DestroyPipelines(RHI::Device& device)
 {
+    RHI::DestroyGraphicsPipeline(device, sWireframeGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyComputePipeline(device, sCopyPipeline);
     RHI::DestroyComputePipeline(device, sJonswapPipeline);
     RHI::DestroyComputePipeline(device, sTransposePipeline);
     RHI::DestroyComputePipeline(device, sFFTPipeline);
 }
-
-static f32 sTime;
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
@@ -191,9 +209,71 @@ static void DestroyImGuiContext(RHI::Device& device)
 
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sOceanFrequencyBuffers[2 * FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sVertexBuffer;
+static RHI::Buffer sIndexBuffer;
+static u32 sIndexCount;
 static RHI::Texture sHeightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
 static bool CreateDeviceObjects(RHI::Device& device)
 {
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    i32 tileSize = 256;
+    i32 quadSize = 1;
+    i32 quadPerSide = tileSize / quadSize;
+    i32 offset = quadPerSide / 2;
+    u32 vertexPerSide = quadPerSide + 1;
+
+    FLY_LOG("vertex per side %u", vertexPerSide);
+
+    // Generate vertices
+    Vertex* vertices =
+        FLY_PUSH_ARENA(arena, Vertex, vertexPerSide * vertexPerSide);
+    u32 count = 0;
+    for (i32 z = -offset; z <= offset; z++)
+    {
+        for (i32 x = -offset; x <= offset; x++)
+        {
+            Vertex& vertex = vertices[count++];
+            vertex.position =
+                Math::Vec2(static_cast<f32>(x), static_cast<f32>(z));
+            vertex.uv =
+                Math::Vec2((x + offset) / static_cast<f32>(quadPerSide),
+                           (z + offset) / static_cast<f32>(quadPerSide));
+        }
+    }
+
+    if (!CreateStorageBuffer(device, false, vertices, count * sizeof(Vertex),
+                             sVertexBuffer))
+    {
+        ArenaPopToMarker(arena, marker);
+        return false;
+    }
+    ArenaPopToMarker(arena, marker);
+
+    // Generate indices
+    sIndexCount = 6 * (tileSize * tileSize) / (quadSize * quadSize);
+    u32* indices = FLY_PUSH_ARENA(arena, u32, sIndexCount);
+    for (i32 z = 0; z < quadPerSide; z++)
+    {
+        for (i32 x = 0; x < quadPerSide; x++)
+        {
+            u32 indexBase = 6 * (quadPerSide * z + x);
+            indices[indexBase + 0] = vertexPerSide * z + x;
+            indices[indexBase + 1] = vertexPerSide * z + x + 1;
+            indices[indexBase + 2] = vertexPerSide * (z + 1) + x;
+            indices[indexBase + 3] = vertexPerSide * (z + 1) + x;
+            indices[indexBase + 4] = vertexPerSide * z + x + 1;
+            indices[indexBase + 5] = vertexPerSide * (z + 1) + x + 1;
+        }
+    }
+    if (!CreateIndexBuffer(device, indices, sizeof(u32) * sIndexCount,
+                           sIndexBuffer))
+    {
+        return false;
+    }
+    ArenaPopToMarker(arena, marker);
+
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
@@ -213,8 +293,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
         }
 
         if (!RHI::CreateReadWriteTexture(
-                device, nullptr, 256 * 256 * sizeof(u8), 256, 256,
-                VK_FORMAT_R8_UNORM, RHI::Sampler::FilterMode::Nearest,
+                device, nullptr, 256 * 256 * sizeof(u16), 256, 256,
+                VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
                 RHI::Sampler::WrapMode::Repeat, sHeightMaps[i]))
         {
             return false;
@@ -235,6 +315,8 @@ static void DestroyDeviceObjects(RHI::Device& device)
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
         RHI::DestroyTexture(device, sHeightMaps[i]);
     }
+    RHI::DestroyBuffer(device, sIndexBuffer);
+    RHI::DestroyBuffer(device, sVertexBuffer);
 }
 
 static void JonswapPass(RHI::Device& device)
@@ -385,8 +467,10 @@ static void GraphicsPass(RHI::Device& device)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, sGraphicsPipeline);
-    u32 pushConstants[] = {sHeightMaps[device.frameIndex].bindlessHandle};
+    RHI::BindGraphicsPipeline(device, cmd, *sCurrentGraphicsPipeline);
+    u32 pushConstants[] = {sUniformBuffers[device.frameIndex].bindlessHandle,
+                           sHeightMaps[device.frameIndex].bindlessHandle,
+                           sVertexBuffer.bindlessHandle};
     RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
 
     VkViewport viewport = {};
@@ -401,9 +485,11 @@ static void GraphicsPass(RHI::Device& device)
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdDraw(cmd.handle, 6, 1, 0, 0);
+    vkCmdBindIndexBuffer(cmd.handle, sIndexBuffer.handle, 0,
+                         VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd.handle, sIndexCount, 1, 0, 0, 0);
 
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+    // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
     vkCmdEndRendering(cmd.handle);
 }
 
@@ -421,6 +507,18 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, true);
+    }
+
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS)
+    {
+        if (sCurrentGraphicsPipeline == &sGraphicsPipeline)
+        {
+            sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
+        }
+        else
+        {
+            sCurrentGraphicsPipeline = &sGraphicsPipeline;
+        }
     }
 }
 
@@ -454,6 +552,7 @@ int main(int argc, char* argv[])
         glfwTerminate();
         return -1;
     }
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Create graphics context
@@ -481,6 +580,7 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to create pipelines");
         return -1;
     }
+    sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
 
     if (!CreateDeviceObjects(device))
     {
@@ -499,22 +599,23 @@ int main(int argc, char* argv[])
     u64 currentFrameTime = loopStartTime;
 
     sUniformData.fetchSpeedDirSpread =
-        Math::Vec4(500000.0f, 30.0f, 0.0f, 10.0f);
-    sUniformData.normalizationDomainTime = Math::Vec4(1, 512.0f, 0.0f, 0.0f);
+        Math::Vec4(500000.0f, 10.0f, 0.5f, 0.05f);
+    sUniformData.normalizationDomainTime = Math::Vec4(0.65, 256.0f, 0.0f, 0.0f);
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
         previousFrameTime = currentFrameTime;
         currentFrameTime = Fly::ClockNow();
-        sTime =
-            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
-        sUniformData.normalizationDomainTime.z = sTime;
         sCamera.Update(window, deltaTime);
+        sUniformData.projection = sCamera.GetProjection();
+        sUniformData.view = sCamera.GetView();
+        sUniformData.normalizationDomainTime.z =
+            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
 
-        ProcessImGuiFrame();
+        // ProcessImGuiFrame();
         RHI::CopyDataToBuffer(device, &sUniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 
