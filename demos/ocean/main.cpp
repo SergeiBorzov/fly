@@ -33,7 +33,7 @@ struct UniformData
     Math::Mat4 projection;
     Math::Mat4 view;
     Math::Vec4 fetchSpeedDirSpread;
-    Math::Vec4 domainTime;
+    Math::Vec4 domainTimePeak;
 };
 static UniformData sUniformData;
 
@@ -161,6 +161,7 @@ static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 
     ImGui::StyleColorsDark();
 
@@ -397,7 +398,9 @@ static void ProcessImGuiFrame()
     {
         ImGui::Begin("Ocean parameters");
 
-        ImGui::SliderFloat("Fetch", &sUniformData.fetchSpeedDirSpread.x, 0.0f,
+        ImGui::SliderFloat("Peak enhancement", &sUniformData.domainTimePeak.z,
+                           1.0f, 10.0f, "%.1f");
+        ImGui::SliderFloat("Fetch", &sUniformData.fetchSpeedDirSpread.x, 1.0f,
                            1000000.0f, "%.1f");
         ImGui::SliderFloat("Wind Speed", &sUniformData.fetchSpeedDirSpread.y,
                            0.001f, 50.0f, "%.3f");
@@ -405,8 +408,8 @@ static void ProcessImGuiFrame()
                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
         ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 1.0f,
                            30.0f, "%.2f");
-        ImGui::SliderFloat("Domain size", &sUniformData.domainTime.x, 64.0f,
-                           8192.0f, "%.1f");
+        // ImGui::SliderFloat("Domain size", &sUniformData.domainTimePeak.x, 64.0f,
+        //                    8192.0f, "%.1f");
 
         ImGui::End();
     }
@@ -547,7 +550,7 @@ int main(int argc, char* argv[])
         glfwTerminate();
         return -1;
     }
-    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Create graphics context
@@ -560,6 +563,7 @@ int main(int argc, char* argv[])
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
+    settings.deviceFeatures2.features.fillModeNonSolid = true;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
@@ -595,7 +599,8 @@ int main(int argc, char* argv[])
 
     sUniformData.fetchSpeedDirSpread =
         Math::Vec4(500 * 1000.0f, 2.0f, 0.5f, 10.0f);
-    sUniformData.domainTime = Math::Vec4(256.0f, 0.0f, 0.0f, 0.0f);
+    sUniformData.domainTimePeak = Math::Vec4(256.0f, 0.0f, 3.3f, 0.0f);
+    sCamera.speed = 25.0f;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -604,10 +609,16 @@ int main(int argc, char* argv[])
         currentFrameTime = Fly::ClockNow();
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
-        sCamera.Update(window, deltaTime);
+        ImGuiIO& io = ImGui::GetIO();
+        bool wantMouse = io.WantCaptureMouse;
+        bool wantKeyboard = io.WantCaptureKeyboard;
+        if (!wantMouse && !wantKeyboard)
+        {
+            sCamera.Update(window, deltaTime);
+        }
         sUniformData.projection = sCamera.GetProjection();
         sUniformData.view = sCamera.GetView();
-        sUniformData.domainTime.y =
+        sUniformData.domainTimePeak.y =
             static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
 
         ProcessImGuiFrame();

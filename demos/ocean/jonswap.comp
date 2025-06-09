@@ -19,7 +19,7 @@ FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
     mat4 projection;
     mat4 view;
     vec4 fetchSpeedDirSpread;
-    vec4 domainTime;
+    vec4 domainTimePeak;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, { vec2 value; })
@@ -39,20 +39,9 @@ float GaussianHash(vec2 n, float seed)
     return r * cos(theta);
 }
 
-vec2 GetK(int i, int j, int n, float l)
+float Jonswap(float w, float fetch, float windSpeed, float peak)
 {
-    float dk = 2.0f * PI / l;
-    int halfN = n / 2;
-
-    float kx = (i < halfN) ? i : i - n;
-    float ky = (j < halfN) ? j : j - n;
-
-    return vec2(kx, ky) * dk;
-}
-
-float Jonswap(float w, float fetch, float windSpeed)
-{
-    const float y = 3.3;
+    const float y = peak;
     const float wp = 22.0f * pow((windSpeed * fetch) / (G * G), -0.33f);
     const float sigma = w > wp ? 0.09f : 0.07f;
     const float alpha =
@@ -87,25 +76,29 @@ float Cosine2s(float theta, float theta0, float s)
 
 void main()
 {
-    uint c = gl_LocalInvocationID.x;
-    uint r = gl_WorkGroupID.x;
-    uint base = r * gl_WorkGroupSize.x;
+    int c = int(gl_LocalInvocationID.x);
+    int r = int(gl_WorkGroupID.x);
+    int base = r * int(gl_WorkGroupSize.x);
 
     vec2 uv = vec2(c / (gPushConstants.width - 1.0f),
                    r / (gPushConstants.width - 1.0f));
 
     vec4 fetchSpeedDirSpread = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, fetchSpeedDirSpread);
-    vec4 domainTime = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, domainTime);
+    vec4 domainTimePeak = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, domainTimePeak);
 
-    vec2 k = GetK(int(c), int(r), int(gPushConstants.width), domainTime.x);
-    float deltaK = 2 * PI / domainTime.x;
+    float deltaK = 2 * PI / domainTimePeak.x;
+    int halfN = int(gPushConstants.width) / 2;
+    float kx = (c < halfN) ? c : c - int(gPushConstants.width);
+    float ky = (r < halfN) ? r : r - int(gPushConstants.width);
+    vec2 k = vec2(kx, ky) * deltaK;
+
     float theta = atan(k.y, k.x);
     float kl = length(k);
     float omega = sqrt(G * kl);
 
-    float phase = omega * domainTime.y;
+    float phase = omega * domainTimePeak.y;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
@@ -113,7 +106,8 @@ void main()
     if (kl > 1e-8)
     {
         j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
-              Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y) *
+              Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y,
+                      domainTimePeak.z) *
               (0.5 * sqrt(G / kl)) / kl;
     }
 
