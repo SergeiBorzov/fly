@@ -109,8 +109,18 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
 
 void SimpleCameraFPS::Update(GLFWwindow* window, double deltaTime)
 {
-    UpdateRotation(window, deltaTime);
-    UpdatePosition(window, deltaTime);
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+        UpdateRotation(window, deltaTime);
+        UpdatePosition(window, deltaTime);
+    }
+    else
+    {
+        firstFrame_ = true;
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
 }
 
 } // namespace Fly
