@@ -33,7 +33,7 @@ struct UniformData
     Math::Mat4 projection;
     Math::Mat4 view;
     Math::Vec4 fetchSpeedDirSpread;
-    Math::Vec4 normalizationDomainTime;
+    Math::Vec4 domainTime;
 };
 static UniformData sUniformData;
 
@@ -346,7 +346,7 @@ static void IFFTPass(RHI::Device& device)
 
     RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTX[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 1, 256};
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 1, 1};
     RHI::SetPushConstants(device, cmd, pushConstantsFFTX,
                           sizeof(pushConstantsFFTX));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
@@ -375,8 +375,7 @@ static void IFFTPass(RHI::Device& device)
 
     RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTY[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 1,
-        256};
+        sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle, 1, 1};
     RHI::SetPushConstants(device, cmd, pushConstantsFFTY,
                           sizeof(pushConstantsFFTY));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
@@ -401,16 +400,12 @@ static void ProcessImGuiFrame()
         ImGui::SliderFloat("Fetch", &sUniformData.fetchSpeedDirSpread.x, 0.0f,
                            1000000.0f, "%.1f");
         ImGui::SliderFloat("Wind Speed", &sUniformData.fetchSpeedDirSpread.y,
-                           0.0f, 50.0f, "%.2f");
+                           0.001f, 50.0f, "%.3f");
         ImGui::SliderFloat("Theta 0", &sUniformData.fetchSpeedDirSpread.z,
                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
-        ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 0.01f,
-                           100.0f, "%.2f");
-        ImGui::SliderFloat("Normalization scalar",
-                           &sUniformData.normalizationDomainTime.x, 0.0f, 10.0f,
-                           "%.2f");
-        ImGui::SliderFloat("Domain size",
-                           &sUniformData.normalizationDomainTime.y, 128.0f,
+        ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 1.0f,
+                           30.0f, "%.2f");
+        ImGui::SliderFloat("Domain size", &sUniformData.domainTime.x, 64.0f,
                            8192.0f, "%.1f");
 
         ImGui::End();
@@ -489,7 +484,7 @@ static void GraphicsPass(RHI::Device& device)
                          VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(cmd.handle, sIndexCount, 1, 0, 0, 0);
 
-    // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
     vkCmdEndRendering(cmd.handle);
 }
 
@@ -552,7 +547,7 @@ int main(int argc, char* argv[])
         glfwTerminate();
         return -1;
     }
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Create graphics context
@@ -599,8 +594,8 @@ int main(int argc, char* argv[])
     u64 currentFrameTime = loopStartTime;
 
     sUniformData.fetchSpeedDirSpread =
-        Math::Vec4(500000.0f, 10.0f, 0.5f, 0.05f);
-    sUniformData.normalizationDomainTime = Math::Vec4(0.65, 256.0f, 0.0f, 0.0f);
+        Math::Vec4(500 * 1000.0f, 2.0f, 0.5f, 10.0f);
+    sUniformData.domainTime = Math::Vec4(256.0f, 0.0f, 0.0f, 0.0f);
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -612,10 +607,10 @@ int main(int argc, char* argv[])
         sCamera.Update(window, deltaTime);
         sUniformData.projection = sCamera.GetProjection();
         sUniformData.view = sCamera.GetView();
-        sUniformData.normalizationDomainTime.z =
+        sUniformData.domainTime.y =
             static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
 
-        // ProcessImGuiFrame();
+        ProcessImGuiFrame();
         RHI::CopyDataToBuffer(device, &sUniformData, sizeof(UniformData), 0,
                               sUniformBuffers[device.frameIndex]);
 

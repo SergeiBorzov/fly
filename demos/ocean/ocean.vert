@@ -50,7 +50,6 @@ void main()
                            outUV)
                        .r;
 
-    gl_Position =
-        projection * view *
-        vec4(vertex.position.x, height*1000, vertex.position.y, 1.0f);
+    gl_Position = projection * view *
+                  vec4(vertex.position.x, height, vertex.position.y, 1.0f);
 }

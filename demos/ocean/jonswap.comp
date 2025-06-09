@@ -19,7 +19,7 @@ FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
     mat4 projection;
     mat4 view;
     vec4 fetchSpeedDirSpread;
-    vec4 normalizationDomainTime;
+    vec4 domainTime;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, { vec2 value; })
@@ -53,33 +53,36 @@ vec2 GetK(int i, int j, int n, float l)
 float Jonswap(float w, float fetch, float windSpeed)
 {
     const float y = 3.3;
-    const float wp = 22.0f * pow((windSpeed * fetch / (G * G)), -0.33f);
+    const float wp = 22.0f * pow((windSpeed * fetch) / (G * G), -0.33f);
     const float sigma = w > wp ? 0.09f : 0.07f;
     const float alpha =
-        0.076f * pow((G * fetch / (windSpeed * windSpeed)), -0.22f);
+        0.076f * pow((G * fetch) / (windSpeed * windSpeed), -0.22f);
     const float r = exp(-((w - wp) * (w - wp)) / (2 * sigma * sigma * wp * wp));
 
     return ((alpha * G * G) / pow(w, 5.0f)) *
            exp(-(5.0f / 4.0f) * pow(wp / w, 4.0f)) * pow(y, r);
 }
 
-float DirectionalSpread(float theta, float theta0, float s, float c)
+// Quartic approx for normalization factor for cosine-2s spread function
+float NormalizationFactor(float s)
 {
-    float delta = 0.5 * (theta - theta0);
-    return c * pow(max(0.0, cos(delta)), s);
+    if (s < 5)
+    {
+        return (((-0.000564f * s + 0.00776f) * s - 0.044f) * s + 0.192f) * s +
+               0.163f;
+    }
+    else
+    {
+        return ((((-4.80e-8f) * s + 1.07e-5f) * s - 9.53e-4f) * s + 0.059f) *
+                   s +
+               0.393f;
+    }
 }
 
-float Jonswap2D(vec2 k, float fetch, float windSpeed, float theta0, float s,
-                float c)
+float Cosine2s(float theta, float theta0, float s)
 {
-    float kl = length(k);
-    if (kl < 1e-4f)
-        return 0.0f;
-
-    float theta = atan(k.y, k.x);
-    float j = Jonswap(sqrt(G * kl), fetch, windSpeed);
-    float d = DirectionalSpread(theta, theta0, s, c);
-    return j * d * (sqrt(G / kl)) / (2.0f * kl);
+    float delta = 0.5f * (theta - theta0);
+    return NormalizationFactor(s) * pow(abs(cos(delta)), 2 * s);
 }
 
 void main()
@@ -93,26 +96,34 @@ void main()
 
     vec4 fetchSpeedDirSpread = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, fetchSpeedDirSpread);
-    vec4 normalizationDomainTime = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex,
-        normalizationDomainTime);
+    vec4 domainTime = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, domainTime);
 
-    vec2 k = GetK(int(c), int(r), int(gPushConstants.width),
-                  normalizationDomainTime.y);
-    float phase = sqrt(G * length(k)) * normalizationDomainTime.z;
+    vec2 k = GetK(int(c), int(r), int(gPushConstants.width), domainTime.x);
+    float deltaK = 2 * PI / domainTime.x;
+    float theta = atan(k.y, k.x);
+    float kl = length(k);
+    float omega = sqrt(G * kl);
+
+    float phase = omega * domainTime.y;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
-    float j2d = Jonswap2D(k, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y,
-                          fetchSpeedDirSpread.z, fetchSpeedDirSpread.w,
-                          normalizationDomainTime.x);
+    float j2d = 0.0f;
+    if (kl > 1e-8)
+    {
+        j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
+              Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y) *
+              (0.5 * sqrt(G / kl)) / kl;
+    }
 
-    vec2 w = vec2(GaussianHash(uv, 0.0f), GaussianHash(uv, 1.0f));
-    float a = sqrt(j2d * 0.5f);
+    vec2 w =
+        vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f));
+    float a = sqrt(2.0f * j2d * deltaK * deltaK);
 
     float x = cosPhase * w.x - sin(phase) * w.y;
     float y = sinPhase * w.x + cos(phase) * w.y;
 
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
-    [base + c].value = a * vec2(x, y);
+    [base + c].value = a * vec2(x, y) / sqrt(2);
 }
