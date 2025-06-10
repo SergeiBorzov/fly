@@ -20,6 +20,13 @@ static u32 Log2(u32 x)
 }
 
 static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
+                            Fly::RHI::Cubemap& cubemap,
+                            VkImageLayout targetLayout)
+{
+    return;
+}
+
+static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
                             Fly::RHI::Texture& texture,
                             VkImageLayout targetLayout)
 {
@@ -744,6 +751,162 @@ void CopyTextureToBuffer(Device& device, const Texture& texture, Buffer& buffer)
                                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                      texture.imageLayout);
     EndTransfer(device);
+}
+
+bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
+                   VkFormat format, Sampler::FilterMode filterMode,
+                   Cubemap& cubemap)
+{
+    FLY_ASSERT(size > 0);
+    FLY_ASSERT(dataSize == GetTexelSize(format) * size * size * 6);
+
+    VkImageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    createInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.format = format;
+    createInfo.extent = {size, size, 1};
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 6;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    createInfo.usage =
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    allocCreateInfo.requiredFlags =
+        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo,
+                       &cubemap.image, &cubemap.allocation,
+                       &cubemap.allocationInfo) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    VkImageViewCreateInfo viewCreateInfo{};
+    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewCreateInfo.image = cubemap.image;
+    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    viewCreateInfo.format = format;
+    viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = 1;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 6;
+    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
+                          RHI::GetVulkanAllocationCallbacks(),
+                          &cubemap.imageView))
+    {
+        vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
+        return false;
+    }
+
+    if (!CreateSampler(device, filterMode, Sampler::WrapMode::Clamp, 1,
+                       cubemap.sampler))
+    {
+        vkDestroyImageView(device.logicalDevice, cubemap.imageView,
+                           GetVulkanAllocationCallbacks());
+        vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
+        return true;
+    }
+
+    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDescriptorImageInfo imageInfo{};
+    imageInfo.imageLayout = targetImageLayout;
+    imageInfo.imageView = cubemap.imageView;
+    imageInfo.sampler = cubemap.sampler.handle;
+
+    VkWriteDescriptorSet descriptorWrite{};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = device.bindlessDescriptorSet;
+    descriptorWrite.dstBinding = FLY_TEXTURE_BINDING_INDEX;
+    descriptorWrite.dstArrayElement = device.bindlessTextureHandleCount;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                           nullptr);
+    cubemap.bindlessHandle = device.bindlessTextureHandleCount++;
+    cubemap.size = size;
+    cubemap.format = format;
+    cubemap.mipLevelCount = 1;
+
+    if (data)
+    {
+        RHI::Buffer stagingBuffer;
+        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
+                          dataSize, stagingBuffer))
+        {
+            DestroySampler(device, cubemap.sampler);
+            vkDestroyImageView(device.logicalDevice, cubemap.imageView,
+                               GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, cubemap.image,
+                            cubemap.allocation);
+            return false;
+        }
+
+        BeginTransfer(device);
+        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+
+        RHI::RecordTransitionImageLayout(cmd, cubemap.image,
+                                         VK_IMAGE_LAYOUT_UNDEFINED,
+                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion{};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 6;
+        copyRegion.imageExtent.width = size;
+        copyRegion.imageExtent.height = size;
+        copyRegion.imageExtent.depth = 1;
+
+        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, cubemap.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                               &copyRegion);
+
+        GenerateMipmaps(cmd, cubemap, targetImageLayout);
+        EndTransfer(device);
+
+        DestroyBuffer(device, stagingBuffer);
+    }
+    else
+    {
+        BeginTransfer(device);
+        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+        RHI::RecordTransitionImageLayout(
+            cmd, cubemap.image, VK_IMAGE_LAYOUT_UNDEFINED, targetImageLayout);
+        EndTransfer(device);
+    }
+
+    cubemap.imageLayout = targetImageLayout;
+
+    FLY_DEBUG_LOG("Cubemap [%llu] created with size %f MB: bindless handle %u",
+                  cubemap.image, cubemap.allocationInfo.size / 1024.0 / 1024.0,
+                  cubemap.bindlessHandle);
+    return true;
+}
+
+void DestroyCubemap(Device& device, Cubemap& cubemap)
+{
+    DestroySampler(device, cubemap.sampler);
+    vkDestroyImageView(device.logicalDevice, cubemap.imageView,
+                       GetVulkanAllocationCallbacks());
+    vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
+    cubemap.image = VK_NULL_HANDLE;
+    cubemap.imageView = VK_NULL_HANDLE;
+    cubemap.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    cubemap.format = VK_FORMAT_UNDEFINED;
+    cubemap.size = 0;
 }
 
 } // namespace RHI

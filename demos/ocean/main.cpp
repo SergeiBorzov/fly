@@ -221,6 +221,7 @@ static RHI::Buffer sVertexBuffer;
 static RHI::Buffer sIndexBuffer;
 static u32 sIndexCount;
 static RHI::Texture sHeightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Cubemap sSkyBoxes[FLY_FRAME_IN_FLIGHT_COUNT];
 static bool CreateDeviceObjects(RHI::Device& device)
 {
     Arena& arena = GetScratchArena();
@@ -309,6 +310,14 @@ static bool CreateDeviceObjects(RHI::Device& device)
         {
             return false;
         }
+
+        if (!RHI::CreateCubemap(device, nullptr, 256 * 256 * 6 * 4 * sizeof(u8),
+                                256, VK_FORMAT_R8G8B8A8_SRGB,
+                                RHI::Sampler::FilterMode::Bilinear,
+                                sSkyBoxes[i]))
+        {
+            return false;
+        }
     }
 
     return true;
@@ -324,6 +333,7 @@ static void DestroyDeviceObjects(RHI::Device& device)
         }
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
         RHI::DestroyTexture(device, sHeightMaps[i]);
+        RHI::DestroyCubemap(device, sSkyBoxes[i]);
     }
     RHI::DestroyBuffer(device, sIndexBuffer);
     RHI::DestroyBuffer(device, sVertexBuffer);
