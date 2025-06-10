@@ -1,0 +1,89 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 256) in;
+
+FLY_REGISTER_STORAGE_BUFFER(, Data, {
+    vec2 value;
+    vec2 dx;
+    vec2 dy;
+})
+
+layout(push_constant) uniform FFTParams { uint dataBufferIndex; }
+gPushConstants;
+
+#define PI (3.14159265f)
+
+uint bitReverse(uint v)
+{
+    v = ((v >> 1) & 0x55555555u) | ((v & 0x55555555u) << 1);
+    v = ((v >> 2) & 0x33333333u) | ((v & 0x33333333u) << 2);
+    v = ((v >> 4) & 0x0F0F0F0Fu) | ((v & 0x0F0F0F0Fu) << 4);
+    v = ((v >> 8) & 0x00FF00FFu) | ((v & 0x00FF00FFu) << 8);
+    v = (v >> 16) | (v << 16);
+    return v;
+}
+
+vec4 Butterfly(vec2 w, vec2 u, vec2 t)
+{
+    vec2 tw;
+    tw.x = t.x * w.x - t.y * w.y;
+    tw.y = t.x * w.y + t.y * w.x;
+
+    return vec4(u + tw, u - tw);
+}
+
+shared vec2 functionShared[256];
+shared vec2 dxFunctionShared[256];
+shared vec2 dyFunctionShared[256];
+
+void main()
+{
+    uint c = gl_LocalInvocationID.x;
+    uint r = gl_WorkGroupID.x;
+
+    uint base = r * gl_WorkGroupSize.x;
+    uint index = bitReverse(c) >> 24;
+
+    Data data = FLY_ACCESS_STORAGE_BUFFER(
+        Data, gPushConstants.dataBufferIndex)[base + c];
+
+    functionShared[index] = data.value;
+    dxFunctionShared[index] = data.dx;
+    dyFunctionShared[index] = data.dy;
+    barrier();
+
+    // Cooley–Tukey FFT
+    for (uint s = 1; s <= 8; ++s)
+    {
+        uint m = 1 << s;
+        uint half_m = m >> 1;
+        uint k = c % half_m;
+        float angle = 2.0 * PI * float(k) / float(m);
+        vec2 w = vec2(cos(angle), sin(angle));
+
+        if ((c % m) < half_m)
+        {
+            uint i = c;
+            uint j = c + half_m;
+
+            vec4 f =
+                Butterfly(w, functionShared[i], functionShared[j]);
+            vec4 dx = Butterfly(w, dxFunctionShared[i], dxFunctionShared[j]);
+            vec4 dy = Butterfly(w, dyFunctionShared[i], dyFunctionShared[j]);
+
+            functionShared[i] = f.xy;
+            functionShared[j] = f.zw;
+            dxFunctionShared[i] = dx.xy;
+            dxFunctionShared[j] = dx.zw;
+            dyFunctionShared[i] = dy.xy;
+            dyFunctionShared[j] = dy.zw;
+        }
+        barrier();
+    }
+
+    FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
+    [base + c] =
+        Data(functionShared[c], dxFunctionShared[c], dyFunctionShared[c]);
+}

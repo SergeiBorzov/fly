@@ -28,6 +28,13 @@ struct Vertex
     Math::Vec2 uv;
 };
 
+struct OceanFrequencyVertex
+{
+    Math::Vec2 value;
+    Math::Vec2 dx;
+    Math::Vec2 dy;
+};
+
 struct UniformData
 {
     Math::Mat4 projection;
@@ -64,7 +71,7 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::ComputePipeline* computePipelines[] = {
         &sFFTPipeline, &sTransposePipeline, &sJonswapPipeline, &sCopyPipeline};
 
-    const char* computeShaderPaths[] = {"fft.comp.spv", "transpose.comp.spv",
+    const char* computeShaderPaths[] = {"ifft.comp.spv", "transpose.comp.spv",
                                         "jonswap.comp.spv", "copy.comp.spv"};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -286,7 +293,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
         for (u32 j = 0; j < 2; j++)
         {
             if (!RHI::CreateStorageBuffer(device, false, nullptr,
-                                          sizeof(Math::Vec2) * 256 * 256,
+                                          sizeof(OceanFrequencyVertex) * 256 *
+                                              256,
                                           sOceanFrequencyBuffers[i * 2 + j]))
             {
                 return false;
@@ -294,8 +302,9 @@ static bool CreateDeviceObjects(RHI::Device& device)
         }
 
         if (!RHI::CreateReadWriteTexture(
-                device, nullptr, 256 * 256 * sizeof(u16), 256, 256,
-                VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
+                device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
+                VK_FORMAT_R16G16B16A16_SFLOAT,
+                RHI::Sampler::FilterMode::Bilinear,
                 RHI::Sampler::WrapMode::Repeat, sHeightMaps[i]))
         {
             return false;
@@ -347,7 +356,7 @@ static void IFFTPass(RHI::Device& device)
 
     RHI::BindComputePipeline(device, cmd, sFFTPipeline);
     u32 pushConstantsFFTX[] = {
-        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle, 1, 1};
+        sOceanFrequencyBuffers[2 * device.frameIndex].bindlessHandle};
     RHI::SetPushConstants(device, cmd, pushConstantsFFTX,
                           sizeof(pushConstantsFFTX));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
@@ -408,7 +417,8 @@ static void ProcessImGuiFrame()
                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
         ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 1.0f,
                            30.0f, "%.2f");
-        // ImGui::SliderFloat("Domain size", &sUniformData.domainTimePeak.x, 64.0f,
+        // ImGui::SliderFloat("Domain size",
+        // &sUniformData.domainTimePeak.x, 64.0f,
         //                    8192.0f, "%.1f");
 
         ImGui::End();

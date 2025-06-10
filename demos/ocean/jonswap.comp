@@ -22,7 +22,11 @@ FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
     vec4 domainTimePeak;
 })
 
-FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, { vec2 value; })
+FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, {
+    vec2 value;
+    vec2 dx;
+    vec2 dy;
+})
 
 float Hash(vec2 n, float seed)
 {
@@ -113,11 +117,15 @@ void main()
 
     vec2 w =
         vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f));
-    float a = sqrt(2.0f * j2d * deltaK * deltaK);
+    float a = sqrt(2.0f * j2d * deltaK * deltaK) / sqrt(2);
 
     float x = cosPhase * w.x - sin(phase) * w.y;
     float y = sinPhase * w.x + cos(phase) * w.y;
 
+    vec2 dx = vec2(-kx * y, kx * x);
+    vec2 dy = vec2(-ky * y, ky * x);
+
+    Data data = Data(a * vec2(x, y), a * dx, a * dy);
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
-    [base + c].value = a * vec2(x, y) / sqrt(2);
+    [base + c] = data;
 }

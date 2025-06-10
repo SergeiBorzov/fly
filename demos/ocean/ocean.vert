@@ -4,6 +4,7 @@
 #include "bindless.glsl"
 
 layout(location = 0) out vec2 outUV;
+layout(location = 1) out vec3 outNormal;
 
 layout(push_constant) uniform PushConstants
 {
@@ -45,11 +46,11 @@ void main()
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, view);
 
-    float height = texture(FLY_ACCESS_TEXTURE_BUFFER(
-                               Texture, gPushConstants.heightMapIndex),
-                           outUV)
-                       .r;
+    vec4 value = texture(
+        FLY_ACCESS_TEXTURE_BUFFER(Texture, gPushConstants.heightMapIndex),
+        outUV);
+    outNormal = value.xyz;
 
     gl_Position = projection * view *
-                  vec4(vertex.position.x, height, vertex.position.y, 1.0f);
+                  vec4(vertex.position.x, value.a, vertex.position.y, 1.0f);
 }

@@ -18,19 +18,28 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
+struct Data
+{
+    vec2 value;
+    vec2 dx;
+    vec2 dy;
+};
+
 layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX) readonly buffer In
 {
-    vec2 texels[];
+    Data items[];
 }
 gInBuffers[];
 
 layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer Out
 {
-    vec2 texels[];
+    Data items[];
 }
 gOutBuffers[];
 
 shared vec2 tile[TILE_DIM][TILE_DIM + 1];
+shared vec2 dxTile[TILE_DIM][TILE_DIM + 1];
+shared vec2 dyTile[TILE_DIM][TILE_DIM + 1];
 void main()
 {
     uvec2 tid = gl_LocalInvocationID.xy;
@@ -38,13 +47,16 @@ void main()
     uint y = gl_WorkGroupID.y * TILE_DIM + tid.y;
     uint width = gPushConstants.width;
 
-    tile[tid.y][tid.x] =
-        gInBuffers[gPushConstants.inBufferIndex].texels[y * width + x];
+    Data data = gInBuffers[gPushConstants.inBufferIndex].items[y * width + x];
+    tile[tid.y][tid.x] = data.value;
+    dxTile[tid.y][tid.x] = data.dx;
+    dyTile[tid.y][tid.x] = data.dy;
+
     barrier();
 
     x = gl_WorkGroupID.y * TILE_DIM + tid.x;
     y = gl_WorkGroupID.x * TILE_DIM + tid.y;
 
-    gOutBuffers[gPushConstants.outBufferIndex].texels[y * width + x] =
-        tile[tid.x][tid.y];
+    gOutBuffers[gPushConstants.outBufferIndex].items[y * width + x] =
+        Data(tile[tid.x][tid.y], dxTile[tid.x][tid.y], dyTile[tid.x][tid.y]);
 }

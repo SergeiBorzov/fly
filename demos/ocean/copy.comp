@@ -11,8 +11,12 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-FLY_REGISTER_STORAGE_BUFFER(readonly, Data, { vec2 value; })
-FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RTextures, image2D, r8)
+FLY_REGISTER_STORAGE_BUFFER(readonly, Data, {
+    vec2 value;
+    vec2 dx;
+    vec2 dy;
+})
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTextures, image2D, r16f)
 
 void main()
 {
@@ -20,14 +24,11 @@ void main()
     uint r = gl_WorkGroupID.x;
     uint base = r * gl_WorkGroupSize.x;
 
-    vec2 value = FLY_ACCESS_STORAGE_BUFFER(
-                     Data, gPushConstants.dataBufferIndex)[base + c]
-                     .value;
+    Data data = FLY_ACCESS_STORAGE_BUFFER(
+        Data, gPushConstants.dataBufferIndex)[base + c];
 
-    float v = value.x;
-    float x = c;
-    float y = r;
-    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(RTextures,
+    vec3 n = normalize(vec3(-data.dx.x, 1, -data.dy.x));
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(StorageTextures,
                                                  gPushConstants.textureIndex),
-               ivec2(x, y), vec4(v, 0.0f, 0.0f, 0.0f));
+               ivec2(c, r), vec4(n, data.value.x));
 }
