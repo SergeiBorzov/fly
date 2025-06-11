@@ -65,6 +65,7 @@ static RHI::ComputePipeline sJonswapPipeline;
 static RHI::ComputePipeline sCopyPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sWireframeGraphicsPipeline;
+static RHI::GraphicsPipeline sSkyPipeline;
 static RHI::GraphicsPipeline sSkyBoxPipeline;
 static RHI::GraphicsPipeline* sCurrentGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
@@ -130,13 +131,27 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
     fixedState.depthStencilState.depthTestEnable = false;
-    if (!Fly::LoadShaderFromSpv(device, "skybox.vert.spv",
+    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
+    if (!Fly::LoadShaderFromSpv(device, "sky.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sSkyPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R8G8B8A8_SRGB;
+    fixedState.pipelineRendering.viewMask = 0x0000007F;
     if (!Fly::LoadShaderFromSpv(device, "skybox.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
@@ -156,6 +171,7 @@ static bool CreatePipelines(RHI::Device& device)
 static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sSkyBoxPipeline);
+    RHI::DestroyGraphicsPipeline(device, sSkyPipeline);
     RHI::DestroyGraphicsPipeline(device, sWireframeGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyComputePipeline(device, sCopyPipeline);
@@ -496,9 +512,13 @@ static void SkyBoxPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
+    RecordTransitionImageLayout(cmd, sSkyBoxes[device.frameIndex].image,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
     VkRect2D renderArea = {{0, 0}, {256, 256}};
     VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(sSkyBoxes[device.frameIndex].imageView,
+        RHI::ColorAttachmentInfo(sSkyBoxes[device.frameIndex].arrayImageView,
                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo = RHI::RenderingInfo(
         renderArea, &colorAttachment, 1, nullptr, nullptr, 6, 0x0000007F);
@@ -515,8 +535,35 @@ static void SkyBoxPass(RHI::Device& device)
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdDraw(cmd.handle, 3, 1, 0, 0);
+    vkCmdDraw(cmd.handle, 6, 1, 0, 0);
     vkCmdEndRendering(cmd.handle);
+
+    RecordTransitionImageLayout(cmd, sSkyBoxes[device.frameIndex].image,
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    // VkImageMemoryBarrier imageBarrier{};
+    // imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // imageBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    // imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    // imageBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    // imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    // imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+    // imageBarrier.image = cubemap.image;
+    // imageBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // imageBarrier.subresourceRange.baseMipLevel = 0;
+    // imageBarrier.subresourceRange.levelCount = 1; // or all mips if needed
+    // imageBarrier.subresourceRange.baseArrayLayer = 0;
+    // imageBarrier.subresourceRange.layerCount = 6; // all cubemap faces
+
+    // vkCmdPipelineBarrier(
+    //     commandBuffer,
+    //     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // srcStage
+    //     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,         // dstStage
+    //     0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
 }
 
 static void GraphicsPass(RHI::Device& device)
@@ -536,11 +583,6 @@ static void GraphicsPass(RHI::Device& device)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, *sCurrentGraphicsPipeline);
-    u32 pushConstants[] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                           sHeightMaps[device.frameIndex].bindlessHandle,
-                           sVertexBuffer.bindlessHandle};
-    RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -554,16 +596,38 @@ static void GraphicsPass(RHI::Device& device)
     VkRect2D scissor = renderArea;
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-    vkCmdBindIndexBuffer(cmd.handle, sIndexBuffer.handle, 0,
-                         VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd.handle, sIndexCount, 1, 0, 0, 0);
+    // Sky
+    {
+        RHI::BindGraphicsPipeline(device, cmd, sSkyPipeline);
+        u32 pushConstants[] = {sSkyBoxes[device.frameIndex].bindlessHandle};
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
+        vkCmdDraw(cmd.handle, 6, 1, 0, 0);
+    }
+
+    // Ocean
+    {
+        RHI::BindGraphicsPipeline(device, cmd, *sCurrentGraphicsPipeline);
+        u32 pushConstants[] = {
+            sUniformBuffers[device.frameIndex].bindlessHandle,
+            sHeightMaps[device.frameIndex].bindlessHandle,
+            sVertexBuffer.bindlessHandle};
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
+
+        vkCmdBindIndexBuffer(cmd.handle, sIndexBuffer.handle, 0,
+                             VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd.handle, sIndexCount, 1, 0, 0, 0);
+    }
 
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+
     vkCmdEndRendering(cmd.handle);
 }
 
 static void ExecuteCommands(RHI::Device& device)
 {
+    SkyBoxPass(device);
     JonswapPass(device);
     IFFTPass(device);
     CopyPass(device);
@@ -625,12 +689,21 @@ int main(int argc, char* argv[])
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Create graphics context
-    const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const char* requiredDeviceExtensions[] = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_EXT_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_EXTENSION_NAME};
+
+    VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT
+        unusedAttachmentsFeature{};
+    unusedAttachmentsFeature.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT;
+    unusedAttachmentsFeature.dynamicRenderingUnusedAttachments = VK_TRUE;
 
     VkPhysicalDeviceMultiviewFeatures multiviewFeatures = {};
     multiviewFeatures.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES;
     multiviewFeatures.multiview = VK_TRUE;
+    multiviewFeatures.pNext = &unusedAttachmentsFeature;
 
     RHI::ContextSettings settings{};
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;

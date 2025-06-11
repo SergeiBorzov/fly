@@ -67,13 +67,21 @@ glsl_shader(
 )
 
 glsl_shader(
-    name = "skybox.vert.spv",
-    src = "skybox.vert",
+    name = "screen_quad.vert.spv",
+    src = "screen_quad.vert",
 )
 
 glsl_shader(
     name = "skybox.frag.spv",
     src = "skybox.frag",
+)
+
+glsl_shader(
+    name = "sky.frag.spv",
+    src = "sky.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
 )
 
 cc_binary(
@@ -88,7 +96,8 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
-        ":skybox.vert.spv",
+        ":screen_quad.vert.spv",
+        ":sky.frag.spv",
         ":skybox.frag.spv",
         ":ocean.vert.spv",
         ":ocean.frag.spv",
