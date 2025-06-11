@@ -79,8 +79,8 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     vkEnumerateInstanceLayerProperties(&availableInstanceLayerCount, nullptr);
     if (availableInstanceLayerCount > 0)
     {
-        availableInstanceLayers =
-            FLY_PUSH_ARENA(arena, VkLayerProperties, availableInstanceLayerCount);
+        availableInstanceLayers = FLY_PUSH_ARENA(arena, VkLayerProperties,
+                                                 availableInstanceLayerCount);
         vkEnumerateInstanceLayerProperties(&availableInstanceLayerCount,
                                            availableInstanceLayers);
     }
@@ -310,8 +310,8 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
                                              &info.extensionCount, nullptr);
         if (info.extensionCount > 0)
         {
-            info.extensions =
-                FLY_PUSH_ARENA(arena, VkExtensionProperties, info.extensionCount);
+            info.extensions = FLY_PUSH_ARENA(arena, VkExtensionProperties,
+                                             info.extensionCount);
             vkEnumerateDeviceExtensionProperties(
                 physicalDevice, nullptr, &info.extensionCount, info.extensions);
         }
@@ -329,7 +329,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             if (info.surfaceFormatCount > 0)
             {
                 info.surfaceFormats = FLY_PUSH_ARENA(arena, VkSurfaceFormatKHR,
-                                                info.surfaceFormatCount);
+                                                     info.surfaceFormatCount);
                 vkGetPhysicalDeviceSurfaceFormatsKHR(
                     physicalDevice, context.surface, &info.surfaceFormatCount,
                     info.surfaceFormats);
@@ -341,8 +341,8 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
                 nullptr);
             if (info.presentModeCount > 0)
             {
-                info.presentModes =
-                    FLY_PUSH_ARENA(arena, VkPresentModeKHR, info.presentModeCount);
+                info.presentModes = FLY_PUSH_ARENA(arena, VkPresentModeKHR,
+                                                   info.presentModeCount);
                 vkGetPhysicalDeviceSurfacePresentModesKHR(
                     physicalDevice, context.surface, &info.presentModeCount,
                     info.presentModes);
@@ -393,7 +393,7 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
         if (info.queueFamilyCount > 0)
         {
             info.queueFamilies = FLY_PUSH_ARENA(arena, VkQueueFamilyProperties,
-                                           info.queueFamilyCount);
+                                                info.queueFamilyCount);
             vkGetPhysicalDeviceQueueFamilyProperties(
                 physicalDevice, &info.queueFamilyCount, info.queueFamilies);
         }
@@ -967,7 +967,8 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
     LogDetectedPhysicalDevices(physicalDeviceInfos, physicalDeviceCount);
 
     u32 suitableDeviceCount = 0;
-    Device* suitableDevices = FLY_PUSH_ARENA(arena, Device, physicalDeviceCount);
+    Device* suitableDevices =
+        FLY_PUSH_ARENA(arena, Device, physicalDeviceCount);
     for (u32 i = 0; i < physicalDeviceCount; i++)
     {
         suitableDevices[i] = {};
