@@ -79,11 +79,13 @@ struct Cubemap
     VmaAllocation allocation;
     VkImage image = VK_NULL_HANDLE;
     VkImageView imageView = VK_NULL_HANDLE;
+    VkImageView arrayImageView = VK_NULL_HANDLE;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     u32 size = 0;
     u32 mipLevelCount = 0;
     u32 bindlessHandle = FLY_MAX_U32;
+    u32 bindlessArrayHandle = FLY_MAX_U32;
     u32 bindlessStorageHandle = FLY_MAX_U32;
 };
 bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,

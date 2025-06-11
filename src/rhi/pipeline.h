@@ -72,6 +72,7 @@ struct GraphicsPipelineFixedStateStage
             colorAttachments[FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT] =
                 {VK_FORMAT_UNDEFINED};
         u32 colorAttachmentCount = 0;
+        u32 viewMask = 0;
     } pipelineRendering;
 };
 

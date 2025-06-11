@@ -209,9 +209,11 @@ static VkPipelineDynamicStateCreateInfo DynamicStateCreateInfo()
     return dynamicState;
 }
 
-static VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
-    const VkFormat* colorAttachments, u32 colorAttachmentCount,
-    VkFormat depthAttachmentFormat, VkFormat stencilAttachmentFormat)
+static VkPipelineRenderingCreateInfo
+PipelineRenderingCreateInfo(const VkFormat* colorAttachments,
+                            u32 colorAttachmentCount,
+                            VkFormat depthAttachmentFormat,
+                            VkFormat stencilAttachmentFormat, u32 viewMask)
 {
     FLY_ASSERT(colorAttachments);
     FLY_ASSERT(colorAttachmentCount > 0);
@@ -222,7 +224,7 @@ static VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo(
 
     pipelineRendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pipelineRendering.pNext = nullptr;
-    pipelineRendering.viewMask = 0;
+    pipelineRendering.viewMask = viewMask;
     pipelineRendering.pColorAttachmentFormats = colorAttachments;
     pipelineRendering.colorAttachmentCount = colorAttachmentCount;
     pipelineRendering.depthAttachmentFormat = depthAttachmentFormat;
@@ -312,7 +314,8 @@ bool CreateGraphicsPipeline(Device& device,
             fixedState.pipelineRendering.colorAttachments,
             fixedState.pipelineRendering.colorAttachmentCount,
             fixedState.pipelineRendering.depthAttachmentFormat,
-            fixedState.pipelineRendering.stencilAttachmentFormat);
+            fixedState.pipelineRendering.stencilAttachmentFormat,
+            fixedState.pipelineRendering.viewMask);
 
     VkGraphicsPipelineCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

@@ -770,8 +770,9 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
     createInfo.arrayLayers = 6;
     createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    createInfo.usage =
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    createInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                       VK_IMAGE_USAGE_SAMPLED_BIT |
+                       VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -799,8 +800,28 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
     viewCreateInfo.subresourceRange.layerCount = 6;
     if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
                           RHI::GetVulkanAllocationCallbacks(),
-                          &cubemap.imageView))
+                          &cubemap.imageView) != VK_SUCCESS)
     {
+        vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
+        return false;
+    }
+
+    VkImageViewCreateInfo arrayViewCreateInfo{};
+    arrayViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    arrayViewCreateInfo.image = cubemap.image;
+    arrayViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    arrayViewCreateInfo.format = format;
+    arrayViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    arrayViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    arrayViewCreateInfo.subresourceRange.levelCount = 1;
+    arrayViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    arrayViewCreateInfo.subresourceRange.layerCount = 6;
+    if (vkCreateImageView(device.logicalDevice, &arrayViewCreateInfo,
+                          RHI::GetVulkanAllocationCallbacks(),
+                          &cubemap.arrayImageView))
+    {
+        vkDestroyImageView(device.logicalDevice, cubemap.imageView,
+                           GetVulkanAllocationCallbacks());
         vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
         return false;
     }
@@ -808,18 +829,24 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
     if (!CreateSampler(device, filterMode, Sampler::WrapMode::Clamp, 1,
                        cubemap.sampler))
     {
+        vkDestroyImageView(device.logicalDevice, cubemap.arrayImageView,
+                           GetVulkanAllocationCallbacks());
         vkDestroyImageView(device.logicalDevice, cubemap.imageView,
                            GetVulkanAllocationCallbacks());
         vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
-        return true;
+        return false;
     }
 
     VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = targetImageLayout;
-    imageInfo.imageView = cubemap.imageView;
-    imageInfo.sampler = cubemap.sampler.handle;
+    VkDescriptorImageInfo imageInfos[2];
+    imageInfos[0].imageLayout = targetImageLayout;
+    imageInfos[0].imageView = cubemap.imageView;
+    imageInfos[0].sampler = cubemap.sampler.handle;
+
+    imageInfos[1].imageLayout = targetImageLayout;
+    imageInfos[1].imageView = cubemap.arrayImageView;
+    imageInfos[1].sampler = cubemap.sampler.handle;
 
     VkWriteDescriptorSet descriptorWrite{};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -827,12 +854,13 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
     descriptorWrite.dstBinding = FLY_TEXTURE_BINDING_INDEX;
     descriptorWrite.dstArrayElement = device.bindlessTextureHandleCount;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pImageInfo = &imageInfo;
+    descriptorWrite.descriptorCount = 2;
+    descriptorWrite.pImageInfo = imageInfos;
 
     vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
                            nullptr);
     cubemap.bindlessHandle = device.bindlessTextureHandleCount++;
+    cubemap.bindlessArrayHandle = device.bindlessTextureHandleCount++;
     cubemap.size = size;
     cubemap.format = format;
     cubemap.mipLevelCount = 1;
@@ -844,6 +872,8 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
                           dataSize, stagingBuffer))
         {
             DestroySampler(device, cubemap.sampler);
+            vkDestroyImageView(device.logicalDevice, cubemap.arrayImageView,
+                               GetVulkanAllocationCallbacks());
             vkDestroyImageView(device.logicalDevice, cubemap.imageView,
                                GetVulkanAllocationCallbacks());
             vmaDestroyImage(device.allocator, cubemap.image,
@@ -899,11 +929,14 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
 void DestroyCubemap(Device& device, Cubemap& cubemap)
 {
     DestroySampler(device, cubemap.sampler);
+    vkDestroyImageView(device.logicalDevice, cubemap.arrayImageView,
+                       GetVulkanAllocationCallbacks());
     vkDestroyImageView(device.logicalDevice, cubemap.imageView,
                        GetVulkanAllocationCallbacks());
     vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
     cubemap.image = VK_NULL_HANDLE;
     cubemap.imageView = VK_NULL_HANDLE;
+    cubemap.arrayImageView = VK_NULL_HANDLE;
     cubemap.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     cubemap.format = VK_FORMAT_UNDEFINED;
     cubemap.size = 0;
