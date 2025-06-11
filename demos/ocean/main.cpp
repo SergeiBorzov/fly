@@ -65,6 +65,7 @@ static RHI::ComputePipeline sJonswapPipeline;
 static RHI::ComputePipeline sCopyPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sWireframeGraphicsPipeline;
+static RHI::GraphicsPipeline sSkyBoxPipeline;
 static RHI::GraphicsPipeline* sCurrentGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
@@ -93,6 +94,7 @@ static bool CreatePipelines(RHI::Device& device)
         device.surfaceFormat.format;
     fixedState.pipelineRendering.depthAttachmentFormat =
         device.depthTexture.format;
+    fixedState.depthStencilState.depthTestEnable = true;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
@@ -127,11 +129,33 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
+    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    fixedState.depthStencilState.depthTestEnable = false;
+    if (!Fly::LoadShaderFromSpv(device, "skybox.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
+    if (!Fly::LoadShaderFromSpv(device, "skybox.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sSkyBoxPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
     return true;
 }
 
 static void DestroyPipelines(RHI::Device& device)
 {
+    RHI::DestroyGraphicsPipeline(device, sSkyBoxPipeline);
     RHI::DestroyGraphicsPipeline(device, sWireframeGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyComputePipeline(device, sCopyPipeline);
@@ -468,6 +492,33 @@ static void CopyPass(RHI::Device& device)
                          0, nullptr, 1, &barrier);
 }
 
+static void SkyBoxPass(RHI::Device& device)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    VkRect2D renderArea = {{0, 0}, {256, 256}};
+    VkRenderingAttachmentInfo colorAttachment =
+        RHI::ColorAttachmentInfo(sSkyBoxes[device.frameIndex].imageView,
+                                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingInfo renderInfo = RHI::RenderingInfo(
+        renderArea, &colorAttachment, 1, nullptr, nullptr, 6, 0x0000007F);
+    vkCmdBeginRendering(cmd.handle, &renderInfo);
+    RHI::BindGraphicsPipeline(device, cmd, sSkyBoxPipeline);
+
+    VkViewport viewport = {};
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = static_cast<f32>(256);
+    viewport.height = static_cast<f32>(256);
+    vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
+
+    VkRect2D scissor = renderArea;
+    vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
+
+    vkCmdDraw(cmd.handle, 3, 1, 0, 0);
+    vkCmdEndRendering(cmd.handle);
+}
+
 static void GraphicsPass(RHI::Device& device)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
@@ -576,6 +627,11 @@ int main(int argc, char* argv[])
     // Create graphics context
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
+    VkPhysicalDeviceMultiviewFeatures multiviewFeatures = {};
+    multiviewFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES;
+    multiviewFeatures.multiview = VK_TRUE;
+
     RHI::ContextSettings settings{};
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions =
@@ -584,6 +640,7 @@ int main(int argc, char* argv[])
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
     settings.deviceFeatures2.features.fillModeNonSolid = true;
+    settings.deviceFeatures2.pNext = &multiviewFeatures;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))

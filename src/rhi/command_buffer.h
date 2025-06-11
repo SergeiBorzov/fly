@@ -73,7 +73,8 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* colorAttachments,
               u32 colorAttachmentCount,
               const VkRenderingAttachmentInfo* depthAttachment = nullptr,
-              const VkRenderingAttachmentInfo* stencilAttachment = nullptr);
+              const VkRenderingAttachmentInfo* stencilAttachment = nullptr,
+              u32 layerCount = 1, u32 viewMask = 0);
 
 VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
                                           VkAccessFlags srcAccessMask,

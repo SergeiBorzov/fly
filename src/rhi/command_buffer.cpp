@@ -333,7 +333,8 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* colorAttachments,
               u32 colorAttachmentCount,
               const VkRenderingAttachmentInfo* depthAttachment,
-              const VkRenderingAttachmentInfo* stencilAttachment)
+              const VkRenderingAttachmentInfo* stencilAttachment,
+              u32 layerCount, u32 viewMask)
 {
     FLY_ASSERT(colorAttachments);
     FLY_ASSERT(colorAttachmentCount > 0);
@@ -342,9 +343,8 @@ RenderingInfo(const VkRect2D& renderArea,
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderInfo.pNext = nullptr;
     renderInfo.flags = 0;
-    renderInfo.viewMask = 0;
-    renderInfo.layerCount =
-        1; // will be different for texture arrays and cube maps
+    renderInfo.viewMask = viewMask;
+    renderInfo.layerCount = layerCount;
     renderInfo.renderArea = renderArea;
     renderInfo.colorAttachmentCount = colorAttachmentCount;
     renderInfo.pColorAttachments = colorAttachments;

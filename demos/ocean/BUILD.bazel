@@ -66,6 +66,16 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "skybox.vert.spv",
+    src = "skybox.vert",
+)
+
+glsl_shader(
+    name = "skybox.frag.spv",
+    src = "skybox.frag",
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -78,6 +88,8 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
+        ":skybox.vert.spv",
+        ":skybox.frag.spv",
         ":ocean.vert.spv",
         ":ocean.frag.spv",
         ":copy.comp.spv",
