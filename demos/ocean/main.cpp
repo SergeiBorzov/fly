@@ -41,6 +41,7 @@ struct UniformData
     Math::Mat4 view;
     Math::Vec4 fetchSpeedDirSpread;
     Math::Vec4 domainTimePeak;
+    Math::Vec4 screenSize;
 };
 static UniformData sUniformData;
 
@@ -467,9 +468,6 @@ static void ProcessImGuiFrame()
                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
         ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 1.0f,
                            30.0f, "%.2f");
-        // ImGui::SliderFloat("Domain size",
-        // &sUniformData.domainTimePeak.x, 64.0f,
-        //                    8192.0f, "%.1f");
 
         ImGui::End();
     }
@@ -599,7 +597,9 @@ static void GraphicsPass(RHI::Device& device)
     // Sky
     {
         RHI::BindGraphicsPipeline(device, cmd, sSkyPipeline);
-        u32 pushConstants[] = {sSkyBoxes[device.frameIndex].bindlessHandle};
+        u32 pushConstants[] = {
+            sUniformBuffers[device.frameIndex].bindlessHandle,
+            sSkyBoxes[device.frameIndex].bindlessHandle};
         RHI::SetPushConstants(device, cmd, pushConstants,
                               sizeof(pushConstants));
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
@@ -750,6 +750,10 @@ int main(int argc, char* argv[])
     sUniformData.fetchSpeedDirSpread =
         Math::Vec4(500 * 1000.0f, 2.0f, 0.5f, 10.0f);
     sUniformData.domainTimePeak = Math::Vec4(256.0f, 0.0f, 3.3f, 0.0f);
+    sUniformData.projection = sCamera.GetProjection();
+    sUniformData.screenSize = Math::Vec4(
+        WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
+
     sCamera.speed = 25.0f;
     while (!glfwWindowShouldClose(window))
     {
@@ -766,7 +770,6 @@ int main(int argc, char* argv[])
         {
             sCamera.Update(window, deltaTime);
         }
-        sUniformData.projection = sCamera.GetProjection();
         sUniformData.view = sCamera.GetView();
         sUniformData.domainTimePeak.y =
             static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
