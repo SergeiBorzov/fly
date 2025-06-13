@@ -24,7 +24,7 @@
 
 using namespace Fly;
 
-static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
+static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
 {
     return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;

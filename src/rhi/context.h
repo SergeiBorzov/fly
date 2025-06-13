@@ -39,7 +39,7 @@ struct PhysicalDeviceInfo
     u32 presentModeCount = 0;
 };
 
-typedef bool (*IsPhysicalDeviceSuitableFn)(const Context&,
+typedef bool (*IsPhysicalDeviceSuitableFn)(VkPhysicalDevice physicalDevice,
                                            const PhysicalDeviceInfo&);
 typedef bool (*DetermineSurfaceFormatFn)(const Context&,
                                          const PhysicalDeviceInfo&,

@@ -25,7 +25,7 @@ static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
 
-static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
+static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
 {
     return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;

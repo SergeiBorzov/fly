@@ -1045,7 +1045,7 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
         }
 
         if (isPhysicalDeviceSuitableCallback != nullptr &&
-            !isPhysicalDeviceSuitableCallback(context, info))
+            !isPhysicalDeviceSuitableCallback(physicalDevices[i], info))
         {
             continue;
         }

@@ -49,9 +49,33 @@ static Fly::SimpleCameraFPS
     sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
             300.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
 
-static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
+static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
 {
+
+    VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT
+        unusedAttachmentsFeature{};
+    unusedAttachmentsFeature.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT;
+    unusedAttachmentsFeature.pNext = nullptr;
+
+    VkPhysicalDeviceMultiviewFeatures multiviewFeatures{};
+    multiviewFeatures.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES;
+    multiviewFeatures.pNext = &unusedAttachmentsFeature;
+
+    VkPhysicalDeviceFeatures2 features2{};
+    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features2.pNext = &multiviewFeatures;
+
+    vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
+
+    if (!multiviewFeatures.multiview ||
+        !unusedAttachmentsFeature.dynamicRenderingUnusedAttachments)
+    {
+        return false;
+    }
+
     return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 }
 

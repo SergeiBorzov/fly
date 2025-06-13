@@ -48,7 +48,7 @@ static Fly::SimpleCameraFPS sTopCamera(85.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
 
 static Fly::SimpleCameraFPS* sMainCamera = &sCamera;
 
-static bool IsPhysicalDeviceSuitable(const RHI::Context& context,
+static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
 {
     return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
