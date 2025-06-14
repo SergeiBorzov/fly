@@ -31,6 +31,7 @@ struct Vertex
 struct OceanFrequencyVertex
 {
     Math::Vec2 value;
+    Math::Vec2 displacement;
     Math::Vec2 dx;
     Math::Vec2 dy;
 };
@@ -40,14 +41,15 @@ struct UniformData
     Math::Mat4 projection;
     Math::Mat4 view;
     Math::Vec4 fetchSpeedDirSpread;
-    Math::Vec4 domainTimePeak;
+    Math::Vec4 domainTimeLambdaScale;
     Math::Vec4 screenSize;
 };
 static UniformData sUniformData;
+static i32 sTileSize = 8;
 
 static Fly::SimpleCameraFPS
     sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
-            300.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
+            500.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -286,15 +288,15 @@ static RHI::Buffer sVertexBuffer;
 static RHI::Buffer sIndexBuffer;
 static u32 sIndexCount;
 static RHI::Texture sHeightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Texture sDiffDisplacementMaps[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Cubemap sSkyBoxes[FLY_FRAME_IN_FLIGHT_COUNT];
 static bool CreateDeviceObjects(RHI::Device& device)
 {
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
-    i32 tileSize = 256;
-    i32 quadSize = 1;
-    i32 quadPerSide = tileSize / quadSize;
+    f32 quadSize = 1.0f / 32.0f;
+    i32 quadPerSide = static_cast<i32>(sTileSize / quadSize);
     i32 offset = quadPerSide / 2;
     u32 vertexPerSide = quadPerSide + 1;
 
@@ -309,8 +311,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
         for (i32 x = -offset; x <= offset; x++)
         {
             Vertex& vertex = vertices[count++];
-            vertex.position =
-                Math::Vec2(static_cast<f32>(x), static_cast<f32>(z));
+            vertex.position = Math::Vec2(static_cast<f32>(x) * quadSize,
+                                         static_cast<f32>(z) * quadSize);
             vertex.uv =
                 Math::Vec2((x + offset) / static_cast<f32>(quadPerSide),
                            (z + offset) / static_cast<f32>(quadPerSide));
@@ -326,7 +328,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
     ArenaPopToMarker(arena, marker);
 
     // Generate indices
-    sIndexCount = 6 * (tileSize * tileSize) / (quadSize * quadSize);
+    sIndexCount =
+        static_cast<u32>(6 * (sTileSize * sTileSize) / (quadSize * quadSize));
     u32* indices = FLY_PUSH_ARENA(arena, u32, sIndexCount);
     for (i32 z = 0; z < quadPerSide; z++)
     {
@@ -368,10 +371,18 @@ static bool CreateDeviceObjects(RHI::Device& device)
         }
 
         if (!RHI::CreateReadWriteTexture(
+                device, nullptr, 256 * 256 * sizeof(u16), 256, 256,
+                VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
+                RHI::Sampler::WrapMode::Repeat, sHeightMaps[i]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateReadWriteTexture(
                 device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
                 VK_FORMAT_R16G16B16A16_SFLOAT,
                 RHI::Sampler::FilterMode::Bilinear,
-                RHI::Sampler::WrapMode::Repeat, sHeightMaps[i]))
+                RHI::Sampler::WrapMode::Repeat, sDiffDisplacementMaps[i]))
         {
             return false;
         }
@@ -398,6 +409,7 @@ static void DestroyDeviceObjects(RHI::Device& device)
         }
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
         RHI::DestroyTexture(device, sHeightMaps[i]);
+        RHI::DestroyTexture(device, sDiffDisplacementMaps[i]);
         RHI::DestroyCubemap(device, sSkyBoxes[i]);
     }
     RHI::DestroyBuffer(device, sIndexBuffer);
@@ -482,16 +494,19 @@ static void ProcessImGuiFrame()
     {
         ImGui::Begin("Ocean parameters");
 
-        ImGui::SliderFloat("Peak enhancement", &sUniformData.domainTimePeak.z,
-                           1.0f, 10.0f, "%.1f");
         ImGui::SliderFloat("Fetch", &sUniformData.fetchSpeedDirSpread.x, 1.0f,
                            1000000.0f, "%.1f");
         ImGui::SliderFloat("Wind Speed", &sUniformData.fetchSpeedDirSpread.y,
-                           0.001f, 50.0f, "%.3f");
+                           0.001f, 30.0f, "%.6f");
         ImGui::SliderFloat("Theta 0", &sUniformData.fetchSpeedDirSpread.z,
                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
         ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 1.0f,
                            30.0f, "%.2f");
+        ImGui::SliderFloat("Scale", &sUniformData.domainTimeLambdaScale.w, 1.0f,
+                           50.0f, "%.2f");
+        ImGui::SliderFloat("Displacement multiplier",
+                           &sUniformData.domainTimeLambdaScale.z, -2.0f, 2.0f,
+                           "%.01f");
 
         ImGui::End();
     }
@@ -506,28 +521,45 @@ static void CopyPass(RHI::Device& device)
     RHI::BindComputePipeline(device, cmd, sCopyPipeline);
     u32 pushConstants[] = {
         sOceanFrequencyBuffers[2 * device.frameIndex + 1].bindlessHandle,
+        sDiffDisplacementMaps[device.frameIndex].bindlessStorageHandle,
         sHeightMaps[device.frameIndex].bindlessStorageHandle};
     RHI::SetPushConstants(device, cmd, pushConstants, sizeof(pushConstants));
     vkCmdDispatch(cmd.handle, 256, 1, 1);
 
-    VkImageMemoryBarrier barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = sHeightMaps[device.frameIndex].image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    VkImageMemoryBarrier barriers[2];
+    barriers[0] = {};
+    barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[0].image = sHeightMaps[device.frameIndex].image;
+    barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barriers[0].subresourceRange.baseMipLevel = 0;
+    barriers[0].subresourceRange.levelCount = 1;
+    barriers[0].subresourceRange.baseArrayLayer = 0;
+    barriers[0].subresourceRange.layerCount = 1;
+    barriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    barriers[1] = {};
+    barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[1].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barriers[1].image = sDiffDisplacementMaps[device.frameIndex].image;
+    barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barriers[1].subresourceRange.baseMipLevel = 0;
+    barriers[1].subresourceRange.levelCount = 1;
+    barriers[1].subresourceRange.baseArrayLayer = 0;
+    barriers[1].subresourceRange.layerCount = 1;
+    barriers[1].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barriers[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
-                         0, nullptr, 1, &barrier);
+                         0, nullptr, STACK_ARRAY_COUNT(barriers), barriers);
 }
 
 static void SkyBoxPass(RHI::Device& device)
@@ -634,8 +666,10 @@ static void GraphicsPass(RHI::Device& device)
         RHI::BindGraphicsPipeline(device, cmd, *sCurrentGraphicsPipeline);
         u32 pushConstants[] = {
             sUniformBuffers[device.frameIndex].bindlessHandle,
+            sDiffDisplacementMaps[device.frameIndex].bindlessHandle,
             sHeightMaps[device.frameIndex].bindlessHandle,
-            sVertexBuffer.bindlessHandle};
+            sVertexBuffer.bindlessHandle,
+            sSkyBoxes[device.frameIndex].bindlessHandle};
         RHI::SetPushConstants(device, cmd, pushConstants,
                               sizeof(pushConstants));
 
@@ -753,7 +787,7 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to create pipelines");
         return -1;
     }
-    sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
+    sCurrentGraphicsPipeline = &sGraphicsPipeline;
 
     if (!CreateDeviceObjects(device))
     {
@@ -773,7 +807,8 @@ int main(int argc, char* argv[])
 
     sUniformData.fetchSpeedDirSpread =
         Math::Vec4(500 * 1000.0f, 2.0f, 0.5f, 10.0f);
-    sUniformData.domainTimePeak = Math::Vec4(256.0f, 0.0f, 3.3f, 0.0f);
+    sUniformData.domainTimeLambdaScale =
+        Math::Vec4(static_cast<f32>(sTileSize), 0.0f, 0.4f, 4.0f);
     sUniformData.projection = sCamera.GetProjection();
     sUniformData.screenSize = Math::Vec4(
         WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
@@ -795,7 +830,7 @@ int main(int argc, char* argv[])
             sCamera.Update(window, deltaTime);
         }
         sUniformData.view = sCamera.GetView();
-        sUniformData.domainTimePeak.y =
+        sUniformData.domainTimeLambdaScale.y =
             static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
 
         ProcessImGuiFrame();

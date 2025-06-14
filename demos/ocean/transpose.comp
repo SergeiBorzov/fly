@@ -21,6 +21,7 @@ gPushConstants;
 struct Data
 {
     vec2 value;
+    vec2 displacement;
     vec2 dx;
     vec2 dy;
 };
@@ -38,6 +39,7 @@ layout(set = 0, binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer Out
 gOutBuffers[];
 
 shared vec2 tile[TILE_DIM][TILE_DIM + 1];
+shared vec2 displacementTile[TILE_DIM][TILE_DIM + 1];
 shared vec2 dxTile[TILE_DIM][TILE_DIM + 1];
 shared vec2 dyTile[TILE_DIM][TILE_DIM + 1];
 void main()
@@ -49,6 +51,7 @@ void main()
 
     Data data = gInBuffers[gPushConstants.inBufferIndex].items[y * width + x];
     tile[tid.y][tid.x] = data.value;
+    displacementTile[tid.y][tid.x] = data.displacement;
     dxTile[tid.y][tid.x] = data.dx;
     dyTile[tid.y][tid.x] = data.dy;
 
@@ -58,5 +61,6 @@ void main()
     y = gl_WorkGroupID.x * TILE_DIM + tid.y;
 
     gOutBuffers[gPushConstants.outBufferIndex].items[y * width + x] =
-        Data(tile[tid.x][tid.y], dxTile[tid.x][tid.y], dyTile[tid.x][tid.y]);
+        Data(tile[tid.x][tid.y], displacementTile[tid.x][tid.y],
+             dxTile[tid.x][tid.y], dyTile[tid.x][tid.y]);
 }

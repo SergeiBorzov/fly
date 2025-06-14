@@ -6,6 +6,7 @@ layout(local_size_x = 256) in;
 
 FLY_REGISTER_STORAGE_BUFFER(, Data, {
     vec2 value;
+    vec2 displacement;
     vec2 dx;
     vec2 dy;
 })
@@ -35,6 +36,7 @@ vec4 Butterfly(vec2 w, vec2 u, vec2 t)
 }
 
 shared vec2 functionShared[256];
+shared vec2 displacementShared[256];
 shared vec2 dxFunctionShared[256];
 shared vec2 dyFunctionShared[256];
 
@@ -50,6 +52,7 @@ void main()
         Data, gPushConstants.dataBufferIndex)[base + c];
 
     functionShared[index] = data.value;
+    displacementShared[index] = data.displacement;
     dxFunctionShared[index] = data.dx;
     dyFunctionShared[index] = data.dy;
     barrier();
@@ -68,13 +71,16 @@ void main()
             uint i = c;
             uint j = c + half_m;
 
-            vec4 f =
-                Butterfly(w, functionShared[i], functionShared[j]);
+            vec4 f = Butterfly(w, functionShared[i], functionShared[j]);
+            vec4 displacement =
+                Butterfly(w, displacementShared[i], displacementShared[j]);
             vec4 dx = Butterfly(w, dxFunctionShared[i], dxFunctionShared[j]);
             vec4 dy = Butterfly(w, dyFunctionShared[i], dyFunctionShared[j]);
 
             functionShared[i] = f.xy;
             functionShared[j] = f.zw;
+            displacementShared[i] = displacement.xy;
+            displacementShared[j] = displacement.zw;
             dxFunctionShared[i] = dx.xy;
             dxFunctionShared[j] = dx.zw;
             dyFunctionShared[i] = dy.xy;
@@ -84,6 +90,6 @@ void main()
     }
 
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
-    [base + c] =
-        Data(functionShared[c], dxFunctionShared[c], dyFunctionShared[c]);
+    [base + c] = Data(functionShared[c], displacementShared[c],
+                      dxFunctionShared[c], dyFunctionShared[c]);
 }

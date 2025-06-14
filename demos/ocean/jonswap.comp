@@ -19,11 +19,12 @@ FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
     mat4 projection;
     mat4 view;
     vec4 fetchSpeedDirSpread;
-    vec4 domainTimePeak;
+    vec4 domainTimeLambdaScale;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, {
     vec2 value;
+    vec2 displacement;
     vec2 dx;
     vec2 dy;
 })
@@ -43,9 +44,9 @@ float GaussianHash(vec2 n, float seed)
     return r * cos(theta);
 }
 
-float Jonswap(float w, float fetch, float windSpeed, float peak)
+float Jonswap(float w, float fetch, float windSpeed)
 {
-    const float y = peak;
+    const float y = 3.3;
     const float wp = 22.0f * pow((windSpeed * fetch) / (G * G), -0.33f);
     const float sigma = w > wp ? 0.09f : 0.07f;
     const float alpha =
@@ -84,48 +85,42 @@ void main()
     int r = int(gl_WorkGroupID.x);
     int base = r * int(gl_WorkGroupSize.x);
 
-    vec2 uv = vec2(c / (gPushConstants.width - 1.0f),
-                   r / (gPushConstants.width - 1.0f));
-
     vec4 fetchSpeedDirSpread = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, fetchSpeedDirSpread);
-    vec4 domainTimePeak = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, domainTimePeak);
+    vec4 domainTimeLambdaScale = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, domainTimeLambdaScale);
 
-    float deltaK = 2 * PI / domainTimePeak.x;
+    float deltaK = 2 * PI / domainTimeLambdaScale.x;
     int halfN = int(gPushConstants.width) / 2;
     float kx = (c < halfN) ? c : c - int(gPushConstants.width);
     float ky = (r < halfN) ? r : r - int(gPushConstants.width);
     vec2 k = vec2(kx, ky) * deltaK;
-
     float theta = atan(k.y, k.x);
-    float kl = length(k);
+    float kl = max(length(k), 1e-6);
     float omega = sqrt(G * kl);
 
-    float phase = omega * domainTimePeak.y;
+    float phase = omega * domainTimeLambdaScale.y;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
-    float j2d = 0.0f;
-    if (kl > 1e-8)
-    {
-        j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
-              Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y,
-                      domainTimePeak.z) *
-              (0.5 * sqrt(G / kl)) / kl;
-    }
+    float j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
+                Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y) *
+                (0.5 * sqrt(G / kl)) / kl;
 
     vec2 w =
-        vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f));
-    float a = sqrt(2.0f * j2d * deltaK * deltaK) / sqrt(2);
+        vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f)) /
+        sqrt(2);
+    float a =
+        sqrt(2.0f * j2d * deltaK * deltaK) * sqrt(domainTimeLambdaScale.w);
 
-    float x = cosPhase * w.x - sin(phase) * w.y;
-    float y = sinPhase * w.x + cos(phase) * w.y;
+    float x = cosPhase * w.x - sinPhase * w.y;
+    float y = sinPhase * w.x + cosPhase * w.y;
 
     vec2 dx = vec2(-kx * y, kx * x);
     vec2 dy = vec2(-ky * y, ky * x);
+    vec2 displacement = vec2(dx.x, dy.x) / kl;
 
-    Data data = Data(a * vec2(x, y), a * dx, a * dy);
+    Data data = Data(a * vec2(x, y), a * displacement, a * dx, a * dy);
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
     [base + c] = data;
 }
