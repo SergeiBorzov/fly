@@ -4,7 +4,7 @@
 #include "bindless.glsl"
 
 layout(location = 0) out vec2 outUV;
-layout(location = 1) out vec3 outNormal;
+layout(location = 1) out vec3 outView;
 
 layout(push_constant) uniform PushConstants
 {
@@ -49,8 +49,13 @@ void main()
     vec4 value = texture(
         FLY_ACCESS_TEXTURE_BUFFER(Texture, gPushConstants.heightMapIndex),
         outUV);
-    outNormal = value.xyz;
 
-    gl_Position = projection * view *
-                  vec4(vertex.position.x, value.a, vertex.position.y, 1.0f);
+    mat3 R = mat3(view);
+    vec3 T = vec3(view[3]);
+
+    vec3 camPos = -transpose(R) * T;
+    vec3 worldPos = vec3(vertex.position.x, value.x, vertex.position.y);
+    outView = normalize(camPos - worldPos);
+
+    gl_Position = projection * view * vec4(worldPos, 1.0f);
 }

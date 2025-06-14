@@ -44,10 +44,11 @@ struct UniformData
     Math::Vec4 screenSize;
 };
 static UniformData sUniformData;
+static i32 sTileSize = 32;
 
 static Fly::SimpleCameraFPS
     sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
-            300.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
+            500.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
 
 static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -292,9 +293,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
-    i32 tileSize = 256;
-    i32 quadSize = 1;
-    i32 quadPerSide = tileSize / quadSize;
+    f32 quadSize = 1.0f / 16.0f;
+    i32 quadPerSide = static_cast<i32>(sTileSize / quadSize);
     i32 offset = quadPerSide / 2;
     u32 vertexPerSide = quadPerSide + 1;
 
@@ -309,8 +309,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
         for (i32 x = -offset; x <= offset; x++)
         {
             Vertex& vertex = vertices[count++];
-            vertex.position =
-                Math::Vec2(static_cast<f32>(x), static_cast<f32>(z));
+            vertex.position = Math::Vec2(static_cast<f32>(x) * quadSize,
+                                         static_cast<f32>(z) * quadSize);
             vertex.uv =
                 Math::Vec2((x + offset) / static_cast<f32>(quadPerSide),
                            (z + offset) / static_cast<f32>(quadPerSide));
@@ -326,7 +326,8 @@ static bool CreateDeviceObjects(RHI::Device& device)
     ArenaPopToMarker(arena, marker);
 
     // Generate indices
-    sIndexCount = 6 * (tileSize * tileSize) / (quadSize * quadSize);
+    sIndexCount =
+        static_cast<u32>(6 * (sTileSize * sTileSize) / (quadSize * quadSize));
     u32* indices = FLY_PUSH_ARENA(arena, u32, sIndexCount);
     for (i32 z = 0; z < quadPerSide; z++)
     {
@@ -487,7 +488,7 @@ static void ProcessImGuiFrame()
         ImGui::SliderFloat("Fetch", &sUniformData.fetchSpeedDirSpread.x, 1.0f,
                            1000000.0f, "%.1f");
         ImGui::SliderFloat("Wind Speed", &sUniformData.fetchSpeedDirSpread.y,
-                           0.001f, 50.0f, "%.3f");
+                           0.001f, 30.0f, "%.6f");
         ImGui::SliderFloat("Theta 0", &sUniformData.fetchSpeedDirSpread.z,
                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
         ImGui::SliderFloat("Spread", &sUniformData.fetchSpeedDirSpread.w, 1.0f,
@@ -635,7 +636,8 @@ static void GraphicsPass(RHI::Device& device)
         u32 pushConstants[] = {
             sUniformBuffers[device.frameIndex].bindlessHandle,
             sHeightMaps[device.frameIndex].bindlessHandle,
-            sVertexBuffer.bindlessHandle};
+            sVertexBuffer.bindlessHandle,
+            sSkyBoxes[device.frameIndex].bindlessHandle};
         RHI::SetPushConstants(device, cmd, pushConstants,
                               sizeof(pushConstants));
 
@@ -753,7 +755,7 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to create pipelines");
         return -1;
     }
-    sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
+    sCurrentGraphicsPipeline = &sGraphicsPipeline;
 
     if (!CreateDeviceObjects(device))
     {
@@ -773,7 +775,7 @@ int main(int argc, char* argv[])
 
     sUniformData.fetchSpeedDirSpread =
         Math::Vec4(500 * 1000.0f, 2.0f, 0.5f, 10.0f);
-    sUniformData.domainTimePeak = Math::Vec4(256.0f, 0.0f, 3.3f, 0.0f);
+    sUniformData.domainTimePeak = Math::Vec4(static_cast<f32>(sTileSize), 0.0f, 3.3f, 0.0f);
     sUniformData.projection = sCamera.GetProjection();
     sUniformData.screenSize = Math::Vec4(
         WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);

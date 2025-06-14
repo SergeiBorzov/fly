@@ -16,7 +16,8 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, Data, {
     vec2 dx;
     vec2 dy;
 })
-FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTextures, image2D, r16f)
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTextures, image2D,
+                                    rgba16f)
 
 void main()
 {
@@ -27,8 +28,7 @@ void main()
     Data data = FLY_ACCESS_STORAGE_BUFFER(
         Data, gPushConstants.dataBufferIndex)[base + c];
 
-    vec3 n = normalize(vec3(-data.dx.x, 1, -data.dy.x));
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(StorageTextures,
                                                  gPushConstants.textureIndex),
-               ivec2(c, r), vec4(n, data.value.x));
+               ivec2(c, r), vec4(data.value.x, data.dx.x, data.dy.x, 0.0f));
 }

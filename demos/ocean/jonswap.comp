@@ -99,25 +99,21 @@ void main()
     vec2 k = vec2(kx, ky) * deltaK;
 
     float theta = atan(k.y, k.x);
-    float kl = length(k);
+    float kl = max(length(k), 1e-6);
     float omega = sqrt(G * kl);
 
     float phase = omega * domainTimePeak.y;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
-    float j2d = 0.0f;
-    if (kl > 1e-8)
-    {
-        j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
-              Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y,
-                      domainTimePeak.z) *
-              (0.5 * sqrt(G / kl)) / kl;
-    }
+    float j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
+                Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y,
+                        domainTimePeak.z) *
+                (0.5 * sqrt(G / kl)) / kl;
 
     vec2 w =
         vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f));
-    float a = sqrt(2.0f * j2d * deltaK * deltaK) / sqrt(2);
+    float a = sqrt(2.0f * j2d) / sqrt(2);
 
     float x = cosPhase * w.x - sin(phase) * w.y;
     float y = sinPhase * w.x + cos(phase) * w.y;
