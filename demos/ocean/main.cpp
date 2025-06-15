@@ -45,7 +45,7 @@ struct UniformData
     Math::Vec4 screenSize;
 };
 static UniformData sUniformData;
-static i32 sTileSize = 8;
+static i32 sTileSize = 16;
 
 static Fly::SimpleCameraFPS
     sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
@@ -295,7 +295,7 @@ static bool CreateDeviceObjects(RHI::Device& device)
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
-    f32 quadSize = 1.0f / 32.0f;
+    f32 quadSize = 1.0f / 16.0f;
     i32 quadPerSide = static_cast<i32>(sTileSize / quadSize);
     i32 offset = quadPerSide / 2;
     u32 vertexPerSide = quadPerSide + 1;

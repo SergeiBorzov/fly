@@ -84,6 +84,20 @@ glsl_shader(
     ],
 )
 
+cc_library(
+    name = "quad_tree",
+    hdrs = [
+        "quad_tree.h",
+    ],
+    srcs = [
+        "quad_tree.cpp",
+    ],
+    deps = [
+        "//src/core:core",
+        "//src/math:math",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
