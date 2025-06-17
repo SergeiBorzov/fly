@@ -85,16 +85,19 @@ glsl_shader(
 )
 
 cc_library(
-    name = "quad_tree",
+    name = "lib",
     hdrs = [
         "quad_tree.h",
+        "cascades.h",
     ],
     srcs = [
         "quad_tree.cpp",
+        "cascades.cpp",
     ],
     deps = [
-        "//src/core:core",
+        "//src/rhi:context",
         "//src/math:math",
+        "//demos/common:scene",
     ],
 )
 
@@ -104,9 +107,8 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
+        ":lib",
         "@imgui//:imgui",
-        "//src/rhi:context",
-        "//demos/common:scene",
         "//demos/common:simple_camera_fps",
     ],
     data = [

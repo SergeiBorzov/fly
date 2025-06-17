@@ -11,15 +11,13 @@ layout(push_constant) uniform PushConstants
 {
     uint dataBufferIndex;
     uint uniformBufferIndex;
-    uint width;
 }
 gPushConstants;
 
 FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
-    mat4 projection;
-    mat4 view;
     vec4 fetchSpeedDirSpread;
-    vec4 domainTimeLambdaScale;
+    vec4 timeScale;
+    vec4 domain;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, {
@@ -87,19 +85,22 @@ void main()
 
     vec4 fetchSpeedDirSpread = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, fetchSpeedDirSpread);
-    vec4 domainTimeLambdaScale = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, domainTimeLambdaScale);
+    vec4 timeScale = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, timeScale);
+    vec4 domain = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, domain);
 
-    float deltaK = 2 * PI / domainTimeLambdaScale.x;
-    int halfN = int(gPushConstants.width) / 2;
-    float kx = (c < halfN) ? c : c - int(gPushConstants.width);
-    float ky = (r < halfN) ? r : r - int(gPushConstants.width);
+    float deltaK = 2 * PI / domain.x;
+    int width = int(gl_WorkGroupSize.x);
+    int halfN = width / 2;
+    float kx = (c < halfN) ? c : c - width;
+    float ky = (r < halfN) ? r : r - width;
     vec2 k = vec2(kx, ky) * deltaK;
     float theta = atan(k.y, k.x);
     float kl = max(length(k), 1e-6);
     float omega = sqrt(G * kl);
 
-    float phase = omega * domainTimeLambdaScale.y;
+    float phase = omega * timeScale.y;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
@@ -110,8 +111,7 @@ void main()
     vec2 w =
         vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f)) /
         sqrt(2);
-    float a =
-        sqrt(2.0f * j2d * deltaK * deltaK) * sqrt(domainTimeLambdaScale.w);
+    float a = sqrt(2.0f * j2d * deltaK * deltaK) * sqrt(timeScale.z);
 
     float x = cosPhase * w.x - sinPhase * w.y;
     float y = sinPhase * w.x + cosPhase * w.y;

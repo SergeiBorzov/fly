@@ -6,6 +6,7 @@
 layout(location = 0) out vec2 outUV;
 layout(location = 1) out vec3 outView;
 layout(location = 2) out vec3 outNormal;
+layout(location = 3) out float outHeight;
 
 layout(push_constant) uniform PushConstants
 {
@@ -54,10 +55,10 @@ void main()
     vec4 value = texture(FLY_ACCESS_TEXTURE_BUFFER(
                              Texture, gPushConstants.diffDisplacementMapIndex),
                          outUV);
-    float height = texture(FLY_ACCESS_TEXTURE_BUFFER(
-                               Texture, gPushConstants.heightMapIndex),
-                           outUV)
-                       .r;
+    outHeight = texture(FLY_ACCESS_TEXTURE_BUFFER(
+                            Texture, gPushConstants.heightMapIndex),
+                        outUV)
+                    .r;
     outNormal = normalize(vec3(-value.x, 1.0f, -value.y));
     vec2 displacement = domainTimeLambdaScale.z * value.zw;
 
@@ -65,7 +66,7 @@ void main()
     vec3 T = vec3(view[3]);
 
     vec3 camPos = -transpose(R) * T;
-    vec3 worldPos = vec3(vertex.position.x + displacement.x, height,
+    vec3 worldPos = vec3(vertex.position.x + displacement.x, outHeight,
                          vertex.position.y + displacement.y);
     outView = normalize(camPos - worldPos);
 
