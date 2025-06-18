@@ -27,7 +27,7 @@ using namespace Fly;
 
 static Fly::SimpleCameraFPS
     sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
-            500.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
+            2000.0f, Fly::Math::Vec3(0.0f, 10.0f, -10.0f));
 static JonswapCascadesRenderer sCascadesRenderer;
 static SkyBoxRenderer sSkyBoxRenderer;
 static OceanRenderer sOceanRenderer;
@@ -179,10 +179,20 @@ static void ExecuteCommands(RHI::Device& device)
 {
     RecordJonswapCascadesRendererCommands(device, sCascadesRenderer);
     RecordSkyBoxRendererCommands(device, sSkyBoxRenderer);
+
     OceanRendererInputs inputs;
     inputs.skyBox = sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
+    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+    {
+        inputs.heightMaps[i] = sCascadesRenderer.cascades[i]
+                                   .heightMaps[device.frameIndex]
+                                   .bindlessHandle;
+        inputs.diffDisplacementMaps[i] =
+            sCascadesRenderer.cascades[i]
+                .diffDisplacementMaps[device.frameIndex]
+                .bindlessHandle;
+    }
     RecordOceanRendererCommands(device, inputs, sOceanRenderer);
-    // GraphicsPass(device);
 }
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
@@ -275,11 +285,11 @@ int main(int argc, char* argv[])
     RHI::Device& device = context.devices[0];
     glfwSetWindowUserPointer(window, &device);
 
-    if (!CreateImGuiContext(context, device, window))
-    {
-        FLY_ERROR("Failed to create imgui context");
-        return -1;
-    }
+    // if (!CreateImGuiContext(context, device, window))
+    // {
+    //     FLY_ERROR("Failed to create imgui context");
+    //     return -1;
+    // }
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -313,15 +323,15 @@ int main(int argc, char* argv[])
         currentFrameTime = Fly::ClockNow();
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
-        FLY_LOG("FPS: %f", 1.0f / deltaTime);
+        // FLY_LOG("FPS: %f", 1.0f / deltaTime);
 
-        ImGuiIO& io = ImGui::GetIO();
-        bool wantMouse = io.WantCaptureMouse;
-        bool wantKeyboard = io.WantCaptureKeyboard;
-        if (!wantMouse && !wantKeyboard)
-        {
-            sCamera.Update(window, deltaTime);
-        }
+        // ImGuiIO& io = ImGui::GetIO();
+        // bool wantMouse = io.WantCaptureMouse;
+        // bool wantKeyboard = io.WantCaptureKeyboard;
+        // if (!wantMouse && !wantKeyboard)
+        // {
+        sCamera.Update(window, deltaTime);
+        //}
 
         // ProcessImGuiFrame();
 
@@ -341,7 +351,7 @@ int main(int argc, char* argv[])
     DestroySkyBoxRenderer(device, sSkyBoxRenderer);
     DestroyOceanRenderer(device, sOceanRenderer);
 
-    DestroyImGuiContext(device);
+    // DestroyImGuiContext(device);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
     glfwTerminate();

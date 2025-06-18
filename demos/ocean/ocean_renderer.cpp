@@ -1,5 +1,8 @@
 #include "ocean_renderer.h"
 
+#include "core/log.h"
+#include "core/thread_context.h"
+
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
@@ -12,6 +15,78 @@ struct UniformData
     Math::Mat4 view;
     Math::Vec4 screenSize;
 };
+
+struct Vertex
+{
+    Math::Vec2 position;
+    Math::Vec2 uv;
+};
+
+static bool CreateGrid(RHI::Device& device, OceanRenderer& renderer)
+{
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    f32 tileSize = 256.0f;
+    f32 quadSize = 1.0f;
+    i32 quadPerSide = static_cast<i32>(tileSize / quadSize);
+    i32 offset = quadPerSide / 2;
+    u32 vertexPerSide = quadPerSide + 1;
+
+    // Generate vertices
+    Vertex* vertices =
+        FLY_PUSH_ARENA(arena, Vertex, vertexPerSide * vertexPerSide);
+    u32 count = 0;
+    for (i32 z = -offset; z <= offset; z++)
+    {
+        for (i32 x = -offset; x <= offset; x++)
+        {
+            Vertex& vertex = vertices[count++];
+            vertex.position = Math::Vec2(static_cast<f32>(x) * quadSize,
+                                         static_cast<f32>(z) * quadSize);
+            // FLY_LOG("%f %f", vertex.position.x, vertex.position.y);
+            vertex.uv =
+                Math::Vec2((x + offset) / static_cast<f32>(quadPerSide),
+                           (z + offset) / static_cast<f32>(quadPerSide));
+        }
+    }
+
+    if (!CreateStorageBuffer(device, false, vertices,
+                             vertexPerSide * vertexPerSide * sizeof(Vertex),
+                             renderer.vertexBuffer))
+    {
+        ArenaPopToMarker(arena, marker);
+        return false;
+    }
+    ArenaPopToMarker(arena, marker);
+
+    // Generate indices
+    renderer.indexCount = static_cast<u32>(6 * quadPerSide * quadPerSide);
+    u32* indices = FLY_PUSH_ARENA(arena, u32, renderer.indexCount);
+    for (i32 z = 0; z < quadPerSide; z++)
+    {
+        for (i32 x = 0; x < quadPerSide; x++)
+        {
+            u32 indexBase = 6 * (quadPerSide * z + x);
+            indices[indexBase + 0] = vertexPerSide * z + x;
+            indices[indexBase + 1] = vertexPerSide * z + x + 1;
+            indices[indexBase + 2] = vertexPerSide * (z + 1) + x;
+            indices[indexBase + 3] = vertexPerSide * (z + 1) + x;
+            indices[indexBase + 4] = vertexPerSide * z + x + 1;
+            indices[indexBase + 5] = vertexPerSide * (z + 1) + x + 1;
+        }
+    }
+    if (!CreateIndexBuffer(device, indices, sizeof(u32) * renderer.indexCount,
+                           renderer.indexBuffer))
+    {
+        ArenaPopToMarker(arena, marker);
+        return false;
+    }
+
+    ArenaPopToMarker(arena, marker);
+
+    return true;
+}
 
 bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
 {
@@ -85,6 +160,11 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
         }
     }
 
+    if (!CreateGrid(device, renderer))
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -93,6 +173,9 @@ void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
     RHI::DestroyGraphicsPipeline(device, renderer.wireframePipeline);
     RHI::DestroyGraphicsPipeline(device, renderer.oceanPipeline);
     RHI::DestroyGraphicsPipeline(device, renderer.skyPipeline);
+
+    RHI::DestroyBuffer(device, renderer.vertexBuffer);
+    RHI::DestroyBuffer(device, renderer.indexBuffer);
 
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -143,22 +226,20 @@ void RecordOceanRendererCommands(RHI::Device& device,
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
     }
 
-    // // Ocean
-    // {
-    //     RHI::BindGraphicsPipeline(device, cmd, *sCurrentGraphicsPipeline);
-    //     u32 pushConstants[] = {
-    //         sUniformBuffers[device.frameIndex].bindlessHandle,
-    //         sDiffDisplacementMaps[device.frameIndex].bindlessHandle,
-    //         sHeightMaps[device.frameIndex].bindlessHandle,
-    //         sVertexBuffer.bindlessHandle,
-    //         sSkyBoxes[device.frameIndex].bindlessHandle};
-    //     RHI::SetPushConstants(device, cmd, pushConstants,
-    //                           sizeof(pushConstants));
-
-    //     vkCmdBindIndexBuffer(cmd.handle, sIndexBuffer.handle, 0,
-    //                          VK_INDEX_TYPE_UINT32);
-    //     vkCmdDrawIndexed(cmd.handle, sIndexCount, 1, 0, 0, 0);
-    // }
+    // Ocean
+    {
+        RHI::BindGraphicsPipeline(device, cmd, renderer.oceanPipeline);
+        u32 pushConstants[] = {
+            renderer.uniformBuffers[device.frameIndex].bindlessHandle,
+            renderer.vertexBuffer.bindlessHandle};
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
+        RHI::SetPushConstants(device, cmd, &inputs, sizeof(inputs),
+                              sizeof(pushConstants));
+        vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
+                             VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
+    }
 
     // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
 

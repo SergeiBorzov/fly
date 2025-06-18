@@ -3,24 +3,35 @@
 
 #include "core/arena.h"
 #include "math/vec.h"
-
-#define MIN_QUAD_TREE_NODE_SIZE 16.0f
+#include "rhi/buffer.h"
+#include "rhi/device.h"
 
 namespace Fly
 {
 
+// This QuadTree is special and only accounts for one point (camera position)
 class QuadTree
 {
 public:
-    QuadTree(Math::Vec2 position, f32 size);
+    struct Node
+    {
+        Math::Vec4 posSize;
+    };
+
+    bool Create(Arena& arena, RHI::Device& device, u32 sizeExp, u32 minSizeExp,
+                Math::Vec2 position);
     void Update(Arena& arena, Math::Vec2 position);
-    void Split(Arena& arena);
-    void Collapse();
+    void Destroy(RHI::Device& device);
+
+    inline const Node* GetNodes() const { return nodes_; }
+    inline u32 GetNodeCount() const { return nodeCount_; }
+
+    RHI::Buffer quadBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 private:
-    QuadTree* nodes_[4];
-    Math::Vec2 position_;
-    f32 size_;
-    u32 depth_;
+    Node* nodes_ = nullptr;
+    u32 nodeCount_ = 0;
+    u32 totalNodeCount_ = 0;
+    f32 minSize_ = 0;
 };
 
 } // namespace Fly

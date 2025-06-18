@@ -1,6 +1,10 @@
 #ifndef FLY_DEMO_OCEAN_OCEAN_RENDERER_H
 #define FLY_DEMO_OCEAN_OCEAN_RENDERER_H
 
+#include "core/arena.h"
+
+#include "math/vec.h"
+
 #include "rhi/buffer.h"
 #include "rhi/device.h"
 #include "rhi/pipeline.h"
@@ -14,14 +18,26 @@ class SimpleCameraFPS;
 
 struct OceanRenderer
 {
+    struct Node
+    {
+        float centerX;
+        float centerY;
+        float size;
+    };
+
+    RHI::Buffer uniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+    RHI::Buffer vertexBuffer;
+    RHI::Buffer indexBuffer;
     RHI::GraphicsPipeline wireframePipeline;
     RHI::GraphicsPipeline oceanPipeline;
     RHI::GraphicsPipeline skyPipeline;
-    RHI::Buffer uniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+    u32 indexCount = 0;
 };
 
 struct OceanRendererInputs
 {
+    u32 heightMaps[4];
+    u32 diffDisplacementMaps[4];
     u32 skyBox;
 };
 
