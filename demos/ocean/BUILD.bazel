@@ -90,16 +90,19 @@ cc_library(
         "quad_tree.h",
         "cascades.h",
         "skybox_renderer.h",
+        "ocean_renderer.h"
     ],
     srcs = [
         "quad_tree.cpp",
         "cascades.cpp",
         "skybox_renderer.cpp",
+        "ocean_renderer.cpp",
     ],
     deps = [
         "//src/rhi:context",
         "//src/math:math",
         "//demos/common:scene",
+        "//demos/common:simple_camera_fps",
     ],
 )
 
@@ -111,7 +114,6 @@ cc_binary(
     deps = [
         ":lib",
         "@imgui//:imgui",
-        "//demos/common:simple_camera_fps",
     ],
     data = [
         ":screen_quad.vert.spv",

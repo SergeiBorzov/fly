@@ -8,10 +8,10 @@
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
-#include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
 #include "cascades.h"
+#include "ocean_renderer.h"
 #include "skybox_renderer.h"
 
 #include <imgui.h>
@@ -30,21 +30,7 @@ static Fly::SimpleCameraFPS
             500.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
 static JonswapCascadesRenderer sCascadesRenderer;
 static SkyBoxRenderer sSkyBoxRenderer;
-
-struct Vertex
-{
-    Math::Vec2 position;
-    Math::Vec2 uv;
-};
-
-struct UniformData
-{
-    Math::Mat4 projection;
-    Math::Mat4 view;
-    Math::Vec4 screenSize;
-};
-static UniformData sUniformData;
-static i32 sTileSize = 4;
+static OceanRenderer sOceanRenderer;
 
 static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -79,83 +65,6 @@ static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
 static void ErrorCallbackGLFW(i32 error, const char* description)
 {
     FLY_ERROR("GLFW - error: %s", description);
-}
-
-static RHI::GraphicsPipeline sGraphicsPipeline;
-static RHI::GraphicsPipeline sWireframeGraphicsPipeline;
-static RHI::GraphicsPipeline sSkyPipeline;
-static RHI::GraphicsPipeline* sCurrentGraphicsPipeline;
-static bool CreatePipelines(RHI::Device& device)
-{
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        device.depthTexture.format;
-    fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-    fixedState.inputAssemblyState.topology =
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "ocean.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-    if (!Fly::LoadShaderFromSpv(device, "ocean.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sGraphicsPipeline))
-    {
-        return false;
-    }
-    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sWireframeGraphicsPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
-    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-    fixedState.depthStencilState.depthTestEnable = false;
-    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-    if (!Fly::LoadShaderFromSpv(device, "sky.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sSkyPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
-    return true;
-}
-
-static void DestroyPipelines(RHI::Device& device)
-{
-    RHI::DestroyGraphicsPipeline(device, sSkyPipeline);
-    RHI::DestroyGraphicsPipeline(device, sWireframeGraphicsPipeline);
-    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
 }
 
 static VkDescriptorPool sImGuiDescriptorPool;
@@ -233,94 +142,6 @@ static void DestroyImGuiContext(RHI::Device& device)
                             RHI::GetVulkanAllocationCallbacks());
 }
 
-static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sVertexBuffer;
-static RHI::Buffer sIndexBuffer;
-static u32 sIndexCount;
-
-static bool CreateDeviceObjects(RHI::Device& device)
-{
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-
-    f32 quadSize = 1.0f / 64.0f;
-    i32 quadPerSide = static_cast<i32>(sTileSize / quadSize);
-    i32 offset = quadPerSide / 2;
-    u32 vertexPerSide = quadPerSide + 1;
-
-    FLY_LOG("vertex per side %u", vertexPerSide);
-
-    // Generate vertices
-    Vertex* vertices =
-        FLY_PUSH_ARENA(arena, Vertex, vertexPerSide * vertexPerSide);
-    u32 count = 0;
-    for (i32 z = -offset; z <= offset; z++)
-    {
-        for (i32 x = -offset; x <= offset; x++)
-        {
-            Vertex& vertex = vertices[count++];
-            vertex.position = Math::Vec2(static_cast<f32>(x) * quadSize,
-                                         static_cast<f32>(z) * quadSize);
-            vertex.uv =
-                Math::Vec2((x + offset) / static_cast<f32>(quadPerSide),
-                           (z + offset) / static_cast<f32>(quadPerSide));
-        }
-    }
-
-    if (!CreateStorageBuffer(device, false, vertices, count * sizeof(Vertex),
-                             sVertexBuffer))
-    {
-        ArenaPopToMarker(arena, marker);
-        return false;
-    }
-    ArenaPopToMarker(arena, marker);
-
-    // Generate indices
-    sIndexCount =
-        static_cast<u32>(6 * (sTileSize * sTileSize) / (quadSize * quadSize));
-    u32* indices = FLY_PUSH_ARENA(arena, u32, sIndexCount);
-    for (i32 z = 0; z < quadPerSide; z++)
-    {
-        for (i32 x = 0; x < quadPerSide; x++)
-        {
-            u32 indexBase = 6 * (quadPerSide * z + x);
-            indices[indexBase + 0] = vertexPerSide * z + x;
-            indices[indexBase + 1] = vertexPerSide * z + x + 1;
-            indices[indexBase + 2] = vertexPerSide * (z + 1) + x;
-            indices[indexBase + 3] = vertexPerSide * (z + 1) + x;
-            indices[indexBase + 4] = vertexPerSide * z + x + 1;
-            indices[indexBase + 5] = vertexPerSide * (z + 1) + x + 1;
-        }
-    }
-    if (!CreateIndexBuffer(device, indices, sizeof(u32) * sIndexCount,
-                           sIndexBuffer))
-    {
-        return false;
-    }
-    ArenaPopToMarker(arena, marker);
-
-    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
-                                      sUniformBuffers[i]))
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static void DestroyDeviceObjects(RHI::Device& device)
-{
-    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        RHI::DestroyBuffer(device, sUniformBuffers[i]);
-     }
-    RHI::DestroyBuffer(device, sIndexBuffer);
-    RHI::DestroyBuffer(device, sVertexBuffer);
-}
-
 // static void ProcessImGuiFrame()
 // {
 //     ImGui_ImplVulkan_NewFrame();
@@ -354,79 +175,13 @@ static void DestroyDeviceObjects(RHI::Device& device)
 //     ImGui::Render();
 // }
 
-
-
-// static void GraphicsPass(RHI::Device& device)
-// {
-//     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-//     const RHI::SwapchainTexture& swapchainTexture =
-//         RenderFrameSwapchainTexture(device);
-//     VkRect2D renderArea = {{0, 0},
-//                            {swapchainTexture.width,
-//                            swapchainTexture.height}};
-//     VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
-//         swapchainTexture.imageView,
-//         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-//     VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
-//         device.depthTexture.imageView,
-//         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-//     VkRenderingInfo renderInfo =
-//         RHI::RenderingInfo(renderArea, &colorAttachment, 1,
-//         &depthAttachment);
-
-//     vkCmdBeginRendering(cmd.handle, &renderInfo);
-
-//     VkViewport viewport = {};
-//     viewport.x = 0;
-//     viewport.y = 0;
-//     viewport.width = static_cast<f32>(renderArea.extent.width);
-//     viewport.height = static_cast<f32>(renderArea.extent.height);
-//     viewport.minDepth = 0.0f;
-//     viewport.maxDepth = 1.0f;
-//     vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
-
-//     VkRect2D scissor = renderArea;
-//     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
-
-//     // Sky
-//     {
-//         RHI::BindGraphicsPipeline(device, cmd, sSkyPipeline);
-//         u32 pushConstants[] = {
-//             sUniformBuffers[device.frameIndex].bindlessHandle,
-//             sSkyBoxes[device.frameIndex].bindlessHandle};
-//         RHI::SetPushConstants(device, cmd, pushConstants,
-//                               sizeof(pushConstants));
-//         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
-//     }
-
-//     // Ocean
-//     {
-//         RHI::BindGraphicsPipeline(device, cmd, *sCurrentGraphicsPipeline);
-//         u32 pushConstants[] = {
-//             sUniformBuffers[device.frameIndex].bindlessHandle,
-//             sDiffDisplacementMaps[device.frameIndex].bindlessHandle,
-//             sHeightMaps[device.frameIndex].bindlessHandle,
-//             sVertexBuffer.bindlessHandle,
-//             sSkyBoxes[device.frameIndex].bindlessHandle};
-//         RHI::SetPushConstants(device, cmd, pushConstants,
-//                               sizeof(pushConstants));
-
-//         vkCmdBindIndexBuffer(cmd.handle, sIndexBuffer.handle, 0,
-//                              VK_INDEX_TYPE_UINT32);
-//         vkCmdDrawIndexed(cmd.handle, sIndexCount, 1, 0, 0, 0);
-//     }
-
-//     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
-
-//     vkCmdEndRendering(cmd.handle);
-// }
-
 static void ExecuteCommands(RHI::Device& device)
 {
     RecordJonswapCascadesRendererCommands(device, sCascadesRenderer);
     RecordSkyBoxRendererCommands(device, sSkyBoxRenderer);
-    // SkyBoxPass(device);
+    OceanRendererInputs inputs;
+    inputs.skyBox = sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
+    RecordOceanRendererCommands(device, inputs, sOceanRenderer);
     // GraphicsPass(device);
 }
 
@@ -440,14 +195,14 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 
     if (key == GLFW_KEY_TAB && action == GLFW_PRESS)
     {
-        if (sCurrentGraphicsPipeline == &sGraphicsPipeline)
-        {
-            sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
-        }
-        else
-        {
-            sCurrentGraphicsPipeline = &sGraphicsPipeline;
-        }
+        // if (sCurrentGraphicsPipeline == &sGraphicsPipeline)
+        // {
+        //     sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
+        // }
+        // else
+        // {
+        //     sCurrentGraphicsPipeline = &sGraphicsPipeline;
+        // }
     }
 }
 
@@ -520,19 +275,6 @@ int main(int argc, char* argv[])
     RHI::Device& device = context.devices[0];
     glfwSetWindowUserPointer(window, &device);
 
-    if (!CreatePipelines(device))
-    {
-        FLY_ERROR("Failed to create pipelines");
-        return -1;
-    }
-    sCurrentGraphicsPipeline = &sGraphicsPipeline;
-
-    if (!CreateDeviceObjects(device))
-    {
-        FLY_ERROR("Failed to create device buffers");
-        return -1;
-    }
-
     if (!CreateImGuiContext(context, device, window))
     {
         FLY_ERROR("Failed to create imgui context");
@@ -542,10 +284,6 @@ int main(int argc, char* argv[])
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
-
-    sUniformData.projection = sCamera.GetProjection();
-    sUniformData.screenSize = Math::Vec4(
-        WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
 
     if (!CreateJonswapCascadesRenderer(device, 256, sCascadesRenderer))
     {
@@ -557,6 +295,11 @@ int main(int argc, char* argv[])
     sCascadesRenderer.cascades[3].domain = 4.0f;
 
     if (!CreateSkyBoxRenderer(device, 256, sSkyBoxRenderer))
+    {
+        return false;
+    }
+
+    if (!CreateOceanRenderer(device, sOceanRenderer))
     {
         return false;
     }
@@ -582,12 +325,10 @@ int main(int argc, char* argv[])
 
         // ProcessImGuiFrame();
 
-        sUniformData.view = sCamera.GetView();
-        RHI::CopyDataToBuffer(device, &sUniformData, sizeof(UniformData), 0,
-                              sUniformBuffers[device.frameIndex]);
-
         sCascadesRenderer.time = currentFrameTime;
         UpdateJonswapCascadesRendererUniforms(device, sCascadesRenderer);
+        UpdateOceanRendererUniforms(device, sCamera, WINDOW_WIDTH,
+                                    WINDOW_HEIGHT, sOceanRenderer);
 
         RHI::BeginRenderFrame(device);
         ExecuteCommands(device);
@@ -598,8 +339,8 @@ int main(int argc, char* argv[])
 
     DestroyJonswapCascadesRenderer(device, sCascadesRenderer);
     DestroySkyBoxRenderer(device, sSkyBoxRenderer);
-    DestroyPipelines(device);
-    DestroyDeviceObjects(device);
+    DestroyOceanRenderer(device, sOceanRenderer);
+
     DestroyImGuiContext(device);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
