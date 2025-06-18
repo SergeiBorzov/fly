@@ -1,8 +1,6 @@
 #ifndef FLY_DEMO_OCEAN_CASCADES_H
 #define FLY_DEMO_OCEAN_CASCADES_H
 
-#include "math/vec.h"
-
 #include "rhi/buffer.h"
 #include "rhi/device.h"
 #include "rhi/pipeline.h"

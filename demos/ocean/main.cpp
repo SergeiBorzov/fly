@@ -12,6 +12,7 @@
 #include "demos/common/simple_camera_fps.h"
 
 #include "cascades.h"
+#include "skybox_renderer.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -28,6 +29,7 @@ static Fly::SimpleCameraFPS
     sCamera(90.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
             500.0f, Fly::Math::Vec3(0.0f, 10.0f, -5.0f));
 static JonswapCascadesRenderer sCascadesRenderer;
+static SkyBoxRenderer sSkyBoxRenderer;
 
 struct Vertex
 {
@@ -82,7 +84,6 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sWireframeGraphicsPipeline;
 static RHI::GraphicsPipeline sSkyPipeline;
-static RHI::GraphicsPipeline sSkyBoxPipeline;
 static RHI::GraphicsPipeline* sCurrentGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
@@ -144,20 +145,6 @@ static bool CreatePipelines(RHI::Device& device)
     {
         return false;
     }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
-    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R8G8B8A8_SRGB;
-    fixedState.pipelineRendering.viewMask = 0x0000007F;
-    if (!Fly::LoadShaderFromSpv(device, "skybox.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sSkyBoxPipeline))
-    {
-        return false;
-    }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
@@ -166,7 +153,6 @@ static bool CreatePipelines(RHI::Device& device)
 
 static void DestroyPipelines(RHI::Device& device)
 {
-    RHI::DestroyGraphicsPipeline(device, sSkyBoxPipeline);
     RHI::DestroyGraphicsPipeline(device, sSkyPipeline);
     RHI::DestroyGraphicsPipeline(device, sWireframeGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
@@ -251,7 +237,7 @@ static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sVertexBuffer;
 static RHI::Buffer sIndexBuffer;
 static u32 sIndexCount;
-static RHI::Cubemap sSkyBoxes[FLY_FRAME_IN_FLIGHT_COUNT];
+
 static bool CreateDeviceObjects(RHI::Device& device)
 {
     Arena& arena = GetScratchArena();
@@ -320,14 +306,6 @@ static bool CreateDeviceObjects(RHI::Device& device)
         {
             return false;
         }
-
-        if (!RHI::CreateCubemap(device, nullptr, 256 * 256 * 6 * 4 * sizeof(u8),
-                                256, VK_FORMAT_R8G8B8A8_SRGB,
-                                RHI::Sampler::FilterMode::Bilinear,
-                                sSkyBoxes[i]))
-        {
-            return false;
-        }
     }
 
     return true;
@@ -338,8 +316,7 @@ static void DestroyDeviceObjects(RHI::Device& device)
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
-        RHI::DestroyCubemap(device, sSkyBoxes[i]);
-    }
+     }
     RHI::DestroyBuffer(device, sIndexBuffer);
     RHI::DestroyBuffer(device, sVertexBuffer);
 }
@@ -377,63 +354,7 @@ static void DestroyDeviceObjects(RHI::Device& device)
 //     ImGui::Render();
 // }
 
-// static void SkyBoxPass(RHI::Device& device)
-// {
-//     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-//     RecordTransitionImageLayout(cmd, sSkyBoxes[device.frameIndex].image,
-//                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-//                                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-//     VkRect2D renderArea = {{0, 0}, {256, 256}};
-//     VkRenderingAttachmentInfo colorAttachment =
-//         RHI::ColorAttachmentInfo(sSkyBoxes[device.frameIndex].arrayImageView,
-//                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-//     VkRenderingInfo renderInfo = RHI::RenderingInfo(
-//         renderArea, &colorAttachment, 1, nullptr, nullptr, 6, 0x0000007F);
-//     vkCmdBeginRendering(cmd.handle, &renderInfo);
-//     RHI::BindGraphicsPipeline(device, cmd, sSkyBoxPipeline);
-
-//     VkViewport viewport = {};
-//     viewport.x = 0;
-//     viewport.y = 0;
-//     viewport.width = static_cast<f32>(256);
-//     viewport.height = static_cast<f32>(256);
-//     vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
-
-//     VkRect2D scissor = renderArea;
-//     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
-
-//     vkCmdDraw(cmd.handle, 6, 1, 0, 0);
-//     vkCmdEndRendering(cmd.handle);
-
-//     RecordTransitionImageLayout(cmd, sSkyBoxes[device.frameIndex].image,
-//                                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-//                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-//     // VkImageMemoryBarrier imageBarrier{};
-//     // imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-//     // imageBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-//     // imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-//     // imageBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-//     // imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-//     // imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//     // imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-//     // imageBarrier.image = cubemap.image;
-//     // imageBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//     // imageBarrier.subresourceRange.baseMipLevel = 0;
-//     // imageBarrier.subresourceRange.levelCount = 1; // or all mips if needed
-//     // imageBarrier.subresourceRange.baseArrayLayer = 0;
-//     // imageBarrier.subresourceRange.layerCount = 6; // all cubemap faces
-
-//     // vkCmdPipelineBarrier(
-//     //     commandBuffer,
-//     //     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // srcStage
-//     //     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,         // dstStage
-//     //     0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
-// }
 
 // static void GraphicsPass(RHI::Device& device)
 // {
@@ -504,6 +425,7 @@ static void DestroyDeviceObjects(RHI::Device& device)
 static void ExecuteCommands(RHI::Device& device)
 {
     RecordJonswapCascadesRendererCommands(device, sCascadesRenderer);
+    RecordSkyBoxRendererCommands(device, sSkyBoxRenderer);
     // SkyBoxPass(device);
     // GraphicsPass(device);
 }
@@ -634,6 +556,11 @@ int main(int argc, char* argv[])
     sCascadesRenderer.cascades[2].domain = 16.0f;
     sCascadesRenderer.cascades[3].domain = 4.0f;
 
+    if (!CreateSkyBoxRenderer(device, 256, sSkyBoxRenderer))
+    {
+        return false;
+    }
+
     sCamera.speed = 25.0f;
     while (!glfwWindowShouldClose(window))
     {
@@ -670,6 +597,7 @@ int main(int argc, char* argv[])
     RHI::WaitAllDevicesIdle(context);
 
     DestroyJonswapCascadesRenderer(device, sCascadesRenderer);
+    DestroySkyBoxRenderer(device, sSkyBoxRenderer);
     DestroyPipelines(device);
     DestroyDeviceObjects(device);
     DestroyImGuiContext(device);

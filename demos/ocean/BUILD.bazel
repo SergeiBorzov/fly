@@ -89,10 +89,12 @@ cc_library(
     hdrs = [
         "quad_tree.h",
         "cascades.h",
+        "skybox_renderer.h",
     ],
     srcs = [
         "quad_tree.cpp",
         "cascades.cpp",
+        "skybox_renderer.cpp",
     ],
     deps = [
         "//src/rhi:context",
