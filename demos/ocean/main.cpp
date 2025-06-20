@@ -181,7 +181,6 @@ static void ExecuteCommands(RHI::Device& device)
     RecordSkyBoxRendererCommands(device, sSkyBoxRenderer);
 
     OceanRendererInputs inputs;
-    inputs.skyBox = sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
     for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
     {
         inputs.heightMaps[i] = sCascadesRenderer.cascades[i]
@@ -192,6 +191,7 @@ static void ExecuteCommands(RHI::Device& device)
                 .diffDisplacementMaps[device.frameIndex]
                 .bindlessHandle;
     }
+    inputs.skyBox = sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
     RecordOceanRendererCommands(device, inputs, sOceanRenderer);
 }
 
@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
         return false;
     }
 
-    sCamera.speed = 25.0f;
+    sCamera.speed = 60.0f;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -322,6 +322,7 @@ int main(int argc, char* argv[])
         previousFrameTime = currentFrameTime;
         currentFrameTime = Fly::ClockNow();
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
+        f32 time = Fly::ToSeconds(currentFrameTime - loopStartTime);
 
         // FLY_LOG("FPS: %f", 1.0f / deltaTime);
 
@@ -335,7 +336,7 @@ int main(int argc, char* argv[])
 
         // ProcessImGuiFrame();
 
-        sCascadesRenderer.time = currentFrameTime;
+        sCascadesRenderer.time = time;
         UpdateJonswapCascadesRendererUniforms(device, sCascadesRenderer);
         UpdateOceanRendererUniforms(device, sCamera, WINDOW_WIDTH,
                                     WINDOW_HEIGHT, sOceanRenderer);

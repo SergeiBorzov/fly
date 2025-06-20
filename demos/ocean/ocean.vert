@@ -9,7 +9,7 @@ layout(push_constant) uniform PushConstants
     uint uniformBufferIndex;
     uint vertexBufferIndex;
     uint heightMapCascades[4];
-    uint heightMapDiffDisplacementMaps[4];
+    uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
 }
 gPushConstants;
@@ -42,9 +42,27 @@ void main()
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, view);
 
+    float height = 0.0f;
+    float scale = 1.0f;
     vec2 displacement = vec2(0.0f);
+    for (int i = 0; i < 4; i++)
+    {
+        float h = texture(FLY_ACCESS_TEXTURE_BUFFER(
+                              Textures, gPushConstants.heightMapCascades[i]),
+                          outUV * scale)
+                      .r;
+        vec4 value = texture(FLY_ACCESS_TEXTURE_BUFFER(
+                                 Textures, gPushConstants.diffDisplacementCascades[i]),
+                             outUV * scale);
+        displacement += value.zw / scale;
+        height += h / scale;
+        scale *= 4;
+    }
 
-    vec3 worldPos = vec3(vertex.position.x, 0.0f, vertex.position.y);
+    displacement = 0.02 * displacement;
+
+    vec3 worldPos =
+        vec3(vertex.position.x + displacement.x, height, vertex.position.y + displacement.y);
 
     gl_Position = projection * view * vec4(worldPos, 1.0f);
 }

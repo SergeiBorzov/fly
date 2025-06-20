@@ -28,7 +28,7 @@ static bool CreateGrid(RHI::Device& device, OceanRenderer& renderer)
     ArenaMarker marker = ArenaGetMarker(arena);
 
     f32 tileSize = 256.0f;
-    f32 quadSize = 1.0f;
+    f32 quadSize = 0.5f;
     i32 quadPerSide = static_cast<i32>(tileSize / quadSize);
     i32 offset = quadPerSide / 2;
     u32 vertexPerSide = quadPerSide + 1;
@@ -228,7 +228,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
 
     // Ocean
     {
-        RHI::BindGraphicsPipeline(device, cmd, renderer.oceanPipeline);
+        RHI::BindGraphicsPipeline(device, cmd, renderer.wireframePipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
             renderer.vertexBuffer.bindlessHandle};

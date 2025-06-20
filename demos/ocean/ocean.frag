@@ -9,12 +9,27 @@ layout(push_constant) uniform PushConstants
 {
     uint uniformBufferIndex;
     uint vertexBufferIndex;
-    // uint heightMapCascades[4];
-    // uint heightMapDiffDisplacementMaps[4];
-    // uint skyBoxTextureIndex;
+    uint heightMapCascades[4];
+    uint diffDisplacementCascades[4];
+    uint skyBoxTextureIndex;
 }
 gPushConstants;
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
 
-void main() { outColor = vec4(inUV, 0.0f, 1.0f); }
+void main()
+{
+    // float height = 0.0f;
+    // float scale = 1.0f;
+    // for (int i = 0; i < 2; i++)
+    // {
+    //     float h = texture(FLY_ACCESS_TEXTURE_BUFFER(
+    //                           Textures, gPushConstants.heightMapCascades[i]),
+    //                       inUV * scale)
+    //                   .r;
+    //     height += h / scale;
+    //     scale *= 4;
+    // }
+
+    outColor = vec4(0.2f, 0.0f, 0.0f, 1.0f);
+}

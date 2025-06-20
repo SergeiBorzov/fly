@@ -100,7 +100,7 @@ void main()
     float kl = max(length(k), 1e-6);
     float omega = sqrt(G * kl);
 
-    float phase = omega * timeScale.y;
+    float phase = omega * timeScale.x;
     float cosPhase = cos(phase);
     float sinPhase = sin(phase);
 
@@ -111,7 +111,7 @@ void main()
     vec2 w =
         vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f)) /
         sqrt(2);
-    float a = sqrt(2.0f * j2d * deltaK * deltaK) * sqrt(timeScale.z);
+    float a = sqrt(2.0f * j2d * deltaK * deltaK) * sqrt(timeScale.y);
 
     float x = cosPhase * w.x - sinPhase * w.y;
     float y = sinPhase * w.x + cosPhase * w.y;

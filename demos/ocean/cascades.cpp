@@ -1,5 +1,5 @@
 #include "cascades.h"
-
+#include "core/log.h"
 #include "demos/common/scene.h"
 
 namespace Fly
@@ -25,10 +25,10 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
 {
     renderer.resolution = resolution;
     renderer.fetch = 500000.0f;
-    renderer.windSpeed = 2.0f;
+    renderer.windSpeed = 15.0f;
     renderer.windDirection = 0.5f;
     renderer.spread = 15.0f;
-    renderer.scale = 1.0f;
+    renderer.scale = 4.0f;
     renderer.time = 0.0f;
 
     RHI::ComputePipeline* computePipelines[] = {
@@ -38,8 +38,8 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
         &renderer.copyPipeline,
     };
 
-    const char* computeShaderPaths[] = {"ifft.comp.spv", "transpose.comp.spv",
-                                        "jonswap.comp.spv", "copy.comp.spv"};
+    const char* computeShaderPaths[] = {"jonswap.comp.spv", "ifft.comp.spv",
+                                        "transpose.comp.spv", "copy.comp.spv"};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -95,6 +95,8 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
             {
                 return false;
             }
+            FLY_LOG("height map - %u, handle - %u", i,
+                    cascade.heightMaps[j].bindlessHandle);
         }
     }
     return true;
@@ -160,81 +162,91 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    RHI::BindComputePipeline(device, cmd, renderer.ifftPipeline);
-    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+    // IFFT - FIRST AXIS
     {
-        JonswapCascade& cascade = renderer.cascades[i];
-        u32 pushConstants[] = {
-            cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
-        vkCmdDispatch(cmd.handle, 256, 1, 1);
+        RHI::BindComputePipeline(device, cmd, renderer.ifftPipeline);
+        for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+        {
+            JonswapCascade& cascade = renderer.cascades[i];
+            u32 pushConstants[] = {
+                cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle};
+            RHI::SetPushConstants(device, cmd, pushConstants,
+                                  sizeof(pushConstants));
+            vkCmdDispatch(cmd.handle, 256, 1, 1);
+        }
+        VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
+        for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+        {
+            JonswapCascade& cascade = renderer.cascades[i];
+            barriers[i] = RHI::BufferMemoryBarrier(
+                cascade.frequencyBuffers[2 * device.frameIndex],
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT);
+        }
+        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
+                             nullptr, STACK_ARRAY_COUNT(barriers), barriers, 0,
+                             nullptr);
     }
-    VkBufferMemoryBarrier ifftToTransposeBarriers[DEMO_OCEAN_CASCADE_COUNT] =
-        {};
-    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
-    {
-        JonswapCascade& cascade = renderer.cascades[i];
-        ifftToTransposeBarriers[i] = RHI::BufferMemoryBarrier(
-            cascade.frequencyBuffers[2 * device.frameIndex],
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT);
-    }
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                         STACK_ARRAY_COUNT(ifftToTransposeBarriers),
-                         ifftToTransposeBarriers, 0, nullptr);
 
-    RHI::BindComputePipeline(device, cmd, renderer.transposePipeline);
-    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+    // Transpose
     {
-        JonswapCascade& cascade = renderer.cascades[i];
-        u32 pushConstants[] = {
-            cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle,
-            cascade.frequencyBuffers[2 * device.frameIndex + 1].bindlessHandle,
-            256};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
-        vkCmdDispatch(cmd.handle, renderer.resolution / 16,
-                      renderer.resolution / 16, 1);
+        RHI::BindComputePipeline(device, cmd, renderer.transposePipeline);
+        for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+        {
+            JonswapCascade& cascade = renderer.cascades[i];
+            u32 pushConstants[] = {
+                cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle,
+                cascade.frequencyBuffers[2 * device.frameIndex + 1]
+                    .bindlessHandle,
+                renderer.resolution};
+            RHI::SetPushConstants(device, cmd, pushConstants,
+                                  sizeof(pushConstants));
+            vkCmdDispatch(cmd.handle, renderer.resolution / 16,
+                          renderer.resolution / 16, 1);
+        }
+        VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
+        for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+        {
+            JonswapCascade& cascade = renderer.cascades[i];
+            barriers[i] = RHI::BufferMemoryBarrier(
+                cascade.frequencyBuffers[2 * device.frameIndex + 1],
+                VK_ACCESS_SHADER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+        }
+        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
+                             nullptr, STACK_ARRAY_COUNT(barriers), barriers, 0,
+                             nullptr);
     }
-    VkBufferMemoryBarrier transposeToIFFTBarriers[4] = {};
-    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
-    {
-        JonswapCascade& cascade = renderer.cascades[i];
-        transposeToIFFTBarriers[i] = RHI::BufferMemoryBarrier(
-            cascade.frequencyBuffers[2 * device.frameIndex + 1],
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-    }
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                         STACK_ARRAY_COUNT(transposeToIFFTBarriers),
-                         transposeToIFFTBarriers, 0, nullptr);
 
-    RHI::BindComputePipeline(device, cmd, renderer.ifftPipeline);
-    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+    // IFFT - SECOND AXIS
     {
-        JonswapCascade& cascade = renderer.cascades[i];
-        u32 pushConstants[] = {
-            cascade.frequencyBuffers[2 * device.frameIndex + 1].bindlessHandle};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
-        vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
+        RHI::BindComputePipeline(device, cmd, renderer.ifftPipeline);
+        for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+        {
+            JonswapCascade& cascade = renderer.cascades[i];
+            u32 pushConstants[] = {
+                cascade.frequencyBuffers[2 * device.frameIndex + 1]
+                    .bindlessHandle};
+            RHI::SetPushConstants(device, cmd, pushConstants,
+                                  sizeof(pushConstants));
+            vkCmdDispatch(cmd.handle, 256, 1, 1);
+        }
+        VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
+        for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
+        {
+            JonswapCascade& cascade = renderer.cascades[i];
+            barriers[i] = RHI::BufferMemoryBarrier(
+                cascade.frequencyBuffers[2 * device.frameIndex + 1],
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                VK_ACCESS_SHADER_READ_BIT);
+        }
+        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
+                             nullptr, STACK_ARRAY_COUNT(barriers), barriers, 0,
+                             nullptr);
     }
-    VkBufferMemoryBarrier ifftToCopyBarriers[DEMO_OCEAN_CASCADE_COUNT] = {};
-    for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
-    {
-        JonswapCascade& cascade = renderer.cascades[i];
-        ifftToCopyBarriers[i] = RHI::BufferMemoryBarrier(
-            cascade.frequencyBuffers[2 * device.frameIndex + 1],
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT);
-    }
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                         STACK_ARRAY_COUNT(ifftToCopyBarriers),
-                         ifftToCopyBarriers, 0, nullptr);
 }
 
 static void CopyPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
@@ -307,7 +319,8 @@ void UpdateJonswapCascadesRendererUniforms(RHI::Device& device,
         jonswapData[i].timeScale =
             Math::Vec4(renderer.time, renderer.scale, 0.0f, 0.0f);
         jonswapData[i].domain = Math::Vec4(cascade.domain, 0.0f, 0.0f, 0.0f);
-        RHI::CopyDataToBuffer(device, &jonswapData[i], sizeof(JonswapData), 0,
+
+        RHI::CopyDataToBuffer(device, &(jonswapData[i]), sizeof(JonswapData), 0,
                               cascade.uniformBuffers[device.frameIndex]);
     }
 }
