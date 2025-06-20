@@ -151,6 +151,7 @@ cc_library(
     ],
     copts = select({
         "@platforms//os:linux": ["-Wno-format-overflow"],
+        "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
 )

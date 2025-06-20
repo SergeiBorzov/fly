@@ -35,7 +35,7 @@ void* PlatformCommitMemory(void* baseAddress, u64 commitSize)
     return baseAddress;
 }
 
-bool PlatformDecommitMemory(void* baseAddress)
+bool PlatformDecommitMemory(void* baseAddress, u64 length)
 {
     return VirtualFree(baseAddress, 0, MEM_DECOMMIT);
 }
