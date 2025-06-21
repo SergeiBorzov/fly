@@ -20,6 +20,8 @@ struct JonswapCascade
     RHI::Texture diffDisplacementMaps[FLY_FRAME_IN_FLIGHT_COUNT];
 
     f32 domain;
+    f32 kMin;
+    f32 kMax;
 };
 
 struct JonswapCascadesRenderer
@@ -34,6 +36,7 @@ struct JonswapCascadesRenderer
     f32 time;
     f32 scale;
 
+    RHI::ComputePipeline initialSpectrumPipeline;
     RHI::ComputePipeline jonswapPipeline;
     RHI::ComputePipeline ifftPipeline;
     RHI::ComputePipeline transposePipeline;

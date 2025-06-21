@@ -17,7 +17,7 @@ struct JonswapData
 {
     Math::Vec4 fetchSpeedDirSpread;
     Math::Vec4 timeScale;
-    Math::Vec4 domain;
+    Math::Vec4 domainMinMax;
 };
 
 bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
@@ -32,13 +32,15 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
     renderer.time = 0.0f;
 
     RHI::ComputePipeline* computePipelines[] = {
+        &renderer.initialSpectrumPipeline,
         &renderer.jonswapPipeline,
         &renderer.ifftPipeline,
         &renderer.transposePipeline,
         &renderer.copyPipeline,
     };
 
-    const char* computeShaderPaths[] = {"jonswap.comp.spv", "ifft.comp.spv",
+    const char* computeShaderPaths[] = {"initial_spectrum.comp.spv",
+                                        "jonswap.comp.spv", "ifft.comp.spv",
                                         "transpose.comp.spv", "copy.comp.spv"};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -78,19 +80,20 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
                 return false;
             }
 
-            if (!RHI::CreateReadWriteTexture(device, nullptr,
-                                             256 * 256 * 4 * sizeof(u16), 256,
-                                             256, VK_FORMAT_R16G16B16A16_SFLOAT,
-                                             RHI::Sampler::FilterMode::Bilinear,
-                                             RHI::Sampler::WrapMode::Repeat,
-                                             cascade.diffDisplacementMaps[j]))
+            if (!RHI::CreateReadWriteTexture(
+                    device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
+                    VK_FORMAT_R16G16B16A16_SFLOAT,
+                    RHI::Sampler::FilterMode::Anisotropy4x,
+                    RHI::Sampler::WrapMode::Repeat,
+                    cascade.diffDisplacementMaps[j]))
             {
                 return false;
             }
 
             if (!RHI::CreateReadWriteTexture(
                     device, nullptr, 256 * 256 * sizeof(u16), 256, 256,
-                    VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
+                    VK_FORMAT_R16_SFLOAT,
+                    RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat, cascade.heightMaps[j]))
             {
                 return false;
@@ -124,13 +127,14 @@ void DestroyJonswapCascadesRenderer(RHI::Device& device,
     RHI::DestroyComputePipeline(device, renderer.transposePipeline);
     RHI::DestroyComputePipeline(device, renderer.ifftPipeline);
     RHI::DestroyComputePipeline(device, renderer.jonswapPipeline);
+    RHI::DestroyComputePipeline(device, renderer.initialSpectrumPipeline);
 }
 
 static void JonswapPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    RHI::BindComputePipeline(device, cmd, renderer.jonswapPipeline);
+    RHI::BindComputePipeline(device, cmd, renderer.initialSpectrumPipeline);
     for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
     {
         JonswapCascade& cascade = renderer.cascades[i];
@@ -318,7 +322,8 @@ void UpdateJonswapCascadesRendererUniforms(RHI::Device& device,
                        renderer.windDirection, renderer.spread);
         jonswapData[i].timeScale =
             Math::Vec4(renderer.time, renderer.scale, 0.0f, 0.0f);
-        jonswapData[i].domain = Math::Vec4(cascade.domain, 0.0f, 0.0f, 0.0f);
+        jonswapData[i].domainMinMax =
+            Math::Vec4(cascade.domain, cascade.kMin, cascade.kMax, 0.0f);
 
         RHI::CopyDataToBuffer(device, &(jonswapData[i]), sizeof(JonswapData), 0,
                               cascade.uniformBuffers[device.frameIndex]);

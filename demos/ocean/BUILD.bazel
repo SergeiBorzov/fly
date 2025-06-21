@@ -43,6 +43,14 @@ glsl_shader(
 )
 
 glsl_shader(
+    name = "initial_spectrum.comp.spv",
+    src = "initial_spectrum.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
     name = "copy.comp.spv",
     src = "copy.comp",
     deps = [
@@ -123,6 +131,7 @@ cc_binary(
         ":transpose.comp.spv",
         ":ifft.comp.spv",
         ":jonswap.comp.spv",
+        ":initial_spectrum.comp.spv",
     ] + select({
         ":release_build": [
         ],

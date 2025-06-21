@@ -333,9 +333,25 @@ int main(int argc, char* argv[])
         return false;
     }
     sCascadesRenderer.cascades[0].domain = 256.0f;
+    sCascadesRenderer.cascades[0].kMin = 0.0f;
+    sCascadesRenderer.cascades[0].kMax = 0.5f;
     sCascadesRenderer.cascades[1].domain = 64.0f;
+    sCascadesRenderer.cascades[1].kMin = 0.5f;
+    sCascadesRenderer.cascades[1].kMax = 3.0f;
     sCascadesRenderer.cascades[2].domain = 16.0f;
+    sCascadesRenderer.cascades[2].kMin = 3.0f;
+    sCascadesRenderer.cascades[2].kMax = 70.0f;
     sCascadesRenderer.cascades[3].domain = 4.0f;
+    sCascadesRenderer.cascades[3].kMin = 70.0f;
+    sCascadesRenderer.cascades[3].kMax = 280.0f;
+
+    for (u32 i = 0; i < 4; i++)
+    {
+        FLY_LOG("Cascade %u wavenumber from %f to %f", i,
+                FLY_MATH_TWO_PI / sCascadesRenderer.cascades[i].domain,
+                Math::Sqrt(2) * FLY_MATH_PI * 256 /
+                    sCascadesRenderer.cascades[i].domain);
+    }
 
     if (!CreateSkyBoxRenderer(device, 256, sSkyBoxRenderer))
     {
