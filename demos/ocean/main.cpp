@@ -142,38 +142,70 @@ static void DestroyImGuiContext(RHI::Device& device)
                             RHI::GetVulkanAllocationCallbacks());
 }
 
-// static void ProcessImGuiFrame()
-// {
-//     ImGui_ImplVulkan_NewFrame();
-//     ImGui_ImplGlfw_NewFrame();
-//     ImGui::NewFrame();
+static void ProcessImGuiFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
 
-//     {
-//         ImGui::Begin("Ocean parameters");
+    {
+        ImGui::Begin("Ocean parameters");
 
-//         ImGui::SliderFloat("Fetch",
-//         &sUniformData.fetchSpeedDirSpread.x, 1.0f,
-//                            1000000.0f, "%.1f");
-//         ImGui::SliderFloat("Wind Speed", &sUniformData.fetchSpeedDirSpread.y,
-//                            0.001f, 30.0f, "%.6f");
-//         ImGui::SliderFloat("Theta 0", &sUniformData.fetchSpeedDirSpread.z,
-//                            -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
-//         ImGui::SliderFloat("Spread",
-//         &sUniformData.fetchSpeedDirSpread.w, 1.0f,
-//                            30.0f, "%.2f");
-//         ImGui::SliderFloat("Scale",
-//         &sUniformData.domainTimeLambdaScale.w, 1.0f,
-//                            50.0f, "%.2f");
-//         ImGui::SliderFloat("Displacement multiplier",
-//                            &sUniformData.domainTimeLambdaScale.z,
-//                            -2.0f, 2.0f,
-//                            "%.01f");
+        ImGui::SliderFloat("Fetch", &sCascadesRenderer.fetch, 1.0f, 1000000.0f,
+                           "%.1f");
+        ImGui::SliderFloat("Wind Speed", &sCascadesRenderer.windSpeed, 0.001f,
+                           30.0f, "%.6f");
+        ImGui::SliderFloat("Theta 0", &sCascadesRenderer.windDirection,
+                           -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
+        ImGui::SliderFloat("Spread", &sCascadesRenderer.spread, 1.0f, 30.0f,
+                           "%.2f");
+        ImGui::SliderFloat("Scale", &sCascadesRenderer.scale, 1.0f, 50.0f,
+                           "%.2f");
+        // ImGui::SliderFloat("Displacement multiplier",
+        //                    &sUniformData.domainTimeLambdaScale., -2.0f, 2.0f,
+        //                    "%.01f");
 
-//         ImGui::End();
-//     }
+        ImGui::End();
+    }
 
-//     ImGui::Render();
-// }
+    ImGui::Render();
+}
+
+static void RecordUICommands(RHI::Device& device)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    const RHI::SwapchainTexture& swapchainTexture =
+        RenderFrameSwapchainTexture(device);
+    VkRect2D renderArea = {{0, 0},
+                           {swapchainTexture.width, swapchainTexture.height}};
+    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
+        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_ATTACHMENT_LOAD_OP_LOAD);
+    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
+        device.depthTexture.imageView,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    VkRenderingInfo renderInfo =
+        RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
+
+    vkCmdBeginRendering(cmd.handle, &renderInfo);
+
+    VkViewport viewport = {};
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = static_cast<f32>(renderArea.extent.width);
+    viewport.height = static_cast<f32>(renderArea.extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
+
+    VkRect2D scissor = renderArea;
+    vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+
+    vkCmdEndRendering(cmd.handle);
+}
 
 static void ExecuteCommands(RHI::Device& device)
 {
@@ -193,6 +225,7 @@ static void ExecuteCommands(RHI::Device& device)
     }
     inputs.skyBox = sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
     RecordOceanRendererCommands(device, inputs, sOceanRenderer);
+    RecordUICommands(device);
 }
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
@@ -285,11 +318,11 @@ int main(int argc, char* argv[])
     RHI::Device& device = context.devices[0];
     glfwSetWindowUserPointer(window, &device);
 
-    // if (!CreateImGuiContext(context, device, window))
-    // {
-    //     FLY_ERROR("Failed to create imgui context");
-    //     return -1;
-    // }
+    if (!CreateImGuiContext(context, device, window))
+    {
+        FLY_ERROR("Failed to create imgui context");
+        return -1;
+    }
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -326,15 +359,15 @@ int main(int argc, char* argv[])
 
         // FLY_LOG("FPS: %f", 1.0f / deltaTime);
 
-        // ImGuiIO& io = ImGui::GetIO();
-        // bool wantMouse = io.WantCaptureMouse;
-        // bool wantKeyboard = io.WantCaptureKeyboard;
-        // if (!wantMouse && !wantKeyboard)
-        // {
-        sCamera.Update(window, deltaTime);
-        //}
+        ImGuiIO& io = ImGui::GetIO();
+        bool wantMouse = io.WantCaptureMouse;
+        bool wantKeyboard = io.WantCaptureKeyboard;
+        if (!wantMouse && !wantKeyboard)
+        {
+            sCamera.Update(window, deltaTime);
+        }
 
-        // ProcessImGuiFrame();
+        ProcessImGuiFrame();
 
         sCascadesRenderer.time = time;
         UpdateJonswapCascadesRendererUniforms(device, sCascadesRenderer);
@@ -352,7 +385,7 @@ int main(int argc, char* argv[])
     DestroySkyBoxRenderer(device, sSkyBoxRenderer);
     DestroyOceanRenderer(device, sOceanRenderer);
 
-    // DestroyImGuiContext(device);
+    DestroyImGuiContext(device);
     RHI::DestroyContext(context);
     glfwDestroyWindow(window);
     glfwTerminate();

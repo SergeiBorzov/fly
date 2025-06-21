@@ -63,8 +63,9 @@ void SetPushConstants(Device& device, CommandBuffer& commandBuffer,
 void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value = 0,
                 u64 offset = 0, u64 size = 0);
 
-VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
-                                              VkImageLayout imageLayout);
+VkRenderingAttachmentInfo
+ColorAttachmentInfo(VkImageView imageView, VkImageLayout imageLayout,
+                    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR);
 VkRenderingAttachmentInfo DepthAttachmentInfo(VkImageView imageView,
                                               VkImageLayout imageLayout);
 

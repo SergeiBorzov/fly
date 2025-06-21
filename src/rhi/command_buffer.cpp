@@ -295,8 +295,9 @@ void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,
     vkCmdFillBuffer(cmd.handle, buffer.handle, offset, size, value);
 }
 
-VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
-                                              VkImageLayout imageLayout)
+VkRenderingAttachmentInfo
+ColorAttachmentInfo(VkImageView imageView, VkImageLayout imageLayout,
+                    VkAttachmentLoadOp loadOp)
 {
     VkRenderingAttachmentInfo attachmentInfo{};
     attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -304,7 +305,7 @@ VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
     attachmentInfo.imageView = imageView;
     attachmentInfo.imageLayout = imageLayout;
     attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-    attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentInfo.loadOp = loadOp;
     attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentInfo.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}};
 

@@ -228,7 +228,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
 
     // Ocean
     {
-        RHI::BindGraphicsPipeline(device, cmd, renderer.wireframePipeline);
+        RHI::BindGraphicsPipeline(device, cmd, renderer.oceanPipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
             renderer.vertexBuffer.bindlessHandle};
@@ -240,8 +240,6 @@ void RecordOceanRendererCommands(RHI::Device& device,
                              VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
     }
-
-    // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
 
     vkCmdEndRendering(cmd.handle);
 }
