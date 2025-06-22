@@ -165,8 +165,6 @@ static void ProcessImGuiFrame()
                                "%.2f");
             ImGui::SliderFloat("Wave Chopiness", &sOceanRenderer.waveChopiness,
                                -10.0f, 10.0f, "%.2f");
-            ImGui::SliderFloat("Scale", &sCascadesRenderer.scale, 1.0f, 4.0f,
-                               "%.2f");
             ImGui::TreePop();
         }
 
@@ -174,8 +172,7 @@ static void ProcessImGuiFrame()
         {
             ImGui::ColorEdit3("Water scatter",
                               sOceanRenderer.waterScatterColor.data);
-            ImGui::ColorEdit3("Light color",
-                              sOceanRenderer.lightColor.data);
+            ImGui::ColorEdit3("Light color", sOceanRenderer.lightColor.data);
             ImGui::SliderFloat("ss1", &sOceanRenderer.ss1, 0.0f, 100.0f,
                                "%.2f");
             ImGui::SliderFloat("ss2", &sOceanRenderer.ss2, 0.0f, 100.0f,
@@ -390,8 +387,6 @@ int main(int argc, char* argv[])
         currentFrameTime = Fly::ClockNow();
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
         f32 time = Fly::ToSeconds(currentFrameTime - loopStartTime);
-
-        FLY_LOG("FPS: %f", 1.0f / deltaTime);
 
         ImGuiIO& io = ImGui::GetIO();
         bool wantMouse = io.WantCaptureMouse;
