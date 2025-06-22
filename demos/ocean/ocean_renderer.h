@@ -25,10 +25,11 @@ struct OceanRenderer
     RHI::GraphicsPipeline wireframePipeline;
     RHI::GraphicsPipeline oceanPipeline;
     RHI::GraphicsPipeline skyPipeline;
-    
+
     Math::Vec3 lightColor;
     Math::Vec3 waterScatterColor;
     Math::Vec3 bubbleColor;
+    f32 waveChopiness;
     f32 ss1;
     f32 ss2;
     f32 a1;
@@ -53,6 +54,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
 void UpdateOceanRendererUniforms(RHI::Device& device,
                                  const SimpleCameraFPS& camera, u32 width,
                                  u32 height, OceanRenderer& renderer);
+void ToggleWireframeOceanRenderer(OceanRenderer& renderer);
 
 } // namespace Fly
 

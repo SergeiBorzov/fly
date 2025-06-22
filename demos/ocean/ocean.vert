@@ -20,6 +20,7 @@ layout(push_constant) uniform PushConstants
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
+    float waveChopiness;
 }
 gPushConstants;
 
@@ -78,7 +79,7 @@ void main()
 
     vec3 h = SampleHeightDisplacement(vertex.uv);
     outData.height = h.x;
-    h.yz *= 0.02;
+    h.yz *= gPushConstants.waveChopiness;
 
     vec3 worldPos =
         vec3(vertex.position.x + h.y, h.x * 2, vertex.position.y + h.z);

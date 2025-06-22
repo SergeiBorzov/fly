@@ -148,7 +148,7 @@ void main()
     vec2 h = MultiplyComplex(h0, ePhase);
     vec2 dx = vec2(-k.x * h.y, k.x * h.x); // multiply complex by i unwrapped
     vec2 dy = vec2(-k.y * h.y, k.y * h.x);
-    vec2 displacement = vec2(0.0f);
+    vec2 displacement = vec2(dx.x, dy.x) / kl;
 
     Data data = Data(h, displacement, dx, dy);
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)

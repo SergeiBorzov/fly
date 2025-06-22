@@ -149,21 +149,45 @@ static void ProcessImGuiFrame()
     ImGui::NewFrame();
 
     {
-        ImGui::Begin("Ocean parameters");
+        ImGui::Begin("Parameters");
 
-        ImGui::SliderFloat("Fetch", &sCascadesRenderer.fetch, 1.0f, 1000000.0f,
-                           "%.1f");
-        ImGui::SliderFloat("Wind Speed", &sCascadesRenderer.windSpeed, 0.001f,
-                           30.0f, "%.6f");
-        ImGui::SliderFloat("Theta 0", &sCascadesRenderer.windDirection,
-                           -FLY_MATH_PI, FLY_MATH_PI, "%.2f rad");
-        ImGui::SliderFloat("Spread", &sCascadesRenderer.spread, 1.0f, 30.0f,
-                           "%.2f");
-        ImGui::SliderFloat("Scale", &sCascadesRenderer.scale, 1.0f, 50.0f,
-                           "%.2f");
-        // ImGui::SliderFloat("Displacement multiplier",
-        //                    &sUniformData.domainTimeLambdaScale., -2.0f, 2.0f,
-        //                    "%.01f");
+        if (ImGui::TreeNode("Ocean spectrum"))
+        {
+
+            ImGui::SliderFloat("Fetch", &sCascadesRenderer.fetch, 1.0f,
+                               1000000.0f, "%.1f");
+            ImGui::SliderFloat("Wind Speed", &sCascadesRenderer.windSpeed, 0.1f,
+                               30.0f, "%.6f");
+            ImGui::SliderFloat("Wind Direction",
+                               &sCascadesRenderer.windDirection, -FLY_MATH_PI,
+                               FLY_MATH_PI, "%.2f rad");
+            ImGui::SliderFloat("Spread", &sCascadesRenderer.spread, 1.0f, 30.0f,
+                               "%.2f");
+            ImGui::SliderFloat("Wave Chopiness", &sOceanRenderer.waveChopiness,
+                               -10.0f, 10.0f, "%.2f");
+            ImGui::SliderFloat("Scale", &sCascadesRenderer.scale, 1.0f, 4.0f,
+                               "%.2f");
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Ocean shade"))
+        {
+            ImGui::ColorEdit3("Water scatter",
+                              sOceanRenderer.waterScatterColor.data);
+            ImGui::ColorEdit3("Light color",
+                              sOceanRenderer.lightColor.data);
+            ImGui::SliderFloat("ss1", &sOceanRenderer.ss1, 0.0f, 100.0f,
+                               "%.2f");
+            ImGui::SliderFloat("ss2", &sOceanRenderer.ss2, 0.0f, 100.0f,
+                               "%.2f");
+            ImGui::SliderFloat("a1", &sOceanRenderer.a1, 0.0f, 0.05f, "%.2f");
+            ImGui::SliderFloat("a2", &sOceanRenderer.a2, 0.0f, 1.0f, "%.2f");
+            ImGui::SliderFloat("reflectivity", &sOceanRenderer.reflectivity,
+                               0.0f, 1.0f, "%.2f");
+            ImGui::SliderFloat("bubble density", &sOceanRenderer.bubbleDensity,
+                               0.0f, 1.0f, "%.2f");
+            ImGui::TreePop();
+        }
 
         ImGui::End();
     }
@@ -238,14 +262,7 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 
     if (key == GLFW_KEY_TAB && action == GLFW_PRESS)
     {
-        // if (sCurrentGraphicsPipeline == &sGraphicsPipeline)
-        // {
-        //     sCurrentGraphicsPipeline = &sWireframeGraphicsPipeline;
-        // }
-        // else
-        // {
-        //     sCurrentGraphicsPipeline = &sGraphicsPipeline;
-        // }
+        ToggleWireframeOceanRenderer(sOceanRenderer);
     }
 }
 
@@ -374,7 +391,7 @@ int main(int argc, char* argv[])
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
         f32 time = Fly::ToSeconds(currentFrameTime - loopStartTime);
 
-        // FLY_LOG("FPS: %f", 1.0f / deltaTime);
+        FLY_LOG("FPS: %f", 1.0f / deltaTime);
 
         ImGuiIO& io = ImGui::GetIO();
         bool wantMouse = io.WantCaptureMouse;

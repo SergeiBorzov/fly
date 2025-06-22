@@ -30,6 +30,8 @@ struct Vertex
     Math::Vec2 uv;
 };
 
+static RHI::GraphicsPipeline* sCurrentPipeline;
+
 static bool CreateGrid(RHI::Device& device, OceanRenderer& renderer)
 {
     Arena& arena = GetScratchArena();
@@ -179,16 +181,18 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
         return false;
     }
 
-    renderer.waterScatterColor = Math::Vec3(0.2f, 1.0f, 1.0f);
+    renderer.waterScatterColor = Math::Vec3(0.2f, 0.55f, 1.0f);
     renderer.lightColor = Math::Vec3(1.0f, 0.843f, 0.702f);
     renderer.bubbleColor = Math::Vec3(1.0f);
-    renderer.ss1 = 24.0f;
-    renderer.ss2 = 0.1f;
+    renderer.ss1 = 15.0f;
+    renderer.ss2 = 0.3f;
     renderer.a1 = 0.01f;
     renderer.a2 = 0.1f;
     renderer.reflectivity = 1.0f;
-    renderer.bubbleDensity = 0.5f;
+    renderer.bubbleDensity = 0.14f;
+    renderer.waveChopiness = 2.0f;
 
+    sCurrentPipeline = &renderer.oceanPipeline;
     return true;
 }
 
@@ -253,7 +257,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
 
     // Ocean
     {
-        RHI::BindGraphicsPipeline(device, cmd, renderer.oceanPipeline);
+        RHI::BindGraphicsPipeline(device, cmd, *sCurrentPipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
             renderer.shadeParamsBuffers[device.frameIndex].bindlessHandle,
@@ -262,6 +266,8 @@ void RecordOceanRendererCommands(RHI::Device& device,
                               sizeof(pushConstants));
         RHI::SetPushConstants(device, cmd, &inputs, sizeof(inputs),
                               sizeof(pushConstants));
+        RHI::SetPushConstants(device, cmd, &renderer.waveChopiness, sizeof(f32),
+                              sizeof(pushConstants) + sizeof(inputs));
         vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
                              VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
@@ -294,6 +300,18 @@ void UpdateOceanRendererUniforms(RHI::Device& device,
         Math::Vec4(renderer.bubbleColor, renderer.bubbleDensity);
     RHI::CopyDataToBuffer(device, &shadeParams, sizeof(ShadeParams), 0,
                           renderer.shadeParamsBuffers[device.frameIndex]);
+}
+
+void ToggleWireframeOceanRenderer(OceanRenderer& renderer)
+{
+    if (sCurrentPipeline == &renderer.oceanPipeline)
+    {
+        sCurrentPipeline = &renderer.wireframePipeline;
+    }
+    else
+    {
+        sCurrentPipeline = &renderer.oceanPipeline;
+    }
 }
 
 } // namespace Fly

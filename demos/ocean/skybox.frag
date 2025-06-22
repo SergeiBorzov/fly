@@ -40,8 +40,8 @@ void main()
 
     float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
 
-    vec3 bottomColor = vec3(0.2, 0.4, 0.8);
-    vec3 topColor = vec3(0.6, 0.8, 1.0);
+    vec3 bottomColor = vec3(0.1, 0.3, 0.9);
+    vec3 topColor = vec3(0.3, 0.6, 1.0);
 
     vec3 gradient = mix(bottomColor, topColor, t);
 

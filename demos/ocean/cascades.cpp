@@ -25,10 +25,10 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
 {
     renderer.resolution = resolution;
     renderer.fetch = 500000.0f;
-    renderer.windSpeed = 15.0f;
-    renderer.windDirection = 0.5f;
-    renderer.spread = 15.0f;
-    renderer.scale = 4.0f;
+    renderer.windSpeed = 3.0f;
+    renderer.windDirection = -2.4f;
+    renderer.spread = 18.0f;
+    renderer.scale = 1.0f;
     renderer.time = 0.0f;
 
     RHI::ComputePipeline* computePipelines[] = {

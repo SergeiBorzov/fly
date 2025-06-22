@@ -22,6 +22,7 @@ layout(push_constant) uniform PushConstants
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
+    float waveChopiness;
 }
 gPushConstants;
 
@@ -68,9 +69,9 @@ float SpecularBlinnPhong(vec3 n, vec3 h, float alpha)
     return pow(max(dot(n, h), 0.0f), alpha);
 }
 
-vec3 ReflectedColor(float fresnel, vec3 r, float k)
+vec3 ReflectedColor(vec3 fresnel, vec3 r, float k)
 {
-    return fresnel * k *
+    return k * fresnel *
            texture(FLY_ACCESS_TEXTURE_BUFFER(Cubemaps,
                                              gPushConstants.skyBoxTextureIndex),
                    r)
@@ -79,14 +80,14 @@ vec3 ReflectedColor(float fresnel, vec3 r, float k)
 
 // Fake subsurface scattering by Atlas guys:
 // https://www.youtube.com/watch?v=Dqld965-Vv0&ab_channel=GameDevelopersConference
-vec3 SubsurfaceScattering(float fresnel, vec3 l, vec3 n, vec3 v, float k1,
+vec3 SubsurfaceScattering(vec3 fresnel, vec3 l, vec3 n, vec3 v, float k1,
                           float k2)
 {
     float ss1 = k1 * max(0, inData.height) * pow(max(dot(l, -v), 0.0f), 4.0f) *
                 pow(0.5f - 0.5f * (max(dot(l, n), 0.0f)), 3.0f);
     float ss2 = k2 * (pow(max(dot(v, n), 0.0f), 2.0f));
 
-    return vec3((1 - fresnel) * (ss1 + ss2));
+    return (vec3(1.0f) - fresnel) * vec3(ss1 + ss2);
 }
 
 // Ambient is from the same guys:
@@ -99,11 +100,16 @@ vec3 AmbientColor(vec3 l, vec3 n, float k1, float k2, float bubbleDensity,
            k2 * bubbleDensity * bubbleColor;
 }
 
+vec3 FresnelSchlick(vec3 n, vec3 v, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - max(dot(n, v), 0.0f), 5.0);
+}
+
 void main()
 {
-    vec2 slope = SampleSlope(0.5f);
+    vec2 slope = SampleSlope(0.45f);
 
-    vec3 l = normalize(vec3(1.0f, 1.0f, 0.0f));
+    vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
 
     vec4 lightColorReflectivity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex,
@@ -115,25 +121,17 @@ void main()
     vec4 bubbleColorDensity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex, bubbleColorDensity);
 
-    // vec3 lightColor = vec3(1.0f, 0.843f, 0.702f);
-    // vec3 waterScatteringColor = vec3(0.02, 0.1, 0.15) * 10;
-    // vec3 bubbleColor = vec3(1.0f);
-
     vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
     vec3 v = normalize(inData.view);
     vec3 h = normalize(l + v);
     vec3 r = reflect(-v, n);
 
-    float fresnel = pow(1.0 - max(0.0f, dot(n, v)), 5.0);
+    vec3 fresnel = FresnelSchlick(n, v, vec3(0.02f));
 
     vec3 specularColor =
-        SpecularBlinnPhong(n, h, 550.0f) * lightColorReflectivity.xyz;
+        SpecularBlinnPhong(n, h, 250.0f) * lightColorReflectivity.xyz;
     vec3 reflectedColor = ReflectedColor(fresnel, r, lightColorReflectivity.w);
 
-    // float k1 = 24.0f;
-    // float k2 = 0.1f;
-    // float k3 = 0.01f;
-    // float k4 = 0.1f;
     vec3 ssColor =
         SubsurfaceScattering(fresnel, l, n, v, coefficients.x, coefficients.y) *
         waterScatterColor.xyz * lightColorReflectivity.xyz;
