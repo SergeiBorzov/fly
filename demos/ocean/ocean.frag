@@ -39,13 +39,16 @@ FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
 // Since we scale uvs a lot for cascades, we create big derivatives
 // Original texture function is to aggressive with filtering
 // Bias allows to scaled down derivatives making filtering less aggressive
-vec2 SampleSlope(float bias)
+vec3 SampleSlopeDetJacobian(float bias)
 {
     vec2 dxUV = dFdx(inData.uv);
     vec2 dyUV = dFdy(inData.uv);
     float scale = 1.0f;
     vec2 slope = vec2(0.0f);
-    vec2 dxdyDisplacement = vec2(0.0f);
+
+    float dxDx = 0.0f;
+    float dyDy = 0.0f;
+    float dyDx = 0.0f;
 
     for (int i = 0; i < CASCADE_COUNT; i++)
     {
@@ -57,14 +60,24 @@ vec2 SampleSlope(float bias)
                 Textures, gPushConstants.diffDisplacementCascades[i]),
             inData.uv * scale, dxScaled, dyScaled);
 
+        vec4 h = textureGrad(FLY_ACCESS_TEXTURE_BUFFER(
+                                 Textures, gPushConstants.heightMapCascades[i]),
+                             inData.uv * scale, dxScaled, dyScaled);
+
         slope += value.xy;
-        dxdyDisplacement += value.zw;
+        dxDx += value.z;
+        dyDy += value.w;
+        dyDx += h.w;
         scale *= 4.0f;
     }
 
+    vec3 jacobian =
+        1.0f + gPushConstants.waveChopiness * vec3(dxDx, dyDy, dyDx);
     // Correct normal after displacement
-    slope /= (1.0 + gPushConstants.waveChopiness * dxdyDisplacement);
-    return slope;
+    slope /= jacobian.xy;
+
+    float detJ = (jacobian.x * jacobian.y - jacobian.z * jacobian.z);
+    return vec3(slope, detJ);
 }
 
 float Fresnel(vec3 n, vec3 v) { return pow(1.0 - max(0.0, dot(n, v)), 5.0); }
@@ -122,8 +135,11 @@ void main()
     vec4 bubbleColorDensity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex, bubbleColorDensity);
 
-    vec2 slope = SampleSlope(0.15f);
-    vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
+    vec3 foamColor = mix(lightColorReflectivity.xyz, vec3(1.0), 0.5) * 1.1;
+    float foamOffset = 0.25f;
+
+    vec3 slopeDetJ = SampleSlopeDetJacobian(0.15f);
+    vec3 n = normalize(vec3(-slopeDetJ.x, 1.0f, -slopeDetJ.y));
 
     vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
     vec3 v = normalize(inData.view);
@@ -145,6 +161,10 @@ void main()
                      waterScatterColor.xyz, lightColorReflectivity.xyz,
                      bubbleColorDensity.xyz);
 
-    outColor =
-        vec4(ambientColor + ssColor + specularColor + reflectedColor, 1.0f);
+    vec3 waterColor = ambientColor + ssColor + specularColor + reflectedColor;
+
+    vec3 finalColor = mix(waterColor, foamColor,
+                          clamp(-(slopeDetJ.z + foamOffset), 0.0f, 1.0f));
+
+    outColor = vec4(finalColor, 1.0f);
 }

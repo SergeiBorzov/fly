@@ -37,10 +37,10 @@ void main()
                    RGBA16FTextures, gPushConstants.diffDisplacementMapIndex),
                ivec2(c, r),
                vec4(data.dx.x, data.dy.x, data.dxDisplacement.x,
-                    data.dyDisplacement.x));
-    imageStore(
-        FLY_ACCESS_STORAGE_TEXTURE_BUFFER(RGBA16FTextures,
-                                          gPushConstants.heightMapIndex),
-        ivec2(c, r),
-        vec4(data.value.x, data.displacement.x, data.displacement.y, 0.0f));
+                    data.dyDisplacement.y));
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(RGBA16FTextures,
+                                                 gPushConstants.heightMapIndex),
+               ivec2(c, r),
+               vec4(data.value.x, data.displacement.x, data.displacement.y,
+                    data.dxDisplacement.y));
 }
