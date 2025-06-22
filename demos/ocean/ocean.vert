@@ -55,13 +55,14 @@ void main()
                               Textures, gPushConstants.heightMapCascades[i]),
                           outUV * scale)
                       .r;
-        // vec4 value =
-        //     texture(FLY_ACCESS_TEXTURE_BUFFER(
-        //                 Textures,
-        //                 gPushConstants.diffDisplacementCascades[i]),
-        //             outUV * scale);
+        vec4 value =
+            texture(FLY_ACCESS_TEXTURE_BUFFER(
+                        Textures, gPushConstants.diffDisplacementCascades[i]),
+                    outUV * scale);
 
+        slope += value.xy;
         height += h;
+        scale *= 4;
     }
 
     outNormal = normalize(vec3(-slope.x, 1.0f, -slope.y));

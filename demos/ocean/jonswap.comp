@@ -17,7 +17,7 @@ gPushConstants;
 FLY_REGISTER_UNIFORM_BUFFER(UniformData, {
     vec4 fetchSpeedDirSpread;
     vec4 timeScale;
-    vec4 domain;
+    vec4 domainMinMax;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, Data, {
@@ -77,50 +77,80 @@ float Cosine2s(float theta, float theta0, float s)
     return NormalizationFactor(s) * pow(abs(cos(delta)), 2 * s);
 }
 
+float WaveDispersion(float kl) { return sqrt(G * kl); }
+
+float WaveDispersionDerivative(float kl) { return G / (2 * sqrt(G * kl)); }
+
+float Spectrum(float kl, float fetch, float windSpeed, float theta,
+               float theta0, float spread)
+{
+    return Jonswap(WaveDispersion(kl), fetch, windSpeed) *
+           Cosine2s(theta, theta0, spread) * WaveDispersionDerivative(kl) / kl;
+}
+
+vec2 H0(vec2 k, float kl, float deltaK, float fetch, float windSpeed,
+        float theta, float theta0, float spread)
+{
+    vec2 rand = vec2(GaussianHash(k, 0.0f), GaussianHash(k, 1.0f));
+
+    return rand / sqrt(2) *
+           sqrt(2 * Spectrum(kl, fetch, windSpeed, theta, theta0, spread) *
+                deltaK * deltaK);
+}
+
+vec2 MultiplyComplex(vec2 a, vec2 b)
+{
+    return vec2(a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y);
+}
+
 void main()
 {
     int c = int(gl_LocalInvocationID.x);
     int r = int(gl_WorkGroupID.x);
     int base = r * int(gl_WorkGroupSize.x);
+    int size = int(gl_WorkGroupSize.x);
 
     vec4 fetchSpeedDirSpread = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, fetchSpeedDirSpread);
     vec4 timeScale = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, timeScale);
-    vec4 domain = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, domain);
+    vec4 domainMinMax = FLY_ACCESS_UNIFORM_BUFFER(
+        UniformData, gPushConstants.uniformBufferIndex, domainMinMax);
 
-    float deltaK = 2 * PI / domain.x;
-    int width = int(gl_WorkGroupSize.x);
-    int halfN = width / 2;
-    float kx = (c < halfN) ? c : c - width;
-    float ky = (r < halfN) ? r : r - width;
+    float deltaK = 2 * PI / domainMinMax.x;
+    int halfSize = size / 2;
+    float kx = (c < halfSize) ? c : c - size;
+    float ky = (r < halfSize) ? r : r - size;
     vec2 k = vec2(kx, ky) * deltaK;
     float theta = atan(k.y, k.x);
-    float kl = max(length(k), 1e-6);
-    float omega = sqrt(G * kl);
+    if (length(k) < 1e-4)
+    {
+        k.x = 0.0001;
+        k.y = 0.0001;
+    }
+    float kl = length(k);
 
-    float phase = omega * timeScale.x;
-    float cosPhase = cos(phase);
-    float sinPhase = sin(phase);
+    float spectrum =
+        Spectrum(kl, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y, theta,
+                 fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
+        sqrt(timeScale.y);
+    if (kl < domainMinMax.y || kl > domainMinMax.z)
+    {
+        spectrum = 0.0f;
+    }
 
-    float j2d = Cosine2s(theta, fetchSpeedDirSpread.z, fetchSpeedDirSpread.w) *
-                Jonswap(omega, fetchSpeedDirSpread.x, fetchSpeedDirSpread.y) *
-                (0.5 * sqrt(G / kl)) / kl;
+    vec2 rand = vec2(GaussianHash(k, 0.0f), GaussianHash(k, 1.0f));
+    vec2 h0 = rand / sqrt(2) * sqrt(2 * spectrum * deltaK * deltaK);
 
-    vec2 w =
-        vec2(GaussianHash(vec2(c, r), 0.0f), GaussianHash(vec2(c, r), 1.0f)) /
-        sqrt(2);
-    float a = sqrt(2.0f * j2d * deltaK * deltaK) * sqrt(timeScale.y);
+    float phase = WaveDispersion(kl);
+    vec2 ePhase = vec2(sin(phase), cos(phase));
 
-    float x = cosPhase * w.x - sinPhase * w.y;
-    float y = sinPhase * w.x + cosPhase * w.y;
+    vec2 h = MultiplyComplex(h0, ePhase);
+    vec2 dx = vec2(-k.x * h.y, k.x * h.x); // multiply complex by i unwrapped
+    vec2 dy = vec2(-k.y * h.y, k.y * h.x);
+    vec2 displacement = vec2(0.0f);
 
-    vec2 dx = vec2(-kx * y, kx * x);
-    vec2 dy = vec2(-ky * y, ky * x);
-    vec2 displacement = vec2(dx.x, dy.x) / kl;
-
-    Data data = Data(a * vec2(x, y), a * displacement, a * dx, a * dy);
+    Data data = Data(h, displacement, dx, dy);
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
     [base + c] = data;
 }

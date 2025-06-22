@@ -36,7 +36,6 @@ struct JonswapCascadesRenderer
     f32 time;
     f32 scale;
 
-    RHI::ComputePipeline initialSpectrumPipeline;
     RHI::ComputePipeline jonswapPipeline;
     RHI::ComputePipeline ifftPipeline;
     RHI::ComputePipeline transposePipeline;

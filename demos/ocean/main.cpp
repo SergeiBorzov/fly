@@ -300,6 +300,7 @@ int main(int argc, char* argv[])
     multiviewFeatures.pNext = &unusedAttachmentsFeature;
 
     RHI::ContextSettings settings{};
+    settings.deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
@@ -340,10 +341,10 @@ int main(int argc, char* argv[])
     sCascadesRenderer.cascades[1].kMax = 3.0f;
     sCascadesRenderer.cascades[2].domain = 16.0f;
     sCascadesRenderer.cascades[2].kMin = 3.0f;
-    sCascadesRenderer.cascades[2].kMax = 70.0f;
+    sCascadesRenderer.cascades[2].kMax = 20.0f;
     sCascadesRenderer.cascades[3].domain = 4.0f;
-    sCascadesRenderer.cascades[3].kMin = 70.0f;
-    sCascadesRenderer.cascades[3].kMax = 280.0f;
+    sCascadesRenderer.cascades[3].kMin = 20.0f;
+    sCascadesRenderer.cascades[3].kMax = 120.0f;
 
     for (u32 i = 0; i < 4; i++)
     {
