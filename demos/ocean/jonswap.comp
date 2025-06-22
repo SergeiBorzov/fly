@@ -142,7 +142,7 @@ void main()
     vec2 rand = vec2(GaussianHash(k, 0.0f), GaussianHash(k, 1.0f));
     vec2 h0 = rand / sqrt(2) * sqrt(2 * spectrum * deltaK * deltaK);
 
-    float phase = WaveDispersion(kl);
+    float phase = WaveDispersion(kl) * timeScale.x;
     vec2 ePhase = vec2(sin(phase), cos(phase));
 
     vec2 h = MultiplyComplex(h0, ePhase);

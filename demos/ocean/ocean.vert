@@ -8,6 +8,7 @@ layout(location = 0) out VertexData
 {
     vec3 view;
     vec2 uv;
+    float height;
 }
 outData;
 
@@ -75,6 +76,7 @@ void main()
         UniformData, gPushConstants.uniformBufferIndex, view);
 
     vec3 h = SampleHeightDisplacement(vertex.uv);
+    outData.height = h.x;
     h.yz *= 0.02;
 
     vec3 worldPos =
