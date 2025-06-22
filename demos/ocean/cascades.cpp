@@ -11,6 +11,8 @@ struct OceanFrequencyVertex
     Math::Vec2 displacement;
     Math::Vec2 dx;
     Math::Vec2 dy;
+    Math::Vec2 dxDisplacement;
+    Math::Vec2 dyDisplacement;
 };
 
 struct JonswapData
@@ -88,8 +90,8 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
             }
 
             if (!RHI::CreateReadWriteTexture(
-                    device, nullptr, 256 * 256 * sizeof(u16), 256, 256,
-                    VK_FORMAT_R16_SFLOAT,
+                    device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
+                    VK_FORMAT_R16G16B16A16_SFLOAT,
                     RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat, cascade.heightMaps[j]))
             {
@@ -316,8 +318,7 @@ void UpdateJonswapCascadesRendererUniforms(RHI::Device& device,
         jonswapData[i].fetchSpeedDirSpread =
             Math::Vec4(renderer.fetch, renderer.windSpeed,
                        renderer.windDirection, renderer.spread);
-        jonswapData[i].timeScale =
-            Math::Vec4(renderer.time, 1.0f, 0.0f, 0.0f);
+        jonswapData[i].timeScale = Math::Vec4(renderer.time, 1.0f, 0.0f, 0.0f);
         jonswapData[i].domainMinMax =
             Math::Vec4(cascade.domain, cascade.kMin, cascade.kMax, 0.0f);
 

@@ -45,6 +45,7 @@ vec2 SampleSlope(float bias)
     vec2 dyUV = dFdy(inData.uv);
     float scale = 1.0f;
     vec2 slope = vec2(0.0f);
+    vec2 dxdyDisplacement = vec2(0.0f);
 
     for (int i = 0; i < CASCADE_COUNT; i++)
     {
@@ -57,8 +58,12 @@ vec2 SampleSlope(float bias)
             inData.uv * scale, dxScaled, dyScaled);
 
         slope += value.xy;
+        dxdyDisplacement += value.zw;
         scale *= 4.0f;
     }
+
+    // Correct normal after displacement
+    slope /= (1.0 + gPushConstants.waveChopiness * dxdyDisplacement);
     return slope;
 }
 
@@ -107,10 +112,6 @@ vec3 FresnelSchlick(vec3 n, vec3 v, vec3 F0)
 
 void main()
 {
-    vec2 slope = SampleSlope(0.45f);
-
-    vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
-
     vec4 lightColorReflectivity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex,
         lightColorReflectivity);
@@ -121,7 +122,10 @@ void main()
     vec4 bubbleColorDensity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex, bubbleColorDensity);
 
+    vec2 slope = SampleSlope(0.15f);
     vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
+
+    vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
     vec3 v = normalize(inData.view);
     vec3 h = normalize(l + v);
     vec3 r = reflect(-v, n);

@@ -9,6 +9,8 @@ FLY_REGISTER_STORAGE_BUFFER(, Data, {
     vec2 displacement;
     vec2 dx;
     vec2 dy;
+    vec2 dxDisplacement;
+    vec2 dyDisplacement;
 })
 
 layout(push_constant) uniform FFTParams { uint dataBufferIndex; }
@@ -39,6 +41,8 @@ shared vec2 functionShared[256];
 shared vec2 displacementShared[256];
 shared vec2 dxFunctionShared[256];
 shared vec2 dyFunctionShared[256];
+shared vec2 dxDisplacementShared[256];
+shared vec2 dyDisplacementShared[256];
 
 void main()
 {
@@ -55,6 +59,8 @@ void main()
     displacementShared[index] = data.displacement;
     dxFunctionShared[index] = data.dx;
     dyFunctionShared[index] = data.dy;
+    dxDisplacementShared[index] = data.dxDisplacement;
+    dyDisplacementShared[index] = data.dyDisplacement;
     barrier();
 
     // Cooley–Tukey FFT
@@ -76,6 +82,10 @@ void main()
                 Butterfly(w, displacementShared[i], displacementShared[j]);
             vec4 dx = Butterfly(w, dxFunctionShared[i], dxFunctionShared[j]);
             vec4 dy = Butterfly(w, dyFunctionShared[i], dyFunctionShared[j]);
+            vec4 dxDisplacement =
+                Butterfly(w, dxDisplacementShared[i], dxDisplacementShared[j]);
+            vec4 dyDisplacement =
+                Butterfly(w, dyDisplacementShared[i], dyDisplacementShared[j]);
 
             functionShared[i] = f.xy;
             functionShared[j] = f.zw;
@@ -85,11 +95,16 @@ void main()
             dxFunctionShared[j] = dx.zw;
             dyFunctionShared[i] = dy.xy;
             dyFunctionShared[j] = dy.zw;
+            dxDisplacementShared[i] = dxDisplacement.xy;
+            dxDisplacementShared[j] = dxDisplacement.zw;
+            dyDisplacementShared[i] = dyDisplacement.xy;
+            dyDisplacementShared[j] = dyDisplacement.zw;
         }
         barrier();
     }
 
     FLY_ACCESS_STORAGE_BUFFER(Data, gPushConstants.dataBufferIndex)
     [base + c] = Data(functionShared[c], displacementShared[c],
-                      dxFunctionShared[c], dyFunctionShared[c]);
+                      dxFunctionShared[c], dyFunctionShared[c],
+                      dxDisplacementShared[c], dyDisplacementShared[c]);
 }

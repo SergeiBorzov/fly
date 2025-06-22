@@ -190,7 +190,7 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
     renderer.a2 = 0.1f;
     renderer.reflectivity = 1.0f;
     renderer.bubbleDensity = 0.14f;
-    renderer.waveChopiness = 2.0f;
+    renderer.waveChopiness = 1.0f;
 
     sCurrentPipeline = &renderer.oceanPipeline;
     return true;

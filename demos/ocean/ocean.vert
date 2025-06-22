@@ -49,17 +49,12 @@ vec3 SampleHeightDisplacement(vec2 uv)
 
     for (int i = 0; i < CASCADE_COUNT; i++)
     {
-        float h = texture(FLY_ACCESS_TEXTURE_BUFFER(
-                              Textures, gPushConstants.heightMapCascades[i]),
-                          uv * scale)
-                      .r;
-        vec4 value =
-            texture(FLY_ACCESS_TEXTURE_BUFFER(
-                        Textures, gPushConstants.diffDisplacementCascades[i]),
-                    uv * scale);
-
-        displacement += value.zw;
-        height += h;
+        vec3 h = texture(FLY_ACCESS_TEXTURE_BUFFER(
+                             Textures, gPushConstants.heightMapCascades[i]),
+                         uv * scale)
+                     .rgb;
+        displacement += h.yz;
+        height += h.x;
         scale *= 4;
     }
 

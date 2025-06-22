@@ -17,10 +17,12 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, Data, {
     vec2 displacement;
     vec2 dx;
     vec2 dy;
+    vec2 dxDisplacement;
+    vec2 dyDisplacement;
 })
+
 FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RGBA16FTextures, image2D,
                                     rgba16f)
-FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, R16FTextures, image2D, r16f)
 
 void main()
 {
@@ -31,12 +33,14 @@ void main()
     Data data = FLY_ACCESS_STORAGE_BUFFER(
         Data, gPushConstants.dataBufferIndex)[base + c];
 
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                   RGBA16FTextures, gPushConstants.diffDisplacementMapIndex),
+               ivec2(c, r),
+               vec4(data.dx.x, data.dy.x, data.dxDisplacement.x,
+                    data.dyDisplacement.x));
     imageStore(
-        FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
-            RGBA16FTextures, gPushConstants.diffDisplacementMapIndex),
+        FLY_ACCESS_STORAGE_TEXTURE_BUFFER(RGBA16FTextures,
+                                          gPushConstants.heightMapIndex),
         ivec2(c, r),
-        vec4(data.dx.x, data.dy.x, data.displacement.x, data.displacement.y));
-    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(R16FTextures,
-                                                 gPushConstants.heightMapIndex),
-               ivec2(c, r), vec4(data.value.x, 0.0f, 0.0f, 0.0f));
+        vec4(data.value.x, data.displacement.x, data.displacement.y, 0.0f));
 }
