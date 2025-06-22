@@ -2,10 +2,14 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "bindless.glsl"
 
-layout(location = 0) out vec2 outUV;
-layout(location = 1) out vec3 outNormal;
-layout(location = 2) out vec3 outView;
-layout(location = 3) out vec3 outPos;
+#define CASCADE_COUNT 4
+
+layout(location = 0) out VertexData
+{
+    vec3 view;
+    vec2 uv;
+}
+outData;
 
 layout(push_constant) uniform PushConstants
 {
@@ -34,49 +38,52 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
 
+vec3 SampleHeightDisplacement(vec2 uv)
+{
+    float height = 0.0f;
+    float scale = 1.0f;
+    vec2 displacement = vec2(0.0f);
+
+    for (int i = 0; i < CASCADE_COUNT; i++)
+    {
+        float h = texture(FLY_ACCESS_TEXTURE_BUFFER(
+                              Textures, gPushConstants.heightMapCascades[i]),
+                          uv * scale)
+                      .r;
+        vec4 value =
+            texture(FLY_ACCESS_TEXTURE_BUFFER(
+                        Textures, gPushConstants.diffDisplacementCascades[i]),
+                    uv * scale);
+
+        displacement += value.zw;
+        height += h;
+        scale *= 4;
+    }
+
+    return vec3(height, displacement);
+}
+
 void main()
 {
     Vertex vertex = FLY_ACCESS_STORAGE_BUFFER(
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
-    outUV = vertex.uv;
+    outData.uv = vertex.uv;
 
     mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, projection);
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         UniformData, gPushConstants.uniformBufferIndex, view);
 
-    float height = 0.0f;
-    float scale = 1.0f;
-    vec2 slope = vec2(0.0f);
-    vec2 displacement = vec2(0.0f);
-    for (int i = 0; i < 4; i++)
-    {
-        float h = texture(FLY_ACCESS_TEXTURE_BUFFER(
-                              Textures, gPushConstants.heightMapCascades[i]),
-                          outUV * scale)
-                      .r;
-        vec4 value =
-            texture(FLY_ACCESS_TEXTURE_BUFFER(
-                        Textures, gPushConstants.diffDisplacementCascades[i]),
-                    outUV * scale);
+    vec3 h = SampleHeightDisplacement(vertex.uv);
+    h.yz *= 0.02;
 
-        slope += value.xy;
-        height += h;
-        scale *= 4;
-    }
-
-    outNormal = normalize(vec3(-slope.x, 1.0f, -slope.y));
-
-    displacement = 0.02 * displacement;
-
-    vec3 worldPos = vec3(vertex.position.x + displacement.x, height * 2,
-                         vertex.position.y + displacement.y);
-    outPos = worldPos;
+    vec3 worldPos =
+        vec3(vertex.position.x + h.y, h.x * 2, vertex.position.y + h.z);
 
     mat3 R = mat3(view);
     vec3 T = vec3(view[3]);
     vec3 camPos = -transpose(R) * T;
-    outView = normalize(camPos - worldPos);
+    outData.view = normalize(camPos - worldPos);
 
     gl_Position = projection * view * vec4(worldPos, 1.0f);
 }

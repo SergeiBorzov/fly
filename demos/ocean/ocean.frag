@@ -2,10 +2,14 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "bindless.glsl"
 
-layout(location = 0) in vec2 inUV;
-layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec3 inView;
-layout(location = 3) in vec3 inPos;
+#define CASCADE_COUNT 4
+
+layout(location = 0) in VertexData
+{
+    vec3 view;
+    vec2 uv;
+}
+inData;
 
 layout(location = 0) out vec4 outColor;
 
@@ -21,30 +25,38 @@ gPushConstants;
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
 
-void main()
+// Since we scale uvs a lot for cascades, we create big derivatives
+// Original texture function is to aggressive with filtering
+// Bias allows to scaled down derivatives making filtering less aggressive
+vec2 SampleSlope(float bias)
 {
-    float height = 0.0f;
+    vec2 dxUV = dFdx(inData.uv);
+    vec2 dyUV = dFdy(inData.uv);
     float scale = 1.0f;
     vec2 slope = vec2(0.0f);
-    vec2 displacement = vec2(0.0f);
-    for (int i = 0; i < 4; i++)
+
+    for (int i = 0; i < CASCADE_COUNT; i++)
     {
-        float h = texture(FLY_ACCESS_TEXTURE_BUFFER(
-                              Textures, gPushConstants.heightMapCascades[i]),
-                          inUV * scale)
-                      .r;
-        vec4 value =
-            texture(FLY_ACCESS_TEXTURE_BUFFER(
-                        Textures, gPushConstants.diffDisplacementCascades[i]),
-                    inUV * scale);
+        vec2 dxScaled = dxUV * scale * bias;
+        vec2 dyScaled = dyUV * scale * bias;
+
+        vec4 value = textureGrad(
+            FLY_ACCESS_TEXTURE_BUFFER(
+                Textures, gPushConstants.diffDisplacementCascades[i]),
+            inData.uv * scale, dxScaled, dyScaled);
 
         slope += value.xy;
-        height += h;
-        scale *= 4;
+        scale *= 4.0f;
     }
+    return slope;
+}
+
+void main()
+{
+    vec2 slope = SampleSlope(0.5f);
 
     vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
-    vec3 v = normalize(inView);
+    vec3 v = normalize(inData.view);
     float fresnel = pow(1.0 - max(0.15, dot(n, v)), 5.0);
 
     outColor = vec4(vec3(fresnel), 1.0f);

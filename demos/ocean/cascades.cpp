@@ -81,7 +81,7 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
             if (!RHI::CreateReadWriteTexture(
                     device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
                     VK_FORMAT_R16G16B16A16_SFLOAT,
-                    RHI::Sampler::FilterMode::Anisotropy8x,
+                    RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat,
                     cascade.diffDisplacementMaps[j]))
             {
@@ -91,7 +91,7 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
             if (!RHI::CreateReadWriteTexture(
                     device, nullptr, 256 * 256 * sizeof(u16), 256, 256,
                     VK_FORMAT_R16_SFLOAT,
-                    RHI::Sampler::FilterMode::Anisotropy8x,
+                    RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat, cascade.heightMaps[j]))
             {
                 return false;
