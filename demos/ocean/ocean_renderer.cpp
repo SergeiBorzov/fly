@@ -16,6 +16,14 @@ struct UniformData
     Math::Vec4 screenSize;
 };
 
+struct ShadeParams
+{
+    Math::Vec4 lightColorReflectivity;
+    Math::Vec4 waterScatterColor;
+    Math::Vec4 coefficients;
+    Math::Vec4 bubbleColorDensity;
+};
+
 struct Vertex
 {
     Math::Vec2 position;
@@ -158,12 +166,28 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
         {
             return false;
         }
+
+        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(ShadeParams),
+                                      renderer.shadeParamsBuffers[i]))
+        {
+            return false;
+        }
     }
 
     if (!CreateGrid(device, renderer))
     {
         return false;
     }
+
+    renderer.waterScatterColor = Math::Vec3(0.2f, 1.0f, 1.0f);
+    renderer.lightColor = Math::Vec3(1.0f, 0.843f, 0.702f);
+    renderer.bubbleColor = Math::Vec3(1.0f);
+    renderer.ss1 = 24.0f;
+    renderer.ss2 = 0.1f;
+    renderer.a1 = 0.01f;
+    renderer.a2 = 0.1f;
+    renderer.reflectivity = 1.0f;
+    renderer.bubbleDensity = 0.5f;
 
     return true;
 }
@@ -180,6 +204,7 @@ void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, renderer.uniformBuffers[i]);
+        RHI::DestroyBuffer(device, renderer.shadeParamsBuffers[i]);
     }
 }
 
@@ -231,6 +256,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
         RHI::BindGraphicsPipeline(device, cmd, renderer.oceanPipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
+            renderer.shadeParamsBuffers[device.frameIndex].bindlessHandle,
             renderer.vertexBuffer.bindlessHandle};
         RHI::SetPushConstants(device, cmd, pushConstants,
                               sizeof(pushConstants));
@@ -256,6 +282,18 @@ void UpdateOceanRendererUniforms(RHI::Device& device,
                    1.0f / width, 1.0f / height);
     RHI::CopyDataToBuffer(device, &data, sizeof(UniformData), 0,
                           renderer.uniformBuffers[device.frameIndex]);
+
+    ShadeParams shadeParams;
+    shadeParams.lightColorReflectivity =
+        Math::Vec4(renderer.lightColor, renderer.reflectivity);
+    shadeParams.waterScatterColor =
+        Math::Vec4(renderer.waterScatterColor, 0.0f);
+    shadeParams.coefficients =
+        Math::Vec4(renderer.ss1, renderer.ss2, renderer.a1, renderer.a2);
+    shadeParams.bubbleColorDensity =
+        Math::Vec4(renderer.bubbleColor, renderer.bubbleDensity);
+    RHI::CopyDataToBuffer(device, &shadeParams, sizeof(ShadeParams), 0,
+                          renderer.shadeParamsBuffers[device.frameIndex]);
 }
 
 } // namespace Fly

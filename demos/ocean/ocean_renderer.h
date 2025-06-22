@@ -18,19 +18,23 @@ class SimpleCameraFPS;
 
 struct OceanRenderer
 {
-    struct Node
-    {
-        float centerX;
-        float centerY;
-        float size;
-    };
-
     RHI::Buffer uniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+    RHI::Buffer shadeParamsBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
     RHI::Buffer vertexBuffer;
     RHI::Buffer indexBuffer;
     RHI::GraphicsPipeline wireframePipeline;
     RHI::GraphicsPipeline oceanPipeline;
     RHI::GraphicsPipeline skyPipeline;
+    
+    Math::Vec3 lightColor;
+    Math::Vec3 waterScatterColor;
+    Math::Vec3 bubbleColor;
+    f32 ss1;
+    f32 ss2;
+    f32 a1;
+    f32 a2;
+    f32 reflectivity;
+    f32 bubbleDensity;
     u32 indexCount = 0;
 };
 

@@ -17,12 +17,20 @@ layout(location = 0) out vec4 outColor;
 layout(push_constant) uniform PushConstants
 {
     uint uniformBufferIndex;
+    uint shadeParamsBufferIndex;
     uint vertexBufferIndex;
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
 }
 gPushConstants;
+
+FLY_REGISTER_UNIFORM_BUFFER(ShadeParams, {
+    vec4 lightColorReflectivity;
+    vec4 waterScatterColor;
+    vec4 coefficients; // s1, s2, a1, a2
+    vec4 bubbleColorDensity;
+})
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
 FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
@@ -83,10 +91,11 @@ vec3 SubsurfaceScattering(float fresnel, vec3 l, vec3 n, vec3 v, float k1,
 
 // Ambient is from the same guys:
 // https://www.youtube.com/watch?v=Dqld965-Vv0&ab_channel=GameDevelopersConference
+// Basically diffuse + some bubble color
 vec3 AmbientColor(vec3 l, vec3 n, float k1, float k2, float bubbleDensity,
-                  vec3 waterSubsurfaceColor, vec3 lightColor, vec3 bubbleColor)
+                  vec3 waterScatterColor, vec3 lightColor, vec3 bubbleColor)
 {
-    return k1 * max(dot(l, n), 0.0f) * waterSubsurfaceColor * lightColor +
+    return k1 * max(dot(l, n), 0.0f) * waterScatterColor * lightColor +
            k2 * bubbleDensity * bubbleColor;
 }
 
@@ -95,9 +104,20 @@ void main()
     vec2 slope = SampleSlope(0.5f);
 
     vec3 l = normalize(vec3(1.0f, 1.0f, 0.0f));
-    vec3 lightColor = vec3(1.0f, 0.843f, 0.702f);
-    vec3 waterSubsurfaceColor = vec3(0.02, 0.1, 0.15) * 10;
-    vec3 bubbleColor = vec3(1.0f);
+
+    vec4 lightColorReflectivity = FLY_ACCESS_UNIFORM_BUFFER(
+        ShadeParams, gPushConstants.shadeParamsBufferIndex,
+        lightColorReflectivity);
+    vec4 waterScatterColor = FLY_ACCESS_UNIFORM_BUFFER(
+        ShadeParams, gPushConstants.shadeParamsBufferIndex, waterScatterColor);
+    vec4 coefficients = FLY_ACCESS_UNIFORM_BUFFER(
+        ShadeParams, gPushConstants.shadeParamsBufferIndex, coefficients);
+    vec4 bubbleColorDensity = FLY_ACCESS_UNIFORM_BUFFER(
+        ShadeParams, gPushConstants.shadeParamsBufferIndex, bubbleColorDensity);
+
+    // vec3 lightColor = vec3(1.0f, 0.843f, 0.702f);
+    // vec3 waterScatteringColor = vec3(0.02, 0.1, 0.15) * 10;
+    // vec3 bubbleColor = vec3(1.0f);
 
     vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
     vec3 v = normalize(inData.view);
@@ -106,18 +126,22 @@ void main()
 
     float fresnel = pow(1.0 - max(0.0f, dot(n, v)), 5.0);
 
-    vec3 specularColor = SpecularBlinnPhong(n, h, 550.0f) * lightColor;
-    vec3 reflectedColor = ReflectedColor(fresnel, r, 1.0f);
+    vec3 specularColor =
+        SpecularBlinnPhong(n, h, 550.0f) * lightColorReflectivity.xyz;
+    vec3 reflectedColor = ReflectedColor(fresnel, r, lightColorReflectivity.w);
 
-    float k1 = 24.0f;
-    float k2 = 0.1f;
-    float k3 = 0.01f;
-    float k4 = 0.1f;
-    vec3 ssColor = SubsurfaceScattering(fresnel, l, n, v, k1, k2) *
-                   waterSubsurfaceColor * lightColor;
+    // float k1 = 24.0f;
+    // float k2 = 0.1f;
+    // float k3 = 0.01f;
+    // float k4 = 0.1f;
+    vec3 ssColor =
+        SubsurfaceScattering(fresnel, l, n, v, coefficients.x, coefficients.y) *
+        waterScatterColor.xyz * lightColorReflectivity.xyz;
 
-    vec3 ambientColor = AmbientColor(l, n, k3, k4, 0.05f, waterSubsurfaceColor,
-                                     lightColor, bubbleColor);
+    vec3 ambientColor =
+        AmbientColor(l, n, coefficients.z, coefficients.w, bubbleColorDensity.w,
+                     waterScatterColor.xyz, lightColorReflectivity.xyz,
+                     bubbleColorDensity.xyz);
 
     outColor =
         vec4(ambientColor + ssColor + specularColor + reflectedColor, 1.0f);

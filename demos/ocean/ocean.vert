@@ -15,6 +15,7 @@ outData;
 layout(push_constant) uniform PushConstants
 {
     uint uniformBufferIndex;
+    uint shadeParamsBufferIndex;
     uint vertexBufferIndex;
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
