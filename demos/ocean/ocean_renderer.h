@@ -20,11 +20,14 @@ struct OceanRenderer
 {
     RHI::Buffer uniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
     RHI::Buffer shadeParamsBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+    RHI::Texture foamTextures[2];
     RHI::Buffer vertexBuffer;
     RHI::Buffer indexBuffer;
-    RHI::GraphicsPipeline wireframePipeline;
-    RHI::GraphicsPipeline oceanPipeline;
     RHI::GraphicsPipeline skyPipeline;
+    RHI::GraphicsPipeline foamPipeline;
+    RHI::GraphicsPipeline oceanPipeline;
+    RHI::GraphicsPipeline wireframePipeline;
+    VkSemaphore foamSemaphore;
 
     Math::Vec3 lightColor;
     Math::Vec3 waterScatterColor;
@@ -37,6 +40,7 @@ struct OceanRenderer
     f32 reflectivity;
     f32 bubbleDensity;
     u32 indexCount = 0;
+    u32 foamTextureIndex = 0;
 };
 
 struct OceanRendererInputs
@@ -46,7 +50,8 @@ struct OceanRendererInputs
     u32 skyBox;
 };
 
-bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer);
+bool CreateOceanRenderer(RHI::Device& device, u32 foamResolution,
+                         OceanRenderer& renderer);
 void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer);
 void RecordOceanRendererCommands(RHI::Device& device,
                                  const OceanRendererInputs& inputs,

@@ -28,17 +28,17 @@ struct JonswapCascadesRenderer
 {
     JonswapCascade cascades[DEMO_OCEAN_CASCADE_COUNT];
 
+    RHI::ComputePipeline jonswapPipeline;
+    RHI::ComputePipeline ifftPipeline;
+    RHI::ComputePipeline transposePipeline;
+    RHI::ComputePipeline copyPipeline;
+
     u32 resolution;
     f32 fetch;
     f32 windSpeed;
     f32 windDirection;
     f32 spread;
     f32 time;
-
-    RHI::ComputePipeline jonswapPipeline;
-    RHI::ComputePipeline ifftPipeline;
-    RHI::ComputePipeline transposePipeline;
-    RHI::ComputePipeline copyPipeline;
 };
 
 bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,

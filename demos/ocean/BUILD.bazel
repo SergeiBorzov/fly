@@ -84,6 +84,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "foam.frag.spv",
+    src = "foam.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_library(
     name = "lib",
     hdrs = [
@@ -116,6 +124,7 @@ cc_binary(
     data = [
         ":screen_quad.vert.spv",
         ":sky.frag.spv",
+        ":foam.frag.spv",
         ":skybox.frag.spv",
         ":ocean.vert.spv",
         ":ocean.frag.spv",

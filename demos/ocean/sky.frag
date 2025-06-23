@@ -20,25 +20,30 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
+// FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
+FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
 
 void main()
 {
-    mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, projection);
-    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, view);
-    vec4 screenSize = FLY_ACCESS_UNIFORM_BUFFER(
-        UniformData, gPushConstants.uniformBufferIndex, screenSize);
+    // mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
+    //     UniformData, gPushConstants.uniformBufferIndex, projection);
+    // mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
+    //     UniformData, gPushConstants.uniformBufferIndex, view);
+    // vec4 screenSize = FLY_ACCESS_UNIFORM_BUFFER(
+    //     UniformData, gPushConstants.uniformBufferIndex, screenSize);
 
-    vec2 ndc = (gl_FragCoord.xy / screenSize.xy) * 2.0f - 1.0f;
-    vec4 clipSpace = vec4(ndc, 1.0, 1.0);
-    vec4 viewSpace = inverse(projection) * clipSpace;
-    viewSpace /= viewSpace.w;
-    mat3 invView = transpose(mat3(view));
-    vec3 world = normalize(invView * viewSpace.xyz);
+    // vec2 ndc = (gl_FragCoord.xy / screenSize.xy) * 2.0f - 1.0f;
+    // vec4 clipSpace = vec4(ndc, 1.0, 1.0);
+    // vec4 viewSpace = inverse(projection) * clipSpace;
+    // viewSpace /= viewSpace.w;
+    // mat3 invView = transpose(mat3(view));
+    // vec3 world = normalize(invView * viewSpace.xyz);
 
+    // outFragColor = texture(
+    //     FLY_ACCESS_TEXTURE_BUFFER(Cubemaps,
+    //     gPushConstants.skyBoxTextureIndex), world);
+    vec2 uv = inUV;
     outFragColor = texture(
-        FLY_ACCESS_TEXTURE_BUFFER(Cubemaps, gPushConstants.skyBoxTextureIndex),
-        world);
+        FLY_ACCESS_TEXTURE_BUFFER(Textures, gPushConstants.skyBoxTextureIndex),
+        uv);
 }

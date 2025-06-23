@@ -434,8 +434,9 @@ bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
     FLY_ASSERT(dataSize == GetTexelSize(format) * width * height);
 
     u32 mipLevelCount = 1;
-    VkImageUsageFlags usage =
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                              VK_IMAGE_USAGE_SAMPLED_BIT |
+                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     if (filterMode != Sampler::FilterMode::Nearest)
     {
         mipLevelCount = Log2(MAX(width, height)) + 1;

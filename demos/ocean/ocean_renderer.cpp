@@ -3,6 +3,8 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "rhi/allocation_callbacks.h"
+
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
@@ -98,7 +100,8 @@ static bool CreateGrid(RHI::Device& device, OceanRenderer& renderer)
     return true;
 }
 
-bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
+bool CreateOceanRenderer(RHI::Device& device, u32 resolution,
+                         OceanRenderer& renderer)
 {
     RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
@@ -108,20 +111,20 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
     fixedState.depthStencilState.depthTestEnable = true;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    // fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
     fixedState.inputAssemblyState.topology =
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "ocean.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    if (!LoadShaderFromSpv(device, "ocean.vert.spv",
+                           shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "ocean.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
+    if (!LoadShaderFromSpv(device, "ocean.frag.spv",
+                           shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
     }
@@ -143,13 +146,13 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
     fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
     fixedState.depthStencilState.depthTestEnable = false;
     fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    if (!LoadShaderFromSpv(device, "screen_quad.vert.spv",
+                           shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "sky.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
+    if (!LoadShaderFromSpv(device, "sky.frag.spv",
+                           shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
     }
@@ -158,6 +161,20 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
     {
         return false;
     }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    if (!LoadShaderFromSpv(device, "foam.frag.spv",
+                           shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R8G8B8A8_UNORM;
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     renderer.foamPipeline))
+    {
+        return false;
+    }
+
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
@@ -176,10 +193,35 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
         }
     }
 
+    for (u32 i = 0; i < 2; i++)
+    {
+        if (!RHI::CreateTexture(
+                device, nullptr, resolution * resolution * 4 * sizeof(u8),
+                resolution, resolution, VK_FORMAT_R8G8B8A8_UNORM,
+                RHI::Sampler::FilterMode::Nearest,
+                RHI::Sampler::WrapMode::Repeat, renderer.foamTextures[i]))
+        {
+            return false;
+        }
+    }
+
     if (!CreateGrid(device, renderer))
     {
         return false;
     }
+
+    VkSemaphoreTypeCreateInfo timelineCreateInfo{};
+    timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    timelineCreateInfo.initialValue = 0;
+
+    VkSemaphoreCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    createInfo.pNext = &timelineCreateInfo;
+
+    vkCreateSemaphore(device.logicalDevice, &createInfo,
+                      RHI::GetVulkanAllocationCallbacks(),
+                      &renderer.foamSemaphore);
 
     renderer.waterScatterColor = Math::Vec3(0.2f, 0.55f, 1.0f);
     renderer.lightColor = Math::Vec3(1.0f, 0.843f, 0.702f);
@@ -198,9 +240,13 @@ bool CreateOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
 
 void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
 {
+    vkDestroySemaphore(device.logicalDevice, renderer.foamSemaphore,
+                       RHI::GetVulkanAllocationCallbacks());
+
     RHI::DestroyGraphicsPipeline(device, renderer.wireframePipeline);
     RHI::DestroyGraphicsPipeline(device, renderer.oceanPipeline);
     RHI::DestroyGraphicsPipeline(device, renderer.skyPipeline);
+    RHI::DestroyGraphicsPipeline(device, renderer.foamPipeline);
 
     RHI::DestroyBuffer(device, renderer.vertexBuffer);
     RHI::DestroyBuffer(device, renderer.indexBuffer);
@@ -210,14 +256,71 @@ void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
         RHI::DestroyBuffer(device, renderer.uniformBuffers[i]);
         RHI::DestroyBuffer(device, renderer.shadeParamsBuffers[i]);
     }
+
+    for (u32 i = 0; i < 2; i++)
+    {
+        RHI::DestroyTexture(device, renderer.foamTextures[i]);
+    }
 }
 
 void RecordOceanRendererCommands(RHI::Device& device,
                                  const OceanRendererInputs& inputs,
                                  OceanRenderer& renderer)
 {
+    // Render to foam texture
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
+    {
+        u32 inFoamTextureIndex = renderer.foamTextureIndex;
+        u32 outFoamTextureIndex = (renderer.foamTextureIndex + 1) % 2;
+        RHI::Texture& inFoamTexture = renderer.foamTextures[inFoamTextureIndex];
+        RHI::Texture& outFoamTexture =
+            renderer.foamTextures[outFoamTextureIndex];
+
+        RecordTransitionImageLayout(cmd, inFoamTexture.image,
+                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        RecordTransitionImageLayout(cmd, outFoamTexture.image,
+                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        VkRect2D renderArea = {{0, 0},
+                               {outFoamTexture.width, outFoamTexture.height}};
+        VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
+            outFoamTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkRenderingInfo renderInfo =
+            RHI::RenderingInfo(renderArea, &colorAttachment, 1, nullptr);
+
+        vkCmdBeginRendering(cmd.handle, &renderInfo);
+
+        VkViewport viewport = {};
+        viewport.x = 0;
+        viewport.y = renderArea.extent.height;
+        viewport.width = static_cast<f32>(renderArea.extent.width);
+        viewport.height = -static_cast<f32>(renderArea.extent.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
+
+        VkRect2D scissor = renderArea;
+        vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
+
+        RHI::BindGraphicsPipeline(device, cmd, renderer.foamPipeline);
+        u32 pushConstants[] = {inFoamTexture.bindlessHandle};
+        RHI::SetPushConstants(device, cmd, pushConstants,
+                              sizeof(pushConstants));
+        vkCmdDraw(cmd.handle, 6, 1, 0, 0);
+
+        vkCmdEndRendering(cmd.handle);
+
+        RecordTransitionImageLayout(cmd, outFoamTexture.image,
+                                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        renderer.foamTextureIndex = (renderer.foamTextureIndex + 1) % 2;
+    }
+
+    // Render to screen
     const RHI::SwapchainTexture& swapchainTexture =
         RenderFrameSwapchainTexture(device);
     VkRect2D renderArea = {{0, 0},
@@ -249,29 +352,31 @@ void RecordOceanRendererCommands(RHI::Device& device,
         RHI::BindGraphicsPipeline(device, cmd, renderer.skyPipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
-            inputs.skyBox};
+            renderer.foamTextures[renderer.foamTextureIndex].bindlessHandle
+            /*inputs.skyBox*/};
         RHI::SetPushConstants(device, cmd, pushConstants,
                               sizeof(pushConstants));
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
     }
 
     // Ocean
-    {
-        RHI::BindGraphicsPipeline(device, cmd, *sCurrentPipeline);
-        u32 pushConstants[] = {
-            renderer.uniformBuffers[device.frameIndex].bindlessHandle,
-            renderer.shadeParamsBuffers[device.frameIndex].bindlessHandle,
-            renderer.vertexBuffer.bindlessHandle};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
-        RHI::SetPushConstants(device, cmd, &inputs, sizeof(inputs),
-                              sizeof(pushConstants));
-        RHI::SetPushConstants(device, cmd, &renderer.waveChopiness, sizeof(f32),
-                              sizeof(pushConstants) + sizeof(inputs));
-        vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
-                             VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
-    }
+    // {
+    //     RHI::BindGraphicsPipeline(device, cmd, *sCurrentPipeline);
+    //     u32 pushConstants[] = {
+    //         renderer.uniformBuffers[device.frameIndex].bindlessHandle,
+    //         renderer.shadeParamsBuffers[device.frameIndex].bindlessHandle,
+    //         renderer.vertexBuffer.bindlessHandle};
+    //     RHI::SetPushConstants(device, cmd, pushConstants,
+    //                           sizeof(pushConstants));
+    //     RHI::SetPushConstants(device, cmd, &inputs, sizeof(inputs),
+    //                           sizeof(pushConstants));
+    //     RHI::SetPushConstants(device, cmd, &renderer.waveChopiness,
+    //     sizeof(f32),
+    //                           sizeof(pushConstants) + sizeof(inputs));
+    //     vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
+    //                          VK_INDEX_TYPE_UINT32);
+    //     vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
+    // }
 
     vkCmdEndRendering(cmd.handle);
 }

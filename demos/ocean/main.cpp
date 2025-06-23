@@ -54,7 +54,8 @@ static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
     vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
 
     if (!multiviewFeatures.multiview ||
-        !unusedAttachmentsFeature.dynamicRenderingUnusedAttachments)
+        !unusedAttachmentsFeature.dynamicRenderingUnusedAttachments ||
+        !info.vulkan12Features.timelineSemaphore)
     {
         return false;
     }
@@ -373,7 +374,7 @@ int main(int argc, char* argv[])
         return false;
     }
 
-    if (!CreateOceanRenderer(device, sOceanRenderer))
+    if (!CreateOceanRenderer(device, 256, sOceanRenderer))
     {
         return false;
     }
@@ -387,6 +388,8 @@ int main(int argc, char* argv[])
         currentFrameTime = Fly::ClockNow();
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
         f32 time = Fly::ToSeconds(currentFrameTime - loopStartTime);
+
+        // FLY_LOG("FPS %f", 1.0f/ deltaTime);
 
         ImGuiIO& io = ImGui::GetIO();
         bool wantMouse = io.WantCaptureMouse;

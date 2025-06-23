@@ -1123,6 +1123,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
     vulkan12Features.descriptorBindingPartiallyBound = true;
     vulkan12Features.runtimeDescriptorArray = true;
     vulkan12Features.drawIndirectCount = true;
+    vulkan12Features.timelineSemaphore = true;
     vulkan12Features.pNext = &shaderDrawParametersFeatures;
 
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
