@@ -42,9 +42,10 @@ bool EndCommandBuffer(CommandBuffer& commandBuffer);
 bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          const VkSemaphore* waitSemaphores,
                          u32 waitSemaphoreCount,
-                         const VkPipelineStageFlags& waitStageMask,
+                         VkPipelineStageFlags* pipelineStageMasks,
                          const VkSemaphore* signalSemaphores,
-                         u32 signalSemaphoreCount, VkFence fence);
+                         u32 signalSemaphoreCount, VkFence fence,
+                         void* pNext = nullptr);
 bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources);
 
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,

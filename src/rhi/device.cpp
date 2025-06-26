@@ -946,7 +946,11 @@ bool BeginRenderFrame(Device& device)
     return true;
 }
 
-bool EndRenderFrame(Device& device)
+bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
+                    VkPipelineStageFlags* extraWaitStageMasks,
+                    u32 extraWaitSemaphoreCount,
+                    VkSemaphore* extraSignalSemaphores,
+                    u32 extraSignalSemaphoreCount, void* pNext)
 {
     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
@@ -960,12 +964,40 @@ bool EndRenderFrame(Device& device)
     }
     EndCommandBuffer(cmd);
 
-    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    SubmitCommandBuffer(cmd, device.graphicsComputeQueue,
-                        &device.frameData[device.frameIndex].swapchainSemaphore,
-                        1, waitStage,
-                        &device.frameData[device.frameIndex].renderSemaphore, 1,
-                        device.frameData[device.frameIndex].renderFence);
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    u32 waitSemaphoreCount = 1 + extraWaitSemaphoreCount;
+    u32 waitStageMaskCount = 1 + extraWaitSemaphoreCount;
+    u32 signalSemaphoreCount = 1 + extraSignalSemaphoreCount;
+    VkSemaphore* waitSemaphores =
+        FLY_PUSH_ARENA(arena, VkSemaphore, waitSemaphoreCount);
+    VkPipelineStageFlags* waitStageMasks =
+        FLY_PUSH_ARENA(arena, VkPipelineStageFlags, waitStageMaskCount);
+    VkSemaphore* signalSemaphores =
+        FLY_PUSH_ARENA(arena, VkSemaphore, signalSemaphoreCount);
+    waitSemaphores[0] = device.frameData[device.frameIndex].swapchainSemaphore;
+    waitStageMasks[0] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    signalSemaphores[0] = device.frameData[device.frameIndex].renderSemaphore;
+
+    if (waitSemaphoreCount > 1)
+    {
+        memcpy(waitSemaphores + 1, extraWaitSemaphores,
+               sizeof(VkSemaphore) * extraWaitSemaphoreCount);
+        memcpy(waitStageMasks + 1, extraWaitStageMasks,
+               sizeof(VkPipelineStageFlagBits) * extraWaitSemaphoreCount);
+    }
+    if (signalSemaphoreCount > 1)
+    {
+        memcpy(signalSemaphores + 1, extraSignalSemaphores,
+               sizeof(VkSemaphore) * extraSignalSemaphoreCount);
+    }
+
+    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, waitSemaphores,
+                        waitSemaphoreCount, waitStageMasks, signalSemaphores,
+                        signalSemaphoreCount,
+                        device.frameData[device.frameIndex].renderFence, pNext);
+    ArenaPopToMarker(arena, marker);
 
     if (device.swapchain != VK_NULL_HANDLE)
     {
@@ -1017,7 +1049,7 @@ void EndTransfer(Device& device)
     EndCommandBuffer(cmd);
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, nullptr, 0, waitStage,
+    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, nullptr, 0, &waitStage,
                         nullptr, 0, device.transferData.transferFence);
     vkWaitForFences(device.logicalDevice, 1, &device.transferData.transferFence,
                     VK_TRUE, UINT64_MAX);

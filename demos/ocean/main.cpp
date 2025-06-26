@@ -406,9 +406,24 @@ int main(int argc, char* argv[])
         UpdateOceanRendererUniforms(device, sCamera, WINDOW_WIDTH,
                                     WINDOW_HEIGHT, sOceanRenderer);
 
+        uint64_t waitValues[2] = {0, sOceanRenderer.currentTimelineValue};
+        uint64_t signalValues[2] = {0, sOceanRenderer.currentTimelineValue + 1};
+
+        VkTimelineSemaphoreSubmitInfo timelineSubmitInfo{};
+        timelineSubmitInfo.sType =
+            VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+        timelineSubmitInfo.waitSemaphoreValueCount = 2;
+        timelineSubmitInfo.pWaitSemaphoreValues = waitValues;
+        timelineSubmitInfo.signalSemaphoreValueCount = 2;
+        timelineSubmitInfo.pSignalSemaphoreValues = signalValues;
+
+        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         RHI::BeginRenderFrame(device);
         ExecuteCommands(device);
-        RHI::EndRenderFrame(device);
+        RHI::EndRenderFrame(device, &sOceanRenderer.foamSemaphore, &waitStage,
+                            1, &sOceanRenderer.foamSemaphore, 1,
+                            &timelineSubmitInfo);
+        sOceanRenderer.currentTimelineValue = signalValues[1];
     }
 
     RHI::WaitAllDevicesIdle(context);

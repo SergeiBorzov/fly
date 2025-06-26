@@ -139,17 +139,18 @@ bool EndCommandBuffer(CommandBuffer& commandBuffer)
 bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          const VkSemaphore* waitSemaphores,
                          u32 waitSemaphoreCount,
-                         const VkPipelineStageFlags& waitStageMask,
+                         VkPipelineStageFlags* pipelineStageMasks,
                          const VkSemaphore* signalSemaphores,
-                         u32 signalSemaphoreCount, VkFence fence)
+                         u32 signalSemaphoreCount, VkFence fence, void* pNext)
 {
     FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recorded);
 
     VkSubmitInfo submitInfo{};
+    submitInfo.pNext = pNext;
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = waitSemaphoreCount;
     submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = &waitStageMask;
+    submitInfo.pWaitDstStageMask = pipelineStageMasks;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer.handle;
     submitInfo.signalSemaphoreCount = signalSemaphoreCount;

@@ -32,6 +32,8 @@ struct OceanRenderer
     Math::Vec3 lightColor;
     Math::Vec3 waterScatterColor;
     Math::Vec3 bubbleColor;
+
+    u64 currentTimelineValue = 0;
     f32 waveChopiness;
     f32 ss1;
     f32 ss2;
