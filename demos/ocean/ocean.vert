@@ -3,6 +3,7 @@
 #include "bindless.glsl"
 
 #define CASCADE_COUNT 4
+#define RATIO 4.31662479036f // 1 + sqrt(11)
 
 layout(location = 0) out VertexData
 {
@@ -56,7 +57,7 @@ vec3 SampleHeightDisplacement(vec2 uv)
                      .rgb;
         displacement += h.yz;
         height += h.x;
-        scale *= 4;
+        scale *= RATIO;
     }
 
     return vec3(height, displacement);
@@ -77,8 +78,7 @@ void main()
     outData.height = h.x;
     h.yz *= gPushConstants.waveChopiness;
 
-    vec3 worldPos =
-        vec3(vertex.position.x + h.y, h.x, vertex.position.y + h.z);
+    vec3 worldPos = vec3(vertex.position.x + h.y, h.x, vertex.position.y + h.z);
 
     mat3 R = mat3(view);
     vec3 T = vec3(view[3]);

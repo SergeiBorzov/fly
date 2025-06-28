@@ -3,6 +3,7 @@
 #include "bindless.glsl"
 
 #define CASCADE_COUNT 4
+#define RATIO 4.31662479036f // 1 + sqrt(11)
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outFragColor;
@@ -48,7 +49,7 @@ float SampleDetJacobian(float bias)
         dxDx += value.z;
         dyDy += value.w;
         dyDx += h.w;
-        scale *= 4.0f;
+        scale *= RATIO;
     }
 
     vec3 jacobian =

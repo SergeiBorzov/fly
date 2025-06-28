@@ -2,7 +2,9 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "bindless.glsl"
 
-layout(local_size_x = 256) in;
+#define POWER 8
+#define GROUP_SIZE (1u << POWER)
+layout(local_size_x = GROUP_SIZE) in;
 
 FLY_REGISTER_STORAGE_BUFFER(, Data, {
     vec2 value;
@@ -37,12 +39,12 @@ vec4 Butterfly(vec2 w, vec2 u, vec2 t)
     return vec4(u + tw, u - tw);
 }
 
-shared vec2 functionShared[256];
-shared vec2 displacementShared[256];
-shared vec2 dxFunctionShared[256];
-shared vec2 dyFunctionShared[256];
-shared vec2 dxDisplacementShared[256];
-shared vec2 dyDisplacementShared[256];
+shared vec2 functionShared[GROUP_SIZE];
+shared vec2 displacementShared[GROUP_SIZE];
+shared vec2 dxFunctionShared[GROUP_SIZE];
+shared vec2 dyFunctionShared[GROUP_SIZE];
+shared vec2 dxDisplacementShared[GROUP_SIZE];
+shared vec2 dyDisplacementShared[GROUP_SIZE];
 
 void main()
 {
@@ -50,7 +52,7 @@ void main()
     uint r = gl_WorkGroupID.x;
 
     uint base = r * gl_WorkGroupSize.x;
-    uint index = bitReverse(c) >> 24;
+    uint index = bitReverse(c) >> (32 - POWER);
 
     Data data = FLY_ACCESS_STORAGE_BUFFER(
         Data, gPushConstants.dataBufferIndex)[base + c];
@@ -64,7 +66,7 @@ void main()
     barrier();
 
     // Cooley–Tukey FFT
-    for (uint s = 1; s <= 8; ++s)
+    for (uint s = 1; s <= POWER; ++s)
     {
         uint m = 1 << s;
         uint half_m = m >> 1;

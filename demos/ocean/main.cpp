@@ -356,33 +356,28 @@ int main(int argc, char* argv[])
     {
         return false;
     }
-    sCascadesRenderer.cascades[0].domain = 256.0f;
+
+    float ratio = 1 + Math::Sqrt(11);
+    float domain = 256.0f;
+    sCascadesRenderer.cascades[0].domain = domain;
     sCascadesRenderer.cascades[0].kMin = 0.0f;
     sCascadesRenderer.cascades[0].kMax = 0.5f;
-    sCascadesRenderer.cascades[1].domain = 64.0f;
+    sCascadesRenderer.cascades[1].domain = domain / ratio;
     sCascadesRenderer.cascades[1].kMin = 0.5f;
     sCascadesRenderer.cascades[1].kMax = 3.0f;
-    sCascadesRenderer.cascades[2].domain = 16.0f;
+    sCascadesRenderer.cascades[2].domain = domain / ratio / ratio;
     sCascadesRenderer.cascades[2].kMin = 3.0f;
     sCascadesRenderer.cascades[2].kMax = 20.0f;
-    sCascadesRenderer.cascades[3].domain = 4.0f;
+    sCascadesRenderer.cascades[3].domain = domain / ratio / ratio / ratio;
     sCascadesRenderer.cascades[3].kMin = 20.0f;
-    sCascadesRenderer.cascades[3].kMax = 120.0f;
-
-    for (u32 i = 0; i < 4; i++)
-    {
-        FLY_LOG("Cascade %u wavenumber from %f to %f", i,
-                FLY_MATH_TWO_PI / sCascadesRenderer.cascades[i].domain,
-                Math::Sqrt(2) * FLY_MATH_PI * 256 /
-                    sCascadesRenderer.cascades[i].domain);
-    }
+    sCascadesRenderer.cascades[3].kMax = 230.0f;
 
     if (!CreateSkyBoxRenderer(device, 256, sSkyBoxRenderer))
     {
         return false;
     }
 
-    if (!CreateOceanRenderer(device, 8192, sOceanRenderer))
+    if (!CreateOceanRenderer(device, 4096, sOceanRenderer))
     {
         return false;
     }
@@ -397,7 +392,7 @@ int main(int argc, char* argv[])
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
         f32 time = Fly::ToSeconds(currentFrameTime - loopStartTime);
 
-        // FLY_LOG("FPS %f", 1.0f/ deltaTime);
+        FLY_LOG("FPS %f", 1.0f / deltaTime);
 
         ImGuiIO& io = ImGui::GetIO();
         bool wantMouse = io.WantCaptureMouse;

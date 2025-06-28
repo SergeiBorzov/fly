@@ -3,6 +3,8 @@
 #include "bindless.glsl"
 
 #define CASCADE_COUNT 4
+#define RATIO 4.31662479036f // 1 + sqrt(11)
+#define MIP_BIAS 0.25f
 
 layout(location = 0) in VertexData
 {
@@ -69,7 +71,7 @@ vec2 SampleSlope(float bias)
         dxDx += value.z;
         dyDy += value.w;
         dyDx += h.w;
-        scale *= 4.0f;
+        scale *= RATIO;
     }
 
     vec3 jacobian =
@@ -84,10 +86,11 @@ float SampleFoam(float bias)
 {
     vec2 dxScaled = dFdx(inData.uv) * bias;
     vec2 dyScaled = dFdy(inData.uv) * bias;
-    float foamValue = textureGrad(FLY_ACCESS_TEXTURE_BUFFER(
-                                     Textures, gPushConstants.foamTextureIndex),
-                                 inData.uv, dxScaled, dyScaled)
-                         .r;
+    float foamValue =
+        textureGrad(FLY_ACCESS_TEXTURE_BUFFER(Textures,
+                                              gPushConstants.foamTextureIndex),
+                    inData.uv, dxScaled, dyScaled)
+            .r;
     return foamValue;
 }
 
@@ -146,7 +149,7 @@ void main()
     vec4 bubbleColorDensity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex, bubbleColorDensity);
 
-    vec2 slope = SampleSlope(0.15f);
+    vec2 slope = SampleSlope(MIP_BIAS);
     vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
 
     vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
@@ -173,7 +176,7 @@ void main()
     vec3 foamColor = mix(lightColorReflectivity.xyz, vec3(1.0), 0.5) * 1.1;
 
     vec3 finalColor =
-        mix(waterColor, foamColor, clamp(SampleFoam(0.15f), 0.0f, 1.0f));
+        mix(waterColor, foamColor, clamp(SampleFoam(MIP_BIAS), 0.0f, 1.0f));
 
     outColor = vec4(finalColor, 1.0f);
 }

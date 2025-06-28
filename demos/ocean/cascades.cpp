@@ -81,8 +81,8 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
             }
 
             if (!RHI::CreateReadWriteTexture(
-                    device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
-                    VK_FORMAT_R16G16B16A16_SFLOAT,
+                    device, nullptr, resolution * resolution * 4 * sizeof(u16),
+                    resolution, resolution, VK_FORMAT_R16G16B16A16_SFLOAT,
                     RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat,
                     cascade.diffDisplacementMaps[j]))
@@ -91,8 +91,8 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
             }
 
             if (!RHI::CreateReadWriteTexture(
-                    device, nullptr, 256 * 256 * 4 * sizeof(u16), 256, 256,
-                    VK_FORMAT_R16G16B16A16_SFLOAT,
+                    device, nullptr, resolution * resolution * 4 * sizeof(u16),
+                    resolution, resolution, VK_FORMAT_R16G16B16A16_SFLOAT,
                     RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat, cascade.heightMaps[j]))
             {
@@ -175,7 +175,7 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
                 cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle};
             RHI::SetPushConstants(device, cmd, pushConstants,
                                   sizeof(pushConstants));
-            vkCmdDispatch(cmd.handle, 256, 1, 1);
+            vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
         }
         VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
         for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
@@ -234,7 +234,7 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
                     .bindlessHandle};
             RHI::SetPushConstants(device, cmd, pushConstants,
                                   sizeof(pushConstants));
-            vkCmdDispatch(cmd.handle, 256, 1, 1);
+            vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
         }
         VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
         for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
