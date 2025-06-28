@@ -98,11 +98,13 @@ const SwapchainTexture& RenderFrameSwapchainTexture(const Device& device);
 CommandBuffer& RenderFrameCommandBuffer(Device& device);
 bool BeginRenderFrame(Device& device);
 
-bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores = nullptr,
-                    VkPipelineStageFlags* extraWaitStageMasks = nullptr,
-                    u32 extraWaitSemaphoreCount = 0,
-                    VkSemaphore* extraSignalSemaphores = nullptr,
-                    u32 extraSignalSemaphoreCount = 0, void* pNext = nullptr);
+bool EndRenderFrame(Device& device);
+bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
+                    VkPipelineStageFlags* extraWaitStageMasks,
+                    u32 extraWaitSemaphoreCount,
+                    VkSemaphore* extraSignalSemaphores,
+                    u32 extraSignalSemaphoreCount, void* pNext);
+
 
 void DeviceWaitIdle(Device& device);
 

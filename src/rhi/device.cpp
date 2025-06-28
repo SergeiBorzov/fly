@@ -946,6 +946,57 @@ bool BeginRenderFrame(Device& device)
     return true;
 }
 
+bool EndRenderFrame(Device& device)
+{
+    CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    if (device.swapchain != VK_NULL_HANDLE)
+    {
+        // Image transition to presentable
+        RecordTransitionImageLayout(
+            cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
+    EndCommandBuffer(cmd);
+
+    VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    SubmitCommandBuffer(
+        cmd, device.graphicsComputeQueue,
+        &device.frameData[device.frameIndex].swapchainSemaphore, 1,
+        &waitStageMask, &device.frameData[device.frameIndex].renderSemaphore, 1,
+        device.frameData[device.frameIndex].renderFence, nullptr);
+
+    if (device.swapchain != VK_NULL_HANDLE)
+    {
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores =
+            &device.frameData[device.frameIndex].renderSemaphore;
+        presentInfo.pSwapchains = &device.swapchain;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pImageIndices = &device.swapchainTextureIndex;
+        presentInfo.pResults = nullptr;
+
+        VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
+
+        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+        {
+            if (!RecreateSwapchain(device))
+            {
+                return false;
+            }
+        }
+        else if (res != VK_SUCCESS)
+        {
+            return false;
+        }
+    }
+    device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
+    return true;
+}
+
 bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
                     VkPipelineStageFlags* extraWaitStageMasks,
                     u32 extraWaitSemaphoreCount,
@@ -1049,8 +1100,9 @@ void EndTransfer(Device& device)
     EndCommandBuffer(cmd);
 
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, nullptr, 0, &waitStage,
-                        nullptr, 0, device.transferData.transferFence);
+    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, nullptr, 0,
+                        &waitStage, nullptr, 0,
+                        device.transferData.transferFence);
     vkWaitForFences(device.logicalDevice, 1, &device.transferData.transferFence,
                     VK_TRUE, UINT64_MAX);
 }
