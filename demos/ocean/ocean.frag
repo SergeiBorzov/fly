@@ -22,6 +22,7 @@ layout(push_constant) uniform PushConstants
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
+    uint foamTextureIndex;
     float waveChopiness;
 }
 gPushConstants;
@@ -39,7 +40,7 @@ FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
 // Since we scale uvs a lot for cascades, we create big derivatives
 // Original texture function is to aggressive with filtering
 // Bias allows to scaled down derivatives making filtering less aggressive
-vec3 SampleSlopeDetJacobian(float bias)
+vec2 SampleSlope(float bias)
 {
     vec2 dxUV = dFdx(inData.uv);
     vec2 dyUV = dFdy(inData.uv);
@@ -76,8 +77,18 @@ vec3 SampleSlopeDetJacobian(float bias)
     // Correct normal after displacement
     slope /= jacobian.xy;
 
-    float detJ = (jacobian.x * jacobian.y - jacobian.z * jacobian.z);
-    return vec3(slope, detJ);
+    return slope;
+}
+
+float SampleFoam(float bias)
+{
+    vec2 dxScaled = dFdx(inData.uv) * bias;
+    vec2 dyScaled = dFdy(inData.uv) * bias;
+    float foamValue = textureGrad(FLY_ACCESS_TEXTURE_BUFFER(
+                                     Textures, gPushConstants.foamTextureIndex),
+                                 inData.uv, dxScaled, dyScaled)
+                         .r;
+    return foamValue;
 }
 
 float Fresnel(vec3 n, vec3 v) { return pow(1.0 - max(0.0, dot(n, v)), 5.0); }
@@ -135,11 +146,8 @@ void main()
     vec4 bubbleColorDensity = FLY_ACCESS_UNIFORM_BUFFER(
         ShadeParams, gPushConstants.shadeParamsBufferIndex, bubbleColorDensity);
 
-    vec3 foamColor = mix(lightColorReflectivity.xyz, vec3(1.0), 0.5) * 1.1;
-    float foamOffset = 0.25f;
-
-    vec3 slopeDetJ = SampleSlopeDetJacobian(0.15f);
-    vec3 n = normalize(vec3(-slopeDetJ.x, 1.0f, -slopeDetJ.y));
+    vec2 slope = SampleSlope(0.15f);
+    vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
 
     vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
     vec3 v = normalize(inData.view);
@@ -162,9 +170,10 @@ void main()
                      bubbleColorDensity.xyz);
 
     vec3 waterColor = ambientColor + ssColor + specularColor + reflectedColor;
+    vec3 foamColor = mix(lightColorReflectivity.xyz, vec3(1.0), 0.5) * 1.1;
 
-    vec3 finalColor = mix(waterColor, foamColor,
-                          clamp(-(slopeDetJ.z + foamOffset), 0.0f, 1.0f));
+    vec3 finalColor =
+        mix(waterColor, foamColor, clamp(SampleFoam(0.15f), 0.0f, 1.0f));
 
     outColor = vec4(finalColor, 1.0f);
 }

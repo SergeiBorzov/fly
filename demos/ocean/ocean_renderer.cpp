@@ -168,7 +168,7 @@ bool CreateOceanRenderer(RHI::Device& device, u32 resolution,
     {
         return false;
     }
-    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R8G8B8A8_UNORM;
+    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R8_UNORM;
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      renderer.foamPipeline))
     {
@@ -196,9 +196,9 @@ bool CreateOceanRenderer(RHI::Device& device, u32 resolution,
     for (u32 i = 0; i < 2; i++)
     {
         if (!RHI::CreateTexture(
-                device, nullptr, resolution * resolution * 4 * sizeof(u8),
-                resolution, resolution, VK_FORMAT_R8G8B8A8_UNORM,
-                RHI::Sampler::FilterMode::Nearest,
+                device, nullptr, resolution * resolution * sizeof(u8),
+                resolution, resolution, VK_FORMAT_R8_UNORM,
+                RHI::Sampler::FilterMode::Anisotropy8x,
                 RHI::Sampler::WrapMode::Repeat, renderer.foamTextures[i]))
         {
             return false;
@@ -223,15 +223,17 @@ bool CreateOceanRenderer(RHI::Device& device, u32 resolution,
                       RHI::GetVulkanAllocationCallbacks(),
                       &renderer.foamSemaphore);
 
-    renderer.waterScatterColor = Math::Vec3(0.2f, 0.55f, 1.0f);
-    renderer.lightColor = Math::Vec3(1.0f, 0.843f, 0.702f);
+    renderer.waterScatterColor = Math::Vec3(0.059f, 0.3725f, 0.349f);
+    renderer.lightColor = Math::Vec3(0.961f, 0.945f, 0.89f);
     renderer.bubbleColor = Math::Vec3(1.0f);
-    renderer.ss1 = 15.0f;
-    renderer.ss2 = 0.3f;
+    renderer.ss1 = 5.92f;
+    renderer.ss2 = 0.17f;
     renderer.a1 = 0.01f;
     renderer.a2 = 0.1f;
     renderer.reflectivity = 1.0f;
     renderer.bubbleDensity = 0.14f;
+    renderer.foamDecay = 1.46f;
+    renderer.foamGain = 1.49f;
     renderer.waveChopiness = 1.0f;
 
     sCurrentPipeline = &renderer.oceanPipeline;
@@ -262,6 +264,29 @@ void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
         RHI::DestroyTexture(device, renderer.foamTextures[i]);
     }
 }
+
+struct FoamPushConstants
+{
+    u32 heightMaps[4];
+    u32 diffDisplacementMaps[4];
+    u32 foamTextureIndex;
+    f32 waveChopiness;
+    f32 foamDecay;
+    f32 foamGain;
+    f32 deltaTime;
+};
+
+struct OceanPushConstants
+{
+    u32 uniformBufferIndex;
+    u32 shadeParamsBufferIndex;
+    u32 vertexBufferIndex;
+    u32 heightMapCascades[4];
+    u32 diffDisplacementCascades[4];
+    u32 skyBoxTextureIndex;
+    u32 foamTextureIndex;
+    f32 waveChopiness;
+};
 
 void RecordOceanRendererCommands(RHI::Device& device,
                                  const OceanRendererInputs& inputs,
@@ -306,9 +331,22 @@ void RecordOceanRendererCommands(RHI::Device& device,
         vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
         RHI::BindGraphicsPipeline(device, cmd, renderer.foamPipeline);
-        u32 pushConstants[] = {inFoamTexture.bindlessHandle};
-        RHI::SetPushConstants(device, cmd, pushConstants,
+
+        FoamPushConstants pushConstants;
+        pushConstants.foamTextureIndex = inFoamTexture.bindlessHandle;
+        for (u32 i = 0; i < 4; i++)
+        {
+            pushConstants.heightMaps[i] = inputs.heightMaps[i];
+            pushConstants.diffDisplacementMaps[i] =
+                inputs.diffDisplacementMaps[i];
+        }
+        pushConstants.waveChopiness = renderer.waveChopiness;
+        pushConstants.foamGain = renderer.foamGain;
+        pushConstants.foamDecay = renderer.foamDecay;
+        pushConstants.deltaTime = inputs.deltaTime;
+        RHI::SetPushConstants(device, cmd, &pushConstants,
                               sizeof(pushConstants));
+
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
 
         vkCmdEndRendering(cmd.handle);
@@ -352,31 +390,40 @@ void RecordOceanRendererCommands(RHI::Device& device,
         RHI::BindGraphicsPipeline(device, cmd, renderer.skyPipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
-            renderer.foamTextures[renderer.foamTextureIndex].bindlessHandle
-            /*inputs.skyBox*/};
+            /*renderer.foamTextures[renderer.foamTextureIndex].bindlessHandle*/
+            inputs.skyBox};
         RHI::SetPushConstants(device, cmd, pushConstants,
                               sizeof(pushConstants));
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
     }
 
     // Ocean
-    // {
-    //     RHI::BindGraphicsPipeline(device, cmd, *sCurrentPipeline);
-    //     u32 pushConstants[] = {
-    //         renderer.uniformBuffers[device.frameIndex].bindlessHandle,
-    //         renderer.shadeParamsBuffers[device.frameIndex].bindlessHandle,
-    //         renderer.vertexBuffer.bindlessHandle};
-    //     RHI::SetPushConstants(device, cmd, pushConstants,
-    //                           sizeof(pushConstants));
-    //     RHI::SetPushConstants(device, cmd, &inputs, sizeof(inputs),
-    //                           sizeof(pushConstants));
-    //     RHI::SetPushConstants(device, cmd, &renderer.waveChopiness,
-    //     sizeof(f32),
-    //                           sizeof(pushConstants) + sizeof(inputs));
-    //     vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
-    //                          VK_INDEX_TYPE_UINT32);
-    //     vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
-    // }
+    {
+        RHI::BindGraphicsPipeline(device, cmd, *sCurrentPipeline);
+
+        OceanPushConstants pushConstants;
+        pushConstants.uniformBufferIndex =
+            renderer.uniformBuffers[device.frameIndex].bindlessHandle;
+        pushConstants.shadeParamsBufferIndex =
+            renderer.shadeParamsBuffers[device.frameIndex].bindlessHandle;
+        pushConstants.vertexBufferIndex = renderer.vertexBuffer.bindlessHandle;
+        for (u32 i = 0; i < 4; i++)
+        {
+            pushConstants.heightMapCascades[i] = inputs.heightMaps[i];
+            pushConstants.diffDisplacementCascades[i] =
+                inputs.diffDisplacementMaps[i];
+        }
+        pushConstants.skyBoxTextureIndex = inputs.skyBox;
+        pushConstants.foamTextureIndex =
+            renderer.foamTextures[renderer.foamTextureIndex].bindlessHandle;
+        pushConstants.waveChopiness = renderer.waveChopiness;
+        RHI::SetPushConstants(device, cmd, &pushConstants,
+                              sizeof(pushConstants));
+
+        vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
+                             VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd.handle, renderer.indexCount, 1, 0, 0, 0);
+    }
 
     vkCmdEndRendering(cmd.handle);
 }

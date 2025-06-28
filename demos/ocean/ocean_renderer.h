@@ -41,6 +41,8 @@ struct OceanRenderer
     f32 a2;
     f32 reflectivity;
     f32 bubbleDensity;
+    f32 foamDecay;
+    f32 foamGain;
     u32 indexCount = 0;
     u32 foamTextureIndex = 0;
 };
@@ -50,6 +52,7 @@ struct OceanRendererInputs
     u32 heightMaps[4];
     u32 diffDisplacementMaps[4];
     u32 skyBox;
+    f32 deltaTime;
 };
 
 bool CreateOceanRenderer(RHI::Device& device, u32 foamResolution,

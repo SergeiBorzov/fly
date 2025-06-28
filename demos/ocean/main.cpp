@@ -166,6 +166,13 @@ static void ProcessImGuiFrame()
                                "%.2f");
             ImGui::SliderFloat("Wave Chopiness", &sOceanRenderer.waveChopiness,
                                -10.0f, 10.0f, "%.2f");
+            ImGui::SliderFloat("Amplitude scale",
+                               &sCascadesRenderer.amplitudeScale, 0.0f, 20.0f,
+                               "%.2f");
+            ImGui::SliderFloat("Foam Decay", &sOceanRenderer.foamDecay, 0.0f,
+                               10.0f, "%.2f");
+            ImGui::SliderFloat("Foam Gain", &sOceanRenderer.foamGain, 0.0f,
+                               10.0f, "%.2f");
             ImGui::TreePop();
         }
 
@@ -229,7 +236,7 @@ static void RecordUICommands(RHI::Device& device)
     vkCmdEndRendering(cmd.handle);
 }
 
-static void ExecuteCommands(RHI::Device& device)
+static void ExecuteCommands(RHI::Device& device, f64 deltaTime)
 {
     RecordJonswapCascadesRendererCommands(device, sCascadesRenderer);
     RecordSkyBoxRendererCommands(device, sSkyBoxRenderer);
@@ -246,6 +253,7 @@ static void ExecuteCommands(RHI::Device& device)
                 .bindlessHandle;
     }
     inputs.skyBox = sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
+    inputs.deltaTime = static_cast<f32>(deltaTime);
     RecordOceanRendererCommands(device, inputs, sOceanRenderer);
     RecordUICommands(device);
 }
@@ -374,7 +382,7 @@ int main(int argc, char* argv[])
         return false;
     }
 
-    if (!CreateOceanRenderer(device, 256, sOceanRenderer))
+    if (!CreateOceanRenderer(device, 8192, sOceanRenderer))
     {
         return false;
     }
@@ -419,7 +427,7 @@ int main(int argc, char* argv[])
 
         VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         RHI::BeginRenderFrame(device);
-        ExecuteCommands(device);
+        ExecuteCommands(device, deltaTime);
         RHI::EndRenderFrame(device, &sOceanRenderer.foamSemaphore, &waitStage,
                             1, &sOceanRenderer.foamSemaphore, 1,
                             &timelineSubmitInfo);

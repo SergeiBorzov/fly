@@ -39,6 +39,7 @@ struct JonswapCascadesRenderer
     f32 windDirection;
     f32 spread;
     f32 time;
+    f32 amplitudeScale;
 };
 
 bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,

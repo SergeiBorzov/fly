@@ -30,6 +30,7 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
     renderer.windSpeed = 3.0f;
     renderer.windDirection = -2.4f;
     renderer.spread = 18.0f;
+    renderer.amplitudeScale = 2.0f;
     renderer.time = 0.0f;
 
     RHI::ComputePipeline* computePipelines[] = {
@@ -318,7 +319,8 @@ void UpdateJonswapCascadesRendererUniforms(RHI::Device& device,
         jonswapData[i].fetchSpeedDirSpread =
             Math::Vec4(renderer.fetch, renderer.windSpeed,
                        renderer.windDirection, renderer.spread);
-        jonswapData[i].timeScale = Math::Vec4(renderer.time, 1.0f, 0.0f, 0.0f);
+        jonswapData[i].timeScale =
+            Math::Vec4(renderer.time, renderer.amplitudeScale, 0.0f, 0.0f);
         jonswapData[i].domainMinMax =
             Math::Vec4(cascade.domain, cascade.kMin, cascade.kMax, 0.0f);
 

@@ -20,6 +20,7 @@ layout(push_constant) uniform PushConstants
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
+    uint foamTextureIndex;
     float waveChopiness;
 }
 gPushConstants;
@@ -77,7 +78,7 @@ void main()
     h.yz *= gPushConstants.waveChopiness;
 
     vec3 worldPos =
-        vec3(vertex.position.x + h.y, h.x * 2, vertex.position.y + h.z);
+        vec3(vertex.position.x + h.y, h.x, vertex.position.y + h.z);
 
     mat3 R = mat3(view);
     vec3 T = vec3(view[3]);
