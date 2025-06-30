@@ -119,7 +119,6 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
         if (!IsLayerSupported(availableInstanceLayers,
                               availableInstanceLayerCount, totalLayers[i]))
         {
-            FLY_LOG("A");
             FLY_ERROR("Following required instance layer %s is not present",
                       totalLayers[i]);
             return false;
@@ -147,7 +146,6 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
                                   availableInstanceExtensionCount,
                                   totalExtensions[i]))
         {
-            FLY_LOG("B");
             FLY_ERROR("Following required extension %s is not present",
                       totalExtensions[i]);
             return false;
