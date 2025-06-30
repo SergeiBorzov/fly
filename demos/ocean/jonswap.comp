@@ -150,10 +150,10 @@ void main()
     vec2 h = MultiplyComplex(h0, ePhase);
     vec2 dx = k.x * vec2(-h.y, h.x); // multiply complex by i unwrapped
     vec2 dy = k.y * vec2(-h.y, h.x);
-    vec2 displacement = -vec2(dx.x, dy.x) / kl;
     vec2 dx2 = -k.x * k.x * h; // multiply complex by i^2 unwrapped
     vec2 dxdy = -k.x * k.y * h;
     vec2 dy2 = -k.y * k.y * h;
+    vec2 displacement = vec2(dx.x, dy.x) / kl;
     vec2 dxDisplacement = vec2(dx2.x, dxdy.x) / kl;
     vec2 dyDisplacement = vec2(dxdy.x, dy2.x) / kl;
 

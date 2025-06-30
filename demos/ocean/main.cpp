@@ -358,7 +358,7 @@ int main(int argc, char* argv[])
     }
 
     float ratio = 1 + Math::Sqrt(11);
-    float domain = 256.0f;
+    float domain = 512.0f;
     sCascadesRenderer.cascades[0].domain = domain;
     sCascadesRenderer.cascades[0].kMin = 0.0f;
     sCascadesRenderer.cascades[0].kMax = 0.5f;

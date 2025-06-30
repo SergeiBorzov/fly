@@ -52,10 +52,9 @@ float SampleDetJacobian(float bias)
         scale *= RATIO;
     }
 
-    vec3 jacobian =
-        1.0f + gPushConstants.waveChopiness * vec3(dxDx, dyDy, dyDx);
+    vec3 j = gPushConstants.waveChopiness * vec3(dxDx, dyDy, dyDx);
 
-    return jacobian.x * jacobian.y - jacobian.z * jacobian.z;
+    return (1.0f + j.x) * (1.0f + j.y) - j.z * j.z;
 }
 
 void main()
@@ -67,7 +66,8 @@ void main()
                 inUV)
             .r;
 
-    float energy = max(-detJ, 0.0f);
+    float offset = 0.75f;
+    float energy = max(-(detJ - offset), 0.0f);
     float foam = lastFoamValue -
                  gPushConstants.foamDecay * gPushConstants.deltaTime +
                  energy * 0.01 * gPushConstants.foamGain;
