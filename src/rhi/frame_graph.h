@@ -2,6 +2,7 @@
 #define FLY_RHI_FRAME_GRAPH_H
 
 #include "core/arena.h"
+#include "core/hash_trie.h"
 
 #include "buffer.h"
 #include "texture.h"
@@ -20,6 +21,8 @@ struct FrameGraph
         Write = 1,
         ReadWrite = 2
     };
+
+    struct PassNode;
 
     struct Builder
     {
@@ -55,14 +58,17 @@ struct FrameGraph
                 BufferCreateInfo buffer;
             };
 
-            ResourceDescriptor* next;
             void* data;
             u64 dataSize;
             Type type;
+            bool isExternal;
             ResourceAccess accessMask;
         };
 
-        ResourceDescriptor* resourceDescriptors;
+        PassNode* currentPass;
+
+        HashTrie<u32, ResourceDescriptor> resourceDescriptors;
+        u32 resourceCount = 0;
     };
 
     template <typename T>
@@ -73,24 +79,26 @@ struct FrameGraph
 
     struct ResourceInfo
     {
+        ResourceInfo* next;
         u32 id;
-        ResourceAccess access;
+        ResourceAccess accessMask;
     };
 
     struct PassNode
     {
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
-                                           PassNode*, void*);
-        using RecordFunctionImpl = void (*)(PassNode*);
+                                           PassNode&);
+        using RecordFunctionImpl = void (*)(PassNode&);
 
-        BuildFunctionImpl buildCallback;
-        RecordFunctionImpl recordCallback;
+        BuildFunctionImpl buildCallbackImpl;
+        RecordFunctionImpl recordCallbackImpl;
         PassNode* parents;
         PassNode* children;
         PassNode* next;
         ResourceInfo* resources;
         void* pUserData;
         const char* name;
+        bool isRootPass;
     };
 
     template <typename T>
@@ -98,16 +106,16 @@ struct FrameGraph
     {
 
         static void BuildImpl(Arena& arena, FrameGraph::Builder& builder,
-                              PassNode& base, void* pUserData)
+                              PassNode& base)
         {
             Pass<T>& pass = static_cast<Pass<T>&>(base);
-            pass->buildCallback(arena, builder, pass->context, pUserData);
+            pass.buildCallback(arena, builder, pass.context, pass.pUserData);
         }
 
-        static void RecordImpl(PassNode* base)
+        static void RecordImpl(PassNode& base)
         {
             Pass<T>& pass = static_cast<Pass<T>&>(base);
-            pass->recordCallback(pass->context);
+            pass.recordCallback(pass.context);
         }
 
         T context;
@@ -117,16 +125,20 @@ struct FrameGraph
 
     template <typename T>
     void AddPass(Arena& arena, const char* name, BuildFunction<T> buildCallback,
-                 PassFunction<T> recordCallback, void* pUserData)
+                 PassFunction<T> recordCallback, void* pUserData,
+                 bool isRootPass = false)
     {
         Pass<T>* pass = FLY_PUSH_ARENA(arena, Pass<T>, 1);
         pass->buildCallback = buildCallback;
+        pass->buildCallbackImpl = Pass<T>::BuildImpl;
         pass->recordCallback = recordCallback;
+        pass->recordCallbackImpl = Pass<T>::RecordImpl;
         pass->pUserData = pUserData;
         pass->name = name;
         pass->parents = nullptr;
         pass->children = nullptr;
         pass->resources = nullptr;
+        pass->isRootPass = isRootPass;
 
         pass->next = head_;
         head_ = pass;
@@ -138,13 +150,12 @@ private:
     PassNode* head_ = nullptr;
 };
 
-/* u32 CreateBufferDescriptor(FrameGraph::Builder& builder, */
-/*                            VkBufferUsageFlags usage, bool hostVisible, */
-/*                            void* data, u64 dataSize, */
-/*                            FrameGraph::ResourceAccess accessMask) */
-/* { */
-/*     return 0; */
-/* } */
+u32 SwapchainTextureDescriptor(Arena& arena, FrameGraph::Builder& builder);
+
+u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
+                           VkBufferUsageFlags usage, bool hostVisible,
+                           void* data, u64 dataSize,
+                           FrameGraph::ResourceAccess accessMask);
 
 } // namespace RHI
 } // namespace Fly
