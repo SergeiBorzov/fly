@@ -23,7 +23,7 @@ struct HashTrie
     {
         Node** node = &root_;
         Hash<KeyType> hashFunc;
-        u64 h = hashFunc(value);
+        u64 h = hashFunc(key);
         do
         {
             if (!*node)
@@ -38,7 +38,7 @@ struct HashTrie
 
             node = &(*node)->children[h & 3];
             h >>= 2;
-            h = hashFunc(value);
+            h = hashFunc(key);
         } while (h != 0);
 
         return nullptr;

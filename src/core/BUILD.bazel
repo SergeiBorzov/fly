@@ -181,6 +181,7 @@ cc_library(
         ":log",
         ":clock",
         ":thread_context",
+        ":hash_trie",
     ],
     visibility = ["//visibility:public"],
 )
