@@ -30,8 +30,6 @@ struct FrameGraph
         {
             VkBufferUsageFlags usage;
             bool hostVisible;
-            void* data;
-            u64 dataSize;
         };
 
         struct Texture2DCreateInfo
@@ -156,6 +154,13 @@ u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
                            VkBufferUsageFlags usage, bool hostVisible,
                            void* data, u64 dataSize,
                            FrameGraph::ResourceAccess accessMask);
+
+u32 CreateTextureDescriptor(Arena& arena, FrameGraph::Builder& builder,
+                            VkImageUsageFlags usage, void* data, u64 dataSize,
+                            u32 width, u32 height, VkFormat format,
+                            Sampler::FilterMode filterMode,
+                            Sampler::WrapMode wrapMode,
+                            FrameGraph::ResourceAccess accessMask);
 
 } // namespace RHI
 } // namespace Fly
