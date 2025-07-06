@@ -12,21 +12,14 @@ u32 SwapchainTextureDescriptor(Arena& arena, FrameGraph::Builder& builder)
 {
     FLY_ASSERT(builder.currentPass);
 
-    FrameGraph::Builder::ResourceDescriptor rd;
+    FrameGraph::ResourceDescriptor rd;
     rd.data = nullptr;
     rd.dataSize = 0;
-    rd.type = FrameGraph::Builder::ResourceDescriptor::Type::Texture2D;
+    rd.type = FrameGraph::ResourceType::Texture2D;
     rd.isExternal = true;
-    rd.accessMask = FrameGraph::ResourceAccess::Write;
-
-    FrameGraph::ResourceInfo* resourceInfo =
-        FLY_PUSH_ARENA(arena, FrameGraph::ResourceInfo, 1);
-    resourceInfo->id = builder.resourceCount;
-    resourceInfo->accessMask = rd.accessMask;
-    resourceInfo->next = builder.currentPass->resources;
-
     builder.resourceDescriptors.Insert(arena, builder.resourceCount, rd);
-    builder.currentPass->resources = resourceInfo;
+
+    builder.currentPass->outputs.InsertBack(arena, builder.resourceCount);
     return builder.resourceCount++;
 }
 
@@ -37,24 +30,29 @@ u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
 {
     FLY_ASSERT(builder.currentPass);
 
-    FrameGraph::Builder::ResourceDescriptor rd;
+    FrameGraph::ResourceDescriptor rd;
     rd.data = data;
     rd.dataSize = dataSize;
-    rd.type = FrameGraph::Builder::ResourceDescriptor::Type::Buffer;
+    rd.type = FrameGraph::ResourceType::Buffer;
     rd.isExternal = false;
-    rd.accessMask = accessMask;
-
     rd.buffer.usage = usage;
     rd.buffer.hostVisible = hostVisible;
-
-    FrameGraph::ResourceInfo* resourceInfo =
-        FLY_PUSH_ARENA(arena, FrameGraph::ResourceInfo, 1);
-    resourceInfo->id = builder.resourceCount;
-    resourceInfo->accessMask = rd.accessMask;
-    resourceInfo->next = builder.currentPass->resources;
-
     builder.resourceDescriptors.Insert(arena, builder.resourceCount, rd);
-    builder.currentPass->resources = resourceInfo;
+
+    if (accessMask == FrameGraph::ResourceAccess::Read)
+    {
+        builder.currentPass->inputs.InsertBack(arena, builder.resourceCount);
+    }
+    else if (accessMask == FrameGraph::ResourceAccess::Write)
+    {
+        builder.currentPass->outputs.InsertBack(arena, builder.resourceCount);
+    }
+    else
+    {
+        builder.currentPass->inputs.InsertBack(arena, builder.resourceCount);
+        builder.currentPass->outputs.InsertBack(arena, builder.resourceCount);
+    }
+
     return builder.resourceCount++;
 }
 
@@ -67,70 +65,124 @@ u32 CreateTextureDescriptor(Arena& arena, FrameGraph::Builder& builder,
 {
     FLY_ASSERT(builder.currentPass);
 
-    FrameGraph::Builder::ResourceDescriptor rd;
+    FrameGraph::ResourceDescriptor rd;
     rd.data = data;
     rd.dataSize = dataSize;
-    rd.type = FrameGraph::Builder::ResourceDescriptor::Type::Texture2D;
+    rd.type = FrameGraph::ResourceType::Texture2D;
     rd.isExternal = false;
-    rd.accessMask = accessMask;
-
     rd.texture2D.usage = usage;
     rd.texture2D.width = width;
     rd.texture2D.height = height;
     rd.texture2D.format = format;
     rd.texture2D.wrapMode = wrapMode;
     rd.texture2D.filterMode = filterMode;
-
-    FrameGraph::ResourceInfo* resourceInfo =
-        FLY_PUSH_ARENA(arena, FrameGraph::ResourceInfo, 1);
-    resourceInfo->id = builder.resourceCount;
-    resourceInfo->accessMask = rd.accessMask;
-    resourceInfo->next = builder.currentPass->resources;
-
     builder.resourceDescriptors.Insert(arena, builder.resourceCount, rd);
-    builder.currentPass->resources = resourceInfo;
+
+    if (accessMask == FrameGraph::ResourceAccess::Read)
+    {
+        builder.currentPass->inputs.InsertBack(arena, builder.resourceCount);
+    }
+    else if (accessMask == FrameGraph::ResourceAccess::Write)
+    {
+        builder.currentPass->outputs.InsertBack(arena, builder.resourceCount);
+    }
+    else
+    {
+        builder.currentPass->inputs.InsertBack(arena, builder.resourceCount);
+        builder.currentPass->outputs.InsertBack(arena, builder.resourceCount);
+    }
 
     return builder.resourceCount++;
 }
 
-bool FrameGraph::Build(Arena& arena)
+u32 CreateReference(Arena& arena, FrameGraph::Builder& builder,
+                    FrameGraph::ResourceHandle rh,
+                    FrameGraph::ResourceAccess accessMask)
 {
-    PassNode* curr = head_;
+    FrameGraph::ResourceDescriptor* rd = builder.resourceDescriptors.Find(rh);
+    FLY_ASSERT(rd);
 
-    FrameGraph::Builder builder;
-
-    u32 rootPassCount = 0;
-    while (curr)
+    if (accessMask == FrameGraph::ResourceAccess::Read)
     {
-        builder.currentPass = curr;
-        curr->buildCallbackImpl(arena, builder, *curr);
-        if (curr->isRootPass)
-        {
-            rootPassCount += 1;
-        }
-        else
-        {
-            ResourceInfo* currR = curr->resources;
-            while (currR)
-            {
-                FrameGraph::Builder::ResourceDescriptor* rd =
-                    builder.resourceDescriptors.Find(currR->id);
-                FLY_ASSERT(rd);
-                if (rd->isExternal)
-                {
-                    rootPassCount += 1;
-                    break;
-                }
-                currR = currR->next;
-            }
-        }
-        curr = curr->next;
+        builder.currentPass->inputs.InsertBack(arena, rh);
+        return rh;
     }
 
-    FLY_LOG("Found %u root passes", rootPassCount);
+    FrameGraph::ResourceDescriptor rdRef;
+    rdRef.data = nullptr;
+    rdRef.dataSize = 0;
+    rdRef.type = FrameGraph::ResourceType::Reference;
+    rdRef.isExternal = false;
+    rdRef.reference.rd = rd;
+    builder.resourceDescriptors.Insert(arena, builder.resourceCount, rdRef);
+
+    builder.currentPass->outputs.InsertBack(arena, builder.resourceCount);
+    if (accessMask == FrameGraph::ResourceAccess::ReadWrite)
+    {
+        builder.currentPass->inputs.InsertBack(arena, rh);
+    }
+
+    return builder.resourceCount++;
+}
+
+bool FrameGraph::Build(Arena& arena, RHI::Device& device)
+{
+    FrameGraph::Builder builder;
+
+    for (PassNode* pass : passes_)
+    {
+        builder.currentPass = pass;
+        pass->buildCallbackImpl(arena, builder, *pass);
+    }
+
+    for (PassNode* pass : passes_)
+    {
+        for (ResourceHandle rhI : pass->inputs)
+        {
+            for (PassNode* otherPass : passes_)
+            {
+                for (ResourceHandle rhO : otherPass->outputs)
+                {
+                    if (rhI == rhO)
+                    {
+                        otherPass->edges.InsertBack(arena, pass);
+                    }
+                }
+            }
+        }
+    }
+
+    for (PassNode* pass : passes_)
+    {
+        FLY_LOG("Pass name %s", pass->name);
+        for (ResourceHandle rh : pass->inputs)
+        {
+            const FrameGraph::ResourceDescriptor* rd =
+                builder.resourceDescriptors.Find(rh);
+            FLY_ASSERT(rd);
+            FLY_LOG("Input resource %u type %u, external: %d", rh, rd->type,
+                    rd->isExternal);
+        }
+
+        for (ResourceHandle rh : pass->outputs)
+        {
+            const FrameGraph::ResourceDescriptor* rd =
+                builder.resourceDescriptors.Find(rh);
+            FLY_ASSERT(rd);
+            FLY_LOG("Output resource %u type %u, external: %d", rh, rd->type,
+                    rd->isExternal);
+        }
+
+        for (PassNode* edge : pass->edges)
+        {
+            FLY_LOG("Pass has edge to %s", edge->name);
+        }
+    }
 
     return true;
 }
+
+void FrameGraph::Execute(RHI::Device& device) { return; }
 
 } // namespace RHI
 } // namespace Fly

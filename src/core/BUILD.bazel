@@ -85,6 +85,17 @@ cc_library(
 )
 
 cc_library(
+    name = "list",
+    hdrs = [
+        "list.h",
+    ],
+    deps = [
+        ":memory",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "hash_trie",
     hdrs = [
         "hash_trie.h",
@@ -182,6 +193,7 @@ cc_library(
         ":clock",
         ":thread_context",
         ":hash_trie",
+        ":list",
     ],
     visibility = ["//visibility:public"],
 )

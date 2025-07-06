@@ -3,6 +3,7 @@
 
 #include "core/arena.h"
 #include "core/hash_trie.h"
+#include "core/list.h"
 
 #include "buffer.h"
 #include "texture.h"
@@ -15,56 +16,74 @@ namespace RHI
 
 struct FrameGraph
 {
+    using ResourceHandle = u32;
+
     enum class ResourceAccess
     {
-        Read = 0,
-        Write = 1,
-        ReadWrite = 2
+        Read,
+        Write,
+        ReadWrite
+    };
+
+    enum class ResourceType
+    {
+        Attachment = 0,
+        Reference = 1,
+        Texture2D = 2,
+        Buffer = 3
     };
 
     struct PassNode;
+    struct ResourceDescriptor;
+
+    struct BufferCreateInfo
+    {
+        VkBufferUsageFlags usage;
+        bool hostVisible;
+    };
+
+    struct Texture2DCreateInfo
+    {
+        VkImageUsageFlags usage;
+        uint32_t width;
+        uint32_t height;
+        VkFormat format;
+        RHI::Sampler::WrapMode wrapMode;
+        RHI::Sampler::FilterMode filterMode;
+    };
+
+    struct AttachmentCreateInfo
+    {
+        VkImageView imageView;
+        VkImageLayout imageLayout;
+        VkAttachmentLoadOp loadOp;
+        VkAttachmentStoreOp storeOp;
+        VkClearValue clearValue;
+    };
+
+    struct ReferenceCreateInfo
+    {
+        ResourceDescriptor* rd;
+    };
+
+    struct ResourceDescriptor
+    {
+        union
+        {
+            Texture2DCreateInfo texture2D;
+            BufferCreateInfo buffer;
+            ReferenceCreateInfo reference;
+        };
+
+        void* data;
+        u64 dataSize;
+        ResourceType type;
+        bool isExternal;
+    };
 
     struct Builder
     {
-        struct BufferCreateInfo
-        {
-            VkBufferUsageFlags usage;
-            bool hostVisible;
-        };
-
-        struct Texture2DCreateInfo
-        {
-            VkImageUsageFlags usage;
-            uint32_t width;
-            uint32_t height;
-            VkFormat format;
-            RHI::Sampler::WrapMode wrapMode;
-            RHI::Sampler::FilterMode filterMode;
-        };
-
-        struct ResourceDescriptor
-        {
-            enum class Type
-            {
-                Buffer,
-                Texture2D,
-            };
-
-            union
-            {
-                Texture2DCreateInfo texture2D;
-                BufferCreateInfo buffer;
-            };
-
-            void* data;
-            u64 dataSize;
-            Type type;
-            bool isExternal;
-            ResourceAccess accessMask;
-        };
-
         PassNode* currentPass;
-
         HashTrie<u32, ResourceDescriptor> resourceDescriptors;
         u32 resourceCount = 0;
     };
@@ -75,13 +94,6 @@ struct FrameGraph
     template <typename T>
     using PassFunction = void (*)(T&);
 
-    struct ResourceInfo
-    {
-        ResourceInfo* next;
-        u32 id;
-        ResourceAccess accessMask;
-    };
-
     struct PassNode
     {
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
@@ -90,10 +102,9 @@ struct FrameGraph
 
         BuildFunctionImpl buildCallbackImpl;
         RecordFunctionImpl recordCallbackImpl;
-        PassNode* parents;
-        PassNode* children;
-        PassNode* next;
-        ResourceInfo* resources;
+        List<PassNode*> edges;
+        List<ResourceHandle> inputs;
+        List<ResourceHandle> outputs;
         void* pUserData;
         const char* name;
         bool isRootPass;
@@ -133,19 +144,19 @@ struct FrameGraph
         pass->recordCallbackImpl = Pass<T>::RecordImpl;
         pass->pUserData = pUserData;
         pass->name = name;
-        pass->parents = nullptr;
-        pass->children = nullptr;
-        pass->resources = nullptr;
+        pass->edges = {};
+        pass->inputs = {};
+        pass->outputs = {};
         pass->isRootPass = isRootPass;
 
-        pass->next = head_;
-        head_ = pass;
+        passes_.InsertBack(arena, pass);
     }
 
-    bool Build(Arena& arena);
+    bool Build(Arena& arena, RHI::Device& device);
+    void Execute(RHI::Device& device);
 
 private:
-    PassNode* head_ = nullptr;
+    List<PassNode*> passes_;
 };
 
 u32 SwapchainTextureDescriptor(Arena& arena, FrameGraph::Builder& builder);
@@ -154,6 +165,9 @@ u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
                            VkBufferUsageFlags usage, bool hostVisible,
                            void* data, u64 dataSize,
                            FrameGraph::ResourceAccess accessMask);
+u32 CreateReference(Arena& arena, FrameGraph::Builder& builder,
+                    FrameGraph::ResourceHandle resourceHandle,
+                    FrameGraph::ResourceAccess accessMask);
 
 u32 CreateTextureDescriptor(Arena& arena, FrameGraph::Builder& builder,
                             VkImageUsageFlags usage, void* data, u64 dataSize,
