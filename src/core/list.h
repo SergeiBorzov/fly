@@ -15,6 +15,8 @@ struct List
         Node* next;
     };
 
+    inline u64 Count() const { return count_; }
+
     void InsertFront(Arena& arena, const T& value)
     {
         Node* node = FLY_PUSH_ARENA(arena, Node, 1);
@@ -26,6 +28,38 @@ struct List
         if (tail_ == nullptr)
         {
             tail_ = head_;
+        }
+        count_++;
+    }
+
+    inline T* Head()
+    {
+        if (!head_)
+        {
+            return nullptr;
+        }
+        return &(head_->data);
+    }
+
+    inline const T* Head() const
+    {
+        if (!head_)
+        {
+            return nullptr;
+        }
+        return &(head_->data);
+    }
+
+    void PopFront()
+    {
+        if (head_)
+        {
+            head_ = head_->next;
+            if (!head_)
+            {
+                tail_ = nullptr;
+            }
+            count_--;
         }
     }
 
@@ -45,8 +79,7 @@ struct List
         {
             head_ = tail_;
         }
-
-        return;
+        count_++;
     }
 
     void Remove(const T& value)
@@ -65,67 +98,68 @@ struct List
         }
     }
 
-    class Iterator
+    struct Iterator
     {
-        Node* current;
+        explicit Iterator(Node* node) : current_(node) {}
 
-    public:
-        explicit Iterator(Node* node) : current(node) {}
-
-        T& operator*() const { return current->data; }
+        T& operator*() const { return current_->data; }
 
         Iterator& operator++()
         {
-            current = current->next;
+            current_ = current_->next;
             return *this;
         }
 
         bool operator==(const Iterator& other) const
         {
-            return current == other.current;
+            return current_ == other.current_;
         }
 
         bool operator!=(const Iterator& other) const
         {
             return !(*this == other);
         }
+
+    private:
+        Node* current_;
     };
 
-    class ConstIterator
+    struct ConstIterator
     {
-        const Node* current;
+        explicit ConstIterator(const Node* node) : current_(node) {}
 
-    public:
-        explicit ConstIterator(const Node* node) : current(node) {}
-
-        const T& operator*() const { return current->data; }
+        const T& operator*() const { return current_->data; }
 
         ConstIterator& operator++()
         {
-            current = current->next;
+            current_ = current_->next;
             return *this;
         }
 
         bool operator==(const ConstIterator& other) const
         {
-            return current == other.current;
+            return current_ == other.current_;
         }
 
         bool operator!=(const ConstIterator& other) const
         {
             return !(*this == other);
         }
+
+    private:
+        const Node* current_;
     };
 
     Iterator begin() { return Iterator(head_); }
     Iterator end() { return Iterator(nullptr); }
 
-    ConstIterator cbegin() const { return ConstIterator(head_); }
-    ConstIterator cend() const { return ConstIterator(nullptr); }
+    ConstIterator begin() const { return ConstIterator(head_); }
+    ConstIterator end() const { return ConstIterator(nullptr); }
 
 private:
     Node* head_ = nullptr;
     Node* tail_ = nullptr;
+    u64 count_ = 0;
 };
 
 } // namespace Fly
