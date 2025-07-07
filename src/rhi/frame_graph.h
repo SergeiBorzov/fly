@@ -78,6 +78,7 @@ struct FrameGraph
         void* data;
         u64 dataSize;
         ResourceType type;
+        ResourceAccess access;
         bool isExternal;
     };
 
