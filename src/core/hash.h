@@ -71,6 +71,12 @@ struct Hash<bool>
     inline u64 operator()(bool key) { return static_cast<u64>(key); }
 };
 
+template <typename T>
+struct Hash<T*>
+{
+    inline u64 operator()(T* ptr) const { return reinterpret_cast<u64>(ptr); }
+};
+
 } // namespace Fly
 
 #endif /* FLY_CORE_HASH_H */
