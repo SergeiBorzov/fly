@@ -77,6 +77,7 @@ struct FrameGraph
 
         void* data;
         u64 dataSize;
+        i32 arrayIndex;
         ResourceType type;
         ResourceAccess access;
         bool isExternal;
@@ -84,9 +85,10 @@ struct FrameGraph
 
     struct Builder
     {
+        Builder(FrameGraph& inFrameGraph) : frameGraph(inFrameGraph) {}
+
+        FrameGraph& frameGraph;
         PassNode* currentPass;
-        HashTrie<u32, ResourceDescriptor> resourceDescriptors;
-        u32 resourceCount = 0;
     };
 
     template <typename T>
@@ -153,11 +155,21 @@ struct FrameGraph
         passes_.InsertBack(arena, pass);
     }
 
-    bool Build(Arena& arena, RHI::Device& device);
-    void Execute(RHI::Device& device);
+    inline FrameGraph(RHI::Device& device) : device_(device) {}
+
+    bool Build(Arena& arena);
+    void Execute();
+    void Destroy();
+
+    HashTrie<u32, ResourceDescriptor> resources;
 
 private:
+    RHI::Device& device_;
     List<PassNode*> passes_;
+    RHI::Buffer* buffers_;
+    RHI::Texture2D* textures_;
+    u32 bufferCount_ = 0;
+    u32 textureCount_ = 0;
 };
 
 u32 SwapchainTextureDescriptor(Arena& arena, FrameGraph::Builder& builder);
