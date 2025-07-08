@@ -20,7 +20,7 @@ struct OceanRenderer
 {
     RHI::Buffer uniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
     RHI::Buffer shadeParamsBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-    RHI::Texture foamTextures[2];
+    RHI::Texture2D foamTextures[2];
     RHI::Buffer vertexBuffer;
     RHI::Buffer indexBuffer;
     RHI::GraphicsPipeline skyPipeline;

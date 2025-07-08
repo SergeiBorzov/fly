@@ -8,6 +8,7 @@
 #include "assets/import_image.h"
 #include "assets/import_spv.h"
 
+#include "rhi/device.h"
 #include "rhi/shader_program.h"
 
 #include "scene.h"
@@ -94,7 +95,7 @@ static bool ProcessTextures(Arena& arena, RHI::Device& device, cgltf_data* data,
 
     ArenaMarker marker = ArenaGetMarker(arena);
     scene.textureCount = static_cast<u32>(data->textures_count);
-    scene.textures = FLY_PUSH_ARENA(arena, RHI::Texture, scene.textureCount);
+    scene.textures = FLY_PUSH_ARENA(arena, RHI::Texture2D, scene.textureCount);
 
     for (u64 i = 0; i < data->textures_count; i++)
     {
@@ -113,7 +114,7 @@ static bool ProcessTextures(Arena& arena, RHI::Device& device, cgltf_data* data,
             return false;
         }
 
-        if (!LoadTextureFromFile(
+        if (!LoadTexture2DFromFile(
                 device, texture.image->uri, VK_FORMAT_R8G8B8A8_SRGB,
                 RHI::Sampler::FilterMode::Anisotropy8x,
                 RHI::Sampler::WrapMode::Repeat, scene.textures[i]))
@@ -606,29 +607,39 @@ void UnloadScene(RHI::Device& device, Scene& scene)
 
     for (u64 i = 0; i < scene.textureCount; i++)
     {
-        RHI::DestroyTexture(device, scene.textures[i]);
+        RHI::DestroyTexture2D(device, scene.textures[i]);
     }
 }
 
-bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
-                         RHI::Sampler::FilterMode filterMode,
-                         RHI::Sampler::WrapMode wrapMode, RHI::Texture& texture)
+bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
+                           VkFormat format, RHI::Sampler::FilterMode filterMode,
+                           RHI::Sampler::WrapMode wrapMode,
+                           RHI::Texture2D& texture)
 {
     FLY_ASSERT(path);
 
-    Fly::Image image;
+    Image image;
     if (!Fly::LoadImageFromFile(path, image))
     {
         return false;
     }
     u64 imageSize = image.width * image.height * image.channelCount;
-    if (!RHI::CreateTexture(device, image.data, imageSize, image.width,
-                            image.height, format, filterMode, wrapMode,
-                            texture))
+    if (!RHI::CreateTexture2D(device,
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                  VK_IMAGE_USAGE_SAMPLED_BIT,
+                              image.data, imageSize, image.width, image.height,
+                              format, filterMode, wrapMode, texture))
     {
         return false;
     }
-    Fly::FreeImage(image);
+    FreeImage(image);
+
+    RHI::BeginTransfer(device);
+    RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+    RHI::ChangeTexture2DLayout(cmd, texture,
+                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    RHI::EndTransfer(device);
+
     return true;
 }
 

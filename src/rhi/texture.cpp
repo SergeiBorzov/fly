@@ -20,15 +20,13 @@ static u32 Log2(u32 x)
 }
 
 static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
-                            Fly::RHI::Cubemap& cubemap,
-                            VkImageLayout targetLayout)
+                            Fly::RHI::Cubemap& cubemap)
 {
     return;
 }
 
 static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
-                            Fly::RHI::Texture& texture,
-                            VkImageLayout targetLayout)
+                            Fly::RHI::Texture2D& texture)
 {
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -46,7 +44,7 @@ static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
     for (u32 i = 1; i < texture.mipLevelCount; i++)
     {
         barrier.subresourceRange.baseMipLevel = i - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -76,7 +74,7 @@ static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
                        VK_FILTER_LINEAR);
 
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = targetLayout;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -96,7 +94,7 @@ static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
 
     barrier.subresourceRange.baseMipLevel = texture.mipLevelCount - 1;
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.newLayout = targetLayout;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -166,6 +164,94 @@ static VkImageView CreateVulkanImageView2D(Fly::RHI::Device& device,
     }
 
     return result;
+}
+
+static void CreateDescriptors(Fly::RHI::Device& device, VkImageUsageFlags usage,
+                              Fly::RHI::Texture2D& texture)
+{
+    u32 count = (usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
+
+    VkImageLayout layouts[2] = {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorImageInfo imageInfo[2];
+
+    VkWriteDescriptorSet descriptorWrites[2];
+    for (u32 i = 0; i < count; i++)
+    {
+        imageInfo[i].imageLayout = layouts[i];
+        imageInfo[i].imageView = texture.imageView;
+        imageInfo[i].sampler = texture.sampler.handle;
+
+        descriptorWrites[i] = {};
+        descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[i].dstSet = device.bindlessDescriptorSet;
+        descriptorWrites[i].descriptorCount = 1;
+        descriptorWrites[i].pImageInfo = &(imageInfo[i]);
+    }
+
+    descriptorWrites[0].dstBinding = FLY_TEXTURE_BINDING_INDEX;
+    descriptorWrites[0].dstArrayElement = device.bindlessTextureHandleCount;
+    descriptorWrites[0].descriptorType =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    descriptorWrites[1].dstBinding = FLY_STORAGE_TEXTURE_BINDING_INDEX;
+    descriptorWrites[1].dstArrayElement =
+        device.bindlessWriteTextureHandleCount;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    vkUpdateDescriptorSets(device.logicalDevice, count, descriptorWrites, 0,
+                           nullptr);
+
+    texture.bindlessHandle = device.bindlessTextureHandleCount++;
+    texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
+}
+
+static bool InitializeWithData(Fly::RHI::Device& device, void* data,
+                               u64 dataSize, Fly::RHI::Texture2D& texture)
+{
+    if (data)
+    {
+        Fly::RHI::Buffer stagingBuffer;
+        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
+                          dataSize, stagingBuffer))
+        {
+            DestroySampler(device, texture.sampler);
+            vkDestroyImageView(device.logicalDevice, texture.imageView,
+                               Fly::RHI::GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, texture.image,
+                            texture.allocation);
+            return false;
+        }
+
+        BeginTransfer(device);
+        Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+
+        // Also sets all mip-map levels to transfer dst optimal
+        Fly::RHI::RecordTransitionImageLayout(
+            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion{};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent.width = texture.width;
+        copyRegion.imageExtent.height = texture.height;
+        copyRegion.imageExtent.depth = 1;
+
+        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                               &copyRegion);
+
+        GenerateMipmaps(cmd, texture);
+        EndTransfer(device);
+        DestroyBuffer(device, stagingBuffer);
+    }
+    return true;
 }
 
 namespace Fly
@@ -425,146 +511,16 @@ void DestroySampler(Device& device, Sampler& sampler)
     sampler.handle = VK_NULL_HANDLE;
 }
 
-bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
-                   u32 height, VkFormat format, Sampler::FilterMode filterMode,
-                   Sampler::WrapMode wrapMode, Texture& texture)
+bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
+                     u64 dataSize, u32 width, u32 height, VkFormat format,
+                     Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
+                     Texture2D& texture)
 {
     FLY_ASSERT(width > 0);
     FLY_ASSERT(height > 0);
     FLY_ASSERT(dataSize == GetTexelSize(format) * width * height);
 
     u32 mipLevelCount = 1;
-    VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                              VK_IMAGE_USAGE_SAMPLED_BIT |
-                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if (filterMode != Sampler::FilterMode::Nearest)
-    {
-        mipLevelCount = Log2(MAX(width, height)) + 1;
-        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    }
-
-    texture.image = CreateVulkanImage2D(
-        device, texture.allocationInfo, texture.allocation, usage, format,
-        VK_IMAGE_TILING_OPTIMAL, width, height, mipLevelCount);
-    if (texture.image == VK_NULL_HANDLE)
-    {
-        return false;
-    }
-
-    texture.imageView =
-        CreateVulkanImageView2D(device, texture.image, format, mipLevelCount,
-                                VK_IMAGE_ASPECT_COLOR_BIT);
-    if (!texture.imageView)
-    {
-        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
-        return false;
-    }
-
-    if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount,
-                       texture.sampler))
-    {
-        vkDestroyImageView(device.logicalDevice, texture.imageView,
-                           GetVulkanAllocationCallbacks());
-        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
-        return false;
-    }
-    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = targetImageLayout;
-    imageInfo.imageView = texture.imageView;
-    imageInfo.sampler = texture.sampler.handle;
-
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = device.bindlessDescriptorSet;
-    descriptorWrite.dstBinding = FLY_TEXTURE_BINDING_INDEX;
-    descriptorWrite.dstArrayElement = device.bindlessTextureHandleCount;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pImageInfo = &imageInfo;
-
-    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
-                           nullptr);
-
-    texture.bindlessHandle = device.bindlessTextureHandleCount++;
-    texture.width = width;
-    texture.height = height;
-    texture.format = format;
-    texture.mipLevelCount = mipLevelCount;
-
-    if (data)
-    {
-        RHI::Buffer stagingBuffer;
-        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
-                          dataSize, stagingBuffer))
-        {
-            DestroySampler(device, texture.sampler);
-            vkDestroyImageView(device.logicalDevice, texture.imageView,
-                               GetVulkanAllocationCallbacks());
-            vmaDestroyImage(device.allocator, texture.image,
-                            texture.allocation);
-            return false;
-        }
-
-        BeginTransfer(device);
-        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-
-        RHI::RecordTransitionImageLayout(cmd, texture.image,
-                                         VK_IMAGE_LAYOUT_UNDEFINED,
-                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        VkBufferImageCopy copyRegion{};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent.width = width;
-        copyRegion.imageExtent.height = height;
-        copyRegion.imageExtent.depth = 1;
-
-        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copyRegion);
-
-        GenerateMipmaps(cmd, texture, targetImageLayout);
-        EndTransfer(device);
-
-        DestroyBuffer(device, stagingBuffer);
-    }
-    else
-    {
-        BeginTransfer(device);
-        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-        RHI::RecordTransitionImageLayout(
-            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, targetImageLayout);
-        EndTransfer(device);
-    }
-
-    texture.imageLayout = targetImageLayout;
-
-    FLY_DEBUG_LOG("Texture [%llu] created with size %f MB: bindless handle %u",
-                  texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
-                  texture.bindlessHandle);
-    return true;
-}
-
-bool CreateReadWriteTexture(Device& device, void* data, u64 dataSize, u32 width,
-                            u32 height, VkFormat format,
-                            Sampler::FilterMode filterMode,
-                            Sampler::WrapMode wrapMode, Texture& texture)
-{
-    FLY_ASSERT(width > 0);
-    FLY_ASSERT(height > 0);
-    FLY_ASSERT(dataSize == GetTexelSize(format) * width * height);
-
-    u32 mipLevelCount = 1;
-    VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                              VK_IMAGE_USAGE_SAMPLED_BIT |
-                              VK_IMAGE_USAGE_STORAGE_BIT;
     if (filterMode != Sampler::FilterMode::Nearest)
     {
         mipLevelCount = Log2(MAX(width, height)) + 1;
@@ -597,93 +553,22 @@ bool CreateReadWriteTexture(Device& device, void* data, u64 dataSize, u32 width,
         return false;
     }
 
-    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = targetImageLayout;
-    imageInfo.imageView = texture.imageView;
-    imageInfo.sampler = texture.sampler.handle;
-
-    VkWriteDescriptorSet descriptorWrites[2];
-    for (u32 i = 0; i < 2; i++)
-    {
-        descriptorWrites[i] = {};
-        descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[i].dstSet = device.bindlessDescriptorSet;
-        descriptorWrites[i].descriptorCount = 1;
-        descriptorWrites[i].pImageInfo = &imageInfo;
-    }
-    descriptorWrites[0].dstBinding = FLY_TEXTURE_BINDING_INDEX;
-    descriptorWrites[0].dstArrayElement = device.bindlessTextureHandleCount;
-    descriptorWrites[0].descriptorType =
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrites[1].dstBinding = FLY_STORAGE_TEXTURE_BINDING_INDEX;
-    descriptorWrites[1].dstArrayElement =
-        device.bindlessWriteTextureHandleCount;
-    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    vkUpdateDescriptorSets(device.logicalDevice,
-                           STACK_ARRAY_COUNT(descriptorWrites),
-                           descriptorWrites, 0, nullptr);
-
-    texture.bindlessHandle = device.bindlessTextureHandleCount++;
-    texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
+    CreateDescriptors(device, usage, texture);
 
     texture.width = width;
     texture.height = height;
     texture.format = format;
     texture.mipLevelCount = mipLevelCount;
+    texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (data)
+    if (!InitializeWithData(device, data, dataSize, texture))
     {
-        RHI::Buffer stagingBuffer;
-        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
-                          dataSize, stagingBuffer))
-        {
-            DestroySampler(device, texture.sampler);
-            vkDestroyImageView(device.logicalDevice, texture.imageView,
-                               GetVulkanAllocationCallbacks());
-            vmaDestroyImage(device.allocator, texture.image,
-                            texture.allocation);
-            return false;
-        }
-
-        BeginTransfer(device);
-        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-
-        RHI::RecordTransitionImageLayout(cmd, texture.image,
-                                         VK_IMAGE_LAYOUT_UNDEFINED,
-                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        VkBufferImageCopy copyRegion{};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent.width = width;
-        copyRegion.imageExtent.height = height;
-        copyRegion.imageExtent.depth = 1;
-
-        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copyRegion);
-
-        GenerateMipmaps(cmd, texture, targetImageLayout);
-        EndTransfer(device);
-
-        DestroyBuffer(device, stagingBuffer);
+        DestroySampler(device, texture.sampler);
+        vkDestroyImageView(device.logicalDevice, texture.imageView,
+                           GetVulkanAllocationCallbacks());
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
     }
-    else
-    {
-        BeginTransfer(device);
-        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-        RHI::RecordTransitionImageLayout(
-            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED, targetImageLayout);
-        EndTransfer(device);
-    }
-    texture.imageLayout = targetImageLayout;
 
     FLY_DEBUG_LOG("Texture [%llu] created with size %f MB: bindless %u storage "
                   "bindless handle %u",
@@ -692,7 +577,7 @@ bool CreateReadWriteTexture(Device& device, void* data, u64 dataSize, u32 width,
     return true;
 }
 
-void DestroyTexture(Device& device, Texture& texture)
+void DestroyTexture2D(Device& device, Texture2D& texture)
 {
     DestroySampler(device, texture.sampler);
     vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -706,9 +591,9 @@ void DestroyTexture(Device& device, Texture& texture)
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
-bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
-                          Sampler::WrapMode wrapMode, u32 anisotropy,
-                          Texture& texture)
+bool ModifySampler(Device& device, Sampler::FilterMode filterMode,
+                   Sampler::WrapMode wrapMode, u32 anisotropy,
+                   Texture2D& texture)
 {
     FLY_ASSERT(texture.image != VK_NULL_HANDLE);
     FLY_ASSERT(texture.sampler.handle != VK_NULL_HANDLE);
@@ -724,34 +609,6 @@ bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
     DestroySampler(device, texture.sampler);
     return CreateSampler(device, filterMode, wrapMode, texture.mipLevelCount,
                          texture.sampler);
-}
-
-void CopyTextureToBuffer(Device& device, const Texture& texture, Buffer& buffer)
-{
-    FLY_ASSERT(texture.image != VK_NULL_HANDLE);
-    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
-
-    BeginTransfer(device);
-    CommandBuffer& cmd = TransferCommandBuffer(device);
-
-    RHI::RecordTransitionImageLayout(cmd, texture.image, texture.imageLayout,
-                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-    VkBufferImageCopy copyRegion{};
-    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.imageSubresource.mipLevel = 0;
-    copyRegion.imageSubresource.baseArrayLayer = 0;
-    copyRegion.imageSubresource.layerCount = 1;
-    copyRegion.imageExtent = {texture.width, texture.height, 1};
-
-    vkCmdCopyImageToBuffer(cmd.handle, texture.image,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer.handle,
-                           1, &copyRegion);
-
-    RHI::RecordTransitionImageLayout(cmd, texture.image,
-                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                     texture.imageLayout);
-    EndTransfer(device);
 }
 
 bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
@@ -905,7 +762,7 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                                &copyRegion);
 
-        GenerateMipmaps(cmd, cubemap, targetImageLayout);
+        GenerateMipmaps(cmd, cubemap);
         EndTransfer(device);
 
         DestroyBuffer(device, stagingBuffer);

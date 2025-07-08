@@ -80,8 +80,11 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
                 return false;
             }
 
-            if (!RHI::CreateReadWriteTexture(
-                    device, nullptr, resolution * resolution * 4 * sizeof(u16),
+            if (!RHI::CreateTexture2D(
+                    device,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                    nullptr, resolution * resolution * 4 * sizeof(u16),
                     resolution, resolution, VK_FORMAT_R16G16B16A16_SFLOAT,
                     RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat,
@@ -90,8 +93,11 @@ bool CreateJonswapCascadesRenderer(RHI::Device& device, u32 resolution,
                 return false;
             }
 
-            if (!RHI::CreateReadWriteTexture(
-                    device, nullptr, resolution * resolution * 4 * sizeof(u16),
+            if (!RHI::CreateTexture2D(
+                    device,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                    nullptr, resolution * resolution * 4 * sizeof(u16),
                     resolution, resolution, VK_FORMAT_R16G16B16A16_SFLOAT,
                     RHI::Sampler::FilterMode::Anisotropy4x,
                     RHI::Sampler::WrapMode::Repeat, cascade.heightMaps[j]))
@@ -113,8 +119,8 @@ void DestroyJonswapCascadesRenderer(RHI::Device& device,
         JonswapCascade& cascade = renderer.cascades[i];
         for (u32 j = 0; j < FLY_FRAME_IN_FLIGHT_COUNT; j++)
         {
-            RHI::DestroyTexture(device, cascade.heightMaps[j]);
-            RHI::DestroyTexture(device, cascade.diffDisplacementMaps[j]);
+            RHI::DestroyTexture2D(device, cascade.heightMaps[j]);
+            RHI::DestroyTexture2D(device, cascade.diffDisplacementMaps[j]);
             RHI::DestroyBuffer(device, cascade.uniformBuffers[j]);
             for (u32 k = 0; k < 2; k++)
             {

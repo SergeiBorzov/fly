@@ -6,7 +6,6 @@
 #include "rhi/buffer.h"
 #include "rhi/texture.h"
 
-
 namespace Fly
 {
 struct Arena;
@@ -93,7 +92,7 @@ struct Scene
     RHI::Buffer indexBuffer;
     RHI::Buffer materialBuffer;
     RHI::Buffer* vertexBuffers = nullptr;
-    RHI::Texture* textures = nullptr;
+    RHI::Texture2D* textures = nullptr;
     MeshNode* meshNodes = nullptr;
     u32 meshNodeCount = 0;
     u32 vertexBufferCount = 0;
@@ -101,10 +100,10 @@ struct Scene
     u32 textureCount = 0;
 };
 
-bool LoadTextureFromFile(RHI::Device& device, const char* path, VkFormat format,
-                         RHI::Sampler::FilterMode filterMode,
-                         RHI::Sampler::WrapMode wrapMode,
-                         RHI::Texture& texture);
+bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
+                           VkFormat format, RHI::Sampler::FilterMode filterMode,
+                           RHI::Sampler::WrapMode wrapMode,
+                           RHI::Texture2D& texture);
 bool LoadShaderFromSpv(RHI::Device& device, const char* path,
                        RHI::Shader& shader);
 bool LoadSceneFromGLTF(Arena& arena, RHI::Device& device, const char* path,

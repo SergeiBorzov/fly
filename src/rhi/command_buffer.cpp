@@ -6,6 +6,7 @@
 #include "command_buffer.h"
 #include "device.h"
 #include "pipeline.h"
+#include "texture.h"
 
 namespace Fly
 {
@@ -201,6 +202,19 @@ ImageSubresourceRange(VkImageAspectFlags aspectMask)
     return subImage;
 }
 
+void ChangeTexture2DLayout(CommandBuffer& commandBuffer,
+                           RHI::Texture2D& texture, VkImageLayout newLayout)
+{
+    if (texture.imageLayout == newLayout)
+    {
+        return;
+    }
+
+    RecordTransitionImageLayout(commandBuffer, texture.image,
+                                texture.imageLayout, newLayout);
+    texture.imageLayout = newLayout;
+}
+
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout)
@@ -296,9 +310,9 @@ void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,
     vkCmdFillBuffer(cmd.handle, buffer.handle, offset, size, value);
 }
 
-VkRenderingAttachmentInfo
-ColorAttachmentInfo(VkImageView imageView, VkImageLayout imageLayout,
-                    VkAttachmentLoadOp loadOp)
+VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
+                                              VkImageLayout imageLayout,
+                                              VkAttachmentLoadOp loadOp)
 {
     VkRenderingAttachmentInfo attachmentInfo{};
     attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;

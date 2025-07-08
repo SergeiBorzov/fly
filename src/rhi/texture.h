@@ -44,7 +44,7 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
                    Sampler& sampler);
 void DestroySampler(Device& device, Sampler& sampler);
 
-struct Texture
+struct Texture2D
 {
     VmaAllocationInfo allocationInfo;
     Sampler sampler;
@@ -59,18 +59,14 @@ struct Texture
     u32 bindlessHandle = FLY_MAX_U32;
     u32 bindlessStorageHandle = FLY_MAX_U32;
 };
-bool CreateTexture(Device& device, void* data, u64 dataSize, u32 width,
-                   u32 height, VkFormat format, Sampler::FilterMode filterMode,
-                   Sampler::WrapMode wrapMode, Texture& texture);
-bool CreateReadWriteTexture(Device& device, void* data, u64 dataSize, u32 width,
-                            u32 height, VkFormat format,
-                            Sampler::FilterMode filterMode,
-                            Sampler::WrapMode wrapMode, Texture& texture);
-void DestroyTexture(Device& device, Texture& texture);
-bool ModifyTextureSampler(Device& device, Sampler::FilterMode filterMode,
-                          Sampler::WrapMode wrapMode);
-void CopyTextureToBuffer(Device& device, const Texture& texture,
-                         Buffer& buffer);
+
+bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
+                     u64 dataSize, u32 width, u32 height, VkFormat format,
+                     Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
+                     Texture2D& texture);
+void DestroyTexture2D(Device& device, Texture2D& texture);
+bool ModifySampler(Device& device, Sampler::FilterMode filterMode,
+                   Sampler::WrapMode wrapMode);
 
 struct Cubemap
 {

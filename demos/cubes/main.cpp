@@ -20,7 +20,7 @@
 using namespace Fly;
 
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Texture sTexture;
+static RHI::Texture2D sTexture;
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
                                     Math::Vec3(0.0f, 0.0f, -5.0f));
@@ -150,10 +150,10 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    if (!Fly::LoadTextureFromFile(device, "CesiumLogoFlat.png",
-                                  VK_FORMAT_R8G8B8A8_SRGB,
-                                  RHI::Sampler::FilterMode::Trilinear,
-                                  RHI::Sampler::WrapMode::Repeat, sTexture))
+    if (!Fly::LoadTexture2DFromFile(device, "CesiumLogoFlat.png",
+                                    VK_FORMAT_R8G8B8A8_SRGB,
+                                    RHI::Sampler::FilterMode::Trilinear,
+                                    RHI::Sampler::WrapMode::Repeat, sTexture))
     {
         FLY_ERROR("Failed to create texture");
         return -1;
@@ -219,7 +219,7 @@ int main(int argc, char* argv[])
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
-    RHI::DestroyTexture(device, sTexture);
+    RHI::DestroyTexture2D(device, sTexture);
 
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     RHI::DestroyContext(context);

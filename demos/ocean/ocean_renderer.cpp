@@ -195,9 +195,12 @@ bool CreateOceanRenderer(RHI::Device& device, u32 resolution,
 
     for (u32 i = 0; i < 2; i++)
     {
-        if (!RHI::CreateTexture(
-                device, nullptr, resolution * resolution * sizeof(u8),
-                resolution, resolution, VK_FORMAT_R8_UNORM,
+        if (!RHI::CreateTexture2D(
+                device,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                nullptr, resolution * resolution * sizeof(u8), resolution,
+                resolution, VK_FORMAT_R8_UNORM,
                 RHI::Sampler::FilterMode::Anisotropy8x,
                 RHI::Sampler::WrapMode::Repeat, renderer.foamTextures[i]))
         {
@@ -261,7 +264,7 @@ void DestroyOceanRenderer(RHI::Device& device, OceanRenderer& renderer)
 
     for (u32 i = 0; i < 2; i++)
     {
-        RHI::DestroyTexture(device, renderer.foamTextures[i]);
+        RHI::DestroyTexture2D(device, renderer.foamTextures[i]);
     }
 }
 
@@ -298,8 +301,9 @@ void RecordOceanRendererCommands(RHI::Device& device,
     {
         u32 inFoamTextureIndex = renderer.foamTextureIndex;
         u32 outFoamTextureIndex = (renderer.foamTextureIndex + 1) % 2;
-        RHI::Texture& inFoamTexture = renderer.foamTextures[inFoamTextureIndex];
-        RHI::Texture& outFoamTexture =
+        RHI::Texture2D& inFoamTexture =
+            renderer.foamTextures[inFoamTextureIndex];
+        RHI::Texture2D& outFoamTexture =
             renderer.foamTextures[outFoamTextureIndex];
 
         RecordTransitionImageLayout(cmd, inFoamTexture.image,

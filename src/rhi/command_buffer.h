@@ -12,6 +12,7 @@ namespace RHI
 
 struct Device;
 struct Buffer;
+struct Texture2D;
 struct GraphicsPipeline;
 struct ComputePipeline;
 
@@ -48,6 +49,8 @@ bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          void* pNext = nullptr);
 bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources);
 
+void ChangeTexture2DLayout(CommandBuffer& commandBuffer,
+                           RHI::Texture2D& texture, VkImageLayout newLayout);
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout);

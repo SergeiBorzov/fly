@@ -16,8 +16,8 @@ struct JonswapCascade
 {
     RHI::Buffer frequencyBuffers[2 * FLY_FRAME_IN_FLIGHT_COUNT];
     RHI::Buffer uniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-    RHI::Texture heightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
-    RHI::Texture diffDisplacementMaps[FLY_FRAME_IN_FLIGHT_COUNT];
+    RHI::Texture2D heightMaps[FLY_FRAME_IN_FLIGHT_COUNT];
+    RHI::Texture2D diffDisplacementMaps[FLY_FRAME_IN_FLIGHT_COUNT];
 
     f32 domain;
     f32 kMin;
