@@ -143,6 +143,8 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
     vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
                            nullptr);
     buffer.bindlessHandle = (*pBindlessHandle)++;
+    buffer.usage = usage;
+    buffer.hostVisible = hostVisible;
 
     FLY_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
                   buffer.handle, buffer.bindlessHandle,

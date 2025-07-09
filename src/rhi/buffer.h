@@ -18,10 +18,15 @@ struct Buffer
     VmaAllocationInfo allocationInfo;
     VkBuffer handle = VK_NULL_HANDLE;
     VmaAllocation allocation;
+    VkBufferUsageFlags usage;
     u32 bindlessHandle = FLY_MAX_U32;
+    bool hostVisible = false;
 };
 
-inline void* BufferMappedPtr(Buffer& buffer) { return buffer.allocationInfo.pMappedData; }
+inline void* BufferMappedPtr(Buffer& buffer)
+{
+    return buffer.allocationInfo.pMappedData;
+}
 
 bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
                   const void* data, u64 size, Buffer& buffer);
