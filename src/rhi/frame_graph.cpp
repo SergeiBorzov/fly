@@ -10,27 +10,9 @@ namespace Fly
 namespace RHI
 {
 
-u32 SwapchainTextureDescriptor(Arena& arena, FrameGraph::Builder& builder)
-{
-    FLY_ASSERT(builder.currentPass);
-
-    FrameGraph::ResourceDescriptor rd;
-    rd.data = nullptr;
-    rd.dataSize = 0;
-    rd.type = FrameGraph::ResourceType::Texture2D;
-    rd.isExternal = true;
-    rd.arrayIndex = -1;
-    u32 id = static_cast<u32>(builder.frameGraph.resources.Count());
-    builder.frameGraph.resources.Insert(arena, id, rd);
-
-    builder.currentPass->outputs.InsertBack(arena, id);
-    return id;
-}
-
-u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
-                           VkBufferUsageFlags usage, bool hostVisible,
-                           void* data, u64 dataSize,
-                           FrameGraph::ResourceAccess access)
+u32 CreateBuffer(Arena& arena, FrameGraph::Builder& builder,
+                 VkBufferUsageFlags usage, bool hostVisible, void* data,
+                 u64 dataSize, FrameGraph::ResourceAccess access)
 {
     FLY_ASSERT(builder.currentPass);
 
@@ -63,12 +45,11 @@ u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
     return id;
 }
 
-u32 CreateTextureDescriptor(Arena& arena, FrameGraph::Builder& builder,
-                            VkImageUsageFlags usage, void* data, u64 dataSize,
-                            u32 width, u32 height, VkFormat format,
-                            Sampler::FilterMode filterMode,
-                            Sampler::WrapMode wrapMode,
-                            FrameGraph::ResourceAccess access)
+u32 CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
+                    VkImageUsageFlags usage, void* data, u64 dataSize,
+                    u32 width, u32 height, VkFormat format,
+                    Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
+                    FrameGraph::ResourceAccess access)
 {
     FLY_ASSERT(builder.currentPass);
 
@@ -234,25 +215,26 @@ bool FrameGraph::Build(Arena& arena)
     // resource
     // TODO: cycles are not handled though
 
-    // TODO: Loop over resources and create single copy for reads only and
-    // frame-in-flight copies for writes
-
     bufferCount_ = 0;
     textureCount_ = 0;
 
     for (const HashTrie<u32, ResourceDescriptor>::Node* node : resources)
     {
         const ResourceDescriptor& rd = node->value;
-        u32 count = (rd.access == FrameGraph::ResourceAccess::Read)
-                        ? 1
-                        : FLY_FRAME_IN_FLIGHT_COUNT;
+
+        // Note for now all commands are submitted to one graphics/compute queue
+        // So replication is only required for swapchain color attachment
+        // And buffers that will be updated from CPU each frame (hostVisible
+        // uniform/storage) Logic here might change if async compute will be
+        // introduced
         if (rd.type == FrameGraph::ResourceType::Buffer)
         {
+            u32 count = rd.buffer.hostVisible ? FLY_FRAME_IN_FLIGHT_COUNT : 1;
             bufferCount_ += count;
         }
         else if (rd.type == FrameGraph::ResourceType::Texture2D)
         {
-            textureCount_ += count;
+            textureCount_++;
         }
         else if (rd.type == FrameGraph::ResourceType::Reference)
         {
@@ -281,12 +263,10 @@ bool FrameGraph::Build(Arena& arena)
     {
         ResourceDescriptor& rd = node->value;
 
-        u32 count = (rd.access == FrameGraph::ResourceAccess::Read)
-                        ? 1
-                        : FLY_FRAME_IN_FLIGHT_COUNT;
-
         if (rd.type == FrameGraph::ResourceType::Buffer)
         {
+            u32 count = rd.buffer.hostVisible ? FLY_FRAME_IN_FLIGHT_COUNT : 1;
+
             for (u32 i = 0; i < count; i++)
             {
                 bool res = RHI::CreateBuffer(
@@ -298,16 +278,13 @@ bool FrameGraph::Build(Arena& arena)
         }
         else if (rd.type == FrameGraph::ResourceType::Texture2D)
         {
-            for (u32 i = 0; i < count; i++)
-            {
-                bool res = RHI::CreateTexture2D(
-                    device_, rd.texture2D.usage, rd.data, rd.dataSize,
-                    rd.texture2D.width, rd.texture2D.height,
-                    rd.texture2D.format, rd.texture2D.filterMode,
-                    rd.texture2D.wrapMode, textures_[textureIndex]);
-                FLY_ASSERT(res);
-                rd.arrayIndex = textureIndex++;
-            }
+            bool res = RHI::CreateTexture2D(
+                device_, rd.texture2D.usage, rd.data, rd.dataSize,
+                rd.texture2D.width, rd.texture2D.height, rd.texture2D.format,
+                rd.texture2D.filterMode, rd.texture2D.wrapMode,
+                textures_[textureIndex]);
+            FLY_ASSERT(res);
+            rd.arrayIndex = textureIndex++;
         }
     }
 
@@ -361,7 +338,14 @@ void FrameGraph::Destroy()
     }
 }
 
-void FrameGraph::Execute() { return; }
+void FrameGraph::Execute()
+{
+    // TODO: Memory barriers!
+    for (PassNode* pass : passes_)
+    {
+        pass->recordCallbackImpl(RenderFrameCommandBuffer(device_), *pass);
+    }
+}
 
 } // namespace RHI
 } // namespace Fly

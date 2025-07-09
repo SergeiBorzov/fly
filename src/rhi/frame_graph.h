@@ -95,7 +95,7 @@ struct FrameGraph
     using BuildFunction = void (*)(Arena&, Builder&, T&, void*);
 
     template <typename T>
-    using PassFunction = void (*)(T&);
+    using RecordFunction = void (*)(RHI::CommandBuffer& cmd, const T&, void*);
 
     struct PassNode
     {
@@ -107,14 +107,15 @@ struct FrameGraph
 
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
                                            PassNode&);
-        using RecordFunctionImpl = void (*)(PassNode&);
+        using RecordFunctionImpl = void (*)(RHI::CommandBuffer&, PassNode&);
 
         BuildFunctionImpl buildCallbackImpl;
         RecordFunctionImpl recordCallbackImpl;
         List<PassNode*> edges;
         List<ResourceHandle> inputs;
         List<ResourceHandle> outputs;
-        void* pUserData;
+        void* userData;
+        FrameGraph* frameGraph;
         const char* name;
         Type type;
         bool isRootPass;
@@ -127,25 +128,26 @@ struct FrameGraph
                               PassNode& base)
         {
             Pass<T>& pass = static_cast<Pass<T>&>(base);
-            pass.buildCallback(arena, builder, pass.context, pass.pUserData);
+            pass.buildCallback(arena, builder, pass.context, pass.userData);
         }
 
-        static void RecordImpl(PassNode& base)
+        static void RecordImpl(RHI::CommandBuffer& cmd, PassNode& base)
         {
             Pass<T>& pass = static_cast<Pass<T>&>(base);
-            pass.recordCallback(pass.context);
+            pass.recordCallback(cmd, pass.context, pass.userData);
         }
 
         T context;
         BuildFunction<T> buildCallback;
-        PassFunction<T> recordCallback;
+        RecordFunction<T> recordCallback;
         Type type;
     };
 
     template <typename T>
     void AddPass(Arena& arena, const char* name, PassNode::Type type,
-                 BuildFunction<T> buildCallback, PassFunction<T> recordCallback,
-                 void* pUserData, bool isRootPass = false)
+                 BuildFunction<T> buildCallback,
+                 RecordFunction<T> recordCallback, void* userData,
+                 bool isRootPass = false)
     {
         Pass<T>* pass = FLY_PUSH_ARENA(arena, Pass<T>, 1);
         pass->buildCallback = buildCallback;
@@ -153,7 +155,8 @@ struct FrameGraph
         pass->recordCallback = recordCallback;
         pass->recordCallbackImpl = Pass<T>::RecordImpl;
         pass->type = type;
-        pass->pUserData = pUserData;
+        pass->frameGraph = this;
+        pass->userData = userData;
         pass->name = name;
         pass->edges = {};
         pass->inputs = {};
@@ -180,23 +183,18 @@ private:
     u32 textureCount_ = 0;
 };
 
-u32 SwapchainTextureDescriptor(Arena& arena, FrameGraph::Builder& builder);
-
-u32 CreateBufferDescriptor(Arena& arena, FrameGraph::Builder& builder,
-                           VkBufferUsageFlags usage, bool hostVisible,
-                           void* data, u64 dataSize,
-                           FrameGraph::ResourceAccess accessMask);
+u32 CreateBuffer(Arena& arena, FrameGraph::Builder& builder,
+                 VkBufferUsageFlags usage, bool hostVisible, void* data,
+                 u64 dataSize, FrameGraph::ResourceAccess access);
 u32 CreateReference(Arena& arena, FrameGraph::Builder& builder,
                     FrameGraph::ResourceHandle resourceHandle,
-                    FrameGraph::ResourceAccess accessMask);
+                    FrameGraph::ResourceAccess access);
 
-u32 CreateTextureDescriptor(Arena& arena, FrameGraph::Builder& builder,
-                            VkImageUsageFlags usage, void* data, u64 dataSize,
-                            u32 width, u32 height, VkFormat format,
-                            Sampler::FilterMode filterMode,
-                            Sampler::WrapMode wrapMode,
-                            FrameGraph::ResourceAccess accessMask);
-
+u32 CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
+                    VkImageUsageFlags usage, void* data, u64 dataSize,
+                    u32 width, u32 height, VkFormat format,
+                    Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
+                    FrameGraph::ResourceAccess access);
 } // namespace RHI
 } // namespace Fly
 
