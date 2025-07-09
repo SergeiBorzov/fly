@@ -99,6 +99,12 @@ struct FrameGraph
 
     struct PassNode
     {
+        enum class Type
+        {
+            Graphics,
+            Compute,
+        };
+
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
                                            PassNode&);
         using RecordFunctionImpl = void (*)(PassNode&);
@@ -110,13 +116,13 @@ struct FrameGraph
         List<ResourceHandle> outputs;
         void* pUserData;
         const char* name;
+        Type type;
         bool isRootPass;
     };
 
     template <typename T>
     struct Pass : public PassNode
     {
-
         static void BuildImpl(Arena& arena, FrameGraph::Builder& builder,
                               PassNode& base)
         {
@@ -133,18 +139,20 @@ struct FrameGraph
         T context;
         BuildFunction<T> buildCallback;
         PassFunction<T> recordCallback;
+        Type type;
     };
 
     template <typename T>
-    void AddPass(Arena& arena, const char* name, BuildFunction<T> buildCallback,
-                 PassFunction<T> recordCallback, void* pUserData,
-                 bool isRootPass = false)
+    void AddPass(Arena& arena, const char* name, PassNode::Type type,
+                 BuildFunction<T> buildCallback, PassFunction<T> recordCallback,
+                 void* pUserData, bool isRootPass = false)
     {
         Pass<T>* pass = FLY_PUSH_ARENA(arena, Pass<T>, 1);
         pass->buildCallback = buildCallback;
         pass->buildCallbackImpl = Pass<T>::BuildImpl;
         pass->recordCallback = recordCallback;
         pass->recordCallbackImpl = Pass<T>::RecordImpl;
+        pass->type = type;
         pass->pUserData = pUserData;
         pass->name = name;
         pass->edges = {};
