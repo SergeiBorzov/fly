@@ -2,11 +2,14 @@
 #define FLY_RHI_FRAME_GRAPH_H
 
 #include "core/arena.h"
+#include "core/hash.h"
 #include "core/hash_trie.h"
 #include "core/list.h"
 
 #include "buffer.h"
 #include "texture.h"
+
+#define FLY_SWAPCHAIN_TEXTURE_HANDLE_ID 0
 
 namespace Fly
 {
@@ -14,23 +17,81 @@ namespace Fly
 namespace RHI
 {
 
+struct ResourceHandle
+{
+    u32 id;
+    u32 version;
+
+    inline bool operator==(const ResourceHandle& other) const
+    {
+        return (id == other.id) && (version == other.version);
+    }
+
+    inline bool operator!=(const ResourceHandle& other) const
+    {
+        return (id != other.id) || (version != other.version);
+    }
+};
+
+} // namespace RHI
+
+template <>
+struct Hash<RHI::ResourceHandle>
+{
+    inline u64 operator()(RHI::ResourceHandle handle)
+    {
+        return (static_cast<u64>(handle.id) << 32) | handle.version;
+    }
+};
+
+namespace RHI
+{
+
 struct FrameGraph
 {
-    using ResourceHandle = u32;
-
-    enum class ResourceAccess
+    struct BufferHandle
     {
-        Read,
-        Write,
-        ReadWrite
+        ResourceHandle handle;
+
+        inline bool operator==(const BufferHandle& other) const
+        {
+            return handle == other.handle;
+        }
+
+        inline bool operator!=(const BufferHandle& other) const
+        {
+            return handle != other.handle;
+        }
+    };
+
+    struct TextureHandle
+    {
+        static const TextureHandle sBackBuffer;
+        ResourceHandle handle;
+
+        inline bool operator==(const TextureHandle& other) const
+        {
+            return handle == other.handle;
+        }
+
+        inline bool operator!=(const TextureHandle& other) const
+        {
+            return handle != other.handle;
+        }
     };
 
     enum class ResourceType
     {
-        Attachment = 0,
-        Reference = 1,
-        Texture2D = 2,
-        Buffer = 3
+        Buffer,
+        Texture2D
+    };
+
+    enum class ResourceAccess
+    {
+        Unknown,
+        Read,
+        Write,
+        ReadWrite
     };
 
     struct PassNode;
@@ -45,25 +106,15 @@ struct FrameGraph
     struct Texture2DCreateInfo
     {
         VkImageUsageFlags usage;
-        uint32_t width;
-        uint32_t height;
+        u32 width;
+        u32 height;
+        u32 index;
         VkFormat format;
         RHI::Sampler::WrapMode wrapMode;
         RHI::Sampler::FilterMode filterMode;
-    };
-
-    struct AttachmentCreateInfo
-    {
-        VkImageView imageView;
-        VkImageLayout imageLayout;
         VkAttachmentLoadOp loadOp;
         VkAttachmentStoreOp storeOp;
         VkClearValue clearValue;
-    };
-
-    struct ReferenceCreateInfo
-    {
-        ResourceDescriptor* rd;
     };
 
     struct ResourceDescriptor
@@ -72,7 +123,6 @@ struct FrameGraph
         {
             Texture2DCreateInfo texture2D;
             BufferCreateInfo buffer;
-            ReferenceCreateInfo reference;
         };
 
         void* data;
@@ -140,7 +190,6 @@ struct FrameGraph
         T context;
         BuildFunction<T> buildCallback;
         RecordFunction<T> recordCallback;
-        Type type;
     };
 
     template <typename T>
@@ -172,7 +221,7 @@ struct FrameGraph
     void Execute();
     void Destroy();
 
-    HashTrie<u32, ResourceDescriptor> resources;
+    HashTrie<ResourceHandle, ResourceDescriptor> resources;
 
 private:
     RHI::Device& device_;
@@ -183,18 +232,24 @@ private:
     u32 textureCount_ = 0;
 };
 
-u32 CreateBuffer(Arena& arena, FrameGraph::Builder& builder,
-                 VkBufferUsageFlags usage, bool hostVisible, void* data,
-                 u64 dataSize, FrameGraph::ResourceAccess access);
-u32 CreateReference(Arena& arena, FrameGraph::Builder& builder,
-                    FrameGraph::ResourceHandle resourceHandle,
-                    FrameGraph::ResourceAccess access);
+FrameGraph::BufferHandle CreateBuffer(Arena& arena,
+                                      FrameGraph::Builder& builder,
+                                      VkBufferUsageFlags usage,
+                                      bool hostVisible, void* data,
+                                      u64 dataSize);
 
-u32 CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
-                    VkImageUsageFlags usage, void* data, u64 dataSize,
-                    u32 width, u32 height, VkFormat format,
-                    Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                    FrameGraph::ResourceAccess access);
+FrameGraph::TextureHandle
+CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
+                VkImageUsageFlags usage, void* data, u64 dataSize, u32 width,
+                u32 height, VkFormat format, Sampler::FilterMode filterMode,
+                Sampler::WrapMode wrapMode);
+
+FrameGraph::TextureHandle
+ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
+                FrameGraph::TextureHandle textureHandle,
+                VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f},
+                VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE);
 } // namespace RHI
 } // namespace Fly
 
