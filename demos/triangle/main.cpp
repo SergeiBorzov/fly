@@ -54,21 +54,11 @@ static void TrianglePassExecute(RHI::CommandBuffer& cmd,
 {
     UserData* userData = static_cast<UserData*>(pUserData);
     RHI::BindGraphicsPipeline(cmd, userData->pipeline);
-
-    VkViewport viewport = {};
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<f32>(userData->viewportWidth);
-    viewport.height = static_cast<f32>(userData->viewportHeight);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
-
-    VkRect2D scissor = {{0, 0},
-                        {userData->viewportWidth, userData->viewportHeight}};
-    vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
-
-    vkCmdDraw(cmd.handle, 3, 1, 0, 0);
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
+                     static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
+                    userData->viewportHeight);
+    RHI::Draw(cmd, 3, 1, 0, 0);
 }
 
 int main(int argc, char* argv[])
@@ -168,7 +158,7 @@ int main(int argc, char* argv[])
         glfwGetFramebufferSize(context.windowPtr, &w, &h);
         userData.viewportWidth = static_cast<u32>(w);
         userData.viewportHeight = static_cast<u32>(h);
-        
+
         fg.Execute();
     }
 

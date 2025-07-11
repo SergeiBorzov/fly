@@ -249,19 +249,6 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
     vkCmdPipelineBarrier2(commandBuffer.handle, &dependencyInfo);
 }
 
-void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
-                      f32 b, f32 a)
-{
-    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
-
-    VkClearColorValue clearValue;
-    clearValue = {{r, g, b, a}};
-    VkImageSubresourceRange clearRange =
-        ImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
-    vkCmdClearColorImage(commandBuffer.handle, image, VK_IMAGE_LAYOUT_GENERAL,
-                         &clearValue, 1, &clearRange);
-}
-
 void BindGraphicsPipeline(CommandBuffer& cmd,
                           const RHI::GraphicsPipeline& graphicsPipeline)
 {
@@ -288,16 +275,6 @@ void BindComputePipeline(CommandBuffer& cmd,
                             &(cmd.device->bindlessDescriptorSet), 0, nullptr);
 }
 
-void SetPushConstants(CommandBuffer& cmd, const void* pushConstants,
-                      u32 pushConstantsSize, u32 offset)
-{
-    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
-
-    vkCmdPushConstants(cmd.handle, cmd.device->pipelineLayout,
-                       VK_SHADER_STAGE_ALL, offset, pushConstantsSize,
-                       pushConstants);
-}
-
 void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,
                 u64 size)
 {
@@ -309,66 +286,6 @@ void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,
         size = VK_WHOLE_SIZE;
     }
     vkCmdFillBuffer(cmd.handle, buffer.handle, offset, size, value);
-}
-
-VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
-                                              VkImageLayout imageLayout,
-                                              VkAttachmentLoadOp loadOp)
-{
-    VkRenderingAttachmentInfo attachmentInfo{};
-    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    attachmentInfo.pNext = nullptr;
-    attachmentInfo.imageView = imageView;
-    attachmentInfo.imageLayout = imageLayout;
-    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-    attachmentInfo.loadOp = loadOp;
-    attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentInfo.clearValue = {{0.0f, 0.0f, 0.0f, 1.0f}};
-
-    return attachmentInfo;
-}
-
-VkRenderingAttachmentInfo DepthAttachmentInfo(VkImageView imageView,
-                                              VkImageLayout imageLayout)
-{
-    VkRenderingAttachmentInfo attachmentInfo{};
-    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    attachmentInfo.pNext = nullptr;
-    attachmentInfo.imageView = imageView;
-    attachmentInfo.imageLayout = imageLayout;
-    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-    attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentInfo.clearValue.depthStencil.depth = 1.0f;
-    attachmentInfo.clearValue.depthStencil.stencil = 0;
-
-    return attachmentInfo;
-}
-
-VkRenderingInfo
-RenderingInfo(const VkRect2D& renderArea,
-              const VkRenderingAttachmentInfo* colorAttachments,
-              u32 colorAttachmentCount,
-              const VkRenderingAttachmentInfo* depthAttachment,
-              const VkRenderingAttachmentInfo* stencilAttachment,
-              u32 layerCount, u32 viewMask)
-{
-    FLY_ASSERT(colorAttachments);
-    FLY_ASSERT(colorAttachmentCount > 0);
-
-    VkRenderingInfo renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderInfo.pNext = nullptr;
-    renderInfo.flags = 0;
-    renderInfo.viewMask = viewMask;
-    renderInfo.layerCount = layerCount;
-    renderInfo.renderArea = renderArea;
-    renderInfo.colorAttachmentCount = colorAttachmentCount;
-    renderInfo.pColorAttachments = colorAttachments;
-    renderInfo.pDepthAttachment = depthAttachment;
-    renderInfo.pStencilAttachment = stencilAttachment;
-
-    return renderInfo;
 }
 
 VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,

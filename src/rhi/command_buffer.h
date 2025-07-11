@@ -55,37 +55,31 @@ void ChangeTexture2DLayout(CommandBuffer& commandBuffer,
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout);
-void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
-                      f32 b, f32 a);
 
-void BindGraphicsPipeline(CommandBuffer& commandBuffer,
-                          const GraphicsPipeline& graphicsPipeline);
-void BindComputePipeline(CommandBuffer& commandBuffer,
-                         const ComputePipeline& computePipeline);
-void SetPushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
-                      u32 pushConstantsSize, u32 offset = 0);
 void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value = 0,
                 u64 offset = 0, u64 size = 0);
-
-VkRenderingAttachmentInfo
-ColorAttachmentInfo(VkImageView imageView, VkImageLayout imageLayout,
-                    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR);
-VkRenderingAttachmentInfo DepthAttachmentInfo(VkImageView imageView,
-                                              VkImageLayout imageLayout);
-
-VkRenderingInfo
-RenderingInfo(const VkRect2D& renderArea,
-              const VkRenderingAttachmentInfo* colorAttachments,
-              u32 colorAttachmentCount,
-              const VkRenderingAttachmentInfo* depthAttachment = nullptr,
-              const VkRenderingAttachmentInfo* stencilAttachment = nullptr,
-              u32 layerCount = 1, u32 viewMask = 0);
 
 VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
                                           VkAccessFlags srcAccessMask,
                                           VkAccessFlags dstAccessMask,
                                           u64 offset = 0,
                                           u64 size = VK_WHOLE_SIZE);
+
+/*--Commands--*/
+void BindGraphicsPipeline(CommandBuffer& commandBuffer,
+                          const GraphicsPipeline& graphicsPipeline);
+void BindComputePipeline(CommandBuffer& commandBuffer,
+                         const ComputePipeline& computePipeline);
+void SetViewport(CommandBuffer& cmd, f32 x, f32 y, f32 w, f32 h, f32 minDepth,
+                 f32 maxDepth);
+void SetScissor(CommandBuffer& cmd, i32 x, i32 y, u32 w, u32 h);
+void ClearColor(CommandBuffer& cmd, Texture2D& texture2D, f32 r, f32 g, f32 b,
+                f32 a);
+void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
+                   u32 pushConstantsSize, u32 offset = 0);
+void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
+          u32 firstVertex, u32 firstInstance);
+/*----------*/
 
 } // namespace RHI
 } // namespace Fly

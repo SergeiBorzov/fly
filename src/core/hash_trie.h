@@ -23,24 +23,47 @@ struct HashTrie
 
     ValueType* Find(const KeyType& key)
     {
-        Node** node = &root_;
+        Node* node = root_;
         Hash<KeyType> hashFunc;
         u64 h = hashFunc(key);
         do
         {
-            if (!*node)
+            if (!node)
             {
                 return nullptr;
             }
 
-            if (key == (*node)->key)
+            if (key == node->key)
             {
-                return &(*node)->value;
+                return &(node->value);
             }
 
-            node = &(*node)->children[h & 3];
+            node = node->children[h & 3];
             h >>= 2;
-            h = hashFunc(key);
+        } while (h != 0);
+
+        return nullptr;
+    }
+
+    const ValueType* Find(const KeyType& key) const
+    {
+        const Node* node = root_;
+        Hash<KeyType> hashFunc;
+        u64 h = hashFunc(key);
+        do
+        {
+            if (!node)
+            {
+                return nullptr;
+            }
+
+            if (key == node->key)
+            {
+                return &(node->value);
+            }
+
+            node = node->children[h & 3];
+            h >>= 2;
         } while (h != 0);
 
         return nullptr;
@@ -256,6 +279,7 @@ struct HashTrie
 
     ConstIterator begin() const { return Iterator(root_); }
     ConstIterator end() const { return Iterator(nullptr); }
+
 private:
     Node* root_ = nullptr;
     u64 count_ = 0;

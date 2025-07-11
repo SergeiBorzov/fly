@@ -5,10 +5,107 @@
 #include "device.h"
 #include "frame_graph.h"
 
+static VkRenderingAttachmentInfo
+ColorAttachmentInfo(VkImageView imageView, VkAttachmentLoadOp loadOp,
+                    VkAttachmentStoreOp storeOp, VkClearColorValue clearColor)
+{
+    VkRenderingAttachmentInfo attachmentInfo{};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.pNext = nullptr;
+    attachmentInfo.imageView = imageView;
+    attachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    attachmentInfo.loadOp = loadOp;
+    attachmentInfo.storeOp = storeOp;
+    attachmentInfo.clearValue.color = clearColor;
+
+    return attachmentInfo;
+}
+
+static VkRenderingAttachmentInfo
+DepthAttachmentInfo(VkImageView imageView, VkAttachmentLoadOp loadOp,
+                    VkAttachmentStoreOp storeOp,
+                    VkClearDepthStencilValue clearDepthStencil)
+{
+    VkRenderingAttachmentInfo attachmentInfo{};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.pNext = nullptr;
+    attachmentInfo.imageView = imageView;
+    attachmentInfo.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    attachmentInfo.loadOp = loadOp;
+    attachmentInfo.storeOp = storeOp;
+    attachmentInfo.clearValue.depthStencil = clearDepthStencil;
+
+    return attachmentInfo;
+}
+
+static VkRenderingInfo
+RenderingInfo(const VkRect2D& renderArea,
+              const VkRenderingAttachmentInfo* colorAttachments,
+              u32 colorAttachmentCount,
+              const VkRenderingAttachmentInfo* depthAttachment,
+              const VkRenderingAttachmentInfo* stencilAttachment,
+              u32 layerCount, u32 viewMask)
+{
+    FLY_ASSERT(colorAttachments);
+    FLY_ASSERT(colorAttachmentCount > 0);
+
+    VkRenderingInfo renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = nullptr;
+    renderInfo.flags = 0;
+    renderInfo.viewMask = viewMask;
+    renderInfo.layerCount = layerCount;
+    renderInfo.renderArea = renderArea;
+    renderInfo.colorAttachmentCount = colorAttachmentCount;
+    renderInfo.pColorAttachments = colorAttachments;
+    renderInfo.pDepthAttachment = depthAttachment;
+    renderInfo.pStencilAttachment = stencilAttachment;
+
+    return renderInfo;
+}
+
 namespace Fly
 {
 namespace RHI
 {
+
+struct AttachmentCount
+{
+    u32 color;
+    u32 depth;
+};
+
+static AttachmentCount CountAttachments(
+    const FrameGraph::PassNode* pass,
+    const HashTrie<ResourceHandle, FrameGraph::ResourceDescriptor>& resources)
+{
+    FLY_ASSERT(pass);
+
+    AttachmentCount count{};
+    for (ResourceHandle rh : pass->outputs)
+    {
+        const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+        FLY_ASSERT(rd);
+
+        if (rd->type == FrameGraph::ResourceType::Texture2D)
+        {
+            if (rd->texture2D.usage == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+            {
+                count.color++;
+            }
+            else if (rd->texture2D.usage ==
+                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            {
+                count.depth++;
+            }
+        }
+    }
+
+    return count;
+}
 
 const FrameGraph::TextureHandle FrameGraph::TextureHandle::sBackBuffer = {
     {0, 0}};
@@ -400,6 +497,9 @@ void FrameGraph::Destroy()
 
 void FrameGraph::Execute()
 {
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
     RHI::BeginRenderFrame(device_);
 
     // TODO: Memory barriers, image layout transitions, compute pass
@@ -408,37 +508,13 @@ void FrameGraph::Execute()
     {
         if (pass->type == PassNode::Type::Graphics)
         {
-            Arena& arena = GetScratchArena();
-            ArenaMarker marker = ArenaGetMarker(arena);
 
-            u32 colorAttachmentCount = 0;
-            u32 depthStencilAttachmentCount = 0;
-            for (ResourceHandle rh : pass->outputs)
-            {
-                const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
-                FLY_ASSERT(rd);
+            AttachmentCount count = CountAttachments(pass, resources);
+            FLY_ASSERT(count.color);
+            FLY_ASSERT(count.depth <= 1);
 
-                if (rd->type == FrameGraph::ResourceType::Texture2D)
-                {
-                    if (rd->texture2D.usage ==
-                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-                    {
-                        colorAttachmentCount++;
-                    }
-                    else if (rd->texture2D.usage ==
-                             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-                    {
-                        depthStencilAttachmentCount++;
-                    }
-                }
-            }
-
-            FLY_ASSERT(colorAttachmentCount);
-            FLY_ASSERT(depthStencilAttachmentCount <= 1);
-
-            VkRenderingAttachmentInfo* attachmentInfos = FLY_PUSH_ARENA(
-                arena, VkRenderingAttachmentInfo,
-                colorAttachmentCount + depthStencilAttachmentCount);
+            VkRenderingAttachmentInfo* attachments = FLY_PUSH_ARENA(
+                arena, VkRenderingAttachmentInfo, count.color + count.depth);
 
             u32 i = 0;
             VkRect2D renderArea;
@@ -470,60 +546,27 @@ void FrameGraph::Execute()
                     if (rd->texture2D.usage ==
                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
                     {
-                        attachmentInfos[i] = {};
-                        attachmentInfos[i].sType =
-                            VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-                        attachmentInfos[i].imageView = imageView;
-                        attachmentInfos[i].imageLayout =
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                        attachmentInfos[i].resolveMode = VK_RESOLVE_MODE_NONE;
-                        attachmentInfos[i].loadOp = rd->texture2D.loadOp;
-                        attachmentInfos[i].storeOp = rd->texture2D.storeOp;
-                        attachmentInfos[i].clearValue =
-                            rd->texture2D.clearValue;
-                        i++;
+                        attachments[i++] =
+                            ColorAttachmentInfo(imageView, rd->texture2D.loadOp,
+                                                rd->texture2D.storeOp,
+                                                rd->texture2D.clearValue.color);
                     }
                     else if (rd->texture2D.usage ==
                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
                     {
-                        attachmentInfos[i] = {};
-                        attachmentInfos[colorAttachmentCount].sType =
-                            VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-                        attachmentInfos[colorAttachmentCount].imageView =
-                            imageView;
-                        attachmentInfos[colorAttachmentCount].imageLayout =
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                        attachmentInfos[colorAttachmentCount].resolveMode =
-                            VK_RESOLVE_MODE_NONE;
-                        attachmentInfos[colorAttachmentCount].loadOp =
-                            rd->texture2D.loadOp;
-                        attachmentInfos[colorAttachmentCount].storeOp =
-                            rd->texture2D.storeOp;
-                        attachmentInfos[colorAttachmentCount].clearValue =
-                            rd->texture2D.clearValue;
+                        attachments[count.color] = DepthAttachmentInfo(
+                            imageView, rd->texture2D.loadOp,
+                            rd->texture2D.storeOp,
+                            rd->texture2D.clearValue.depthStencil);
                     }
                 }
             }
 
-            VkRenderingInfo renderInfo{};
-            renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-            renderInfo.pNext = nullptr;
-            renderInfo.flags = 0;
-            renderInfo.viewMask = 0;
-            renderInfo.layerCount = 1;
-            renderInfo.renderArea = renderArea;
-            renderInfo.colorAttachmentCount = colorAttachmentCount;
-            renderInfo.pColorAttachments = attachmentInfos;
-            if (depthStencilAttachmentCount == 1)
-            {
-                renderInfo.pDepthAttachment =
-                    attachmentInfos + colorAttachmentCount;
-            }
-            else
-            {
-                renderInfo.pDepthAttachment = nullptr;
-            }
-            renderInfo.pStencilAttachment = nullptr;
+            VkRenderingAttachmentInfo* pDepthAttachment =
+                (count.depth == 0) ? nullptr : attachments + count.color;
+            VkRenderingInfo renderInfo =
+                RenderingInfo(renderArea, attachments, count.color,
+                              pDepthAttachment, nullptr, 1, 0);
 
             RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device_);
             vkCmdBeginRendering(cmd.handle, &renderInfo);
@@ -533,6 +576,7 @@ void FrameGraph::Execute()
     }
 
     RHI::EndRenderFrame(device_);
+    ArenaPopToMarker(arena, marker);
 }
 
 } // namespace RHI
