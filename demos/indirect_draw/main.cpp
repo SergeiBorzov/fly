@@ -87,7 +87,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
     // Culling pass
-    RHI::BindComputePipeline(device, cmd, cullPipeline);
+    RHI::BindComputePipeline(cmd, cullPipeline);
 
     u32 cullIndices[7] = {
         scene.indirectDrawData.instanceDataBuffer.bindlessHandle,
@@ -97,7 +97,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
         sIndirectDrawBuffers[device.frameIndex].bindlessHandle,
         sIndirectCountBuffers[device.frameIndex].bindlessHandle,
         sDrawCount};
-    RHI::SetPushConstants(device, cmd, cullIndices, sizeof(cullIndices));
+    RHI::SetPushConstants(cmd, cullIndices, sizeof(cullIndices));
     vkCmdDispatch(cmd.handle, static_cast<u32>(Math::Ceil(sDrawCount / 64.0f)),
                   1, 1);
 
@@ -129,7 +129,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, pipeline);
+    RHI::BindGraphicsPipeline(cmd, pipeline);
 
     vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
                          VK_INDEX_TYPE_UINT32);
@@ -150,7 +150,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
                       scene.indirectDrawData.meshDataBuffer.bindlessHandle,
                       sUniformBuffers[device.frameIndex].bindlessHandle,
                       scene.materialBuffer.bindlessHandle};
-    RHI::SetPushConstants(device, cmd, indices, sizeof(indices));
+    RHI::SetPushConstants(cmd, indices, sizeof(indices));
 
     vkCmdDrawIndexedIndirectCount(
         cmd.handle, sIndirectDrawBuffers[device.frameIndex].handle, 0,

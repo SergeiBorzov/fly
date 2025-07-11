@@ -64,10 +64,10 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, pipeline);
+    RHI::BindGraphicsPipeline(cmd, pipeline);
     u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
                       sTexture.bindlessHandle};
-    RHI::SetPushConstants(device, cmd, indices, sizeof(indices));
+    RHI::SetPushConstants(cmd, indices, sizeof(indices));
 
     VkViewport viewport = {};
     viewport.x = 0;

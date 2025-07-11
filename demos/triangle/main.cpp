@@ -5,6 +5,7 @@
 #include "core/thread_context.h"
 
 #include "rhi/context.h"
+#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
@@ -28,38 +29,46 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
+struct UserData
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    u32 viewportWidth;
+    u32 viewportHeight;
+    RHI::GraphicsPipeline pipeline;
+};
 
-    const RHI::SwapchainTexture& swapchainTexture =
-        RenderFrameSwapchainTexture(device);
+struct TrianglePassContext
+{
+    RHI::FrameGraph::TextureHandle colorAttachment;
+};
 
-    VkRect2D renderArea = {{0, 0},
-                           {swapchainTexture.width, swapchainTexture.height}};
-    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
-        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo =
-        RHI::RenderingInfo(renderArea, &colorAttachment, 1);
+static void TrianglePassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
+                              TrianglePassContext& context, void* pUserData)
+{
+    context.colorAttachment = RHI::ColorAttachment(
+        arena, builder, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+}
 
-    vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, pipeline);
+static void TrianglePassExecute(RHI::CommandBuffer& cmd,
+                                const TrianglePassContext& context,
+                                void* pUserData)
+{
+    UserData* userData = static_cast<UserData*>(pUserData);
+    RHI::BindGraphicsPipeline(cmd, userData->pipeline);
 
     VkViewport viewport = {};
     viewport.x = 0;
     viewport.y = 0;
-    viewport.width = static_cast<f32>(renderArea.extent.width);
-    viewport.height = static_cast<f32>(renderArea.extent.height);
+    viewport.width = static_cast<f32>(userData->viewportWidth);
+    viewport.height = static_cast<f32>(userData->viewportHeight);
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
 
-    VkRect2D scissor = renderArea;
+    VkRect2D scissor = {{0, 0},
+                        {userData->viewportWidth, userData->viewportHeight}};
     vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
     vkCmdDraw(cmd.handle, 3, 1, 0, 0);
-
-    vkCmdEndRendering(cmd.handle);
 }
 
 int main(int argc, char* argv[])
@@ -141,13 +150,26 @@ int main(int argc, char* argv[])
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
+    UserData userData;
+    userData.pipeline = graphicsPipeline;
+
+    Arena& arena = GetScratchArena();
+    RHI::FrameGraph fg(device);
+    fg.AddPass<TrianglePassContext>(
+        arena, "TrianglePass", RHI::FrameGraph::PassNode::Type::Graphics,
+        TrianglePassBuild, TrianglePassExecute, &userData);
+    fg.Build(arena);
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
-        RHI::BeginRenderFrame(device);
-        RecordCommands(device, graphicsPipeline);
-        RHI::EndRenderFrame(device);
+        i32 w, h;
+        glfwGetFramebufferSize(context.windowPtr, &w, &h);
+        userData.viewportWidth = static_cast<u32>(w);
+        userData.viewportHeight = static_cast<u32>(h);
+        
+        fg.Execute();
     }
 
     RHI::WaitAllDevicesIdle(context);

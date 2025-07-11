@@ -75,8 +75,8 @@ CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
 FrameGraph::TextureHandle
 ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
                 FrameGraph::TextureHandle textureHandle,
-                VkClearColorValue clearColor, VkAttachmentLoadOp loadOp,
-                VkAttachmentStoreOp storeOp)
+                VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+                VkClearColorValue clearColor)
 {
     FLY_ASSERT(builder.currentPass);
     FLY_ASSERT(builder.currentPass->type ==
@@ -84,7 +84,10 @@ ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
 
     if (textureHandle == FrameGraph::TextureHandle::sBackBuffer)
     {
-        FrameGraph::ResourceDescriptor rd;
+        FrameGraph::ResourceDescriptor rd{};
+        rd.type = FrameGraph::ResourceType::Texture2D;
+        rd.texture2D.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
         ResourceHandle rh;
         rh.id = FLY_SWAPCHAIN_TEXTURE_HANDLE_ID;
         rh.version = 0;
@@ -397,11 +400,139 @@ void FrameGraph::Destroy()
 
 void FrameGraph::Execute()
 {
-    // TODO: Memory barriers!
+    RHI::BeginRenderFrame(device_);
+
+    // TODO: Memory barriers, image layout transitions, compute pass
+
     for (PassNode* pass : passes_)
     {
-        pass->recordCallbackImpl(RenderFrameCommandBuffer(device_), *pass);
+        if (pass->type == PassNode::Type::Graphics)
+        {
+            Arena& arena = GetScratchArena();
+            ArenaMarker marker = ArenaGetMarker(arena);
+
+            u32 colorAttachmentCount = 0;
+            u32 depthStencilAttachmentCount = 0;
+            for (ResourceHandle rh : pass->outputs)
+            {
+                const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+                FLY_ASSERT(rd);
+
+                if (rd->type == FrameGraph::ResourceType::Texture2D)
+                {
+                    if (rd->texture2D.usage ==
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+                    {
+                        colorAttachmentCount++;
+                    }
+                    else if (rd->texture2D.usage ==
+                             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+                    {
+                        depthStencilAttachmentCount++;
+                    }
+                }
+            }
+
+            FLY_ASSERT(colorAttachmentCount);
+            FLY_ASSERT(depthStencilAttachmentCount <= 1);
+
+            VkRenderingAttachmentInfo* attachmentInfos = FLY_PUSH_ARENA(
+                arena, VkRenderingAttachmentInfo,
+                colorAttachmentCount + depthStencilAttachmentCount);
+
+            u32 i = 0;
+            VkRect2D renderArea;
+            renderArea.offset = {0, 0};
+            for (ResourceHandle rh : pass->outputs)
+            {
+                const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+                FLY_ASSERT(rd);
+
+                if (rd->type == FrameGraph::ResourceType::Texture2D)
+                {
+                    VkImageView imageView;
+                    if (rh.id == FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
+                    {
+                        const SwapchainTexture& swapchainTexture =
+                            RenderFrameSwapchainTexture(device_);
+                        imageView = swapchainTexture.imageView;
+                        renderArea.extent = {swapchainTexture.width,
+                                             swapchainTexture.height};
+                    }
+                    else
+                    {
+                        const RHI::Texture2D& texture =
+                            textures_[rd->arrayIndex];
+                        imageView = texture.imageView;
+                        renderArea.extent = {texture.width, texture.height};
+                    }
+
+                    if (rd->texture2D.usage ==
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+                    {
+                        attachmentInfos[i] = {};
+                        attachmentInfos[i].sType =
+                            VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+                        attachmentInfos[i].imageView = imageView;
+                        attachmentInfos[i].imageLayout =
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                        attachmentInfos[i].resolveMode = VK_RESOLVE_MODE_NONE;
+                        attachmentInfos[i].loadOp = rd->texture2D.loadOp;
+                        attachmentInfos[i].storeOp = rd->texture2D.storeOp;
+                        attachmentInfos[i].clearValue =
+                            rd->texture2D.clearValue;
+                        i++;
+                    }
+                    else if (rd->texture2D.usage ==
+                             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+                    {
+                        attachmentInfos[i] = {};
+                        attachmentInfos[colorAttachmentCount].sType =
+                            VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+                        attachmentInfos[colorAttachmentCount].imageView =
+                            imageView;
+                        attachmentInfos[colorAttachmentCount].imageLayout =
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                        attachmentInfos[colorAttachmentCount].resolveMode =
+                            VK_RESOLVE_MODE_NONE;
+                        attachmentInfos[colorAttachmentCount].loadOp =
+                            rd->texture2D.loadOp;
+                        attachmentInfos[colorAttachmentCount].storeOp =
+                            rd->texture2D.storeOp;
+                        attachmentInfos[colorAttachmentCount].clearValue =
+                            rd->texture2D.clearValue;
+                    }
+                }
+            }
+
+            VkRenderingInfo renderInfo{};
+            renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+            renderInfo.pNext = nullptr;
+            renderInfo.flags = 0;
+            renderInfo.viewMask = 0;
+            renderInfo.layerCount = 1;
+            renderInfo.renderArea = renderArea;
+            renderInfo.colorAttachmentCount = colorAttachmentCount;
+            renderInfo.pColorAttachments = attachmentInfos;
+            if (depthStencilAttachmentCount == 1)
+            {
+                renderInfo.pDepthAttachment =
+                    attachmentInfos + colorAttachmentCount;
+            }
+            else
+            {
+                renderInfo.pDepthAttachment = nullptr;
+            }
+            renderInfo.pStencilAttachment = nullptr;
+
+            RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device_);
+            vkCmdBeginRendering(cmd.handle, &renderInfo);
+            pass->recordCallbackImpl(cmd, *pass);
+            vkCmdEndRendering(cmd.handle);
+        }
     }
+
+    RHI::EndRenderFrame(device_);
 }
 
 } // namespace RHI

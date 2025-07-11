@@ -217,6 +217,11 @@ struct FrameGraph
 
     inline FrameGraph(RHI::Device& device) : device_(device) {}
 
+    inline VkFormat GetSwapchainFormat() const
+    {
+        return device_.surfaceFormat.format;
+    }
+
     bool Build(Arena& arena);
     void Execute();
     void Destroy();
@@ -247,9 +252,9 @@ CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
 FrameGraph::TextureHandle
 ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
                 FrameGraph::TextureHandle textureHandle,
-                VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f},
                 VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE);
+                VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
 } // namespace RHI
 } // namespace Fly
 

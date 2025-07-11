@@ -63,7 +63,7 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
         RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, pipeline);
+    RHI::BindGraphicsPipeline(cmd, pipeline);
 
     VkViewport viewport = {};
     viewport.x = 0;
@@ -82,20 +82,19 @@ static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
 
     u32 globalIndices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
                             scene.materialBuffer.bindlessHandle};
-    RHI::SetPushConstants(device, cmd, globalIndices, sizeof(globalIndices),
+    RHI::SetPushConstants(cmd, globalIndices, sizeof(globalIndices),
                           sizeof(Math::Mat4));
     for (u32 i = 0; i < scene.meshNodeCount; i++)
     {
         const Fly::MeshNode& meshNode = scene.meshNodes[i];
-        RHI::SetPushConstants(device, cmd, meshNode.model.data,
+        RHI::SetPushConstants(cmd, meshNode.model.data,
                               sizeof(meshNode.model.data));
         for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
         {
             const Fly::Submesh& submesh = meshNode.mesh->submeshes[j];
             u32 localIndices[2] = {submesh.vertexBufferIndex,
                                    submesh.materialIndex};
-            RHI::SetPushConstants(device, cmd, localIndices,
-                                  sizeof(localIndices),
+            RHI::SetPushConstants(cmd, localIndices, sizeof(localIndices),
                                   sizeof(Math::Mat4) + sizeof(u32) * 2);
             vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1,
                              submesh.indexOffset, 0, 0);

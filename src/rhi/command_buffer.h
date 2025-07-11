@@ -27,14 +27,15 @@ struct CommandBuffer
         Submitted,
         Invalid
     };
+    Device* device = nullptr;
     VkCommandBuffer handle = VK_NULL_HANDLE;
     State state = State::NotAllocated;
 };
 
-bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
+bool CreateCommandBuffers(Device& device, VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary = true);
-void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
+void DestroyCommandBuffers(Device& device, CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount);
 bool BeginCommandBuffer(CommandBuffer& commandBuffer, bool singleUse,
                         bool renderPassContinue = false,
@@ -57,13 +58,12 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
 void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                       f32 b, f32 a);
 
-void BindGraphicsPipeline(Device& device, CommandBuffer& commandBuffer,
+void BindGraphicsPipeline(CommandBuffer& commandBuffer,
                           const GraphicsPipeline& graphicsPipeline);
-void BindComputePipeline(Device& device, CommandBuffer& commandBuffer,
+void BindComputePipeline(CommandBuffer& commandBuffer,
                          const ComputePipeline& computePipeline);
-void SetPushConstants(Device& device, CommandBuffer& commandBuffer,
-                      const void* pushConstants, u32 pushConstantsSize,
-                      u32 offset = 0);
+void SetPushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
+                      u32 pushConstantsSize, u32 offset = 0);
 void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value = 0,
                 u64 offset = 0, u64 size = 0);
 

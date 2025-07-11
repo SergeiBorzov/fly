@@ -83,7 +83,7 @@ void RecordSkyBoxRendererCommands(RHI::Device& device, SkyBoxRenderer& renderer)
         renderArea, &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
 
     vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(device, cmd, renderer.skyBoxPipeline);
+    RHI::BindGraphicsPipeline(cmd, renderer.skyBoxPipeline);
 
     VkViewport viewport = {};
     viewport.x = 0;

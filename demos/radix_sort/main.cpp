@@ -168,12 +168,11 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
         u32 out = (i + 1) % 2;
 
         // Calculate count histograms
-        RHI::BindComputePipeline(device, cmd, sCountPipeline);
+        RHI::BindComputePipeline(cmd, sCountPipeline);
         u32 pushConstants[] = {i, keyCount, sPingPongKeys[in].bindlessHandle,
                                sTileHistograms.bindlessHandle,
                                sGlobalHistograms.bindlessHandle};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
         VkBufferMemoryBarrier countToScanBarriers[2];
@@ -189,9 +188,8 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
                              countToScanBarriers, 0, nullptr);
 
         // Exclusive prefix sums - global offsets
-        RHI::BindComputePipeline(device, cmd, sScanPipeline);
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
+        RHI::BindComputePipeline(cmd, sScanPipeline);
+        RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, RADIX_HISTOGRAM_SIZE, 1, 1);
 
         VkBufferMemoryBarrier scanToSortBarrier = RHI::BufferMemoryBarrier(
@@ -203,10 +201,9 @@ static void ExecuteRadixKernels(RHI::Device& device, u32 keyCount)
                              nullptr, 1, &scanToSortBarrier, 0, nullptr);
 
         // Sort
-        RHI::BindComputePipeline(device, cmd, sSortPipeline);
+        RHI::BindComputePipeline(cmd, sSortPipeline);
         pushConstants[4] = sPingPongKeys[out].bindlessHandle;
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, workGroupCount, 1, 1);
 
         if (i == RADIX_PASS_COUNT - 1)

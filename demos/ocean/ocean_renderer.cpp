@@ -334,7 +334,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
         VkRect2D scissor = renderArea;
         vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
 
-        RHI::BindGraphicsPipeline(device, cmd, renderer.foamPipeline);
+        RHI::BindGraphicsPipeline(cmd, renderer.foamPipeline);
 
         FoamPushConstants pushConstants;
         pushConstants.foamTextureIndex = inFoamTexture.bindlessHandle;
@@ -348,8 +348,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
         pushConstants.foamGain = renderer.foamGain;
         pushConstants.foamDecay = renderer.foamDecay;
         pushConstants.deltaTime = inputs.deltaTime;
-        RHI::SetPushConstants(device, cmd, &pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, &pushConstants, sizeof(pushConstants));
 
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
 
@@ -391,19 +390,18 @@ void RecordOceanRendererCommands(RHI::Device& device,
 
     // Sky
     {
-        RHI::BindGraphicsPipeline(device, cmd, renderer.skyPipeline);
+        RHI::BindGraphicsPipeline(cmd, renderer.skyPipeline);
         u32 pushConstants[] = {
             renderer.uniformBuffers[device.frameIndex].bindlessHandle,
             /*renderer.foamTextures[renderer.foamTextureIndex].bindlessHandle*/
             inputs.skyBox};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
         vkCmdDraw(cmd.handle, 6, 1, 0, 0);
     }
 
     // Ocean
     {
-        RHI::BindGraphicsPipeline(device, cmd, *sCurrentPipeline);
+        RHI::BindGraphicsPipeline(cmd, *sCurrentPipeline);
 
         OceanPushConstants pushConstants;
         pushConstants.uniformBufferIndex =
@@ -421,8 +419,7 @@ void RecordOceanRendererCommands(RHI::Device& device,
         pushConstants.foamTextureIndex =
             renderer.foamTextures[renderer.foamTextureIndex].bindlessHandle;
         pushConstants.waveChopiness = renderer.waveChopiness;
-        RHI::SetPushConstants(device, cmd, &pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, &pushConstants, sizeof(pushConstants));
 
         vkCmdBindIndexBuffer(cmd.handle, renderer.indexBuffer.handle, 0,
                              VK_INDEX_TYPE_UINT32);

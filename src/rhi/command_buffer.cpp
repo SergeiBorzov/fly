@@ -13,7 +13,7 @@ namespace Fly
 namespace RHI
 {
 
-bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
+bool CreateCommandBuffers(Device& device, VkCommandPool commandPool,
                           CommandBuffer* commandBuffers, u32 commandBufferCount,
                           bool arePrimary)
 {
@@ -47,6 +47,7 @@ bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
         {
             commandBuffers[i].handle = handles[i];
             commandBuffers[i].state = CommandBuffer::State::Idle;
+            commandBuffers[i].device = &device;
         }
         else
         {
@@ -60,7 +61,7 @@ bool CreateCommandBuffers(const Device& device, VkCommandPool commandPool,
     return res == VK_SUCCESS;
 }
 
-void DestroyCommandBuffers(const Device& device, CommandBuffer* commandBuffers,
+void DestroyCommandBuffers(Device& device, CommandBuffer* commandBuffers,
                            VkCommandPool commandPool, u32 commandBufferCount)
 {
     FLY_ASSERT(commandBuffers);
@@ -261,7 +262,7 @@ void RecordClearColor(CommandBuffer& commandBuffer, VkImage image, f32 r, f32 g,
                          &clearValue, 1, &clearRange);
 }
 
-void BindGraphicsPipeline(Device& device, CommandBuffer& cmd,
+void BindGraphicsPipeline(CommandBuffer& cmd,
                           const RHI::GraphicsPipeline& graphicsPipeline)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
@@ -270,11 +271,11 @@ void BindGraphicsPipeline(Device& device, CommandBuffer& cmd,
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphicsPipeline.handle);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            device.pipelineLayout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+                            cmd.device->pipelineLayout, 0, 1,
+                            &(cmd.device->bindlessDescriptorSet), 0, nullptr);
 }
 
-void BindComputePipeline(Device& device, CommandBuffer& cmd,
+void BindComputePipeline(CommandBuffer& cmd,
                          const RHI::ComputePipeline& computePipeline)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
@@ -283,18 +284,18 @@ void BindComputePipeline(Device& device, CommandBuffer& cmd,
     vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
                       computePipeline.handle);
     vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            device.pipelineLayout, 0, 1,
-                            &device.bindlessDescriptorSet, 0, nullptr);
+                            cmd.device->pipelineLayout, 0, 1,
+                            &(cmd.device->bindlessDescriptorSet), 0, nullptr);
 }
 
-void SetPushConstants(Device& device, CommandBuffer& cmd,
-                      const void* pushConstants, u32 pushConstantsSize,
-                      u32 offset)
+void SetPushConstants(CommandBuffer& cmd, const void* pushConstants,
+                      u32 pushConstantsSize, u32 offset)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
 
-    vkCmdPushConstants(cmd.handle, device.pipelineLayout, VK_SHADER_STAGE_ALL,
-                       offset, pushConstantsSize, pushConstants);
+    vkCmdPushConstants(cmd.handle, cmd.device->pipelineLayout,
+                       VK_SHADER_STAGE_ALL, offset, pushConstantsSize,
+                       pushConstants);
 }
 
 void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,

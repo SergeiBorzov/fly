@@ -139,15 +139,14 @@ static void JonswapPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    RHI::BindComputePipeline(device, cmd, renderer.jonswapPipeline);
+    RHI::BindComputePipeline(cmd, renderer.jonswapPipeline);
     for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
     {
         JonswapCascade& cascade = renderer.cascades[i];
         u32 pushConstants[] = {
             cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle,
             cascade.uniformBuffers[device.frameIndex].bindlessHandle};
-        RHI::SetPushConstants(device, cmd, &pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, &pushConstants, sizeof(pushConstants));
 
         vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
     }
@@ -173,14 +172,13 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 
     // IFFT - FIRST AXIS
     {
-        RHI::BindComputePipeline(device, cmd, renderer.ifftPipeline);
+        RHI::BindComputePipeline(cmd, renderer.ifftPipeline);
         for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
         {
             JonswapCascade& cascade = renderer.cascades[i];
             u32 pushConstants[] = {
                 cascade.frequencyBuffers[2 * device.frameIndex].bindlessHandle};
-            RHI::SetPushConstants(device, cmd, pushConstants,
-                                  sizeof(pushConstants));
+            RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
             vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
         }
         VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
@@ -200,7 +198,7 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 
     // Transpose
     {
-        RHI::BindComputePipeline(device, cmd, renderer.transposePipeline);
+        RHI::BindComputePipeline(cmd, renderer.transposePipeline);
         for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
         {
             JonswapCascade& cascade = renderer.cascades[i];
@@ -209,8 +207,7 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
                 cascade.frequencyBuffers[2 * device.frameIndex + 1]
                     .bindlessHandle,
                 renderer.resolution};
-            RHI::SetPushConstants(device, cmd, pushConstants,
-                                  sizeof(pushConstants));
+            RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
             vkCmdDispatch(cmd.handle, renderer.resolution / 16,
                           renderer.resolution / 16, 1);
         }
@@ -231,15 +228,14 @@ static void IFFTPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 
     // IFFT - SECOND AXIS
     {
-        RHI::BindComputePipeline(device, cmd, renderer.ifftPipeline);
+        RHI::BindComputePipeline(cmd, renderer.ifftPipeline);
         for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
         {
             JonswapCascade& cascade = renderer.cascades[i];
             u32 pushConstants[] = {
                 cascade.frequencyBuffers[2 * device.frameIndex + 1]
                     .bindlessHandle};
-            RHI::SetPushConstants(device, cmd, pushConstants,
-                                  sizeof(pushConstants));
+            RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
             vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
         }
         VkBufferMemoryBarrier barriers[DEMO_OCEAN_CASCADE_COUNT] = {};
@@ -262,7 +258,7 @@ static void CopyPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    RHI::BindComputePipeline(device, cmd, renderer.copyPipeline);
+    RHI::BindComputePipeline(cmd, renderer.copyPipeline);
 
     for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
     {
@@ -272,8 +268,7 @@ static void CopyPass(RHI::Device& device, JonswapCascadesRenderer& renderer)
             cascade.diffDisplacementMaps[device.frameIndex]
                 .bindlessStorageHandle,
             cascade.heightMaps[device.frameIndex].bindlessStorageHandle};
-        RHI::SetPushConstants(device, cmd, pushConstants,
-                              sizeof(pushConstants));
+        RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
         vkCmdDispatch(cmd.handle, renderer.resolution, 1, 1);
     }
 
