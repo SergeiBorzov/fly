@@ -9,7 +9,7 @@
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
-#include "demos/common/scene.h"
+#include "utils/utils.h"
 
 #include <GLFW/glfw3.h>
 

@@ -1,0 +1,17 @@
+cc_library(
+    name = "utils",
+    hdrs = [
+        "utils.h"
+    ],
+    srcs = [
+        "utils.cpp"
+    ],
+    includes = [".."],
+    deps = [
+        "//src/math:math",
+        "//src/assets:import_image",
+        "//src/assets:import_spv",
+        "//src/rhi:context",
+    ],
+    visibility = ["//visibility:public"],
+)
