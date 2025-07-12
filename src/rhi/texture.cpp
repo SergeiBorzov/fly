@@ -604,7 +604,7 @@ bool ModifySampler(Device& device, Sampler::FilterMode filterMode,
         return true;
     }
 
-    DeviceWaitIdle(device);
+    WaitDeviceIdle(device);
 
     DestroySampler(device, texture.sampler);
     return CreateSampler(device, filterMode, wrapMode, texture.mipLevelCount,

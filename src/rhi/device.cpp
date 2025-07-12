@@ -1107,7 +1107,7 @@ void EndTransfer(Device& device)
                     VK_TRUE, UINT64_MAX);
 }
 
-void DeviceWaitIdle(Device& device) { vkDeviceWaitIdle(device.logicalDevice); }
+void WaitDeviceIdle(Device& device) { vkDeviceWaitIdle(device.logicalDevice); }
 
 } // namespace RHI
 } // namespace Fly

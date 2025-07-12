@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
         fg.Execute();
     }
 
-    RHI::WaitAllDevicesIdle(context);
+    RHI::WaitDeviceIdle(device);
 
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     RHI::DestroyContext(context);

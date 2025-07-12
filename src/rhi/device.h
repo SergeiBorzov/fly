@@ -106,7 +106,7 @@ bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
                     u32 extraSignalSemaphoreCount, void* pNext);
 
 
-void DeviceWaitIdle(Device& device);
+void WaitDeviceIdle(Device& device);
 
 } // namespace RHI
 } // namespace Fly
