@@ -246,88 +246,6 @@ static void DestroySwapchainImageViews(Device& device)
     }
 }
 
-static bool CreateMainDepthTexture(Device& device)
-{
-    FLY_ASSERT(device.context);
-    FLY_ASSERT(device.context->windowPtr);
-
-    i32 width = 0;
-    i32 height = 0;
-    GetFramebufferSize(*device.context, width, height);
-    while (width == 0 || height == 0)
-    {
-        PollWindowEvents(*device.context);
-        GetFramebufferSize(*device.context, width, height);
-    }
-
-    VkImageCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    createInfo.flags = 0;
-    createInfo.imageType = VK_IMAGE_TYPE_2D;
-    createInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-    createInfo.extent.width = static_cast<u32>(width);
-    createInfo.extent.height = static_cast<u32>(height);
-    createInfo.extent.depth = 1;
-    createInfo.mipLevels = 1;
-    createInfo.arrayLayers = 1;
-    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    createInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    allocCreateInfo.requiredFlags =
-        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo,
-                       &device.depthTexture.image,
-                       &device.depthTexture.allocation,
-                       &device.depthTexture.allocationInfo) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    VkImageViewCreateInfo viewCreateInfo{};
-    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewCreateInfo.image = device.depthTexture.image;
-    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewCreateInfo.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-    viewCreateInfo.subresourceRange.aspectMask =
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = 1;
-    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 1;
-
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
-                          GetVulkanAllocationCallbacks(),
-                          &device.depthTexture.imageView) != VK_SUCCESS)
-    {
-        vmaDestroyImage(device.allocator, device.depthTexture.image,
-                        device.depthTexture.allocation);
-        return false;
-    }
-
-    BeginTransfer(device);
-    CommandBuffer& cmd = device.transferData.commandBuffer;
-    RecordTransitionImageLayout(
-        cmd, device.depthTexture.image, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    EndTransfer(device);
-
-    return true;
-}
-
-static void DestroyMainDepthTexture(Device& device)
-{
-    vkDestroyImageView(device.logicalDevice, device.depthTexture.imageView,
-                       GetVulkanAllocationCallbacks());
-    vmaDestroyImage(device.allocator, device.depthTexture.image,
-                    device.depthTexture.allocation);
-}
-
 static bool CreateSwapchain(Device& device,
                             VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE)
 {
@@ -427,8 +345,6 @@ static bool CreateSwapchain(Device& device,
     FLY_LOG("Device %s created new swapchain", device.name);
     FLY_LOG("Swapchain format: %s",
             FormatToString(device.surfaceFormat.format));
-    FLY_LOG("Depth image format %s",
-            FormatToString(device.depthTexture.format));
     FLY_LOG("Color space: %s",
             ColorSpaceToString(device.surfaceFormat.colorSpace));
     FLY_LOG("Present mode: %s", PresentModeToString(device.presentMode));
@@ -452,12 +368,6 @@ static bool RecreateSwapchain(Device& device)
     FLY_ASSERT(device.context->windowPtr);
 
     vkDeviceWaitIdle(device.logicalDevice);
-
-    DestroyMainDepthTexture(device);
-    if (!CreateMainDepthTexture(device))
-    {
-        return false;
-    }
 
     VkSwapchainKHR oldSwapchain = device.swapchain;
     VkImageView oldSwapchainImageViews[FLY_SWAPCHAIN_IMAGE_MAX_COUNT];
@@ -849,11 +759,6 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     if (context.windowPtr)
     {
-        if (context.windowPtr && !CreateMainDepthTexture(device))
-        {
-            FLY_ERROR("Failed to create depth texture %s", device.name);
-            return false;
-        }
         if (!CreateSwapchain(device))
         {
             FLY_ERROR("Failed to create swapchain %s", device.name);
@@ -878,7 +783,6 @@ void DestroyLogicalDevice(Device& device)
     }
     vkDestroyPipelineLayout(device.logicalDevice, device.pipelineLayout,
                             GetVulkanAllocationCallbacks());
-    DestroyMainDepthTexture(device);
     DestroyDescriptorPool(device);
     DestroyCommandPool(device);
     DestroyVmaAllocator(device);

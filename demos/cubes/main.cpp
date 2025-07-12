@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
     fixedState.pipelineRendering.depthAttachmentFormat =
-        device.depthTexture.format;
+        VK_FORMAT_D32_SFLOAT_S8_UINT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
