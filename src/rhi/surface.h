@@ -12,7 +12,7 @@ struct Context;
 
 bool CreateSurface(Context& context);
 void DestroySurface(Context& context);
-void GetWindowSize(Context& context, i32& width, i32& height);
+void GetFramebufferSize(Context& context, i32& width, i32& height);
 void PollWindowEvents(Context& context);
 
 } // namespace RHI

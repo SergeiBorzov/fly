@@ -253,11 +253,11 @@ static bool CreateMainDepthTexture(Device& device)
 
     i32 width = 0;
     i32 height = 0;
-    GetWindowSize(*device.context, width, height);
+    GetFramebufferSize(*device.context, width, height);
     while (width == 0 || height == 0)
     {
         PollWindowEvents(*device.context);
-        GetWindowSize(*device.context, width, height);
+        GetFramebufferSize(*device.context, width, height);
     }
 
     VkImageCreateInfo createInfo{};
@@ -336,11 +336,11 @@ static bool CreateSwapchain(Device& device,
 
     i32 width = 0;
     i32 height = 0;
-    GetWindowSize(*device.context, width, height);
+    GetFramebufferSize(*device.context, width, height);
     while (width == 0 || height == 0)
     {
         PollWindowEvents(*device.context);
-        GetWindowSize(*device.context, width, height);
+        GetFramebufferSize(*device.context, width, height);
     }
 
     VkSurfaceCapabilitiesKHR surfaceCapabilities;

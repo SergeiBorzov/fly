@@ -153,12 +153,7 @@ int main(int argc, char* argv[])
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-
-        i32 w, h;
-        glfwGetFramebufferSize(context.windowPtr, &w, &h);
-        userData.viewportWidth = static_cast<u32>(w);
-        userData.viewportHeight = static_cast<u32>(h);
-
+        fg.GetSwapchainSize(userData.viewportWidth, userData.viewportHeight);
         fg.Execute();
     }
 

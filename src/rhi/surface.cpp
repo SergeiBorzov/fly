@@ -21,7 +21,7 @@ void DestroySurface(Context& context)
                         GetVulkanAllocationCallbacks());
 }
 
-void GetWindowSize(Context& context, i32& width, i32& height)
+void GetFramebufferSize(Context& context, i32& width, i32& height)
 {
     glfwGetFramebufferSize(context.windowPtr, &width, &height);
 }

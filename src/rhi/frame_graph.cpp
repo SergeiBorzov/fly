@@ -169,6 +169,30 @@ CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
     return {handle};
 }
 
+FrameGraph::TextureHandle CreateTexture2D(Arena& arena,
+                                          FrameGraph::Builder& builder,
+                                          VkImageUsageFlags usage,
+                                          f32 relativeSizeX, f32 relativeSizeY,
+                                          VkFormat format)
+{
+    FrameGraph::ResourceDescriptor rd;
+    rd.data = nullptr;
+    rd.dataSize = 0;
+    rd.type = FrameGraph::ResourceType::Texture2D;
+    rd.access = FrameGraph::ResourceAccess::Unknown;
+    rd.isExternal = false;
+    rd.arrayIndex = -1;
+    rd.texture2D.usage = usage;
+    rd.texture2D.relativeSize.x = relativeSizeX;
+    rd.texture2D.relativeSize.y = relativeSizeY;
+    rd.texture2D.format = format;
+
+    ResourceHandle handle = GetNextHandle(builder.frameGraph.resources);
+    builder.frameGraph.resources.Insert(arena, handle, rd);
+
+    return {handle};
+}
+
 FrameGraph::TextureHandle
 ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
                 FrameGraph::TextureHandle textureHandle,
@@ -209,36 +233,33 @@ ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
     return {rh};
 }
 
-// FrameGraph::TextureHandle
-// ColorAttachment(u32 index, Fly::TextureHandle textureHandle,
-//                 VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 1.0f}},
-//                 VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-//                 VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE)
-// {
-//     FrameGraph::ResourceDescriptor* rd =
-//         builder.frameGraph.resources.Find(textureHandle.id);
+FrameGraph::TextureHandle
+DepthAttachment(Arena& arena, FrameGraph::Builder& builder,
+                FrameGraph::TextureHandle textureHandle,
+                VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+                VkClearDepthStencilValue clearDepthStencil)
+{
+    FLY_ASSERT(builder.currentPass);
+    FLY_ASSERT(builder.currentPass->type ==
+               FrameGraph::PassNode::Type::Graphics);
+    FLY_ASSERT(textureHandle != FrameGraph::TextureHandle::sBackBuffer);
 
-//     if (textureHandle.id == FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
-//     {
-//         FrameGraph::ResourceDescriptor backBufferRD;
-//         if (!rd)
-//         {
-//             backBufferRD.access = FrameGraph::ResourceAccess::Write;
-//             backBufferRD.texture2D.index = index;
-//             backBufferRD.texture2D.loadOp = loadOp;
-//             backBufferRD.texture2D.storeOp = storeOp;
-//             backBufferRD.isExternal = true;
-//             backBufferRD.data = nullptr;
-//             backBufferRD.dataSize = 0;
-//             backBufferRD.arrayIndex = -1;
-//             builder.frameGraph.Resources.Insert(arena, 0, rd);
-//         }
-//         return {0};
-//     }
-//     else
-//     {
-//     }
-// }
+    FrameGraph::ResourceDescriptor* rd =
+        builder.frameGraph.resources.Find(textureHandle.handle);
+    FLY_ASSERT(rd);
+
+    rd->texture2D.loadOp = loadOp;
+    rd->texture2D.storeOp = storeOp;
+    rd->texture2D.clearValue.depthStencil = clearDepthStencil;
+    builder.currentPass->outputs.InsertFront(arena, textureHandle.handle);
+
+    ResourceHandle rh;
+    rh.id = textureHandle.handle.id;
+    rh.version = textureHandle.handle.version + 1;
+    builder.frameGraph.resources.Insert(arena, rh, *rd);
+
+    return {rh};
+}
 
 // Tarjan topological sort
 // static FrameGraph::PassNode**
@@ -406,6 +427,7 @@ bool FrameGraph::Build(Arena& arena)
 
     u32 bufferIndex = 0;
     u32 textureIndex = 0;
+
     for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources)
     {
         ResourceHandle handle = node->key;
@@ -577,6 +599,13 @@ void FrameGraph::Execute()
 
     RHI::EndRenderFrame(device_);
     ArenaPopToMarker(arena, marker);
+}
+
+void FrameGraph::GetSwapchainSize(u32& width, u32& height)
+{
+    const SwapchainTexture& texture = RenderFrameSwapchainTexture(device_);
+    width = texture.width;
+    height = texture.height;
 }
 
 } // namespace RHI

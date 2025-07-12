@@ -103,12 +103,34 @@ struct FrameGraph
         bool hostVisible;
     };
 
+    enum class TextureSizeType
+    {
+        Fixed,
+        ViewportRelative,
+    };
+
     struct Texture2DCreateInfo
     {
         VkImageUsageFlags usage;
-        u32 width;
-        u32 height;
+
+        union
+        {
+            struct
+            {
+                u32 width;
+                u32 height;
+            };
+
+            struct
+            {
+                f32 x;
+                f32 y;
+            } relativeSize;
+        };
+
         u32 index;
+
+        TextureSizeType sizeType;
         VkFormat format;
         RHI::Sampler::WrapMode wrapMode;
         RHI::Sampler::FilterMode filterMode;
@@ -222,6 +244,8 @@ struct FrameGraph
         return device_.surfaceFormat.format;
     }
 
+    void GetSwapchainSize(u32& width, u32& height);
+
     bool Build(Arena& arena);
     void Execute();
     void Destroy();
@@ -255,6 +279,13 @@ ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
                 VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                 VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
+
+FrameGraph::TextureHandle
+DepthAttachment(Arena& arena, FrameGraph::Builder& builder,
+                FrameGraph::TextureHandle textureHandle,
+                VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                VkClearDepthStencilValue clearDepthStencil = {1.0f, 0});
 } // namespace RHI
 } // namespace Fly
 
