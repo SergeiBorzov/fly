@@ -50,7 +50,7 @@ cc_binary(
     deps = [
         "//src/rhi:context",
         "//src/assets:import_image",
-        "//demos/common:scene",
+        "//src/utils:utils",
         "//demos/common:simple_camera_fps",
     ],
     data = [

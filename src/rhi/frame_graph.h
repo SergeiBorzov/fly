@@ -49,6 +49,8 @@ namespace RHI
 
 struct FrameGraph
 {
+    friend struct Builder;
+
     struct BufferHandle
     {
         ResourceHandle handle;
@@ -106,7 +108,7 @@ struct FrameGraph
     enum class TextureSizeType
     {
         Fixed,
-        ViewportRelative,
+        SwapchainRelative,
     };
 
     struct Texture2DCreateInfo
@@ -155,6 +157,42 @@ struct FrameGraph
         bool isExternal;
     };
 
+    struct ResourceMap
+    {
+        friend struct FrameGraph;
+        friend struct Builder;
+
+        ResourceMap(const FrameGraph* frameGraph) : frameGraph_(frameGraph) {}
+
+        RHI::Texture2D& GetTexture2D(TextureHandle textureHandle);
+        RHI::Buffer& GetBuffer(BufferHandle bufferHandle);
+        const RHI::Texture2D& GetTexture2D(TextureHandle textureHandle) const;
+        const RHI::Buffer& GetBuffer(BufferHandle bufferHandle) const;
+
+        inline ResourceDescriptor* Find(ResourceHandle resourceHandle)
+        {
+            return resources_.Find(resourceHandle);
+        }
+
+        inline const ResourceDescriptor*
+        Find(ResourceHandle resourceHandle) const
+        {
+            return resources_.Find(resourceHandle);
+        }
+
+        inline ResourceDescriptor& Insert(Arena& arena, ResourceHandle rh,
+                                          ResourceDescriptor rd)
+        {
+            return resources_.Insert(arena, rh, rd);
+        }
+
+        ResourceHandle GetNextHandle();
+
+    private:
+        HashTrie<ResourceHandle, ResourceDescriptor> resources_;
+        const FrameGraph* frameGraph_;
+    };
+
     struct Builder
     {
         Builder(FrameGraph& inFrameGraph) : frameGraph(inFrameGraph) {}
@@ -167,7 +205,8 @@ struct FrameGraph
     using BuildFunction = void (*)(Arena&, Builder&, T&, void*);
 
     template <typename T>
-    using RecordFunction = void (*)(RHI::CommandBuffer& cmd, const T&, void*);
+    using RecordFunction = void (*)(RHI::CommandBuffer& cmd, const ResourceMap&,
+                                    const T&, void*);
 
     struct PassNode
     {
@@ -179,7 +218,8 @@ struct FrameGraph
 
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
                                            PassNode&);
-        using RecordFunctionImpl = void (*)(RHI::CommandBuffer&, PassNode&);
+        using RecordFunctionImpl = void (*)(RHI::CommandBuffer&,
+                                            const ResourceMap&, PassNode&);
 
         BuildFunctionImpl buildCallbackImpl;
         RecordFunctionImpl recordCallbackImpl;
@@ -203,10 +243,11 @@ struct FrameGraph
             pass.buildCallback(arena, builder, pass.context, pass.userData);
         }
 
-        static void RecordImpl(RHI::CommandBuffer& cmd, PassNode& base)
+        static void RecordImpl(RHI::CommandBuffer& cmd,
+                               const ResourceMap& resources, PassNode& base)
         {
             Pass<T>& pass = static_cast<Pass<T>&>(base);
-            pass.recordCallback(cmd, pass.context, pass.userData);
+            pass.recordCallback(cmd, resources, pass.context, pass.userData);
         }
 
         T context;
@@ -237,7 +278,9 @@ struct FrameGraph
         passes_.InsertBack(arena, pass);
     }
 
-    inline FrameGraph(RHI::Device& device) : device_(device) {}
+    inline FrameGraph(RHI::Device& device) : resources_(this), device_(device)
+    {
+    }
 
     inline VkFormat GetSwapchainFormat() const
     {
@@ -245,18 +288,19 @@ struct FrameGraph
     }
 
     void GetSwapchainSize(u32& width, u32& height);
+    u32 GetSwapchainIndex() const;
 
     bool Build(Arena& arena);
     void Execute();
     void Destroy();
 
-    HashTrie<ResourceHandle, ResourceDescriptor> resources;
+    ResourceMap resources_;
 
 private:
-    RHI::Device& device_;
     List<PassNode*> passes_;
     RHI::Buffer* buffers_;
     RHI::Texture2D* textures_;
+    RHI::Device& device_;
     u32 bufferCount_ = 0;
     u32 textureCount_ = 0;
 };
@@ -269,9 +313,15 @@ FrameGraph::BufferHandle CreateBuffer(Arena& arena,
 
 FrameGraph::TextureHandle
 CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
-                VkImageUsageFlags usage, void* data, u64 dataSize, u32 width,
-                u32 height, VkFormat format, Sampler::FilterMode filterMode,
+                VkImageUsageFlags usage, void* data, u32 width, u32 height,
+                VkFormat format, Sampler::FilterMode filterMode,
                 Sampler::WrapMode wrapMode);
+
+FrameGraph::TextureHandle CreateTexture2D(Arena& arena,
+                                          FrameGraph::Builder& builder,
+                                          VkImageUsageFlags usage,
+                                          f32 relativeSizeX, f32 relativeSizeY,
+                                          VkFormat format);
 
 FrameGraph::TextureHandle
 ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,

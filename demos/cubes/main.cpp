@@ -4,26 +4,19 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "rhi/buffer.h"
 #include "rhi/context.h"
+#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
-#include "rhi/texture.h"
 
 #include "assets/import_image.h"
+#include "utils/utils.h"
 
-#include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
-
-static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Texture2D sTexture;
-
-static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 0.0f, -5.0f));
 
 struct UniformData
 {
@@ -32,6 +25,28 @@ struct UniformData
     f32 time = 0.0f;
     f32 pad[3];
 };
+
+struct UserData
+{
+    u32 viewportWidth;
+    u32 viewportHeight;
+    Image cubeImage;
+    RHI::GraphicsPipeline pipeline;
+    RHI::FrameGraph::BufferHandle uniformBuffer;
+    RHI::FrameGraph::TextureHandle cubeTexture;
+};
+
+struct CubesPassContext
+{
+    RHI::FrameGraph::TextureHandle depthTexture;
+    RHI::FrameGraph::TextureHandle colorAttachment;
+    RHI::FrameGraph::TextureHandle depthAttachment;
+    RHI::FrameGraph::TextureHandle cubeTexture;
+    RHI::FrameGraph::BufferHandle uniformBuffer;
+};
+
+static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
+                                    Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -47,43 +62,57 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline)
+static void CubesPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
+                           CubesPassContext& context, void* pUserData)
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    UserData* userData = static_cast<UserData*>(pUserData);
+    Image& image = userData->cubeImage;
 
-    const RHI::SwapchainTexture& swapchainTexture =
-        RenderFrameSwapchainTexture(device);
-    VkRect2D renderArea = {{0, 0},
-                           {swapchainTexture.width, swapchainTexture.height}};
-    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
-        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
-        device.depthTexture.imageView,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo =
-        RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
+    context.depthTexture = RHI::CreateTexture2D(
+        arena, builder, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 1.0f, 1.0f,
+        VK_FORMAT_D32_SFLOAT_S8_UINT);
 
-    vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(cmd, pipeline);
-    u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                      sTexture.bindlessHandle};
-    RHI::SetPushConstants(cmd, indices, sizeof(indices));
+    context.colorAttachment = RHI::ColorAttachment(
+        arena, builder, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
 
-    VkViewport viewport = {};
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<f32>(renderArea.extent.width);
-    viewport.height = static_cast<f32>(renderArea.extent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
+    context.depthAttachment =
+        RHI::DepthAttachment(arena, builder, context.depthTexture);
 
-    VkRect2D scissor = renderArea;
-    vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
+    context.cubeTexture = RHI::CreateTexture2D(
+        arena, builder,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        image.data, image.width, image.height, VK_FORMAT_R8G8B8A8_SRGB,
+        RHI::Sampler::FilterMode::Trilinear, RHI::Sampler::WrapMode::Repeat);
 
-    vkCmdDraw(cmd.handle, 36, 10000, 0, 0);
+    context.uniformBuffer = RHI::CreateBuffer(
+        arena, builder,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        true, nullptr, sizeof(UniformData));
 
-    vkCmdEndRendering(cmd.handle);
+    userData->uniformBuffer = context.uniformBuffer;
+    userData->cubeTexture = context.cubeTexture;
+}
+
+static void CubesPassExecute(RHI::CommandBuffer& cmd,
+                             const RHI::FrameGraph::ResourceMap& resources,
+                             const CubesPassContext& context, void* pUserData)
+{
+    UserData* userData = static_cast<UserData*>(pUserData);
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
+                     static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
+
+                    userData->viewportHeight);
+
+    const RHI::Buffer& uniformBuffer =
+        resources.GetBuffer(userData->uniformBuffer);
+    const RHI::Texture2D& cubeTexture =
+        resources.GetTexture2D(userData->cubeTexture);
+    RHI::BindGraphicsPipeline(cmd, userData->pipeline);
+
+    u32 indices[2] = {uniformBuffer.bindlessHandle, cubeTexture.bindlessHandle};
+    RHI::PushConstants(cmd, indices, sizeof(indices));
+    RHI::Draw(cmd, 36, 10000, 0, 0);
 }
 
 int main(int argc, char* argv[])
@@ -150,24 +179,6 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    if (!Fly::LoadTexture2DFromFile(device, "CesiumLogoFlat.png",
-                                    VK_FORMAT_R8G8B8A8_SRGB,
-                                    RHI::Sampler::FilterMode::Trilinear,
-                                    RHI::Sampler::WrapMode::Repeat, sTexture))
-    {
-        FLY_ERROR("Failed to create texture");
-        return -1;
-    }
-
-    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
-                                      sUniformBuffers[i]))
-        {
-            FLY_ERROR("Failed to create uniform buffer!");
-        }
-    }
-
     RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
@@ -188,6 +199,25 @@ int main(int argc, char* argv[])
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
+    Image image;
+    if (!Fly::LoadImageFromFile("CesiumLogoFlat.png", image))
+    {
+        FLY_ERROR("Failed to load image");
+        return false;
+    }
+
+    UserData userData;
+    userData.pipeline = graphicsPipeline;
+    userData.cubeImage = image;
+
+    RHI::FrameGraph fg(device);
+    fg.AddPass<CubesPassContext>(arena, "CubesPass",
+                                 RHI::FrameGraph::PassNode::Type::Graphics,
+                                 CubesPassBuild, CubesPassExecute, &userData);
+    fg.Build(arena);
+
+    FreeImage(image);
+
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
@@ -202,25 +232,24 @@ int main(int argc, char* argv[])
 
         glfwPollEvents();
 
+        i32 w, h;
+        glfwGetFramebufferSize(context.windowPtr, &w, &h);
+        userData.viewportWidth = static_cast<u32>(w);
+        userData.viewportHeight = static_cast<u32>(h);
+
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView(),
                                    time};
 
+        RHI::Buffer& uniformBuffer =
+            fg.resources_.GetBuffer(userData.uniformBuffer);
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
-                              sUniformBuffers[device.frameIndex]);
-
-        RHI::BeginRenderFrame(device);
-        RecordCommands(device, graphicsPipeline);
-        RHI::EndRenderFrame(device);
+                              uniformBuffer);
+        fg.Execute();
     }
 
-    RHI::WaitAllDevicesIdle(context);
-    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        RHI::DestroyBuffer(device, sUniformBuffers[i]);
-    }
-    RHI::DestroyTexture2D(device, sTexture);
-
+    RHI::WaitDeviceIdle(device);
+    fg.Destroy();
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
     RHI::DestroyContext(context);
 

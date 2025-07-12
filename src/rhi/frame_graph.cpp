@@ -78,9 +78,9 @@ struct AttachmentCount
     u32 depth;
 };
 
-static AttachmentCount CountAttachments(
-    const FrameGraph::PassNode* pass,
-    const HashTrie<ResourceHandle, FrameGraph::ResourceDescriptor>& resources)
+static AttachmentCount
+CountAttachments(const FrameGraph::PassNode* pass,
+                 const FrameGraph::ResourceMap& resources)
 {
     FLY_ASSERT(pass);
 
@@ -110,15 +110,6 @@ static AttachmentCount CountAttachments(
 const FrameGraph::TextureHandle FrameGraph::TextureHandle::sBackBuffer = {
     {0, 0}};
 
-static ResourceHandle GetNextHandle(
-    const HashTrie<ResourceHandle, FrameGraph::ResourceDescriptor>& resources)
-{
-    ResourceHandle handle;
-    handle.id = static_cast<u32>(resources.Count()) + 1;
-    handle.version = 0;
-    return handle;
-}
-
 FrameGraph::BufferHandle CreateBuffer(Arena& arena,
                                       FrameGraph::Builder& builder,
                                       VkBufferUsageFlags usage,
@@ -136,35 +127,37 @@ FrameGraph::BufferHandle CreateBuffer(Arena& arena,
     rd.arrayIndex = -1;
     rd.buffer.usage = usage;
     rd.buffer.hostVisible = hostVisible;
-    ResourceHandle handle = GetNextHandle(builder.frameGraph.resources);
-    builder.frameGraph.resources.Insert(arena, handle, rd);
+
+    ResourceHandle handle = builder.frameGraph.resources_.GetNextHandle();
+    builder.frameGraph.resources_.Insert(arena, handle, rd);
 
     return {handle};
 }
 
 FrameGraph::TextureHandle
 CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
-                VkImageUsageFlags usage, void* data, u64 dataSize, u32 width,
-                u32 height, VkFormat format, Sampler::FilterMode filterMode,
+                VkImageUsageFlags usage, void* data, u32 width, u32 height,
+                VkFormat format, Sampler::FilterMode filterMode,
                 Sampler::WrapMode wrapMode)
 {
     FLY_ASSERT(builder.currentPass);
 
     FrameGraph::ResourceDescriptor rd;
     rd.data = data;
-    rd.dataSize = dataSize;
+    rd.dataSize = 0;
     rd.type = FrameGraph::ResourceType::Texture2D;
     rd.access = FrameGraph::ResourceAccess::Unknown;
     rd.isExternal = false;
     rd.arrayIndex = -1;
+    rd.texture2D.sizeType = FrameGraph::TextureSizeType::Fixed;
     rd.texture2D.usage = usage;
     rd.texture2D.width = width;
     rd.texture2D.height = height;
     rd.texture2D.format = format;
     rd.texture2D.wrapMode = wrapMode;
     rd.texture2D.filterMode = filterMode;
-    ResourceHandle handle = GetNextHandle(builder.frameGraph.resources);
-    builder.frameGraph.resources.Insert(arena, handle, rd);
+    ResourceHandle handle = builder.frameGraph.resources_.GetNextHandle();
+    builder.frameGraph.resources_.Insert(arena, handle, rd);
 
     return {handle};
 }
@@ -182,14 +175,14 @@ FrameGraph::TextureHandle CreateTexture2D(Arena& arena,
     rd.access = FrameGraph::ResourceAccess::Unknown;
     rd.isExternal = false;
     rd.arrayIndex = -1;
+    rd.texture2D.sizeType = FrameGraph::TextureSizeType::SwapchainRelative;
     rd.texture2D.usage = usage;
     rd.texture2D.relativeSize.x = relativeSizeX;
     rd.texture2D.relativeSize.y = relativeSizeY;
     rd.texture2D.format = format;
 
-    ResourceHandle handle = GetNextHandle(builder.frameGraph.resources);
-    builder.frameGraph.resources.Insert(arena, handle, rd);
-
+    ResourceHandle handle = builder.frameGraph.resources_.GetNextHandle();
+    builder.frameGraph.resources_.Insert(arena, handle, rd);
     return {handle};
 }
 
@@ -212,11 +205,11 @@ ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
         ResourceHandle rh;
         rh.id = FLY_SWAPCHAIN_TEXTURE_HANDLE_ID;
         rh.version = 0;
-        builder.frameGraph.resources.Insert(arena, rh, rd);
+        builder.frameGraph.resources_.Insert(arena, rh, rd);
     }
 
     FrameGraph::ResourceDescriptor* rd =
-        builder.frameGraph.resources.Find(textureHandle.handle);
+        builder.frameGraph.resources_.Find(textureHandle.handle);
     FLY_ASSERT(rd);
 
     rd->texture2D.index = index;
@@ -228,7 +221,7 @@ ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
     ResourceHandle rh;
     rh.id = textureHandle.handle.id;
     rh.version = textureHandle.handle.version + 1;
-    builder.frameGraph.resources.Insert(arena, rh, *rd);
+    builder.frameGraph.resources_.Insert(arena, rh, *rd);
 
     return {rh};
 }
@@ -245,7 +238,7 @@ DepthAttachment(Arena& arena, FrameGraph::Builder& builder,
     FLY_ASSERT(textureHandle != FrameGraph::TextureHandle::sBackBuffer);
 
     FrameGraph::ResourceDescriptor* rd =
-        builder.frameGraph.resources.Find(textureHandle.handle);
+        builder.frameGraph.resources_.Find(textureHandle.handle);
     FLY_ASSERT(rd);
 
     rd->texture2D.loadOp = loadOp;
@@ -256,7 +249,7 @@ DepthAttachment(Arena& arena, FrameGraph::Builder& builder,
     ResourceHandle rh;
     rh.id = textureHandle.handle.id;
     rh.version = textureHandle.handle.version + 1;
-    builder.frameGraph.resources.Insert(arena, rh, *rd);
+    builder.frameGraph.resources_.Insert(arena, rh, *rd);
 
     return {rh};
 }
@@ -392,7 +385,7 @@ bool FrameGraph::Build(Arena& arena)
     textureCount_ = 0;
 
     for (const HashTrie<ResourceHandle, ResourceDescriptor>::Node* node :
-         resources)
+         resources_.resources_)
     {
         ResourceHandle handle = node->key;
         const ResourceDescriptor& rd = node->value;
@@ -428,7 +421,12 @@ bool FrameGraph::Build(Arena& arena)
     u32 bufferIndex = 0;
     u32 textureIndex = 0;
 
-    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources)
+    u32 swapchainWidth = 0;
+    u32 swapchainHeight = 0;
+    GetSwapchainSize(swapchainWidth, swapchainHeight);
+
+    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node :
+         resources_.resources_)
     {
         ResourceHandle handle = node->key;
         ResourceDescriptor& rd = node->value;
@@ -450,17 +448,28 @@ bool FrameGraph::Build(Arena& arena)
                  handle.version == 0 &&
                  handle.id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
         {
+            u32 width = rd.texture2D.width;
+            u32 height = rd.texture2D.height;
+
+            if (rd.texture2D.sizeType == TextureSizeType::SwapchainRelative)
+            {
+                width = static_cast<u32>(swapchainWidth *
+                                         rd.texture2D.relativeSize.x);
+                height = static_cast<u32>(swapchainHeight *
+                                          rd.texture2D.relativeSize.y);
+            }
+
             bool res = RHI::CreateTexture2D(
-                device_, rd.texture2D.usage, rd.data, rd.dataSize,
-                rd.texture2D.width, rd.texture2D.height, rd.texture2D.format,
-                rd.texture2D.filterMode, rd.texture2D.wrapMode,
-                textures_[textureIndex]);
+                device_, rd.texture2D.usage, rd.data, width, height,
+                rd.texture2D.format, rd.texture2D.filterMode,
+                rd.texture2D.wrapMode, textures_[textureIndex]);
             FLY_ASSERT(res);
             rd.arrayIndex = textureIndex++;
         }
     }
 
-    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources)
+    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node :
+         resources_.resources_)
     {
         ResourceHandle handle = node->key;
         ResourceDescriptor& rd = node->value;
@@ -469,7 +478,7 @@ bool FrameGraph::Build(Arena& arena)
         {
             ResourceHandle rootHandle = {handle.id, 0};
             const FrameGraph::ResourceDescriptor* rootRD =
-                resources.Find(rootHandle);
+                resources_.Find(rootHandle);
             FLY_ASSERT(rootRD);
             rd.arrayIndex = rootRD->arrayIndex;
         }
@@ -480,7 +489,7 @@ bool FrameGraph::Build(Arena& arena)
         FLY_LOG("Pass name %s", pass->name);
         for (ResourceHandle rh : pass->inputs)
         {
-            const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+            const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
             FLY_ASSERT(rd);
             FLY_LOG("Input resource %u type %u, index - %d, external: %d", rh,
                     rd->type, rd->arrayIndex, rd->isExternal);
@@ -488,7 +497,7 @@ bool FrameGraph::Build(Arena& arena)
 
         for (ResourceHandle rh : pass->outputs)
         {
-            const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+            const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
             FLY_ASSERT(rd);
             FLY_LOG(
                 "Output resource (%u, %u) type %u, index - %d, external: %d",
@@ -531,7 +540,7 @@ void FrameGraph::Execute()
         if (pass->type == PassNode::Type::Graphics)
         {
 
-            AttachmentCount count = CountAttachments(pass, resources);
+            AttachmentCount count = CountAttachments(pass, resources_);
             FLY_ASSERT(count.color);
             FLY_ASSERT(count.depth <= 1);
 
@@ -543,7 +552,7 @@ void FrameGraph::Execute()
             renderArea.offset = {0, 0};
             for (ResourceHandle rh : pass->outputs)
             {
-                const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+                const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
                 FLY_ASSERT(rd);
 
                 if (rd->type == FrameGraph::ResourceType::Texture2D)
@@ -592,7 +601,7 @@ void FrameGraph::Execute()
 
             RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device_);
             vkCmdBeginRendering(cmd.handle, &renderInfo);
-            pass->recordCallbackImpl(cmd, *pass);
+            pass->recordCallbackImpl(cmd, resources_, *pass);
             vkCmdEndRendering(cmd.handle);
         }
     }
@@ -606,6 +615,56 @@ void FrameGraph::GetSwapchainSize(u32& width, u32& height)
     const SwapchainTexture& texture = RenderFrameSwapchainTexture(device_);
     width = texture.width;
     height = texture.height;
+}
+
+u32 FrameGraph::GetSwapchainIndex() const { return device_.frameIndex; }
+
+const RHI::Buffer&
+FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle) const
+{
+    const ResourceDescriptor* rd = resources_.Find(bufferHandle.handle);
+    FLY_ASSERT(rd);
+
+    u32 offset =
+        (!rd->buffer.hostVisible) ? 0 : frameGraph_->GetSwapchainIndex();
+
+    return frameGraph_->buffers_[rd->arrayIndex + offset];
+}
+
+const RHI::Texture2D&
+FrameGraph::ResourceMap::GetTexture2D(TextureHandle textureHandle) const
+{
+    const ResourceDescriptor* rd = resources_.Find(textureHandle.handle);
+    FLY_ASSERT(rd);
+    return frameGraph_->textures_[rd->arrayIndex];
+}
+
+RHI::Buffer& FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle)
+{
+    const ResourceDescriptor* rd = resources_.Find(bufferHandle.handle);
+    FLY_ASSERT(rd);
+
+    u32 offset =
+        (!rd->buffer.hostVisible) ? 0 : frameGraph_->GetSwapchainIndex();
+
+    return frameGraph_->buffers_[rd->arrayIndex + offset];
+}
+
+RHI::Texture2D&
+FrameGraph::ResourceMap::GetTexture2D(TextureHandle textureHandle)
+{
+    const ResourceDescriptor* rd = resources_.Find(textureHandle.handle);
+    FLY_ASSERT(rd);
+    return frameGraph_->textures_[rd->arrayIndex];
+}
+
+ResourceHandle FrameGraph::ResourceMap::GetNextHandle()
+
+{
+    ResourceHandle handle;
+    handle.id = static_cast<u32>(resources_.Count()) + 1;
+    handle.version = 0;
+    return handle;
 }
 
 } // namespace RHI
