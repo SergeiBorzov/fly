@@ -24,12 +24,12 @@ bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
     {
         return false;
     }
-    u64 imageSize = image.width * image.height * image.channelCount;
+
     if (!RHI::CreateTexture2D(device,
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                   VK_IMAGE_USAGE_SAMPLED_BIT,
-                              image.data, imageSize, image.width, image.height,
-                              format, filterMode, wrapMode, texture))
+                              image.data, image.width, image.height, format,
+                              filterMode, wrapMode, texture))
     {
         return false;
     }

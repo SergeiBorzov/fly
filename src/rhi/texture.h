@@ -61,7 +61,7 @@ struct Texture2D
 };
 
 bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
-                     u64 dataSize, u32 width, u32 height, VkFormat format,
+                     u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
                      Texture2D& texture);
 void DestroyTexture2D(Device& device, Texture2D& texture);

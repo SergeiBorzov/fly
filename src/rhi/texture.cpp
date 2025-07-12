@@ -19,6 +19,28 @@ static u32 Log2(u32 x)
     return result;
 }
 
+static VkImageAspectFlags GetImageAspect(VkFormat format)
+{
+    switch (format)
+    {
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+        case VK_FORMAT_D32_SFLOAT:
+        {
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+        }
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        {
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+        default:
+        {
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+        }
+    }
+}
+
 static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
                             Fly::RHI::Cubemap& cubemap)
 {
@@ -505,23 +527,28 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
 
 void DestroySampler(Device& device, Sampler& sampler)
 {
-    FLY_ASSERT(sampler.handle != VK_NULL_HANDLE);
+    if (sampler.handle == VK_NULL_HANDLE)
+    {
+        return;
+    }
     vkDestroySampler(device.logicalDevice, sampler.handle,
                      GetVulkanAllocationCallbacks());
     sampler.handle = VK_NULL_HANDLE;
 }
 
 bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
-                     u64 dataSize, u32 width, u32 height, VkFormat format,
+                     u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
                      Texture2D& texture)
 {
     FLY_ASSERT(width > 0);
     FLY_ASSERT(height > 0);
-    FLY_ASSERT(dataSize == GetTexelSize(format) * width * height);
+
+    u32 dataSize = GetTexelSize(format) * width * height;
 
     u32 mipLevelCount = 1;
-    if (filterMode != Sampler::FilterMode::Nearest)
+    if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
+        filterMode != Sampler::FilterMode::Nearest)
     {
         mipLevelCount = Log2(MAX(width, height)) + 1;
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -535,25 +562,31 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
         return false;
     }
 
-    texture.imageView =
-        CreateVulkanImageView2D(device, texture.image, format, mipLevelCount,
-                                VK_IMAGE_ASPECT_COLOR_BIT);
-    if (!texture.imageView)
+    texture.imageView = CreateVulkanImageView2D(
+        device, texture.image, format, mipLevelCount, GetImageAspect(format));
+    if (texture.imageView == VK_NULL_HANDLE)
     {
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
         return false;
     }
 
-    if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount,
-                       texture.sampler))
+    texture.sampler.handle = VK_NULL_HANDLE;
+    texture.bindlessHandle = FLY_MAX_U32;
+    texture.bindlessStorageHandle = FLY_MAX_U32;
+    if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
     {
-        vkDestroyImageView(device.logicalDevice, texture.imageView,
-                           GetVulkanAllocationCallbacks());
-        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
-        return false;
-    }
+        if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount,
+                           texture.sampler))
+        {
+            vkDestroyImageView(device.logicalDevice, texture.imageView,
+                               GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, texture.image,
+                            texture.allocation);
+            return false;
+        }
 
-    CreateDescriptors(device, usage, texture);
+        CreateDescriptors(device, usage, texture);
+    }
 
     texture.width = width;
     texture.height = height;
