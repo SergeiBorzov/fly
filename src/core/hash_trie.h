@@ -26,6 +26,7 @@ struct HashTrie
         Node* node = root_;
         Hash<KeyType> hashFunc;
         u64 h = hashFunc(key);
+        u8 shift = 0;
         do
         {
             if (!node)
@@ -40,7 +41,8 @@ struct HashTrie
 
             node = node->children[h & 3];
             h >>= 2;
-        } while (h != 0);
+            shift += 2;
+        } while (shift < 64);
 
         return nullptr;
     }
@@ -50,6 +52,7 @@ struct HashTrie
         const Node* node = root_;
         Hash<KeyType> hashFunc;
         u64 h = hashFunc(key);
+        u8 shift = 0;
         do
         {
             if (!node)
@@ -64,7 +67,8 @@ struct HashTrie
 
             node = node->children[h & 3];
             h >>= 2;
-        } while (h != 0);
+            shift += 2;
+        } while (shift < 64);
 
         return nullptr;
     }
@@ -76,6 +80,7 @@ struct HashTrie
         Hash<KeyType> hashFunc;
 
         u64 h = hashFunc(key);
+        u8 shift = 0;
         do
         {
             if (!*node)
@@ -95,7 +100,9 @@ struct HashTrie
             }
 
             node = &(*node)->children[h & 3];
-        } while (h != 0);
+            h >>= 2;
+            shift += 2;
+        } while (shift < 64);
 
         // TODO: Handle hash collisions, if will ever happen
         FLY_ASSERT(false);

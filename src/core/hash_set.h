@@ -24,6 +24,7 @@ struct HashSet
         Hash<T> hashFunc;
 
         u64 h = hashFunc(value);
+        u8 shift = 0;
         do
         {
             if (!*node)
@@ -38,8 +39,8 @@ struct HashSet
 
             node = &(*node)->children[h & 3];
             h >>= 2;
-            h = hashFunc(value);
-        } while (h != 0);
+            shift += 2;
+        } while (shift < 64);
 
         return false;
     }
@@ -50,6 +51,7 @@ struct HashSet
         Hash<T> hashFunc;
 
         u64 h = hashFunc(value);
+        u8 shift = 0;
         do
         {
             if (!*node)
@@ -68,8 +70,8 @@ struct HashSet
 
             node = &(*node)->children[h & 3];
             h >>= 2;
-            h = hashFunc(value);
-        } while (h != 0);
+            shift += 2;
+        } while (shift < 64);
 
         // TODO: Handle hash collisions, if will ever happen
         FLY_ASSERT(false);
