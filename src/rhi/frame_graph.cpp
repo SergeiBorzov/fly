@@ -600,14 +600,34 @@ bool FrameGraph::Build(Arena& arena)
 
 void FrameGraph::Destroy()
 {
-    for (u32 i = 0; i < bufferCount_; i++)
+    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
     {
-        RHI::DestroyBuffer(device_, buffers_[i]);
-    }
+        ResourceHandle handle = node->key;
+        ResourceDescriptor& rd = node->value;
 
-    for (u32 i = 0; i < textureCount_; i++)
-    {
-        RHI::DestroyTexture2D(device_, textures_[i]);
+        if (rd.type == ResourceType::Buffer)
+        {
+            if (rd.buffer.external || handle.version != 0)
+            {
+                continue;
+            }
+
+            u32 count =
+                (!rd.buffer.hostVisible) ? 1 : FLY_FRAME_IN_FLIGHT_COUNT;
+            for (u32 i = 0; i < count; i++)
+            {
+                RHI::DestroyBuffer(device_, buffers_[rd.arrayIndex + i]);
+            }
+        }
+        else if (rd.type == ResourceType::Texture2D)
+        {
+            if (rd.texture2D.external || handle.version != 0 ||
+                handle.id == FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
+            {
+                continue;
+            }
+            RHI::DestroyTexture2D(device_, textures_[rd.arrayIndex]);
+        }
     }
 }
 

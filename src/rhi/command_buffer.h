@@ -70,6 +70,8 @@ void BindGraphicsPipeline(CommandBuffer& commandBuffer,
                           const GraphicsPipeline& graphicsPipeline);
 void BindComputePipeline(CommandBuffer& commandBuffer,
                          const ComputePipeline& computePipeline);
+void BindIndexBuffer(CommandBuffer& commandBuffer, RHI::Buffer& buffer,
+                     VkIndexType indexType, u64 offset = 0);
 void SetViewport(CommandBuffer& cmd, f32 x, f32 y, f32 w, f32 h, f32 minDepth,
                  f32 maxDepth);
 void SetScissor(CommandBuffer& cmd, i32 x, i32 y, u32 w, u32 h);
@@ -79,6 +81,8 @@ void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
                    u32 pushConstantsSize, u32 offset = 0);
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance);
+void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
+                 u32 firstIndex, u32 vertexOffset, u32 firstInstance);
 /*----------*/
 
 } // namespace RHI

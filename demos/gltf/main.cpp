@@ -4,8 +4,11 @@
 
 #include "rhi/buffer.h"
 #include "rhi/context.h"
+#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
+
+#include "utils/utils.h"
 
 #include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
@@ -19,8 +22,6 @@ struct UniformData
     Math::Mat4 projection = {};
     Math::Mat4 view = {};
 };
-
-static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 
 static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
@@ -45,63 +46,103 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static void RecordCommands(RHI::Device& device, RHI::GraphicsPipeline& pipeline,
-                           const Fly::Scene& scene)
+struct GraphicsPassContext
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    RHI::FrameGraph::TextureHandle depthTexture;
+    RHI::FrameGraph::TextureHandle colorAttachment;
+    RHI::FrameGraph::TextureHandle depthAttachment;
+    RHI::FrameGraph::BufferHandle uniformBuffer;
+    RHI::FrameGraph::BufferHandle materialBuffer;
+};
 
-    const RHI::SwapchainTexture& swapchainTexture =
-        RenderFrameSwapchainTexture(device);
-    VkRect2D renderArea = {{0, 0},
-                           {swapchainTexture.width, swapchainTexture.height}};
-    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
-        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
-        device.depthTexture.imageView,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo =
-        RHI::RenderingInfo(renderArea, &colorAttachment, 1, &depthAttachment);
+struct UserData
+{
+    u32 viewportWidth;
+    u32 viewportHeight;
+    RHI::GraphicsPipeline pipeline;
+    RHI::FrameGraph::BufferHandle uniformBuffer;
+    Fly::Scene* scene;
+};
 
-    vkCmdBeginRendering(cmd.handle, &renderInfo);
-    RHI::BindGraphicsPipeline(cmd, pipeline);
+static void GraphicsPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
+                              GraphicsPassContext& context, void* pUserData)
+{
+    UserData* userData = static_cast<UserData*>(pUserData);
 
-    VkViewport viewport = {};
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<f32>(renderArea.extent.width);
-    viewport.height = static_cast<f32>(renderArea.extent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
+    context.depthTexture = builder.CreateTexture2D(
+        arena, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 1.0f, 1.0f,
+        VK_FORMAT_D32_SFLOAT_S8_UINT);
 
-    VkRect2D scissor = renderArea;
-    vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
+    context.colorAttachment = builder.ColorAttachment(
+        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
 
-    vkCmdBindIndexBuffer(cmd.handle, scene.indexBuffer.handle, 0,
+    context.depthAttachment =
+        builder.DepthAttachment(arena, context.depthTexture);
+
+    context.uniformBuffer = builder.CreateBuffer(
+        arena,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        true, nullptr, sizeof(UniformData));
+
+    context.materialBuffer =
+        builder.RegisterExternalBuffer(arena, userData->scene->materialBuffer);
+
+    for (u32 i = 0; i < userData->scene->vertexBufferCount; i++)
+    {
+        builder.RegisterExternalBuffer(arena,
+                                       userData->scene->vertexBuffers[i]);
+    }
+
+    for (u32 i = 0; i < userData->scene->textureCount; i++)
+    {
+        builder.RegisterExternalTexture2D(arena, userData->scene->textures[i]);
+    }
+
+    userData->uniformBuffer = context.uniformBuffer;
+}
+
+static void GraphicsPassExecute(RHI::CommandBuffer& cmd,
+                                const RHI::FrameGraph::ResourceMap& resources,
+                                const GraphicsPassContext& context,
+                                void* pUserData)
+{
+    UserData* userData = static_cast<UserData*>(pUserData);
+
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
+                     static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
+                    userData->viewportHeight);
+
+    const RHI::Buffer& uniformBuffer =
+        resources.GetBuffer(context.uniformBuffer);
+    const RHI::Buffer& materialBuffer =
+        resources.GetBuffer(context.materialBuffer);
+
+    RHI::BindGraphicsPipeline(cmd, userData->pipeline);
+    RHI::BindIndexBuffer(cmd, userData->scene->indexBuffer,
                          VK_INDEX_TYPE_UINT32);
 
-    u32 globalIndices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-                            scene.materialBuffer.bindlessHandle};
-    RHI::SetPushConstants(cmd, globalIndices, sizeof(globalIndices),
-                          sizeof(Math::Mat4));
-    for (u32 i = 0; i < scene.meshNodeCount; i++)
+    u32 globalIndices[2] = {uniformBuffer.bindlessHandle,
+                            materialBuffer.bindlessHandle};
+    RHI::PushConstants(cmd, globalIndices, sizeof(globalIndices),
+                       sizeof(Math::Mat4));
+
+    for (u32 i = 0; i < userData->scene->meshNodeCount; i++)
     {
-        const Fly::MeshNode& meshNode = scene.meshNodes[i];
-        RHI::SetPushConstants(cmd, meshNode.model.data,
-                              sizeof(meshNode.model.data));
+        const Fly::MeshNode& meshNode = userData->scene->meshNodes[i];
+        RHI::PushConstants(cmd, meshNode.model.data,
+                           sizeof(meshNode.model.data));
         for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
         {
             const Fly::Submesh& submesh = meshNode.mesh->submeshes[j];
             u32 localIndices[2] = {submesh.vertexBufferIndex,
                                    submesh.materialIndex};
-            RHI::SetPushConstants(cmd, localIndices, sizeof(localIndices),
-                                  sizeof(Math::Mat4) + sizeof(u32) * 2);
-            vkCmdDrawIndexed(cmd.handle, submesh.indexCount, 1,
-                             submesh.indexOffset, 0, 0);
+            RHI::PushConstants(cmd, localIndices, sizeof(localIndices),
+                               sizeof(Math::Mat4) + sizeof(globalIndices));
+            RHI::DrawIndexed(cmd, submesh.indexCount, 1, submesh.indexOffset, 0,
+                             0);
         }
     }
-
-    vkCmdEndRendering(cmd.handle);
 }
 
 int main(int argc, char* argv[])
@@ -128,7 +169,7 @@ int main(int argc, char* argv[])
     glfwSetErrorCallback(ErrorCallbackGLFW);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window =
-        glfwCreateWindow(1280, 720, "glTF Viewer", nullptr, nullptr);
+        glfwCreateWindow(1280, 720, "Sponza gltf", nullptr, nullptr);
     if (!window)
     {
         FLY_ERROR("Failed to create glfw window");
@@ -174,7 +215,7 @@ int main(int argc, char* argv[])
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
     fixedState.pipelineRendering.depthAttachmentFormat =
-        device.depthTexture.format;
+        VK_FORMAT_D32_SFLOAT_S8_UINT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
@@ -191,17 +232,6 @@ int main(int argc, char* argv[])
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    // Camera data
-    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        if (!RHI::CreateUniformBuffer(device, nullptr, sizeof(UniformData),
-                                      sUniformBuffers[i]))
-        {
-            FLY_ERROR("Failed to create uniform buffer!");
-            return -1;
-        }
-    }
-
     // Scene
     Fly::Scene scene;
     if (!Fly::LoadSceneFromGLTF(arena, device, "Sponza.gltf", scene))
@@ -209,6 +239,16 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to load gltf");
         return -1;
     }
+
+    UserData userData;
+    userData.pipeline = graphicsPipeline;
+    userData.scene = &scene;
+
+    RHI::FrameGraph fg(device);
+    fg.AddPass<GraphicsPassContext>(
+        arena, "GraphicsPass", RHI::FrameGraph::PassNode::Type::Graphics,
+        GraphicsPassBuild, GraphicsPassExecute, &userData);
+    fg.Build(arena);
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -224,24 +264,25 @@ int main(int argc, char* argv[])
 
         glfwPollEvents();
 
+        i32 w, h;
+        glfwGetFramebufferSize(context.windowPtr, &w, &h);
+        userData.viewportWidth = static_cast<u32>(w);
+        userData.viewportHeight = static_cast<u32>(h);
+
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
-        RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
-                              sUniformBuffers[device.frameIndex]);
 
-        RHI::BeginRenderFrame(device);
-        RecordCommands(device, graphicsPipeline, scene);
-        RHI::EndRenderFrame(device);
+        RHI::Buffer& uniformBuffer = fg.GetBuffer(userData.uniformBuffer);
+        RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
+                              uniformBuffer);
+
+        fg.Execute();
     }
 
     RHI::WaitAllDevicesIdle(context);
-
+    fg.Destroy();
     Fly::UnloadScene(device, scene);
     RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
-    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
-    {
-        RHI::DestroyBuffer(device, sUniformBuffers[i]);
-    }
     RHI::DestroyContext(context);
 
     glfwDestroyWindow(window);

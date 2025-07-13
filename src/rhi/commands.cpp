@@ -1,13 +1,51 @@
 #include "core/assert.h"
 
+#include "buffer.h"
 #include "command_buffer.h"
 #include "device.h"
+#include "pipeline.h"
 #include "texture.h"
 
 namespace Fly
 {
 namespace RHI
 {
+
+void BindGraphicsPipeline(CommandBuffer& cmd,
+                          const RHI::GraphicsPipeline& graphicsPipeline)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(graphicsPipeline.handle != VK_NULL_HANDLE);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphicsPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            cmd.device->pipelineLayout, 0, 1,
+                            &(cmd.device->bindlessDescriptorSet), 0, nullptr);
+}
+
+void BindComputePipeline(CommandBuffer& cmd,
+                         const RHI::ComputePipeline& computePipeline)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(computePipeline.handle != VK_NULL_HANDLE);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                      computePipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+                            cmd.device->pipelineLayout, 0, 1,
+                            &(cmd.device->bindlessDescriptorSet), 0, nullptr);
+}
+
+void BindIndexBuffer(CommandBuffer& cmd, RHI::Buffer& buffer,
+                     VkIndexType indexType, u64 offset)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(buffer.usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+    vkCmdBindIndexBuffer(cmd.handle, buffer.handle, offset, indexType);
+}
 
 void SetViewport(CommandBuffer& cmd, f32 x, f32 y, f32 w, f32 h, f32 minDepth,
                  f32 maxDepth)
@@ -74,6 +112,30 @@ void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
 
     vkCmdDraw(cmd.handle, vertexCount, instanceCount, firstVertex,
               firstInstance);
+}
+
+void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
+                 u32 firstIndex, u32 vertexOffset, u32 firstInstance)
+{
+    FLY_ASSERT(cmd.device);
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
+    vkCmdDrawIndexed(cmd.handle, indexCount, instanceCount, firstIndex,
+                     vertexOffset, firstInstance);
+}
+
+void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 offset,
+                u64 size)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(buffer.usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+    if (size == 0)
+    {
+        size = VK_WHOLE_SIZE;
+    }
+    vkCmdFillBuffer(cmd.handle, buffer.handle, offset, size, value);
 }
 
 } // namespace RHI

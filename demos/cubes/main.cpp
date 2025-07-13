@@ -100,11 +100,10 @@ static void CubesPassExecute(RHI::CommandBuffer& cmd,
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
                      static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
-
                     userData->viewportHeight);
 
     const RHI::Buffer& uniformBuffer =
-        resources.GetBuffer(userData->uniformBuffer);
+        resources.GetBuffer(context.uniformBuffer);
     const RHI::Texture2D& cubeTexture =
         resources.GetTexture2D(userData->cubeTexture);
     RHI::BindGraphicsPipeline(cmd, userData->pipeline);

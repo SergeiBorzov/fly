@@ -4,12 +4,11 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "utils/utils.h"
-
-#include "assets/import_gltf.h"
-
 #include "rhi/device.h"
 #include "rhi/shader_program.h"
+
+#include "utils/utils.h"
+#include "assets/import_gltf.h"
 
 #include "scene.h"
 

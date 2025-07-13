@@ -38,6 +38,7 @@ cc_library(
         "//src/assets:import_image",
         "//src/assets:import_spv",
         "//src/rhi:context",
+        "//src/utils:utils",
     ],
     visibility = ["//visibility:public"],
 )
