@@ -169,6 +169,7 @@ FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
     rd.buffer.size = dataSize;
     rd.buffer.usage = usage;
     rd.buffer.hostVisible = hostVisible;
+    rd.buffer.external = nullptr;
 
     ResourceHandle handle = resources_.GetNextHandle();
     resources_.Insert(arena, handle, rd);
@@ -191,6 +192,7 @@ FrameGraph::TextureHandle FrameGraph::Builder::CreateTexture2D(
     rd.texture2D.format = format;
     rd.texture2D.wrapMode = wrapMode;
     rd.texture2D.filterMode = filterMode;
+    rd.texture2D.external = nullptr;
 
     ResourceHandle handle = resources_.GetNextHandle();
     resources_.Insert(arena, handle, rd);
@@ -212,6 +214,7 @@ FrameGraph::Builder::CreateTexture2D(Arena& arena, VkImageUsageFlags usage,
     rd.texture2D.relativeSize.x = relativeSizeX;
     rd.texture2D.relativeSize.y = relativeSizeY;
     rd.texture2D.format = format;
+    rd.texture2D.external = nullptr;
 
     ResourceHandle handle = resources_.GetNextHandle();
     resources_.Insert(arena, handle, rd);
@@ -254,6 +257,47 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
     resources_.Insert(arena, rh, *rd);
 
     return {rh};
+}
+
+FrameGraph::BufferHandle
+FrameGraph::Builder::RegisterExternalBuffer(Arena& arena, RHI::Buffer& buffer)
+{
+    FrameGraph::ResourceDescriptor rd;
+    rd.data = nullptr;
+    rd.type = FrameGraph::ResourceType::Buffer;
+    rd.arrayIndex = -1;
+    rd.buffer.external = &buffer;
+    rd.buffer.size = buffer.allocationInfo.size;
+    rd.buffer.usage = buffer.usage;
+    rd.buffer.hostVisible = buffer.hostVisible;
+
+    ResourceHandle handle = resources_.GetNextHandle();
+    resources_.Insert(arena, handle, rd);
+
+    return {handle};
+}
+
+FrameGraph::TextureHandle
+FrameGraph::Builder::RegisterExternalTexture2D(Arena& arena,
+                                               RHI::Texture2D& texture2D)
+{
+    FrameGraph::ResourceDescriptor rd;
+    rd.data = nullptr;
+    rd.type = FrameGraph::ResourceType::Texture2D;
+    rd.arrayIndex = -1;
+    rd.texture2D.sizeType = FrameGraph::TextureSizeType::Fixed;
+    rd.texture2D.usage = texture2D.usage;
+    rd.texture2D.width = texture2D.width;
+    rd.texture2D.height = texture2D.height;
+    rd.texture2D.format = texture2D.format;
+    rd.texture2D.wrapMode = texture2D.sampler.wrapMode;
+    rd.texture2D.filterMode = texture2D.sampler.filterMode;
+    rd.texture2D.external = &texture2D;
+
+    ResourceHandle handle = resources_.GetNextHandle();
+    resources_.Insert(arena, handle, rd);
+
+    return {handle};
 }
 
 FrameGraph::TextureHandle FrameGraph::Builder::DepthAttachment(
@@ -459,38 +503,55 @@ bool FrameGraph::Build(Arena& arena)
 
         if (rd.type == FrameGraph::ResourceType::Buffer && handle.version == 0)
         {
-            u32 count = rd.buffer.hostVisible ? FLY_FRAME_IN_FLIGHT_COUNT : 1;
-            u32 arrayIndex = bufferIndex;
-            for (u32 i = 0; i < count; i++)
+            if (!rd.buffer.external)
             {
-                bool res = RHI::CreateBuffer(
-                    device_, rd.buffer.hostVisible, rd.buffer.usage, rd.data,
-                    rd.buffer.size, buffers_[bufferIndex++]);
-                FLY_ASSERT(res);
+                u32 count =
+                    rd.buffer.hostVisible ? FLY_FRAME_IN_FLIGHT_COUNT : 1;
+                u32 arrayIndex = bufferIndex;
+                for (u32 i = 0; i < count; i++)
+                {
+                    bool res = RHI::CreateBuffer(
+                        device_, rd.buffer.hostVisible, rd.buffer.usage,
+                        rd.data, rd.buffer.size, buffers_[bufferIndex++]);
+                    FLY_ASSERT(res);
+                }
+                rd.arrayIndex = arrayIndex;
             }
-            rd.arrayIndex = arrayIndex;
+            else
+            {
+                buffers_[bufferIndex] = *rd.buffer.external;
+                rd.arrayIndex = bufferIndex++;
+            }
         }
         else if (rd.type == FrameGraph::ResourceType::Texture2D &&
                  handle.version == 0 &&
                  handle.id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
         {
-            u32 width = rd.texture2D.width;
-            u32 height = rd.texture2D.height;
-
-            if (rd.texture2D.sizeType == TextureSizeType::SwapchainRelative)
+            if (!rd.texture2D.external)
             {
-                width = static_cast<u32>(swapchainWidth *
-                                         rd.texture2D.relativeSize.x);
-                height = static_cast<u32>(swapchainHeight *
-                                          rd.texture2D.relativeSize.y);
-            }
+                u32 width = rd.texture2D.width;
+                u32 height = rd.texture2D.height;
 
-            bool res = RHI::CreateTexture2D(
-                device_, rd.texture2D.usage, rd.data, width, height,
-                rd.texture2D.format, rd.texture2D.filterMode,
-                rd.texture2D.wrapMode, textures_[textureIndex]);
-            FLY_ASSERT(res);
-            rd.arrayIndex = textureIndex++;
+                if (rd.texture2D.sizeType == TextureSizeType::SwapchainRelative)
+                {
+                    width = static_cast<u32>(swapchainWidth *
+                                             rd.texture2D.relativeSize.x);
+                    height = static_cast<u32>(swapchainHeight *
+                                              rd.texture2D.relativeSize.y);
+                }
+
+                bool res = RHI::CreateTexture2D(
+                    device_, rd.texture2D.usage, rd.data, width, height,
+                    rd.texture2D.format, rd.texture2D.filterMode,
+                    rd.texture2D.wrapMode, textures_[textureIndex]);
+                FLY_ASSERT(res);
+                rd.arrayIndex = textureIndex++;
+            }
+            else
+            {
+                textures_[textureIndex] = *rd.texture2D.external;
+                rd.arrayIndex = textureIndex++;
+            }
         }
     }
 

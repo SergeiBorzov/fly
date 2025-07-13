@@ -93,6 +93,7 @@ struct FrameGraph
 
     struct BufferCreateInfo
     {
+        RHI::Buffer* external;
         u64 size;
         VkBufferUsageFlags usage;
         bool hostVisible;
@@ -123,8 +124,8 @@ struct FrameGraph
             } relativeSize;
         };
 
+        RHI::Texture2D* external;
         u32 index;
-
         TextureSizeType sizeType;
         VkFormat format;
         RHI::Sampler::WrapMode wrapMode;
@@ -222,6 +223,12 @@ struct FrameGraph
         FrameGraph::TextureHandle
         CreateTexture2D(Arena& arena, VkImageUsageFlags usage,
                         f32 relativeSizeX, f32 relativeSizeY, VkFormat format);
+
+        FrameGraph::BufferHandle RegisterExternalBuffer(Arena& arena,
+                                                        RHI::Buffer& buffer);
+
+        FrameGraph::TextureHandle
+        RegisterExternalTexture2D(Arena& arena, RHI::Texture2D& texture2D);
 
         FrameGraph::TextureHandle ColorAttachment(
             Arena& arena, u32 index, FrameGraph::TextureHandle textureHandle,

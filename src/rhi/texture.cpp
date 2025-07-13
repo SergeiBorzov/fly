@@ -188,10 +188,10 @@ static VkImageView CreateVulkanImageView2D(Fly::RHI::Device& device,
     return result;
 }
 
-static void CreateDescriptors(Fly::RHI::Device& device, VkImageUsageFlags usage,
+static void CreateDescriptors(Fly::RHI::Device& device,
                               Fly::RHI::Texture2D& texture)
 {
-    u32 count = (usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
+    u32 count = (texture.usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
 
     VkImageLayout layouts[2] = {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                 VK_IMAGE_LAYOUT_GENERAL};
@@ -570,6 +570,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
         return false;
     }
 
+    texture.usage = usage;
     texture.sampler.handle = VK_NULL_HANDLE;
     texture.bindlessHandle = FLY_MAX_U32;
     texture.bindlessStorageHandle = FLY_MAX_U32;
@@ -585,7 +586,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
             return false;
         }
 
-        CreateDescriptors(device, usage, texture);
+        CreateDescriptors(device, texture);
     }
 
     texture.width = width;

@@ -53,6 +53,7 @@ struct Texture2D
     VkImageView imageView = VK_NULL_HANDLE;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkImageUsageFlags usage;
     u32 width = 0;
     u32 height = 0;
     u32 mipLevelCount = 0;
