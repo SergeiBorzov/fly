@@ -44,8 +44,8 @@ struct TrianglePassContext
 static void TrianglePassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
                               TrianglePassContext& context, void* pUserData)
 {
-    context.colorAttachment = RHI::ColorAttachment(
-        arena, builder, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+    context.colorAttachment = builder.ColorAttachment(
+        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
 }
 
 static void TrianglePassExecute(RHI::CommandBuffer& cmd,

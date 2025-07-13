@@ -68,24 +68,23 @@ static void CubesPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
     UserData* userData = static_cast<UserData*>(pUserData);
     Image& image = userData->cubeImage;
 
-    context.depthTexture = RHI::CreateTexture2D(
-        arena, builder, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 1.0f, 1.0f,
+    context.depthTexture = builder.CreateTexture2D(
+        arena, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 1.0f, 1.0f,
         VK_FORMAT_D32_SFLOAT_S8_UINT);
 
-    context.colorAttachment = RHI::ColorAttachment(
-        arena, builder, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+    context.colorAttachment = builder.ColorAttachment(
+        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
 
     context.depthAttachment =
-        RHI::DepthAttachment(arena, builder, context.depthTexture);
+        builder.DepthAttachment(arena, context.depthTexture);
 
-    context.cubeTexture = RHI::CreateTexture2D(
-        arena, builder,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    context.cubeTexture = builder.CreateTexture2D(
+        arena, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         image.data, image.width, image.height, VK_FORMAT_R8G8B8A8_SRGB,
         RHI::Sampler::FilterMode::Trilinear, RHI::Sampler::WrapMode::Repeat);
 
-    context.uniformBuffer = RHI::CreateBuffer(
-        arena, builder,
+    context.uniformBuffer = builder.CreateBuffer(
+        arena,
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         true, nullptr, sizeof(UniformData));
 
@@ -241,8 +240,7 @@ int main(int argc, char* argv[])
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView(),
                                    time};
 
-        RHI::Buffer& uniformBuffer =
-            fg.resources_.GetBuffer(userData.uniformBuffer);
+        RHI::Buffer& uniformBuffer = fg.GetBuffer(userData.uniformBuffer);
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               uniformBuffer);
         fg.Execute();

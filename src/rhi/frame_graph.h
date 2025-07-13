@@ -88,19 +88,12 @@ struct FrameGraph
         Texture2D
     };
 
-    enum class ResourceAccess
-    {
-        Unknown,
-        Read,
-        Write,
-        ReadWrite
-    };
-
     struct PassNode;
     struct ResourceDescriptor;
 
     struct BufferCreateInfo
     {
+        u64 size;
         VkBufferUsageFlags usage;
         bool hostVisible;
     };
@@ -150,18 +143,12 @@ struct FrameGraph
         };
 
         void* data;
-        u64 dataSize;
         i32 arrayIndex;
         ResourceType type;
-        ResourceAccess access;
-        bool isExternal;
     };
 
     struct ResourceMap
     {
-        friend struct FrameGraph;
-        friend struct Builder;
-
         ResourceMap(const FrameGraph* frameGraph) : frameGraph_(frameGraph) {}
 
         RHI::Texture2D& GetTexture2D(TextureHandle textureHandle);
@@ -188,6 +175,28 @@ struct FrameGraph
 
         ResourceHandle GetNextHandle();
 
+        inline HashTrie<ResourceHandle, ResourceDescriptor>::Iterator begin()
+        {
+            return resources_.begin();
+        }
+
+        inline HashTrie<ResourceHandle, ResourceDescriptor>::Iterator end()
+        {
+            return resources_.end();
+        }
+
+        inline HashTrie<ResourceHandle, ResourceDescriptor>::ConstIterator
+        begin() const
+        {
+            return resources_.begin();
+        }
+
+        inline HashTrie<ResourceHandle, ResourceDescriptor>::ConstIterator
+        end() const
+        {
+            return resources_.end();
+        }
+
     private:
         HashTrie<ResourceHandle, ResourceDescriptor> resources_;
         const FrameGraph* frameGraph_;
@@ -195,10 +204,40 @@ struct FrameGraph
 
     struct Builder
     {
-        Builder(FrameGraph& inFrameGraph) : frameGraph(inFrameGraph) {}
+        friend struct FrameGraph;
 
-        FrameGraph& frameGraph;
-        PassNode* currentPass;
+        Builder(ResourceMap& resources) : resources_(resources) {}
+
+        FrameGraph::BufferHandle CreateBuffer(Arena& arena,
+                                              VkBufferUsageFlags usage,
+                                              bool hostVisible, void* data,
+                                              u64 dataSize);
+
+        FrameGraph::TextureHandle
+        CreateTexture2D(Arena& arena, VkImageUsageFlags usage, void* data,
+                        u32 width, u32 height, VkFormat format,
+                        Sampler::FilterMode filterMode,
+                        Sampler::WrapMode wrapMode);
+
+        FrameGraph::TextureHandle
+        CreateTexture2D(Arena& arena, VkImageUsageFlags usage,
+                        f32 relativeSizeX, f32 relativeSizeY, VkFormat format);
+
+        FrameGraph::TextureHandle ColorAttachment(
+            Arena& arena, u32 index, FrameGraph::TextureHandle textureHandle,
+            VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
+
+        FrameGraph::TextureHandle DepthAttachment(
+            Arena& arena, FrameGraph::TextureHandle textureHandle,
+            VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            VkClearDepthStencilValue clearDepthStencil = {1.0f, 0});
+
+    private:
+        ResourceMap& resources_;
+        PassNode* currentPass_;
     };
 
     template <typename T>
@@ -294,6 +333,26 @@ struct FrameGraph
     void Execute();
     void Destroy();
 
+    inline RHI::Texture2D& GetTexture2D(TextureHandle textureHandle)
+    {
+        return resources_.GetTexture2D(textureHandle);
+    }
+
+    inline RHI::Buffer& GetBuffer(BufferHandle bufferHandle)
+    {
+        return resources_.GetBuffer(bufferHandle);
+    }
+
+    inline const RHI::Texture2D& GetTexture2D(TextureHandle textureHandle) const
+    {
+        return resources_.GetTexture2D(textureHandle);
+    }
+
+    inline const RHI::Buffer& GetBuffer(BufferHandle bufferHandle) const
+    {
+        return resources_.GetBuffer(bufferHandle);
+    }
+
     ResourceMap resources_;
 
 private:
@@ -305,37 +364,6 @@ private:
     u32 textureCount_ = 0;
 };
 
-FrameGraph::BufferHandle CreateBuffer(Arena& arena,
-                                      FrameGraph::Builder& builder,
-                                      VkBufferUsageFlags usage,
-                                      bool hostVisible, void* data,
-                                      u64 dataSize);
-
-FrameGraph::TextureHandle
-CreateTexture2D(Arena& arena, FrameGraph::Builder& builder,
-                VkImageUsageFlags usage, void* data, u32 width, u32 height,
-                VkFormat format, Sampler::FilterMode filterMode,
-                Sampler::WrapMode wrapMode);
-
-FrameGraph::TextureHandle CreateTexture2D(Arena& arena,
-                                          FrameGraph::Builder& builder,
-                                          VkImageUsageFlags usage,
-                                          f32 relativeSizeX, f32 relativeSizeY,
-                                          VkFormat format);
-
-FrameGraph::TextureHandle
-ColorAttachment(Arena& arena, FrameGraph::Builder& builder, u32 index,
-                FrameGraph::TextureHandle textureHandle,
-                VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
-
-FrameGraph::TextureHandle
-DepthAttachment(Arena& arena, FrameGraph::Builder& builder,
-                FrameGraph::TextureHandle textureHandle,
-                VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                VkClearDepthStencilValue clearDepthStencil = {1.0f, 0});
 } // namespace RHI
 } // namespace Fly
 

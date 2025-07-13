@@ -284,8 +284,8 @@ struct HashTrie
     Iterator begin() { return Iterator(root_); }
     Iterator end() { return Iterator(nullptr); }
 
-    ConstIterator begin() const { return Iterator(root_); }
-    ConstIterator end() const { return Iterator(nullptr); }
+    ConstIterator begin() const { return ConstIterator(root_); }
+    ConstIterator end() const { return ConstIterator(nullptr); }
 
 private:
     Node* root_ = nullptr;
