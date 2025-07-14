@@ -102,49 +102,47 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
         CopyDataToBuffer(device, data, size, 0, buffer);
     }
 
+    buffer.hostVisible = hostVisible;
+    buffer.usage = usage;
+    buffer.bindlessHandle = FLY_MAX_U32;
+
     bool storageUsage = usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     bool uniformUsage = usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    if (!storageUsage && !uniformUsage)
+    if (storageUsage || uniformUsage)
     {
-        FLY_DEBUG_LOG("Buffer[%llu] created with size %f MB", buffer.handle,
-                      buffer.allocationInfo.size / 1024.0 / 1024.0);
-        return true;
-    }
-    FLY_ASSERT(!storageUsage || !uniformUsage);
 
-    VkDescriptorBufferInfo bufferInfo{};
-    bufferInfo.buffer = buffer.handle;
-    bufferInfo.offset = 0;
-    bufferInfo.range = size;
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = buffer.handle;
+        bufferInfo.offset = 0;
+        bufferInfo.range = size;
 
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = device.bindlessDescriptorSet;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.pBufferInfo = &bufferInfo;
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = device.bindlessDescriptorSet;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
 
-    u32* pBindlessHandle = nullptr;
-    if (uniformUsage)
-    {
-        pBindlessHandle = &device.bindlessUniformBufferHandleCount;
-        descriptorWrite.dstBinding = FLY_UNIFORM_BUFFER_BINDING_INDEX;
-        descriptorWrite.dstArrayElement =
-            device.bindlessUniformBufferHandleCount;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        u32* pBindlessHandle = nullptr;
+        if (uniformUsage)
+        {
+            pBindlessHandle = &device.bindlessUniformBufferHandleCount;
+            descriptorWrite.dstBinding = FLY_UNIFORM_BUFFER_BINDING_INDEX;
+            descriptorWrite.dstArrayElement =
+                device.bindlessUniformBufferHandleCount;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        }
+        else
+        {
+            pBindlessHandle = &device.bindlessStorageBufferHandleCount;
+            descriptorWrite.dstBinding = FLY_STORAGE_BUFFER_BINDING_INDEX;
+            descriptorWrite.dstArrayElement =
+                device.bindlessStorageBufferHandleCount;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        }
+        vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
+                               nullptr);
+        buffer.bindlessHandle = (*pBindlessHandle)++;
     }
-    else
-    {
-        pBindlessHandle = &device.bindlessStorageBufferHandleCount;
-        descriptorWrite.dstBinding = FLY_STORAGE_BUFFER_BINDING_INDEX;
-        descriptorWrite.dstArrayElement =
-            device.bindlessStorageBufferHandleCount;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    }
-    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
-                           nullptr);
-    buffer.bindlessHandle = (*pBindlessHandle)++;
-    buffer.usage = usage;
-    buffer.hostVisible = hostVisible;
 
     FLY_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
                   buffer.handle, buffer.bindlessHandle,
