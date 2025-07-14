@@ -28,8 +28,7 @@ struct UniformData
 
 struct UserData
 {
-    u32 viewportWidth;
-    u32 viewportHeight;
+    RHI::Device* device;
     Image cubeImage;
     RHI::GraphicsPipeline pipeline;
     RHI::FrameGraph::BufferHandle uniformBuffer;
@@ -97,10 +96,11 @@ static void CubesPassExecute(RHI::CommandBuffer& cmd,
                              const CubesPassContext& context, void* pUserData)
 {
     UserData* userData = static_cast<UserData*>(pUserData);
-    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
-                     static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
-                    userData->viewportHeight);
+    RHI::SetViewport(
+        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
+        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
+                    userData->device->swapchainHeight);
 
     const RHI::Buffer& uniformBuffer =
         resources.GetBuffer(context.uniformBuffer);
@@ -205,6 +205,7 @@ int main(int argc, char* argv[])
     }
 
     UserData userData;
+    userData.device = &device;
     userData.pipeline = graphicsPipeline;
     userData.cubeImage = image;
 
@@ -229,11 +230,6 @@ int main(int argc, char* argv[])
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
         glfwPollEvents();
-
-        i32 w, h;
-        glfwGetFramebufferSize(context.windowPtr, &w, &h);
-        userData.viewportWidth = static_cast<u32>(w);
-        userData.viewportHeight = static_cast<u32>(h);
 
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView(),

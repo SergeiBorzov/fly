@@ -57,11 +57,10 @@ struct GraphicsPassContext
 
 struct UserData
 {
-    u32 viewportWidth;
-    u32 viewportHeight;
+    RHI::Device* device;
+    Fly::Scene* scene;
     RHI::GraphicsPipeline pipeline;
     RHI::FrameGraph::BufferHandle uniformBuffer;
-    Fly::Scene* scene;
 };
 
 static void GraphicsPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
@@ -108,10 +107,11 @@ static void GraphicsPassExecute(RHI::CommandBuffer& cmd,
 {
     UserData* userData = static_cast<UserData*>(pUserData);
 
-    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
-                     static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
-                    userData->viewportHeight);
+    RHI::SetViewport(
+        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
+        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
+                    userData->device->swapchainHeight);
 
     const RHI::Buffer& uniformBuffer =
         resources.GetBuffer(context.uniformBuffer);
@@ -243,12 +243,15 @@ int main(int argc, char* argv[])
     UserData userData;
     userData.pipeline = graphicsPipeline;
     userData.scene = &scene;
+    userData.device = &device;
 
     RHI::FrameGraph fg(device);
     fg.AddPass<GraphicsPassContext>(
         arena, "GraphicsPass", RHI::FrameGraph::PassNode::Type::Graphics,
         GraphicsPassBuild, GraphicsPassExecute, &userData);
+    FLY_LOG("Before building %llu", ArenaGetMarker(arena).value);
     fg.Build(arena);
+    FLY_LOG("After building %llu", ArenaGetMarker(arena).value);
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -263,11 +266,6 @@ int main(int argc, char* argv[])
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
         glfwPollEvents();
-
-        i32 w, h;
-        glfwGetFramebufferSize(context.windowPtr, &w, &h);
-        userData.viewportWidth = static_cast<u32>(w);
-        userData.viewportHeight = static_cast<u32>(h);
 
         sCamera.Update(window, deltaTime);
         UniformData uniformData = {sCamera.GetProjection(), sCamera.GetView()};
