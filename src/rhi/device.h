@@ -1,6 +1,8 @@
 #ifndef FLY_RHI_DEVICE_H
 #define FLY_RHI_DEVICE_H
 
+#include "core/list.h"
+
 #include "command_buffer.h"
 #include "vma.h"
 
@@ -39,8 +41,24 @@ struct SwapchainTexture
 {
     VkImage handle = VK_NULL_HANDLE;
     VkImageView imageView = VK_NULL_HANDLE;
-    u32 width = 0;
-    u32 height = 0;
+};
+
+typedef void (*SwapchainRecreatedFn)(u32 w, u32 h, void*);
+
+struct SwapchainRecreatedCallback
+{
+    SwapchainRecreatedFn func;
+    void* data;
+
+    inline bool operator==(const SwapchainRecreatedCallback& other)
+    {
+        return func == other.func && data == other.data;
+    }
+
+    inline bool operator!=(const SwapchainRecreatedCallback& other)
+    {
+        return func != other.func || data != other.data;
+    }
 };
 
 struct Device
@@ -51,6 +69,7 @@ struct Device
     FrameData frameData[FLY_FRAME_IN_FLIGHT_COUNT];
     TransferData transferData = {};
     VkSurfaceFormatKHR surfaceFormat = {};
+    List<SwapchainRecreatedCallback> swapchainRecreatedCallbacks;
     Context* context = nullptr;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;
@@ -68,9 +87,12 @@ struct Device
     u32 bindlessWriteTextureHandleCount = 0;
     u32 swapchainTextureCount = 0;
     u32 swapchainTextureIndex = 0;
+    u32 swapchainWidth = 0;
+    u32 swapchainHeight = 0;
     u32 frameIndex = 0;
     i32 graphicsComputeQueueFamilyIndex = -1;
     i32 presentQueueFamilyIndex = -1;
+    bool isFramebufferResized = false;
 };
 
 bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
@@ -92,7 +114,6 @@ bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
                     u32 extraWaitSemaphoreCount,
                     VkSemaphore* extraSignalSemaphores,
                     u32 extraSignalSemaphoreCount, void* pNext);
-
 
 void WaitDeviceIdle(Device& device);
 

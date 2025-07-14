@@ -9,6 +9,8 @@
 #include "context.h"
 #include "surface.h"
 
+#include <GLFW/glfw3.h>
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 /////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,26 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationLayerCallbackFunc(
     return VK_FALSE;
 }
 #endif
+
+static Fly::RHI::Context* sContext = nullptr;
+
+static void OnFramebufferResize(GLFWwindow* window, int width, int height)
+{
+    for (u32 i = 0; i < sContext->deviceCount; i++)
+    {
+        if (width == static_cast<int>(sContext->devices[i].swapchainWidth) &&
+            height == static_cast<int>(sContext->devices[i].swapchainHeight))
+        {
+            continue;
+        }
+        sContext->devices[i].isFramebufferResized = true;
+    }
+
+    if (sContext->framebufferResizeCallback)
+    {
+        sContext->framebufferResizeCallback(window, width, height);
+    }
+}
 
 namespace Fly
 {
@@ -1163,6 +1185,11 @@ bool CreateContext(ContextSettings& settings, Context& context)
             return false;
         }
     }
+
+    context.framebufferResizeCallback = settings.framebufferResizeCallback;
+    sContext = &context;
+
+    glfwSetFramebufferSizeCallback(context.windowPtr, OnFramebufferResize);
 
     return true;
 }

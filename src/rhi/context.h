@@ -47,6 +47,7 @@ typedef bool (*DetermineSurfaceFormatFn)(const Context&,
 typedef bool (*DeterminePresentModeFn)(const Context&,
                                        const PhysicalDeviceInfo&,
                                        VkPresentModeKHR&);
+typedef void (*FramebufferResizeFn)(GLFWwindow*, i32 w, i32 h);
 
 bool IsExtensionSupported(VkExtensionProperties* extensionProperties,
                           u32 extensionPropertiesCount,
@@ -64,6 +65,7 @@ struct ContextSettings
     IsPhysicalDeviceSuitableFn isPhysicalDeviceSuitableCallback = nullptr;
     DetermineSurfaceFormatFn determineSurfaceFormatCallback = nullptr;
     DeterminePresentModeFn determinePresentModeCallback = nullptr;
+    FramebufferResizeFn framebufferResizeCallback = nullptr;
     u32 instanceLayerCount = 0;
     u32 instanceExtensionCount = 0;
     u32 deviceExtensionCount = 0;
@@ -79,6 +81,7 @@ struct Context
     Device devices[FLY_PHYSICAL_DEVICE_MAX_COUNT];
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
+    FramebufferResizeFn framebufferResizeCallback = nullptr;
     GLFWwindow* windowPtr = nullptr;
     u32 deviceCount = 0;
 };

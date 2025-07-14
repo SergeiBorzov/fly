@@ -330,11 +330,11 @@ static bool CreateSwapchain(Device& device,
     VkImage images[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {VK_NULL_HANDLE};
     vkGetSwapchainImagesKHR(device.logicalDevice, device.swapchain,
                             &device.swapchainTextureCount, images);
+    device.swapchainWidth = extent.width;
+    device.swapchainHeight = extent.height;
     for (u32 i = 0; i < device.swapchainTextureCount; i++)
     {
         device.swapchainTextures[i].handle = images[i];
-        device.swapchainTextures[i].width = extent.width;
-        device.swapchainTextures[i].height = extent.height;
     }
 
     if (!CreateSwapchainImageViews(device))
@@ -342,7 +342,8 @@ static bool CreateSwapchain(Device& device,
         return false;
     }
 
-    FLY_LOG("Device %s created new swapchain", device.name);
+    FLY_LOG("Device %s created new swapchain %u %u", device.name,
+            device.swapchainWidth, device.swapchainHeight);
     FLY_LOG("Swapchain format: %s",
             FormatToString(device.surfaceFormat.format));
     FLY_LOG("Color space: %s",
@@ -390,6 +391,15 @@ static bool RecreateSwapchain(Device& device)
         }
         vkDestroySwapchainKHR(device.logicalDevice, oldSwapchain,
                               GetVulkanAllocationCallbacks());
+    }
+
+    device.isFramebufferResized = false;
+
+    for (const SwapchainRecreatedCallback& callback :
+         device.swapchainRecreatedCallbacks)
+    {
+        callback.func(device.swapchainWidth, device.swapchainHeight,
+                      callback.data);
     }
 
     return true;
@@ -885,7 +895,8 @@ bool EndRenderFrame(Device& device)
 
         VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
 
-        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR ||
+            device.isFramebufferResized)
         {
             if (!RecreateSwapchain(device))
             {

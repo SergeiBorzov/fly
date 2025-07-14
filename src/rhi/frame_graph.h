@@ -324,16 +324,13 @@ struct FrameGraph
         passes_.InsertBack(arena, pass);
     }
 
-    inline FrameGraph(RHI::Device& device) : resources_(this), device_(device)
-    {
-    }
+    FrameGraph(RHI::Device& device);
 
     inline VkFormat GetSwapchainFormat() const
     {
         return device_.surfaceFormat.format;
     }
 
-    void GetSwapchainSize(u32& width, u32& height);
     u32 GetSwapchainIndex() const;
 
     bool Build(Arena& arena);
@@ -360,9 +357,10 @@ struct FrameGraph
         return resources_.GetBuffer(bufferHandle);
     }
 
-    ResourceMap resources_;
-
+    void ResizeDynamicTextures();
+    
 private:
+    ResourceMap resources_;
     List<PassNode*> passes_;
     RHI::Buffer* buffers_;
     RHI::Texture2D* textures_;

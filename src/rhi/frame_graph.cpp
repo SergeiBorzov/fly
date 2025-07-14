@@ -5,6 +5,12 @@
 #include "device.h"
 #include "frame_graph.h"
 
+static void OnSwapchainRecreated(u32 w, u32 h, void* data)
+{
+    Fly::RHI::FrameGraph* fg = static_cast<Fly::RHI::FrameGraph*>(data);
+    fg->ResizeDynamicTextures();
+}
+
 static VkRenderingAttachmentInfo
 ColorAttachmentInfo(VkImageView imageView, VkAttachmentLoadOp loadOp,
                     VkAttachmentStoreOp storeOp, VkClearColorValue clearColor)
@@ -387,6 +393,10 @@ FrameGraph::TextureHandle FrameGraph::Builder::DepthAttachment(
 //     return sorted;
 // }
 
+FrameGraph::FrameGraph(RHI::Device& device) : resources_(this), device_(device)
+{
+}
+
 bool FrameGraph::Build(Arena& arena)
 {
     FrameGraph::Builder builder(resources_);
@@ -492,10 +502,6 @@ bool FrameGraph::Build(Arena& arena)
     u32 bufferIndex = 0;
     u32 textureIndex = 0;
 
-    u32 swapchainWidth = 0;
-    u32 swapchainHeight = 0;
-    GetSwapchainSize(swapchainWidth, swapchainHeight);
-
     for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
     {
         ResourceHandle handle = node->key;
@@ -534,9 +540,9 @@ bool FrameGraph::Build(Arena& arena)
 
                 if (rd.texture2D.sizeType == TextureSizeType::SwapchainRelative)
                 {
-                    width = static_cast<u32>(swapchainWidth *
+                    width = static_cast<u32>(device_.swapchainWidth *
                                              rd.texture2D.relativeSize.x);
-                    height = static_cast<u32>(swapchainHeight *
+                    height = static_cast<u32>(device_.swapchainHeight *
                                               rd.texture2D.relativeSize.y);
                 }
 
@@ -595,11 +601,15 @@ bool FrameGraph::Build(Arena& arena)
         }
     }
 
+    device_.swapchainRecreatedCallbacks.InsertFront(
+        arena, {OnSwapchainRecreated, this});
+
     return true;
 }
 
 void FrameGraph::Destroy()
 {
+    device_.swapchainRecreatedCallbacks.Remove({OnSwapchainRecreated, this});
     for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
     {
         ResourceHandle handle = node->key;
@@ -627,6 +637,34 @@ void FrameGraph::Destroy()
                 continue;
             }
             RHI::DestroyTexture2D(device_, textures_[rd.arrayIndex]);
+        }
+    }
+}
+
+void FrameGraph::ResizeDynamicTextures()
+{
+    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
+    {
+        ResourceHandle handle = node->key;
+        ResourceDescriptor& rd = node->value;
+
+        if (rd.type == ResourceType::Texture2D && handle.version == 0 &&
+            handle.id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID &&
+            rd.texture2D.sizeType ==
+                FrameGraph::TextureSizeType::SwapchainRelative)
+        {
+            u32 width = static_cast<u32>(device_.swapchainWidth *
+                                         rd.texture2D.relativeSize.x);
+            u32 height = static_cast<u32>(device_.swapchainHeight *
+                                          rd.texture2D.relativeSize.y);
+
+            RHI::DestroyTexture2D(device_, textures_[rd.arrayIndex]);
+
+            bool res = RHI::CreateTexture2D(
+                device_, rd.texture2D.usage, rd.data, width, height,
+                rd.texture2D.format, rd.texture2D.filterMode,
+                rd.texture2D.wrapMode, textures_[rd.arrayIndex]);
+            FLY_ASSERT(res);
         }
     }
 }
@@ -668,8 +706,8 @@ void FrameGraph::Execute()
                         const SwapchainTexture& swapchainTexture =
                             RenderFrameSwapchainTexture(device_);
                         imageView = swapchainTexture.imageView;
-                        renderArea.extent = {swapchainTexture.width,
-                                             swapchainTexture.height};
+                        renderArea.extent = {device_.swapchainWidth,
+                                             device_.swapchainHeight};
                     }
                     else
                     {
@@ -713,13 +751,6 @@ void FrameGraph::Execute()
 
     RHI::EndRenderFrame(device_);
     ArenaPopToMarker(arena, marker);
-}
-
-void FrameGraph::GetSwapchainSize(u32& width, u32& height)
-{
-    const SwapchainTexture& texture = RenderFrameSwapchainTexture(device_);
-    width = texture.width;
-    height = texture.height;
 }
 
 u32 FrameGraph::GetSwapchainIndex() const { return device_.frameIndex; }

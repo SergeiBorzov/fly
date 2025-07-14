@@ -24,15 +24,14 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
     }
 }
 
-static void ErrorCallbackGLFW(i32 error, const char* description)
+static void ErrorCallbackGLFW(int error, const char* description)
 {
     FLY_ERROR("GLFW - error: %s", description);
 }
 
 struct UserData
 {
-    u32 viewportWidth;
-    u32 viewportHeight;
+    RHI::Device* device;
     RHI::GraphicsPipeline pipeline;
 };
 
@@ -55,10 +54,11 @@ static void TrianglePassExecute(RHI::CommandBuffer& cmd,
 {
     UserData* userData = static_cast<UserData*>(pUserData);
     RHI::BindGraphicsPipeline(cmd, userData->pipeline);
-    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(userData->viewportWidth),
-                     static_cast<f32>(userData->viewportHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, userData->viewportWidth,
-                    userData->viewportHeight);
+    RHI::SetViewport(
+        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
+        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
+                    userData->device->swapchainHeight);
     RHI::Draw(cmd, 3, 1, 0, 0);
 }
 
@@ -86,6 +86,7 @@ int main(int argc, char* argv[])
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window = glfwCreateWindow(640, 480, "Window", nullptr, nullptr);
+
     if (!window)
     {
         FLY_ERROR("Failed to create glfw window");
@@ -143,6 +144,7 @@ int main(int argc, char* argv[])
 
     UserData userData;
     userData.pipeline = graphicsPipeline;
+    userData.device = &device;
 
     Arena& arena = GetScratchArena();
     RHI::FrameGraph fg(device);
@@ -154,7 +156,6 @@ int main(int argc, char* argv[])
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-        fg.GetSwapchainSize(userData.viewportWidth, userData.viewportHeight);
         fg.Execute();
     }
 
