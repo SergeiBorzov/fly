@@ -201,6 +201,7 @@ struct FrameGraph
     private:
         HashTrie<ResourceHandle, ResourceDescriptor> resources_;
         const FrameGraph* frameGraph_;
+        u32 nextHandle_ = 0;
     };
 
     struct Builder
@@ -242,6 +243,20 @@ struct FrameGraph
             VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             VkClearDepthStencilValue clearDepthStencil = {1.0f, 0});
 
+        FrameGraph::BufferHandle Read(Arena& arena,
+                                      FrameGraph::BufferHandle handle);
+        FrameGraph::BufferHandle Write(Arena& arena,
+                                       FrameGraph::BufferHandle handle);
+        FrameGraph::BufferHandle ReadWrite(Arena& arena,
+                                           FrameGraph::BufferHandle handle);
+
+        FrameGraph::TextureHandle Read(Arena& arena,
+                                       FrameGraph::TextureHandle handle);
+        FrameGraph::TextureHandle Write(Arena& arena,
+                                        FrameGraph::TextureHandle handle);
+        FrameGraph::TextureHandle ReadWrite(Arena& arena,
+                                            FrameGraph::TextureHandle handle);
+
     private:
         ResourceMap& resources_;
         PassNode* currentPass_;
@@ -251,7 +266,7 @@ struct FrameGraph
     using BuildFunction = void (*)(Arena&, Builder&, T&, void*);
 
     template <typename T>
-    using RecordFunction = void (*)(RHI::CommandBuffer& cmd, const ResourceMap&,
+    using RecordFunction = void (*)(RHI::CommandBuffer& cmd, ResourceMap&,
                                     const T&, void*);
 
     struct PassNode
@@ -260,12 +275,13 @@ struct FrameGraph
         {
             Graphics,
             Compute,
+            Transfer
         };
 
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
                                            PassNode&);
-        using RecordFunctionImpl = void (*)(RHI::CommandBuffer&,
-                                            const ResourceMap&, PassNode&);
+        using RecordFunctionImpl = void (*)(RHI::CommandBuffer&, ResourceMap&,
+                                            PassNode&);
 
         BuildFunctionImpl buildCallbackImpl;
         RecordFunctionImpl recordCallbackImpl;
@@ -289,8 +305,8 @@ struct FrameGraph
             pass.buildCallback(arena, builder, pass.context, pass.userData);
         }
 
-        static void RecordImpl(RHI::CommandBuffer& cmd,
-                               const ResourceMap& resources, PassNode& base)
+        static void RecordImpl(RHI::CommandBuffer& cmd, ResourceMap& resources,
+                               PassNode& base)
         {
             Pass<T>& pass = static_cast<Pass<T>&>(base);
             pass.recordCallback(cmd, resources, pass.context, pass.userData);
@@ -358,7 +374,7 @@ struct FrameGraph
     }
 
     void ResizeDynamicTextures();
-    
+
 private:
     ResourceMap resources_;
     List<PassNode*> passes_;

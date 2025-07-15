@@ -87,12 +87,14 @@ static void CubesPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         true, nullptr, sizeof(UniformData));
 
+    builder.Read(arena, context.uniformBuffer);
+
     userData->uniformBuffer = context.uniformBuffer;
     userData->cubeTexture = context.cubeTexture;
 }
 
 static void CubesPassExecute(RHI::CommandBuffer& cmd,
-                             const RHI::FrameGraph::ResourceMap& resources,
+                             RHI::FrameGraph::ResourceMap& resources,
                              const CubesPassContext& context, void* pUserData)
 {
     UserData* userData = static_cast<UserData*>(pUserData);

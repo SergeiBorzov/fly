@@ -1189,7 +1189,10 @@ bool CreateContext(ContextSettings& settings, Context& context)
     context.framebufferResizeCallback = settings.framebufferResizeCallback;
     sContext = &context;
 
-    glfwSetFramebufferSizeCallback(context.windowPtr, OnFramebufferResize);
+    if (context.windowPtr)
+    {
+        glfwSetFramebufferSizeCallback(context.windowPtr, OnFramebufferResize);
+    }
 
     return true;
 }

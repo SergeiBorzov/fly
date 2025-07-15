@@ -2,6 +2,7 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "context.h"
 #include "device.h"
 #include "frame_graph.h"
 
@@ -77,6 +78,91 @@ namespace Fly
 {
 namespace RHI
 {
+
+static ResourceHandle CommonRead(Arena& arena, ResourceHandle rh,
+                                 const FrameGraph::ResourceMap& resources,
+                                 List<ResourceHandle>& inputs,
+                                 const List<ResourceHandle>& outputs)
+{
+#ifndef NDEBUG
+    for (ResourceHandle handle : inputs)
+    {
+        FLY_ASSERT(handle.id != rh.id);
+    }
+
+    for (ResourceHandle handle : outputs)
+    {
+        FLY_ASSERT(handle.id != rh.id);
+    }
+#endif
+
+    const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+    FLY_ASSERT(rd);
+
+    inputs.InsertFront(arena, rh);
+    return rh;
+}
+
+static ResourceHandle CommonWrite(Arena& arena, ResourceHandle rh,
+                                  FrameGraph::ResourceMap& resources,
+                                  const List<ResourceHandle>& inputs,
+                                  List<ResourceHandle>& outputs)
+{
+#ifndef NDEBUG
+    for (ResourceHandle handle : inputs)
+    {
+        FLY_ASSERT(handle.id != rh.id);
+    }
+
+    for (ResourceHandle handle : outputs)
+    {
+        FLY_ASSERT(handle.id != rh.id);
+    }
+#endif
+
+    FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+    FLY_ASSERT(rd);
+
+    ResourceHandle wh;
+    wh.id = rh.id;
+    wh.version = rh.version + 1;
+    FLY_ASSERT(resources.Find(wh) == nullptr);
+    resources.Insert(arena, wh, *rd);
+
+    outputs.InsertFront(arena, rh);
+    return {wh};
+}
+
+static ResourceHandle CommonReadWrite(Arena& arena, ResourceHandle rh,
+                                      FrameGraph::ResourceMap& resources,
+                                      List<ResourceHandle>& inputs,
+                                      List<ResourceHandle>& outputs)
+{
+#ifndef NDEBUG
+    for (ResourceHandle handle : inputs)
+    {
+        FLY_ASSERT(handle.id != rh.id);
+    }
+
+    for (ResourceHandle handle : outputs)
+    {
+        FLY_ASSERT(handle.id != rh.id);
+    }
+#endif
+
+    FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
+    FLY_ASSERT(rd);
+
+    ResourceHandle wh;
+    wh.id = rh.id;
+    wh.version = rh.version + 1;
+    FLY_ASSERT(resources.Find(wh) == nullptr);
+    resources.Insert(arena, wh, *rd);
+
+    inputs.InsertFront(arena, rh);
+    outputs.InsertFront(arena, rh);
+    return {wh};
+}
 
 const FrameGraph::TextureHandle FrameGraph::TextureHandle::sBackBuffer = {
     {0, 0}};
@@ -158,10 +244,7 @@ FrameGraph::ResourceMap::GetTexture2D(TextureHandle textureHandle)
 ResourceHandle FrameGraph::ResourceMap::GetNextHandle()
 
 {
-    ResourceHandle handle;
-    handle.id = static_cast<u32>(resources_.Count()) + 1;
-    handle.version = 0;
-    return handle;
+    return {++nextHandle_, 0};
 }
 
 FrameGraph::BufferHandle
@@ -177,10 +260,11 @@ FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
     rd.buffer.hostVisible = hostVisible;
     rd.buffer.external = nullptr;
 
-    ResourceHandle handle = resources_.GetNextHandle();
-    resources_.Insert(arena, handle, rd);
+    ResourceHandle rh = resources_.GetNextHandle();
+    FLY_ASSERT(resources_.Find(rh) == nullptr);
+    resources_.Insert(arena, rh, rd);
 
-    return {handle};
+    return {rh};
 }
 
 FrameGraph::TextureHandle FrameGraph::Builder::CreateTexture2D(
@@ -200,10 +284,11 @@ FrameGraph::TextureHandle FrameGraph::Builder::CreateTexture2D(
     rd.texture2D.filterMode = filterMode;
     rd.texture2D.external = nullptr;
 
-    ResourceHandle handle = resources_.GetNextHandle();
-    resources_.Insert(arena, handle, rd);
+    ResourceHandle rh = resources_.GetNextHandle();
+    FLY_ASSERT(resources_.Find(rh) == nullptr);
+    resources_.Insert(arena, rh, rd);
 
-    return {handle};
+    return {rh};
 }
 
 FrameGraph::TextureHandle
@@ -222,10 +307,11 @@ FrameGraph::Builder::CreateTexture2D(Arena& arena, VkImageUsageFlags usage,
     rd.texture2D.format = format;
     rd.texture2D.external = nullptr;
 
-    ResourceHandle handle = resources_.GetNextHandle();
-    resources_.Insert(arena, handle, rd);
+    ResourceHandle rh = resources_.GetNextHandle();
+    FLY_ASSERT(resources_.Find(rh) == nullptr);
+    resources_.Insert(arena, rh, rd);
 
-    return {handle};
+    return {rh};
 }
 
 FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
@@ -236,7 +322,8 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
     FLY_ASSERT(currentPass_);
     FLY_ASSERT(currentPass_->type == FrameGraph::PassNode::Type::Graphics);
 
-    if (textureHandle == FrameGraph::TextureHandle::sBackBuffer)
+    if (textureHandle == FrameGraph::TextureHandle::sBackBuffer &&
+        !resources_.Find(FrameGraph::TextureHandle::sBackBuffer.handle))
     {
         FrameGraph::ResourceDescriptor rd{};
         rd.type = FrameGraph::ResourceType::Texture2D;
@@ -245,6 +332,7 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
         ResourceHandle rh;
         rh.id = FLY_SWAPCHAIN_TEXTURE_HANDLE_ID;
         rh.version = 0;
+
         resources_.Insert(arena, rh, rd);
     }
 
@@ -260,8 +348,76 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
     ResourceHandle rh;
     rh.id = textureHandle.handle.id;
     rh.version = textureHandle.handle.version + 1;
+    FLY_ASSERT(resources_.Find(rh) == nullptr);
     resources_.Insert(arena, rh, *rd);
 
+    return {rh};
+}
+
+FrameGraph::BufferHandle
+FrameGraph::Builder::Read(Arena& arena, FrameGraph::BufferHandle bufferHandle)
+{
+    FLY_ASSERT(currentPass_);
+
+    ResourceHandle rh = CommonRead(arena, bufferHandle.handle, resources_,
+                                   currentPass_->inputs, currentPass_->outputs);
+    return {rh};
+}
+
+FrameGraph::TextureHandle
+FrameGraph::Builder::Read(Arena& arena, FrameGraph::TextureHandle textureHandle)
+{
+    FLY_ASSERT(currentPass_);
+
+    ResourceHandle rh = CommonRead(arena, textureHandle.handle, resources_,
+                                   currentPass_->inputs, currentPass_->outputs);
+    return {rh};
+}
+
+FrameGraph::BufferHandle
+FrameGraph::Builder::Write(Arena& arena, FrameGraph::BufferHandle bufferHandle)
+{
+    FLY_ASSERT(currentPass_);
+
+    ResourceHandle rh =
+        CommonWrite(arena, bufferHandle.handle, resources_,
+                    currentPass_->inputs, currentPass_->outputs);
+    return {rh};
+}
+
+FrameGraph::TextureHandle
+FrameGraph::Builder::Write(Arena& arena,
+                           FrameGraph::TextureHandle textureHandle)
+{
+    FLY_ASSERT(currentPass_);
+
+    ResourceHandle rh =
+        CommonWrite(arena, textureHandle.handle, resources_,
+                    currentPass_->inputs, currentPass_->outputs);
+    return {rh};
+}
+
+FrameGraph::BufferHandle
+FrameGraph::Builder::ReadWrite(Arena& arena,
+                               FrameGraph::BufferHandle bufferHandle)
+{
+    FLY_ASSERT(currentPass_);
+
+    ResourceHandle rh =
+        CommonReadWrite(arena, bufferHandle.handle, resources_,
+                        currentPass_->inputs, currentPass_->outputs);
+    return {rh};
+}
+
+FrameGraph::TextureHandle
+FrameGraph::Builder::ReadWrite(Arena& arena,
+                               FrameGraph::TextureHandle textureHandle)
+{
+    FLY_ASSERT(currentPass_);
+
+    ResourceHandle rh =
+        CommonReadWrite(arena, textureHandle.handle, resources_,
+                        currentPass_->inputs, currentPass_->outputs);
     return {rh};
 }
 
@@ -540,6 +696,8 @@ bool FrameGraph::Build(Arena& arena)
 
                 if (rd.texture2D.sizeType == TextureSizeType::SwapchainRelative)
                 {
+                    FLY_ASSERT(device_.context->windowPtr,
+                               "No swapchain, cannot create dynamic texture");
                     width = static_cast<u32>(device_.swapchainWidth *
                                              rd.texture2D.relativeSize.x);
                     height = static_cast<u32>(device_.swapchainHeight *
@@ -583,8 +741,8 @@ bool FrameGraph::Build(Arena& arena)
         {
             const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
             FLY_ASSERT(rd);
-            FLY_LOG("Input resource %u type %u, index - %d", rh, rd->type,
-                    rd->arrayIndex);
+            FLY_LOG("Input resource (%u, %u) type %u, index - %d", rh.id,
+                    rh.version, rd->type, rd->arrayIndex);
         }
 
         for (ResourceHandle rh : pass->outputs)
@@ -675,12 +833,18 @@ void FrameGraph::Execute()
     ArenaMarker marker = ArenaGetMarker(arena);
 
     RHI::BeginRenderFrame(device_);
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device_);
 
     // TODO: Memory barriers, image layout transitions, compute pass
 
     for (PassNode* pass : passes_)
     {
-        if (pass->type == PassNode::Type::Graphics)
+        if (pass->type == PassNode::Type::Transfer ||
+            pass->type == PassNode::Type::Compute)
+        {
+            pass->recordCallbackImpl(cmd, resources_, *pass);
+        }
+        else if (pass->type == PassNode::Type::Graphics)
         {
 
             AttachmentCount count = CountAttachments(pass, resources_);
@@ -742,7 +906,6 @@ void FrameGraph::Execute()
                 RenderingInfo(renderArea, attachments, count.color,
                               pDepthAttachment, nullptr, 1, 0);
 
-            RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device_);
             vkCmdBeginRendering(cmd.handle, &renderInfo);
             pass->recordCallbackImpl(cmd, resources_, *pass);
             vkCmdEndRendering(cmd.handle);

@@ -56,8 +56,8 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout);
 
-void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value = 0,
-                u64 offset = 0, u64 size = 0);
+void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value,
+                u64 size = 0, u64 offset = 0);
 
 VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
                                           VkAccessFlags srcAccessMask,

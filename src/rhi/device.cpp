@@ -826,19 +826,21 @@ bool BeginRenderFrame(Device& device)
                 device.logicalDevice, device.swapchain, UINT64_MAX,
                 device.frameData[device.frameIndex].swapchainSemaphore,
                 VK_NULL_HANDLE, &device.swapchainTextureIndex);
-
-            if (res == VK_ERROR_OUT_OF_DATE_KHR)
-            {
-                if (!RecreateSwapchain(device))
-                {
-                    return false;
-                }
-            }
-            else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
-            {
-                return false;
-            }
         }
+    }
+    else
+    {
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 0;
+        submitInfo.pCommandBuffers = nullptr;
+        submitInfo.waitSemaphoreCount = 0;
+        submitInfo.pWaitSemaphores = nullptr;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores =
+            &device.frameData[device.frameIndex].swapchainSemaphore;
+        vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
+                      VK_NULL_HANDLE);
     }
 
     vkResetFences(device.logicalDevice, 1,
@@ -908,92 +910,112 @@ bool EndRenderFrame(Device& device)
             return false;
         }
     }
-    device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
-    return true;
-}
-
-bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
-                    VkPipelineStageFlags* extraWaitStageMasks,
-                    u32 extraWaitSemaphoreCount,
-                    VkSemaphore* extraSignalSemaphores,
-                    u32 extraSignalSemaphoreCount, void* pNext)
-{
-    CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-    if (device.swapchain != VK_NULL_HANDLE)
+    else
     {
-        // Image transition to presentable
-        RecordTransitionImageLayout(
-            cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-    }
-    EndCommandBuffer(cmd);
-
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-
-    u32 waitSemaphoreCount = 1 + extraWaitSemaphoreCount;
-    u32 waitStageMaskCount = 1 + extraWaitSemaphoreCount;
-    u32 signalSemaphoreCount = 1 + extraSignalSemaphoreCount;
-    VkSemaphore* waitSemaphores =
-        FLY_PUSH_ARENA(arena, VkSemaphore, waitSemaphoreCount);
-    VkPipelineStageFlags* waitStageMasks =
-        FLY_PUSH_ARENA(arena, VkPipelineStageFlags, waitStageMaskCount);
-    VkSemaphore* signalSemaphores =
-        FLY_PUSH_ARENA(arena, VkSemaphore, signalSemaphoreCount);
-    waitSemaphores[0] = device.frameData[device.frameIndex].swapchainSemaphore;
-    waitStageMasks[0] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    signalSemaphores[0] = device.frameData[device.frameIndex].renderSemaphore;
-
-    if (waitSemaphoreCount > 1)
-    {
-        memcpy(waitSemaphores + 1, extraWaitSemaphores,
-               sizeof(VkSemaphore) * extraWaitSemaphoreCount);
-        memcpy(waitStageMasks + 1, extraWaitStageMasks,
-               sizeof(VkPipelineStageFlagBits) * extraWaitSemaphoreCount);
-    }
-    if (signalSemaphoreCount > 1)
-    {
-        memcpy(signalSemaphores + 1, extraSignalSemaphores,
-               sizeof(VkSemaphore) * extraSignalSemaphoreCount);
-    }
-
-    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, waitSemaphores,
-                        waitSemaphoreCount, waitStageMasks, signalSemaphores,
-                        signalSemaphoreCount,
-                        device.frameData[device.frameIndex].renderFence, pNext);
-    ArenaPopToMarker(arena, marker);
-
-    if (device.swapchain != VK_NULL_HANDLE)
-    {
-        VkPresentInfoKHR presentInfo{};
-        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores =
+        VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_NONE;
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 0;
+        submitInfo.pCommandBuffers = nullptr;
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores =
             &device.frameData[device.frameIndex].renderSemaphore;
-        presentInfo.pSwapchains = &device.swapchain;
-        presentInfo.swapchainCount = 1;
-        presentInfo.pImageIndices = &device.swapchainTextureIndex;
-        presentInfo.pResults = nullptr;
-
-        VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
-
-        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
-        {
-            if (!RecreateSwapchain(device))
-            {
-                return false;
-            }
-        }
-        else if (res != VK_SUCCESS)
-        {
-            return false;
-        }
+        submitInfo.signalSemaphoreCount = 0;
+        submitInfo.pSignalSemaphores = nullptr;
+        submitInfo.pWaitDstStageMask = &waitMask;
+        vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
+                      VK_NULL_HANDLE);
     }
+
     device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
     return true;
 }
+
+// bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
+//                     VkPipelineStageFlags* extraWaitStageMasks,
+//                     u32 extraWaitSemaphoreCount,
+//                     VkSemaphore* extraSignalSemaphores,
+//                     u32 extraSignalSemaphoreCount, void* pNext)
+// {
+//     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+//     if (device.swapchain != VK_NULL_HANDLE)
+//     {
+//         // Image transition to presentable
+//         RecordTransitionImageLayout(
+//             cmd,
+//             device.swapchainTextures[device.swapchainTextureIndex].handle,
+//             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+//             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+//     }
+//     EndCommandBuffer(cmd);
+
+//     Arena& arena = GetScratchArena();
+//     ArenaMarker marker = ArenaGetMarker(arena);
+
+//     u32 waitSemaphoreCount = 1 + extraWaitSemaphoreCount;
+//     u32 waitStageMaskCount = 1 + extraWaitSemaphoreCount;
+//     u32 signalSemaphoreCount = 1 + extraSignalSemaphoreCount;
+//     VkSemaphore* waitSemaphores =
+//         FLY_PUSH_ARENA(arena, VkSemaphore, waitSemaphoreCount);
+//     VkPipelineStageFlags* waitStageMasks =
+//         FLY_PUSH_ARENA(arena, VkPipelineStageFlags, waitStageMaskCount);
+//     VkSemaphore* signalSemaphores =
+//         FLY_PUSH_ARENA(arena, VkSemaphore, signalSemaphoreCount);
+//     waitSemaphores[0] =
+//     device.frameData[device.frameIndex].swapchainSemaphore; waitStageMasks[0]
+//     = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; signalSemaphores[0] =
+//     device.frameData[device.frameIndex].renderSemaphore;
+
+//     if (waitSemaphoreCount > 1)
+//     {
+//         memcpy(waitSemaphores + 1, extraWaitSemaphores,
+//                sizeof(VkSemaphore) * extraWaitSemaphoreCount);
+//         memcpy(waitStageMasks + 1, extraWaitStageMasks,
+//                sizeof(VkPipelineStageFlagBits) * extraWaitSemaphoreCount);
+//     }
+//     if (signalSemaphoreCount > 1)
+//     {
+//         memcpy(signalSemaphores + 1, extraSignalSemaphores,
+//                sizeof(VkSemaphore) * extraSignalSemaphoreCount);
+//     }
+
+//     SubmitCommandBuffer(cmd, device.graphicsComputeQueue, waitSemaphores,
+//                         waitSemaphoreCount, waitStageMasks, signalSemaphores,
+//                         signalSemaphoreCount,
+//                         device.frameData[device.frameIndex].renderFence,
+//                         pNext);
+//     ArenaPopToMarker(arena, marker);
+
+//     if (device.swapchain != VK_NULL_HANDLE)
+//     {
+//         VkPresentInfoKHR presentInfo{};
+//         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+//         presentInfo.waitSemaphoreCount = 1;
+//         presentInfo.pWaitSemaphores =
+//             &device.frameData[device.frameIndex].renderSemaphore;
+//         presentInfo.pSwapchains = &device.swapchain;
+//         presentInfo.swapchainCount = 1;
+//         presentInfo.pImageIndices = &device.swapchainTextureIndex;
+//         presentInfo.pResults = nullptr;
+
+//         VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
+
+//         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+//         {
+//             if (!RecreateSwapchain(device))
+//             {
+//                 return false;
+//             }
+//         }
+//         else if (res != VK_SUCCESS)
+//         {
+//             return false;
+//         }
+//     }
+//     device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
+//     return true;
+// }
 
 CommandBuffer& TransferCommandBuffer(Device& device)
 {

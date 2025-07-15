@@ -82,26 +82,31 @@ static void GraphicsPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
         arena,
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         true, nullptr, sizeof(UniformData));
+    builder.Read(arena, context.uniformBuffer);
 
     context.materialBuffer =
         builder.RegisterExternalBuffer(arena, userData->scene->materialBuffer);
+    builder.Read(arena, context.materialBuffer);
 
     for (u32 i = 0; i < userData->scene->vertexBufferCount; i++)
     {
-        builder.RegisterExternalBuffer(arena,
-                                       userData->scene->vertexBuffers[i]);
+        RHI::FrameGraph::BufferHandle bh = builder.RegisterExternalBuffer(
+            arena, userData->scene->vertexBuffers[i]);
+        builder.Read(arena, bh);
     }
 
     for (u32 i = 0; i < userData->scene->textureCount; i++)
     {
-        builder.RegisterExternalTexture2D(arena, userData->scene->textures[i]);
+        RHI::FrameGraph::TextureHandle th = builder.RegisterExternalTexture2D(
+            arena, userData->scene->textures[i]);
+        builder.Read(arena, th);
     }
 
     userData->uniformBuffer = context.uniformBuffer;
 }
 
 static void GraphicsPassExecute(RHI::CommandBuffer& cmd,
-                                const RHI::FrameGraph::ResourceMap& resources,
+                                RHI::FrameGraph::ResourceMap& resources,
                                 const GraphicsPassContext& context,
                                 void* pUserData)
 {
@@ -249,9 +254,7 @@ int main(int argc, char* argv[])
     fg.AddPass<GraphicsPassContext>(
         arena, "GraphicsPass", RHI::FrameGraph::PassNode::Type::Graphics,
         GraphicsPassBuild, GraphicsPassExecute, &userData);
-    FLY_LOG("Before building %llu", ArenaGetMarker(arena).value);
     fg.Build(arena);
-    FLY_LOG("After building %llu", ArenaGetMarker(arena).value);
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();

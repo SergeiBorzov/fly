@@ -48,7 +48,7 @@ static void TrianglePassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
 }
 
 static void TrianglePassExecute(RHI::CommandBuffer& cmd,
-                                const RHI::FrameGraph::ResourceMap& resources,
+                                RHI::FrameGraph::ResourceMap& resources,
                                 const TrianglePassContext& context,
                                 void* pUserData)
 {
