@@ -17,15 +17,9 @@ struct Context;
 struct PhysicalDeviceInfo
 {
     VkPhysicalDeviceFeatures features = {};
+    VkPhysicalDeviceVulkan11Features vulkan11Features = {};
     VkPhysicalDeviceVulkan12Features vulkan12Features = {};
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures =
-        {};
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR
-        accelerationStructureFeatures = {};
-    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
-    VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {};
-    VkPhysicalDeviceShaderDrawParametersFeatures shaderDrawParametersFeatures =
-        {};
+    VkPhysicalDeviceVulkan13Features vulkan13Features = {};
     VkPhysicalDeviceProperties properties = {};
     VkPhysicalDeviceMemoryProperties memoryProperties = {};
     VkSurfaceCapabilitiesKHR surfaceCapabilities = {};
@@ -57,7 +51,10 @@ bool IsLayerSupported(VkLayerProperties* layerProperties,
 
 struct ContextSettings
 {
-    VkPhysicalDeviceFeatures2 deviceFeatures2 = {};
+    VkPhysicalDeviceFeatures2 features2 = {};
+    VkPhysicalDeviceVulkan11Features vulkan11Features = {};
+    VkPhysicalDeviceVulkan12Features vulkan12Features = {};
+    VkPhysicalDeviceVulkan13Features vulkan13Features = {};
     const char** instanceLayers = nullptr;
     const char** instanceExtensions = nullptr;
     const char** deviceExtensions = nullptr;
@@ -69,11 +66,6 @@ struct ContextSettings
     u32 instanceLayerCount = 0;
     u32 instanceExtensionCount = 0;
     u32 deviceExtensionCount = 0;
-
-    ContextSettings()
-    {
-        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    }
 };
 
 struct Context

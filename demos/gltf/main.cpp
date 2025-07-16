@@ -188,7 +188,6 @@ int main(int argc, char* argv[])
 
     RHI::ContextSettings settings{};
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
-    settings.deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;

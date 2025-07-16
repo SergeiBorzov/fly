@@ -369,40 +369,24 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
             }
         }
 
-        // Device features + ray tracing features
-        info.rayTracingPipelineFeatures = {};
-        info.rayTracingPipelineFeatures.sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-
-        info.rayQueryFeatures = {};
-        info.rayQueryFeatures.sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-        info.rayQueryFeatures.pNext = &info.rayTracingPipelineFeatures;
-
-        info.accelerationStructureFeatures = {};
-        info.accelerationStructureFeatures.sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-        info.accelerationStructureFeatures.pNext = &info.rayQueryFeatures;
-
-        info.shaderDrawParametersFeatures = {};
-        info.shaderDrawParametersFeatures.sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
-        info.shaderDrawParametersFeatures.pNext =
-            &info.accelerationStructureFeatures;
+        // Device features
+        info.vulkan13Features = {};
+        info.vulkan13Features.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 
         info.vulkan12Features = {};
         info.vulkan12Features.sType =
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-        info.vulkan12Features.pNext = &info.shaderDrawParametersFeatures;
+        info.vulkan12Features.pNext = &info.vulkan13Features;
 
-        info.dynamicRenderingFeatures = {};
-        info.dynamicRenderingFeatures.sType =
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
-        info.dynamicRenderingFeatures.pNext = &info.vulkan12Features;
+        info.vulkan11Features = {};
+        info.vulkan11Features.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+        info.vulkan11Features.pNext = &info.vulkan12Features;
 
         VkPhysicalDeviceFeatures2 deviceFeatures2{};
         deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        deviceFeatures2.pNext = &info.dynamicRenderingFeatures;
+        deviceFeatures2.pNext = &info.vulkan11Features;
 
         vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures2);
         info.features = deviceFeatures2.features;
@@ -422,78 +406,66 @@ QueryPhysicalDevicesInformation(Arena& arena, const Context& context,
     return physicalDeviceInfos;
 }
 
-static bool PhysicalDeviceSupportsAccelerationStructureFeatures(
-    const VkPhysicalDeviceAccelerationStructureFeaturesKHR& requested,
-    const VkPhysicalDeviceAccelerationStructureFeaturesKHR& supported)
+static bool PhysicalDeviceSupportsVulkan11Features(
+    const VkPhysicalDeviceVulkan11Features& requested,
+    const VkPhysicalDeviceVulkan11Features& supported)
 {
-    if (requested.accelerationStructure && !supported.accelerationStructure)
+    if (requested.storageBuffer16BitAccess && !supported.storageBuffer16BitAccess)
     {
         return false;
     }
 
-    if (requested.accelerationStructureCaptureReplay &&
-        !supported.accelerationStructureCaptureReplay)
+    if (requested.uniformAndStorageBuffer16BitAccess && !supported.uniformAndStorageBuffer16BitAccess)
     {
         return false;
     }
 
-    if (requested.accelerationStructureIndirectBuild &&
-        !supported.accelerationStructureIndirectBuild)
+    if (requested.storagePushConstant16 && !supported.storagePushConstant16)
     {
         return false;
     }
 
-    if (requested.accelerationStructureHostCommands &&
-        !supported.accelerationStructureHostCommands)
+    if (requested.storageInputOutput16 && !supported.storageInputOutput16)
     {
         return false;
     }
 
-    if (requested.descriptorBindingAccelerationStructureUpdateAfterBind &&
-        !supported.descriptorBindingAccelerationStructureUpdateAfterBind)
+    if (requested.multiview && !supported.multiview)
     {
         return false;
     }
 
-    return true;
-}
-
-static bool PhysicalDeviceSupportsRayQueryFeatures(
-    const VkPhysicalDeviceRayQueryFeaturesKHR& requested,
-    const VkPhysicalDeviceRayQueryFeaturesKHR& supported)
-{
-    return !requested.rayQuery || supported.rayQuery;
-}
-
-static bool PhysicalDeviceSupportsRayTracingPipelineFeatures(
-    const VkPhysicalDeviceRayTracingPipelineFeaturesKHR& requested,
-    const VkPhysicalDeviceRayTracingPipelineFeaturesKHR& supported)
-{
-    if (requested.rayTracingPipeline && !supported.rayTracingPipeline)
+    if (requested.multiviewGeometryShader && !supported.multiviewGeometryShader)
     {
         return false;
     }
 
-    if (requested.rayTracingPipelineShaderGroupHandleCaptureReplay &&
-        !supported.rayTracingPipelineShaderGroupHandleCaptureReplay)
+    if (requested.multiviewTessellationShader && !supported.multiviewTessellationShader)
     {
         return false;
     }
 
-    if (requested.rayTracingPipelineShaderGroupHandleCaptureReplayMixed &&
-        !supported.rayTracingPipelineShaderGroupHandleCaptureReplayMixed)
+    if (requested.variablePointersStorageBuffer && !supported.variablePointersStorageBuffer)
     {
         return false;
     }
 
-    if (requested.rayTracingPipelineTraceRaysIndirect &&
-        !supported.rayTracingPipelineTraceRaysIndirect)
+    if (requested.variablePointers && !supported.variablePointers)
     {
         return false;
     }
 
-    if (requested.rayTraversalPrimitiveCulling &&
-        !supported.rayTraversalPrimitiveCulling)
+    if (requested.protectedMemory && !supported.protectedMemory)
+    {
+        return false;
+    }
+
+    if (requested.samplerYcbcrConversion && !supported.samplerYcbcrConversion)
+    {
+        return false;
+    }
+
+    if (requested.shaderDrawParameters && !supported.shaderDrawParameters)
     {
         return false;
     }
@@ -781,18 +753,93 @@ static bool PhysicalDeviceSupportsVulkan12Features(
     return true;
 }
 
-static bool PhysicalDeviceSupportsDynamicRenderingFeatures(
-    const VkPhysicalDeviceDynamicRenderingFeatures& requested,
-    const VkPhysicalDeviceDynamicRenderingFeatures& supported)
+static bool PhysicalDeviceSupportsVulkan13Features(
+    const VkPhysicalDeviceVulkan13Features& requested,
+    const VkPhysicalDeviceVulkan13Features& supported)
 {
-    return !requested.dynamicRendering || supported.dynamicRendering;
-}
+    if (requested.robustImageAccess && !supported.robustImageAccess)
+    {
+        return false;
+    }
 
-static bool PhysicalDeviceSupportsShaderDrawParametersFeatures(
-    const VkPhysicalDeviceShaderDrawParametersFeatures& requested,
-    const VkPhysicalDeviceShaderDrawParametersFeatures& supported)
-{
-    return !requested.shaderDrawParameters || supported.shaderDrawParameters;
+    if (requested.inlineUniformBlock && !supported.inlineUniformBlock)
+    {
+        return false;
+    }
+
+    if (requested.descriptorBindingInlineUniformBlockUpdateAfterBind &&
+        !supported.descriptorBindingInlineUniformBlockUpdateAfterBind)
+    {
+        return false;
+    }
+
+    if (requested.pipelineCreationCacheControl &&
+        !supported.pipelineCreationCacheControl)
+    {
+        return false;
+    }
+
+    if (requested.privateData && !supported.privateData)
+    {
+        return false;
+    }
+
+    if (requested.shaderDemoteToHelperInvocation &&
+        !supported.shaderDemoteToHelperInvocation)
+    {
+        return false;
+    }
+
+    if (requested.shaderTerminateInvocation &&
+        !supported.shaderTerminateInvocation)
+    {
+        return false;
+    }
+
+    if (requested.subgroupSizeControl &&
+        !supported.subgroupSizeControl)
+    {
+        return false;
+    }
+
+    if (requested.computeFullSubgroups && !supported.computeFullSubgroups)
+    {
+        return false;
+    }
+
+    if (requested.synchronization2 && !supported.synchronization2)
+    {
+        return false;
+    }
+
+    if (requested.textureCompressionASTC_HDR &&
+        !supported.textureCompressionASTC_HDR)
+    {
+        return false;
+    }
+
+    if (requested.shaderZeroInitializeWorkgroupMemory &&
+        !supported.shaderZeroInitializeWorkgroupMemory)
+    {
+        return false;
+    }
+
+    if (requested.dynamicRendering && !supported.dynamicRendering)
+    {
+        return false;
+    }
+
+    if (requested.shaderIntegerDotProduct && !supported.shaderIntegerDotProduct)
+    {
+        return false;
+    }
+
+    if (requested.maintenance4 && !supported.maintenance4)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 static bool PhysicalDeviceSupportsRequiredFeatures(
@@ -821,42 +868,14 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
     {
         switch (currRequestedFeaturePtr->sType)
         {
-            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR:
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES:
             {
-                const VkPhysicalDeviceAccelerationStructureFeaturesKHR*
-                    requestedAccelerationStructureFeatures = reinterpret_cast<
-                        const VkPhysicalDeviceAccelerationStructureFeaturesKHR*>(
+                const VkPhysicalDeviceVulkan11Features*
+                    requestedVulkan11Features = reinterpret_cast<
+                        const VkPhysicalDeviceVulkan11Features*>(
                         currRequestedFeaturePtr);
-                if (!PhysicalDeviceSupportsAccelerationStructureFeatures(
-                        *requestedAccelerationStructureFeatures,
-                        supported.accelerationStructureFeatures))
-                {
-                    return false;
-                }
-                break;
-            }
-            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR:
-            {
-                const VkPhysicalDeviceRayQueryFeaturesKHR*
-                    requestedRayQueryFeatures = reinterpret_cast<
-                        const VkPhysicalDeviceRayQueryFeaturesKHR*>(
-                        currRequestedFeaturePtr);
-                if (!PhysicalDeviceSupportsRayQueryFeatures(
-                        *requestedRayQueryFeatures, supported.rayQueryFeatures))
-                {
-                    return false;
-                }
-                break;
-            }
-            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR:
-            {
-                const VkPhysicalDeviceRayTracingPipelineFeaturesKHR*
-                    requestedRayTracingPipelineFeatures = reinterpret_cast<
-                        const VkPhysicalDeviceRayTracingPipelineFeaturesKHR*>(
-                        currRequestedFeaturePtr);
-                if (!PhysicalDeviceSupportsRayTracingPipelineFeatures(
-                        *requestedRayTracingPipelineFeatures,
-                        supported.rayTracingPipelineFeatures))
+                if (!PhysicalDeviceSupportsVulkan11Features(
+                        *requestedVulkan11Features, supported.vulkan11Features))
                 {
                     return false;
                 }
@@ -875,29 +894,14 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
                 }
                 break;
             }
-            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES:
+            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES:
             {
-                const VkPhysicalDeviceDynamicRenderingFeatures*
-                    requestedDynamicRenderingFeatures = reinterpret_cast<
-                        const VkPhysicalDeviceDynamicRenderingFeatures*>(
+                const VkPhysicalDeviceVulkan13Features*
+                    requestedVulkan13Features = reinterpret_cast<
+                        const VkPhysicalDeviceVulkan13Features*>(
                         currRequestedFeaturePtr);
-                if (!PhysicalDeviceSupportsDynamicRenderingFeatures(
-                        *requestedDynamicRenderingFeatures,
-                        supported.dynamicRenderingFeatures))
-                {
-                    return false;
-                }
-                break;
-            }
-            case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES:
-            {
-                const VkPhysicalDeviceShaderDrawParametersFeatures*
-                    requestedShaderDrawParametersFeatures = reinterpret_cast<
-                        const VkPhysicalDeviceShaderDrawParametersFeatures*>(
-                        currRequestedFeaturePtr);
-                if (!PhysicalDeviceSupportsShaderDrawParametersFeatures(
-                        *requestedShaderDrawParametersFeatures,
-                        supported.shaderDrawParametersFeatures))
+                if (!PhysicalDeviceSupportsVulkan13Features(
+                        *requestedVulkan13Features, supported.vulkan13Features))
                 {
                     return false;
                 }
@@ -1121,55 +1125,38 @@ bool CreateContext(ContextSettings& settings, Context& context)
         return false;
     }
 
-    // Fundamental always requested features
-    settings.deviceFeatures2.features.multiDrawIndirect = VK_TRUE;
+    // Fundamental always required features
+    settings.vulkan13Features.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    settings.vulkan13Features.synchronization2 = VK_TRUE;
+    settings.vulkan13Features.dynamicRendering = VK_TRUE;
 
-    VkPhysicalDeviceShaderDrawParametersFeatures shaderDrawParametersFeatures{};
-    shaderDrawParametersFeatures.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
-    shaderDrawParametersFeatures.shaderDrawParameters = VK_TRUE;
-    shaderDrawParametersFeatures.pNext = nullptr;
-
-    VkPhysicalDeviceVulkan12Features vulkan12Features{};
-    vulkan12Features.sType =
+    settings.vulkan12Features.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    vulkan12Features.shaderSampledImageArrayNonUniformIndexing = true;
-    vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = true;
-    vulkan12Features.shaderUniformBufferArrayNonUniformIndexing = true;
-    vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = true;
-    vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = true;
-    vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = true;
-    vulkan12Features.descriptorBindingStorageImageUpdateAfterBind = true;
-    vulkan12Features.descriptorBindingPartiallyBound = true;
-    vulkan12Features.runtimeDescriptorArray = true;
-    vulkan12Features.drawIndirectCount = true;
-    vulkan12Features.timelineSemaphore = true;
-    vulkan12Features.pNext = &shaderDrawParametersFeatures;
+    settings.vulkan12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    settings.vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    settings.vulkan12Features.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE;
+    settings.vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
+    settings.vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
+    settings.vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    settings.vulkan12Features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+    settings.vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
+    settings.vulkan12Features.runtimeDescriptorArray = VK_TRUE;
+    settings.vulkan12Features.drawIndirectCount = VK_TRUE;
+    settings.vulkan12Features.timelineSemaphore = VK_TRUE;
+    settings.vulkan12Features.pNext = &settings.vulkan13Features;
 
-    VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
-    dynamicRenderingFeatures.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
-    dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
-    dynamicRenderingFeatures.pNext = &vulkan12Features;
+    settings.vulkan11Features.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    settings.vulkan11Features.pNext = &settings.vulkan12Features;
 
-    VkPhysicalDeviceSynchronization2Features synchronization2Features{};
-    synchronization2Features.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
-    synchronization2Features.synchronization2 = VK_TRUE;
-    synchronization2Features.pNext = &dynamicRenderingFeatures;
-
-    VkBaseOutStructure* currRequestedFeaturePtr =
-        reinterpret_cast<VkBaseOutStructure*>(&settings.deviceFeatures2);
-    while (currRequestedFeaturePtr->pNext != nullptr)
-    {
-        currRequestedFeaturePtr = currRequestedFeaturePtr->pNext;
-    }
-    currRequestedFeaturePtr->pNext =
-        reinterpret_cast<VkBaseOutStructure*>(&synchronization2Features);
+    settings.features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    settings.features2.features.samplerAnisotropy = VK_TRUE;
+    settings.features2.pNext = &settings.vulkan11Features;
 
     if (!FindPhysicalDevices(
             settings.deviceExtensions, settings.deviceExtensionCount,
-            settings.deviceFeatures2, settings.isPhysicalDeviceSuitableCallback,
+            settings.features2, settings.isPhysicalDeviceSuitableCallback,
             settings.determineSurfaceFormatCallback,
             settings.determinePresentModeCallback, context))
     {
@@ -1180,7 +1167,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
     {
         if (!CreateLogicalDevice(
                 settings.deviceExtensions, settings.deviceExtensionCount,
-                settings.deviceFeatures2, context, context.devices[i]))
+                settings.features2, context, context.devices[i]))
         {
             return false;
         }
