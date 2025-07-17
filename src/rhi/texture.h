@@ -61,7 +61,7 @@ struct Texture2D
     u32 bindlessStorageHandle = FLY_MAX_U32;
 };
 
-bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
+bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
                      Texture2D& texture);

@@ -228,7 +228,7 @@ static void CreateDescriptors(Fly::RHI::Device& device,
     texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
 }
 
-static bool InitializeWithData(Fly::RHI::Device& device, void* data,
+static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
                                u64 dataSize, Fly::RHI::Texture2D& texture)
 {
     if (data)
@@ -536,7 +536,7 @@ void DestroySampler(Device& device, Sampler& sampler)
     sampler.handle = VK_NULL_HANDLE;
 }
 
-bool CreateTexture2D(Device& device, VkImageUsageFlags usage, void* data,
+bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
                      Texture2D& texture)

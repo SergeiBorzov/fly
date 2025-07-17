@@ -143,7 +143,7 @@ struct FrameGraph
             BufferCreateInfo buffer;
         };
 
-        void* data;
+        const void* data;
         i32 arrayIndex;
         ResourceType type;
     };
@@ -212,11 +212,11 @@ struct FrameGraph
 
         FrameGraph::BufferHandle CreateBuffer(Arena& arena,
                                               VkBufferUsageFlags usage,
-                                              bool hostVisible, void* data,
+                                              bool hostVisible, const void* data,
                                               u64 dataSize);
 
         FrameGraph::TextureHandle
-        CreateTexture2D(Arena& arena, VkImageUsageFlags usage, void* data,
+        CreateTexture2D(Arena& arena, VkImageUsageFlags usage, const void* data,
                         u32 width, u32 height, VkFormat format,
                         Sampler::FilterMode filterMode,
                         Sampler::WrapMode wrapMode);

@@ -249,7 +249,7 @@ ResourceHandle FrameGraph::ResourceMap::GetNextHandle()
 
 FrameGraph::BufferHandle
 FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
-                                  bool hostVisible, void* data, u64 dataSize)
+                                  bool hostVisible, const void* data, u64 dataSize)
 {
     FrameGraph::ResourceDescriptor rd;
     rd.data = data;
@@ -268,7 +268,7 @@ FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
 }
 
 FrameGraph::TextureHandle FrameGraph::Builder::CreateTexture2D(
-    Arena& arena, VkImageUsageFlags usage, void* data, u32 width, u32 height,
+    Arena& arena, VkImageUsageFlags usage, const void* data, u32 width, u32 height,
     VkFormat format, Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode)
 {
     FrameGraph::ResourceDescriptor rd;
