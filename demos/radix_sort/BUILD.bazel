@@ -60,7 +60,7 @@ cc_binary(
     ],
     deps = [
         "//src/rhi:context",
-        "//demos/common:scene",
+        "//src/utils:utils",
     ],
     data = [
         ":radix_count_histogram.comp.spv",
