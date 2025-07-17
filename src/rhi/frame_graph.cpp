@@ -129,7 +129,7 @@ static ResourceHandle CommonWrite(Arena& arena, ResourceHandle rh,
     FLY_ASSERT(resources.Find(wh) == nullptr);
     resources.Insert(arena, wh, *rd);
 
-    outputs.InsertFront(arena, rh);
+    outputs.InsertFront(arena, wh);
     return {wh};
 }
 
@@ -160,7 +160,7 @@ static ResourceHandle CommonReadWrite(Arena& arena, ResourceHandle rh,
     resources.Insert(arena, wh, *rd);
 
     inputs.InsertFront(arena, rh);
-    outputs.InsertFront(arena, rh);
+    outputs.InsertFront(arena, wh);
     return {wh};
 }
 
