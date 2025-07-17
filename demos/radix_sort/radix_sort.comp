@@ -23,7 +23,6 @@ FLY_REGISTER_STORAGE_BUFFER(writeonly, SortedKeys, { uint key; })
 shared uint sharedKeys[COUNT_TILE_SIZE];
 shared uint digit[COUNT_TILE_SIZE];
 shared uint localHistogram[RADIX_HISTOGRAM_SIZE];
-//shared uint localOffsets[RADIX_HISTOGRAM_SIZE];
 
 void main()
 {
@@ -51,16 +50,6 @@ void main()
         barrier();
     }
     barrier();
-
-    // if (tid == 0)
-    // {
-    //     localOffsets[0] = 0;
-    //     for (uint i = 1; i < RADIX_HISTOGRAM_SIZE; i++)
-    //     {
-    //         localOffsets[i] = localOffsets[i - 1] + localHistogram[i - 1];
-    //     }
-    // }
-    // barrier();
 
     // Simple but slow way to get rank
     for (uint i = tid; i < COUNT_TILE_SIZE; i += gl_WorkGroupSize.x)

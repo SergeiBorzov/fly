@@ -11,13 +11,11 @@ layout(push_constant) uniform PushConstants
 {
     uint pass;
     uint keyCount;
-    uint keyBufferIndex;
     uint tileHistogramBufferIndex;
     uint globalHistogramBufferIndex;
 }
 gPushConstants;
 
-FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, { uint key; })
 FLY_REGISTER_STORAGE_BUFFER(readonly, GlobalHistogram, { uint count; })
 FLY_REGISTER_STORAGE_BUFFER(, TileHistograms, { uint count; })
 
