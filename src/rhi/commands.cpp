@@ -104,6 +104,14 @@ void PushConstants(CommandBuffer& cmd, const void* pushConstants,
                        pushConstants);
 }
 
+void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY, u32 groupCountZ)
+{
+    FLY_ASSERT(cmd.device);
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
+    vkCmdDispatch(cmd.handle, groupCountX, groupCountY, groupCountZ);
+}
+
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance)
 {
