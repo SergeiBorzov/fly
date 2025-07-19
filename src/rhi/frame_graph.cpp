@@ -581,7 +581,7 @@ bool FrameGraph::Build(Arena& arena)
                 {
                     if (inputHandle == outputHandle)
                     {
-                        otherPass->edges.InsertBack(arena, pass);
+                        otherPass->edges.Insert(arena, pass);
                     }
                 }
             }
@@ -606,7 +606,7 @@ bool FrameGraph::Build(Arena& arena)
                     if (outputHandle.id == otherOutputHandle.id &&
                         outputHandle.version - 1 == otherOutputHandle.version)
                     {
-                        otherPass->edges.InsertBack(arena, pass);
+                        otherPass->edges.Insert(arena, pass);
                     }
                 }
             }
@@ -753,10 +753,12 @@ bool FrameGraph::Build(Arena& arena)
                     rh.version, rd->type, rd->arrayIndex);
         }
 
-        for (PassNode* edge : pass->edges)
+        for (const HashSet<PassNode*>::Node* node: pass->edges)
         {
+            const PassNode* edge = node->value;
             FLY_LOG("Pass has edge to %s", edge->name);
         }
+        FLY_LOG("");
     }
 
     device_.swapchainRecreatedCallbacks.InsertFront(

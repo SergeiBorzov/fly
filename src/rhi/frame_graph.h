@@ -4,6 +4,7 @@
 #include "core/arena.h"
 #include "core/hash.h"
 #include "core/hash_trie.h"
+#include "core/hash_set.h"
 #include "core/list.h"
 
 #include "buffer.h"
@@ -285,7 +286,7 @@ struct FrameGraph
 
         BuildFunctionImpl buildCallbackImpl;
         RecordFunctionImpl recordCallbackImpl;
-        List<PassNode*> edges;
+        HashSet<PassNode*> edges;
         List<ResourceHandle> inputs;
         List<ResourceHandle> outputs;
         void* userData;
