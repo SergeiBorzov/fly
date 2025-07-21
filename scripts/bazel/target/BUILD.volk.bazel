@@ -19,6 +19,10 @@ cc_library(
         "@platforms//os:linux": [
             "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
+	"@platforms//os:osx": [
+	    "VK_USE_PLATFORM_METAL_EXT",
+	    "VK_USE_PLATFORM_MACOS_MVK",
+	],
         "//conditions:default": [],
     }),
     deps = [

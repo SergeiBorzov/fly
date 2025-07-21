@@ -60,7 +60,8 @@ cc_library(
     ],
     srcs = select({
         "@platforms//os:windows": ["thread_context_windows.cpp"],
-        "@platforms//os:linux": ["thread_context_linux.cpp"],
+        "@platforms//os:linux": ["thread_context_unix.cpp"],
+	"@platforms//os:osx": ["thread_context_unix.cpp"],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
@@ -139,7 +140,8 @@ cc_library(
     ],
     srcs = select({
         "@platforms//os:windows": ["filesystem_windows.cpp"],
-        "@platforms//os:linux": ["filesystem_linux.cpp"],
+        "@platforms//os:linux": ["filesystem_unix.cpp"],
+	"@platforms//os:osx": ["filesystem_unix.cpp"],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
@@ -193,6 +195,7 @@ cc_library(
         ":clock",
         ":thread_context",
         ":hash_trie",
+	":hash_set",
         ":list",
     ],
     visibility = ["//visibility:public"],

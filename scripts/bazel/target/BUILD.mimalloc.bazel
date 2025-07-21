@@ -38,6 +38,14 @@ cc_library(
             "src/page-queue.c",
             "src/prim/unix/prim.c",
         ],
+	"@platforms//os:osx": [
+	    "src/bitmap.h",
+	    "src/free.c",
+	    "src/alloc-override.c",
+	    "src/prim/unix/prim.c",
+	    "src/page-queue.c",
+	    "src/prim/osx/prim.c",
+	],
         "//conditions:default": [],
     }),
     linkopts = select({

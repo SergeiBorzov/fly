@@ -160,6 +160,9 @@ cc_library(
         "@platforms//os:linux": [
             "glslang/OSDependent/Unix/ossource.cpp",
         ],
+	"@platforms//os:osx": [
+	    "glslang/OSDependent/Unix/ossource.cpp",
+	],
         "//conditions:default": [],
     }),
     includes = [

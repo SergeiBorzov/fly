@@ -19,13 +19,20 @@ cc_library(
     ],
     defines = select({
         "@platforms//os:windows": [
+	    "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WIN32_KHR",
             "NOMINMAX",
             "WIN32_LEAN_AND_MEAN",
         ],
         "@platforms//os:linux": [
+	    "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
+	"@platforms//os:osx": [
+	    "VK_ENABLE_BETA_EXTENSIONS",
+	    "VK_USE_PLATFORM_METAL_EXT",
+	    "VK_USE_PLATFORM_MACOS_MVK",
+	],
     }),
     deps = [
         "@vulkan_headers//:vulkan_headers"
@@ -87,6 +94,11 @@ cc_library(
             "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
+	"@platforms//os:osx": [
+	    "VK_ENABLE_BETA_EXTENSIONS",
+	    "VK_USE_PLATFORM_METAL_EXT",
+	    "VK_USE_PLATFORM_MACOS_MVK",
+	],
     }),
     visibility = ["//visibility:public"]
 )

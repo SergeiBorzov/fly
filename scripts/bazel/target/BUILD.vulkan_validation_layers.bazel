@@ -73,6 +73,11 @@ cc_library(
             "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
+	"@platforms//os:osx": [
+	    "VK_ENABLE_BETA_EXTENSIONS",
+	    "VK_USE_PLATFORM_METAL_EXT",
+	    "VK_USE_PLATFORM_MACOS_MVK",
+	],
     }),
     includes = [
         "layers",
@@ -447,6 +452,11 @@ cc_library(
             "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WAYLAND_KHR",
         ],
+	"@platforms//os:osx": [
+	    "VK_ENABLE_BETA_EXTENSIONS",
+	    "VK_USE_PLATFORM_METAL_EXT",
+	    "VK_USE_PLATFORM_MACOS_MVK",
+	],
     }),
     includes = [
         "layers",
@@ -489,6 +499,10 @@ expand_template(
             "@JSON_LAYER_NAME@": "VK_LAYER_KHRONOS_validation",
             "@JSON_LIBRARY_PATH@": "./libVK_LAYER_KHRONOS_validation.so",
         },
+	"@platforms//os:osx": {
+	    "@JSON_LAYER_NAME@": "VK_LAYER_KHRONOS_validation",
+	    "@JSON_LIBRARY_PATH@": "./libVK_LAYER_KHRONOS_validation.dylib",
+	},
     }),
     visibility = ["//visibility:public"]
 )

@@ -77,9 +77,10 @@ static bool WriteTimeStamp(const struct tm* timeInfo, char* buffer, u64 size)
     FLY_ASSERT(size >= TIMESTAMP_MSG_SIZE);
 
     i32 written =
-        sprintf(buffer, "%02d/%02d/%02d %02d:%02d:%02d", timeInfo->tm_mday,
-                timeInfo->tm_mon + 1, timeInfo->tm_year + 1900,
-                timeInfo->tm_hour, timeInfo->tm_min, timeInfo->tm_sec);
+        snprintf(buffer, TIMESTAMP_MSG_SIZE,
+		 "%02d/%02d/%02d %02d:%02d:%02d", timeInfo->tm_mday,
+                 timeInfo->tm_mon + 1, timeInfo->tm_year + 1900,
+                 timeInfo->tm_hour, timeInfo->tm_min, timeInfo->tm_sec);
     return written == TIMESTAMP_MSG_SIZE - 1; // excluding null terminator
 }
 
