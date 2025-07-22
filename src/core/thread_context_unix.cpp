@@ -1,10 +1,15 @@
 #include "assert.h"
+#include "platform.h"
 #include "thread_context.h"
 
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#if defined(FLY_PLATFORM_OS_MAC_OSX)
+#include <mach-o/dyld.h>
+#endif
 
 namespace Fly
 {
@@ -16,6 +21,7 @@ static bool SetEnv(const char* name, const char* value)
     return setenv(name, value, true) == 0;
 }
 
+#ifdef FLY_PLATFORM_OS_LINUX
 static const char* GetBinaryDirectoryPath(Arena& arena)
 {
     char buffer[PATH_MAX] = {0};
@@ -36,9 +42,36 @@ static const char* GetBinaryDirectoryPath(Arena& arena)
 
     char* exeDirPath = FLY_PUSH_ARENA(arena, char, actualLength + 1);
     memcpy(exeDirPath, buffer, actualLength);
+    exeDirPath[actualLength] = '\0';
 
     return exeDirPath;
 }
+#elif defined(FLY_PLATFORM_OS_MAC_OSX)
+static const char* GetBinaryDirectoryPath(Arena& arena)
+{
+    char pathBuffer[PATH_MAX] = {0};
+    u32 size = sizeof(pathBuffer);
+
+    if (_NSGetExecutablePath(pathBuffer, &size) != 0)
+    {
+        return nullptr;
+    }
+
+    char* lastSlash = strrchr(pathBuffer, '/');
+    if (!lastSlash)
+    {
+        return nullptr;
+    }
+
+    size_t actualLength = lastSlash - pathBuffer + 1;
+
+    char* exeDirPath = FLY_PUSH_ARENA(arena, char, actualLength + 1);
+    memcpy(exeDirPath, pathBuffer, actualLength);
+    exeDirPath[actualLength] = '\0';
+
+    return exeDirPath;
+}
+#endif
 
 void InitThreadContext()
 {

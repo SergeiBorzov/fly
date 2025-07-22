@@ -2,7 +2,6 @@
 #include <mach/mach.h>
 #include <sys/mman.h>
 
-
 #ifndef VM_MADVISE_FREE
 #define VM_MADVISE_FREE 5
 #endif
@@ -13,8 +12,8 @@ namespace Fly
 void* PlatformAlloc(u64 reserveSize, u64 commitSize)
 {
     vm_address_t address = 0;
-    kern_return_t kr = vm_allocate(mach_task_self(), &address, reserveSize,
-                                   VM_FLAGS_ANYWHERE);
+    kern_return_t kr =
+        vm_allocate(mach_task_self(), &address, reserveSize, VM_FLAGS_ANYWHERE);
     if (kr != KERN_SUCCESS)
     {
         return nullptr;
@@ -34,8 +33,8 @@ void* PlatformAlloc(u64 reserveSize, u64 commitSize)
 void* PlatformCommitMemory(void* baseAddress, u64 commitSize)
 {
     kern_return_t kr =
-	vm_protect(mach_task_self(), (vm_address_t)baseAddress,
-		   commitSize, FALSE, VM_PROT_READ | VM_PROT_WRITE);
+        vm_protect(mach_task_self(), (vm_address_t)baseAddress, commitSize,
+                   FALSE, VM_PROT_READ | VM_PROT_WRITE);
     if (kr != KERN_SUCCESS)
     {
         return nullptr;

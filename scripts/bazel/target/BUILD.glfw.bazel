@@ -173,6 +173,7 @@ cc_library(
             "src/posix_thread.c",
             "src/posix_time.c",
             "src/posix_poll.c",
+	    "src/posix_module.c",
         ],
         "@platforms//os:windows": [
             "src/wgl_context.c",

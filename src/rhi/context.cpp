@@ -3,6 +3,7 @@
 
 #include "core/assert.h"
 #include "core/log.h"
+#include "core/platform.h"
 #include "core/thread_context.h"
 
 #include "allocation_callbacks.h"
@@ -150,18 +151,39 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
     // Check Extensions
     u32 totalExtensionCount = instanceExtensionCount;
     const char** totalExtensions = instanceExtensions;
-#ifndef NDEBUG
 
+#if defined(FLY_PLATFORM_OS_MAC_OSX)
+    u32 portabilityIndex = totalExtensionCount;
     totalExtensionCount += 1;
+#endif
+
+#ifndef NDEBUG
+    u32 debugUtilsIndex = totalExtensionCount;
+    totalExtensionCount += 1;
+#endif
+
+#if defined(FLY_PLATFORM_OS_MAC_OSX) || !defined(NDEBUG)
     totalExtensions = FLY_PUSH_ARENA(arena, const char*, totalExtensionCount);
     for (u32 i = 0; i < instanceExtensionCount; i++)
     {
         FLY_LOG("Requested instance extension %s", instanceExtensions[i]);
         totalExtensions[i] = instanceExtensions[i];
     }
-    FLY_DEBUG_LOG("Adding VK_EXT_debug_utils to list of instance extensions");
-    totalExtensions[instanceExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 #endif
+
+#ifndef NDEBUG
+    FLY_DEBUG_LOG("Adding %s to list of instance extensions",
+                  VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    totalExtensions[debugUtilsIndex] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+#endif
+
+#if defined(FLY_PLATFORM_OS_MAC_OSX)
+    FLY_DEBUG_LOG("Adding %s to list of instance extensions",
+                  VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    totalExtensions[portabilityIndex] =
+        VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+#endif
+
     for (u32 i = 0; i < totalExtensionCount; i++)
     {
         if (!IsExtensionSupported(availableInstanceExtensions,
@@ -184,6 +206,9 @@ static bool CreateInstance(const char** instanceLayers, u32 instanceLayerCount,
 
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+#if defined(FLY_PLATFORM_OS_MAC_OSX)
+    createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
     createInfo.pApplicationInfo = &appInfo;
     createInfo.enabledExtensionCount = totalExtensionCount;
     createInfo.ppEnabledExtensionNames = totalExtensions;
@@ -410,12 +435,14 @@ static bool PhysicalDeviceSupportsVulkan11Features(
     const VkPhysicalDeviceVulkan11Features& requested,
     const VkPhysicalDeviceVulkan11Features& supported)
 {
-    if (requested.storageBuffer16BitAccess && !supported.storageBuffer16BitAccess)
+    if (requested.storageBuffer16BitAccess &&
+        !supported.storageBuffer16BitAccess)
     {
         return false;
     }
 
-    if (requested.uniformAndStorageBuffer16BitAccess && !supported.uniformAndStorageBuffer16BitAccess)
+    if (requested.uniformAndStorageBuffer16BitAccess &&
+        !supported.uniformAndStorageBuffer16BitAccess)
     {
         return false;
     }
@@ -440,12 +467,14 @@ static bool PhysicalDeviceSupportsVulkan11Features(
         return false;
     }
 
-    if (requested.multiviewTessellationShader && !supported.multiviewTessellationShader)
+    if (requested.multiviewTessellationShader &&
+        !supported.multiviewTessellationShader)
     {
         return false;
     }
 
-    if (requested.variablePointersStorageBuffer && !supported.variablePointersStorageBuffer)
+    if (requested.variablePointersStorageBuffer &&
+        !supported.variablePointersStorageBuffer)
     {
         return false;
     }
@@ -796,8 +825,7 @@ static bool PhysicalDeviceSupportsVulkan13Features(
         return false;
     }
 
-    if (requested.subgroupSizeControl &&
-        !supported.subgroupSizeControl)
+    if (requested.subgroupSizeControl && !supported.subgroupSizeControl)
     {
         return false;
     }
@@ -1133,13 +1161,20 @@ bool CreateContext(ContextSettings& settings, Context& context)
 
     settings.vulkan12Features.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    settings.vulkan12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-    settings.vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-    settings.vulkan12Features.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE;
-    settings.vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
-    settings.vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
-    settings.vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
-    settings.vulkan12Features.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+    settings.vulkan12Features.shaderSampledImageArrayNonUniformIndexing =
+        VK_TRUE;
+    settings.vulkan12Features.descriptorBindingSampledImageUpdateAfterBind =
+        VK_TRUE;
+    settings.vulkan12Features.shaderUniformBufferArrayNonUniformIndexing =
+        VK_TRUE;
+    settings.vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind =
+        VK_TRUE;
+    settings.vulkan12Features.shaderStorageBufferArrayNonUniformIndexing =
+        VK_TRUE;
+    settings.vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind =
+        VK_TRUE;
+    settings.vulkan12Features.descriptorBindingStorageImageUpdateAfterBind =
+        VK_TRUE;
     settings.vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
     settings.vulkan12Features.runtimeDescriptorArray = VK_TRUE;
     settings.vulkan12Features.drawIndirectCount = VK_TRUE;
@@ -1154,11 +1189,11 @@ bool CreateContext(ContextSettings& settings, Context& context)
     settings.features2.features.samplerAnisotropy = VK_TRUE;
     settings.features2.pNext = &settings.vulkan11Features;
 
-    if (!FindPhysicalDevices(
-            settings.deviceExtensions, settings.deviceExtensionCount,
-            settings.features2, settings.isPhysicalDeviceSuitableCallback,
-            settings.determineSurfaceFormatCallback,
-            settings.determinePresentModeCallback, context))
+    if (!FindPhysicalDevices(settings.deviceExtensions,
+                             settings.deviceExtensionCount, settings.features2,
+                             settings.isPhysicalDeviceSuitableCallback,
+                             settings.determineSurfaceFormatCallback,
+                             settings.determinePresentModeCallback, context))
     {
         return false;
     }
