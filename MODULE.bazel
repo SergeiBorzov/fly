@@ -111,6 +111,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "vma")
 
 external_git_repository.base(
+    name = "cereal",
+    build_file = "//scripts/bazel/target:BUILD.cereal.bazel",
+    commit = "ebef1e929807629befafbb2918ea1a08c7194554",
+    remote = "https://github.com/USCiLab/cereal.git",
+)
+use_repo(external_git_repository, "cereal")
+
+external_git_repository.base(
     name = "glslang",
     build_file = "//scripts/bazel/target:BUILD.glslang.bazel",
     commit = "1062752a891c95b2bfeed9e356562d88f9df84ac",
