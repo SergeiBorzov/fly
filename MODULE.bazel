@@ -71,6 +71,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "spirv_tools")
 
 external_git_repository.base(
+    name = "spirv_cross",
+    build_file = "//scripts/bazel/target:BUILD.spirv_cross.bazel",
+    commit = "2c32b6bf86f3c4a5539aa1f0bacbd59fe61759cf",
+    remote = "https://github.com/KhronosGroup/SPIRV-Cross.git",
+)
+use_repo(external_git_repository, "spirv_cross")
+
+external_git_repository.base(
     name = "vulkan_utility_libraries",
     build_file = "//scripts/bazel/target:BUILD.vulkan_utility_libraries.bazel",
     commit = "5a88b6042edb8f03eefc8de73bd73a899989373f",

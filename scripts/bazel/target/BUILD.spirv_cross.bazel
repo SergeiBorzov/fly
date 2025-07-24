@@ -1,0 +1,43 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "spirv_cross",
+    hdrs = [
+        "GLSL.std.450.h",
+        "spirv_common.hpp",
+        "spirv_cross_containers.hpp",
+        "spirv_cross_error_handling.hpp",
+        "spirv.hpp",
+        "spirv.h",
+        "spirv_cross.hpp",
+        "spirv_parser.hpp",
+        "spirv_cross_parsed_ir.hpp",
+        "spirv_cfg.hpp",
+
+        "spirv_cross_c.h",
+        "spirv_glsl.hpp",
+        "spirv_cpp.hpp",
+        "spirv_msl.hpp",
+        "spirv_hlsl.hpp",
+        "spirv_reflect.hpp",
+        "spirv_cross_util.hpp",
+    ],
+    srcs = [
+        "spirv_cross.cpp",
+        "spirv_parser.cpp",
+        "spirv_cross_parsed_ir.cpp",
+        "spirv_cfg.cpp",
+
+        "spirv_cross_c.cpp",
+        "spirv_glsl.cpp",
+        "spirv_cpp.cpp",
+        "spirv_msl.cpp",
+        "spirv_hlsl.cpp",
+        "spirv_reflect.cpp",
+        "spirv_cross_util.cpp",
+    ],
+    includes = [
+        ".",
+    ],
+    visibility = ["//visibility:public"],
+)
