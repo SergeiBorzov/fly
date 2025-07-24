@@ -12,6 +12,15 @@ copy_files_to_directory(
 )
 
 copy_files_to_directory(
+    name = "copy_molten_vk",
+    srcs = [
+        "@molten_vk//:icd",
+        "@molten_vk//:molten_vk",
+    ],
+    output_directory = ".",
+)
+
+copy_files_to_directory(
     name = "copy_scene_data",
     srcs = [
         "@gltf_sample_models//:box_textured_scene",
@@ -63,6 +72,11 @@ cc_binary(
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
         ],
-    })
+    }) + select({
+        "@platforms//os:osx": [
+            ":copy_molten_vk",
+	],
+        "//conditions:default": [],
+    }),
 )
 

@@ -2,6 +2,7 @@
 
 #include "core/assert.h"
 #include "core/log.h"
+#include "core/platform.h"
 #include "core/thread_context.h"
 
 #include "allocation_callbacks.h"
@@ -712,10 +713,24 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         queueCreateInfos[1].pQueuePriorities = &queuePriority;
     }
 
+    u32 totalExtensionCount = extensionCount;
+    const char** totalExtensions = extensions;
+#if defined(FLY_PLATFORM_OS_MAC_OSX)
+    totalExtensionCount += 1;
+    totalExtensions = FLY_PUSH_ARENA(arena, const char*, totalExtensionCount);
+    for (u32 i = 0; i < extensionCount; i++)
+    {
+        FLY_LOG("Requested device extensions %s", extensions[i]);
+        totalExtensions[i] = extensions[i];
+    }
+    FLY_LOG("Adding VK_KHR_portability_subset to list of device extensions");
+    totalExtensions[extensionCount] = "VK_KHR_portability_subset";
+#endif
+
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.enabledExtensionCount = extensionCount;
-    createInfo.ppEnabledExtensionNames = extensions;
+    createInfo.enabledExtensionCount = totalExtensionCount;
+    createInfo.ppEnabledExtensionNames = totalExtensions;
     createInfo.pQueueCreateInfos = queueCreateInfos;
     if (!context.windowPtr || device.graphicsComputeQueueFamilyIndex ==
                                   device.presentQueueFamilyIndex)

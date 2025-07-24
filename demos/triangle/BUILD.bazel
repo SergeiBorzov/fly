@@ -11,6 +11,15 @@ copy_files_to_directory(
     output_directory = ".",
 )
 
+copy_files_to_directory(
+    name = "copy_molten_vk",
+    srcs = [
+        "@molten_vk//:icd",
+        "@molten_vk//:molten_vk",
+    ],
+    output_directory = ".",
+)
+
 config_setting(
     name = "release_build",
     values = {
@@ -46,6 +55,11 @@ cc_binary(
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
         ],
+    }) + select({
+        "@platforms//os:osx": [
+            ":copy_molten_vk",
+	],
+        "//conditions:default": [],
     }),
 )
 

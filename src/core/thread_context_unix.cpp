@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdio.h>
 
 #if defined(FLY_PLATFORM_OS_MAC_OSX)
 #include <mach-o/dyld.h>
@@ -84,9 +85,17 @@ void InitThreadContext()
     Arena& scratch = stThreadContext.arenas[0];
     const char* binaryDirectoryPath = GetBinaryDirectoryPath(scratch);
     FLY_ASSERT(binaryDirectoryPath);
+    
     bool res = SetEnv("VK_LAYER_PATH", binaryDirectoryPath);
-    (void)res;
     FLY_ASSERT(res);
+
+#if defined(FLY_PLATFORM_OS_MAC_OSX)
+    char moltenPath[PATH_MAX] = {0};
+    snprintf(moltenPath, PATH_MAX, "%sMoltenVK_icd.json", binaryDirectoryPath);
+    res = SetEnv("VK_ICD_FILENAMES", moltenPath);
+    FLY_ASSERT(res);
+#endif
+    
     res = chdir(binaryDirectoryPath) == 0;
     FLY_ASSERT(res);
 }

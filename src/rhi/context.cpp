@@ -14,6 +14,17 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+#define PHYSICAL_DEVICE_CHECK_FEATURE(Requested, Supported, FeatureName)       \
+    do                                                                         \
+    {                                                                          \
+        if (Requested.FeatureName && !Supported.FeatureName)                   \
+        {                                                                      \
+            FLY_ERROR("Following device feature is not supported: %s",         \
+                      #FeatureName);                                           \
+            return false;                                                      \
+        }                                                                      \
+    } while (0)
+
 /////////////////////////////////////////////////////////////////////////////
 // Instance - start
 /////////////////////////////////////////////////////////////////////////////
@@ -435,69 +446,23 @@ static bool PhysicalDeviceSupportsVulkan11Features(
     const VkPhysicalDeviceVulkan11Features& requested,
     const VkPhysicalDeviceVulkan11Features& supported)
 {
-    if (requested.storageBuffer16BitAccess &&
-        !supported.storageBuffer16BitAccess)
-    {
-        return false;
-    }
-
-    if (requested.uniformAndStorageBuffer16BitAccess &&
-        !supported.uniformAndStorageBuffer16BitAccess)
-    {
-        return false;
-    }
-
-    if (requested.storagePushConstant16 && !supported.storagePushConstant16)
-    {
-        return false;
-    }
-
-    if (requested.storageInputOutput16 && !supported.storageInputOutput16)
-    {
-        return false;
-    }
-
-    if (requested.multiview && !supported.multiview)
-    {
-        return false;
-    }
-
-    if (requested.multiviewGeometryShader && !supported.multiviewGeometryShader)
-    {
-        return false;
-    }
-
-    if (requested.multiviewTessellationShader &&
-        !supported.multiviewTessellationShader)
-    {
-        return false;
-    }
-
-    if (requested.variablePointersStorageBuffer &&
-        !supported.variablePointersStorageBuffer)
-    {
-        return false;
-    }
-
-    if (requested.variablePointers && !supported.variablePointers)
-    {
-        return false;
-    }
-
-    if (requested.protectedMemory && !supported.protectedMemory)
-    {
-        return false;
-    }
-
-    if (requested.samplerYcbcrConversion && !supported.samplerYcbcrConversion)
-    {
-        return false;
-    }
-
-    if (requested.shaderDrawParameters && !supported.shaderDrawParameters)
-    {
-        return false;
-    }
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  storageBuffer16BitAccess);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  uniformAndStorageBuffer16BitAccess);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, storagePushConstant16);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, storageInputOutput16);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, multiview);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  multiviewGeometryShader);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  multiviewTessellationShader);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  variablePointersStorageBuffer);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, variablePointers);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, protectedMemory);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, samplerYcbcrConversion);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderDrawParameters);
 
     return true;
 }
@@ -506,278 +471,88 @@ static bool PhysicalDeviceSupportsVulkan12Features(
     const VkPhysicalDeviceVulkan12Features& requested,
     const VkPhysicalDeviceVulkan12Features& supported)
 {
-    if (requested.samplerMirrorClampToEdge &&
-        !supported.samplerMirrorClampToEdge)
-    {
-        return false;
-    }
-
-    if (requested.drawIndirectCount && !supported.drawIndirectCount)
-    {
-        return false;
-    }
-
-    if (requested.storageBuffer8BitAccess && !supported.storageBuffer8BitAccess)
-    {
-        return false;
-    }
-
-    if (requested.uniformAndStorageBuffer8BitAccess &&
-        !supported.uniformAndStorageBuffer8BitAccess)
-    {
-        return false;
-    }
-
-    if (requested.storagePushConstant8 && !supported.storagePushConstant8)
-    {
-        return false;
-    }
-
-    if (requested.shaderBufferInt64Atomics &&
-        !supported.shaderBufferInt64Atomics)
-    {
-        return false;
-    }
-
-    if (requested.shaderSharedInt64Atomics &&
-        !supported.shaderSharedInt64Atomics)
-    {
-        return false;
-    }
-
-    if (requested.shaderFloat16 && !supported.shaderFloat16)
-    {
-        return false;
-    }
-
-    if (requested.shaderInt8 && !supported.shaderInt8)
-    {
-        return false;
-    }
-
-    if (requested.descriptorIndexing && !supported.descriptorIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderInputAttachmentArrayDynamicIndexing &&
-        !supported.shaderInputAttachmentArrayDynamicIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderUniformTexelBufferArrayDynamicIndexing &&
-        !supported.shaderUniformTexelBufferArrayDynamicIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderStorageTexelBufferArrayDynamicIndexing &&
-        !supported.shaderStorageTexelBufferArrayDynamicIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderUniformBufferArrayNonUniformIndexing &&
-        !supported.shaderUniformBufferArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderSampledImageArrayNonUniformIndexing &&
-        !supported.shaderSampledImageArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderStorageBufferArrayNonUniformIndexing &&
-        !supported.shaderStorageBufferArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderStorageImageArrayNonUniformIndexing &&
-        !supported.shaderStorageImageArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderInputAttachmentArrayNonUniformIndexing &&
-        !supported.shaderInputAttachmentArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderUniformTexelBufferArrayNonUniformIndexing &&
-        !supported.shaderUniformTexelBufferArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.shaderStorageTexelBufferArrayNonUniformIndexing &&
-        !supported.shaderStorageTexelBufferArrayNonUniformIndexing)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingUniformBufferUpdateAfterBind &&
-        !supported.descriptorBindingUniformBufferUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingSampledImageUpdateAfterBind &&
-        !supported.descriptorBindingSampledImageUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingStorageImageUpdateAfterBind &&
-        !supported.descriptorBindingStorageImageUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingStorageBufferUpdateAfterBind &&
-        !supported.descriptorBindingStorageBufferUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingUniformTexelBufferUpdateAfterBind &&
-        !supported.descriptorBindingUniformTexelBufferUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingStorageTexelBufferUpdateAfterBind &&
-        !supported.descriptorBindingStorageTexelBufferUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingUpdateUnusedWhilePending &&
-        !supported.descriptorBindingUpdateUnusedWhilePending)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingPartiallyBound &&
-        !supported.descriptorBindingPartiallyBound)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingPartiallyBound &&
-        !supported.descriptorBindingPartiallyBound)
-    {
-        return false;
-    }
-
-    if (requested.descriptorBindingVariableDescriptorCount &&
-        !supported.descriptorBindingVariableDescriptorCount)
-    {
-        return false;
-    }
-
-    if (requested.runtimeDescriptorArray && !supported.runtimeDescriptorArray)
-    {
-        return false;
-    }
-
-    if (requested.samplerFilterMinmax && !supported.samplerFilterMinmax)
-    {
-        return false;
-    }
-
-    if (requested.scalarBlockLayout && !supported.scalarBlockLayout)
-    {
-        return false;
-    }
-
-    if (requested.imagelessFramebuffer && !supported.imagelessFramebuffer)
-    {
-        return false;
-    }
-
-    if (requested.uniformBufferStandardLayout &&
-        !supported.uniformBufferStandardLayout)
-    {
-        return false;
-    }
-
-    if (requested.shaderSubgroupExtendedTypes &&
-        !supported.shaderSubgroupExtendedTypes)
-    {
-        return false;
-    }
-
-    if (requested.separateDepthStencilLayouts &&
-        !supported.separateDepthStencilLayouts)
-    {
-        return false;
-    }
-
-    if (requested.hostQueryReset && !supported.hostQueryReset)
-    {
-        return false;
-    }
-
-    if (requested.timelineSemaphore && !supported.timelineSemaphore)
-    {
-        return false;
-    }
-
-    if (requested.bufferDeviceAddress && !supported.bufferDeviceAddress)
-    {
-        return false;
-    }
-
-    if (requested.bufferDeviceAddressCaptureReplay &&
-        !supported.bufferDeviceAddressCaptureReplay)
-    {
-        return false;
-    }
-
-    if (requested.bufferDeviceAddressMultiDevice &&
-        !supported.bufferDeviceAddressMultiDevice)
-    {
-        return false;
-    }
-
-    if (requested.vulkanMemoryModel && !supported.vulkanMemoryModel)
-    {
-        return false;
-    }
-
-    if (requested.vulkanMemoryModelDeviceScope &&
-        !supported.vulkanMemoryModelDeviceScope)
-    {
-        return false;
-    }
-
-    if (requested.vulkanMemoryModelAvailabilityVisibilityChains &&
-        !supported.vulkanMemoryModelAvailabilityVisibilityChains)
-    {
-        return false;
-    }
-
-    if (requested.shaderOutputViewportIndex &&
-        !supported.shaderOutputViewportIndex)
-    {
-        return false;
-    }
-
-    if (requested.shaderOutputLayer && !supported.shaderOutputLayer)
-    {
-        return false;
-    }
-
-    if (requested.subgroupBroadcastDynamicId &&
-        !supported.subgroupBroadcastDynamicId)
-    {
-        return false;
-    }
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  samplerMirrorClampToEdge);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, drawIndirectCount);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  storageBuffer8BitAccess);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  uniformAndStorageBuffer8BitAccess);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, storagePushConstant8);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderBufferInt64Atomics);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderSharedInt64Atomics);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderFloat16);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderInt8);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, descriptorIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderInputAttachmentArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderUniformTexelBufferArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageTexelBufferArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderUniformBufferArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderSampledImageArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageBufferArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageImageArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderInputAttachmentArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported, shaderUniformTexelBufferArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported, shaderStorageTexelBufferArrayNonUniformIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported, descriptorBindingUniformBufferUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  descriptorBindingSampledImageUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  descriptorBindingStorageImageUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported, descriptorBindingStorageBufferUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported,
+        descriptorBindingUniformTexelBufferUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported,
+        descriptorBindingStorageTexelBufferUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  descriptorBindingUpdateUnusedWhilePending);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  descriptorBindingPartiallyBound);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  descriptorBindingVariableDescriptorCount);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, runtimeDescriptorArray);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, samplerFilterMinmax);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, scalarBlockLayout);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, imagelessFramebuffer);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  uniformBufferStandardLayout);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderSubgroupExtendedTypes);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  separateDepthStencilLayouts);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, hostQueryReset);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, timelineSemaphore);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, bufferDeviceAddress);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  bufferDeviceAddressCaptureReplay);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  bufferDeviceAddressMultiDevice);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, vulkanMemoryModel);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  vulkanMemoryModelDeviceScope);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported, vulkanMemoryModelAvailabilityVisibilityChains);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderOutputViewportIndex);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderOutputLayer);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  subgroupBroadcastDynamicId);
 
     return true;
 }
@@ -786,86 +561,113 @@ static bool PhysicalDeviceSupportsVulkan13Features(
     const VkPhysicalDeviceVulkan13Features& requested,
     const VkPhysicalDeviceVulkan13Features& supported)
 {
-    if (requested.robustImageAccess && !supported.robustImageAccess)
-    {
-        return false;
-    }
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, robustImageAccess);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, inlineUniformBlock);
+    PHYSICAL_DEVICE_CHECK_FEATURE(
+        requested, supported,
+        descriptorBindingInlineUniformBlockUpdateAfterBind);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  pipelineCreationCacheControl);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, privateData);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderDemoteToHelperInvocation);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderTerminateInvocation);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, subgroupSizeControl);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, computeFullSubgroups);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, synchronization2);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  textureCompressionASTC_HDR);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderZeroInitializeWorkgroupMemory);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, dynamicRendering);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderIntegerDotProduct);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, maintenance4);
 
-    if (requested.inlineUniformBlock && !supported.inlineUniformBlock)
-    {
-        return false;
-    }
+    return true;
+}
 
-    if (requested.descriptorBindingInlineUniformBlockUpdateAfterBind &&
-        !supported.descriptorBindingInlineUniformBlockUpdateAfterBind)
-    {
-        return false;
-    }
-
-    if (requested.pipelineCreationCacheControl &&
-        !supported.pipelineCreationCacheControl)
-    {
-        return false;
-    }
-
-    if (requested.privateData && !supported.privateData)
-    {
-        return false;
-    }
-
-    if (requested.shaderDemoteToHelperInvocation &&
-        !supported.shaderDemoteToHelperInvocation)
-    {
-        return false;
-    }
-
-    if (requested.shaderTerminateInvocation &&
-        !supported.shaderTerminateInvocation)
-    {
-        return false;
-    }
-
-    if (requested.subgroupSizeControl && !supported.subgroupSizeControl)
-    {
-        return false;
-    }
-
-    if (requested.computeFullSubgroups && !supported.computeFullSubgroups)
-    {
-        return false;
-    }
-
-    if (requested.synchronization2 && !supported.synchronization2)
-    {
-        return false;
-    }
-
-    if (requested.textureCompressionASTC_HDR &&
-        !supported.textureCompressionASTC_HDR)
-    {
-        return false;
-    }
-
-    if (requested.shaderZeroInitializeWorkgroupMemory &&
-        !supported.shaderZeroInitializeWorkgroupMemory)
-    {
-        return false;
-    }
-
-    if (requested.dynamicRendering && !supported.dynamicRendering)
-    {
-        return false;
-    }
-
-    if (requested.shaderIntegerDotProduct && !supported.shaderIntegerDotProduct)
-    {
-        return false;
-    }
-
-    if (requested.maintenance4 && !supported.maintenance4)
-    {
-        return false;
-    }
+static bool
+PhysicalDeviceSupportsFeatures(const VkPhysicalDeviceFeatures& requested,
+                               const VkPhysicalDeviceFeatures& supported)
+{
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, robustBufferAccess);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, fullDrawIndexUint32);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, imageCubeArray);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, independentBlend);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, geometryShader);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, tessellationShader);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, sampleRateShading);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, dualSrcBlend);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, logicOp);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, multiDrawIndirect);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  drawIndirectFirstInstance);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, depthClamp);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, depthBiasClamp);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, fillModeNonSolid);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, depthBounds);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, wideLines);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, largePoints);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, alphaToOne);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, multiViewport);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, samplerAnisotropy);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, textureCompressionETC2);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  textureCompressionASTC_LDR);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, textureCompressionBC);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, occlusionQueryPrecise);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  pipelineStatisticsQuery);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  vertexPipelineStoresAndAtomics);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  fragmentStoresAndAtomics);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderTessellationAndGeometryPointSize);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderImageGatherExtended);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageImageExtendedFormats);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageImageMultisample);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageImageReadWithoutFormat);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageImageWriteWithoutFormat);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderUniformBufferArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderSampledImageArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageBufferArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderStorageImageArrayDynamicIndexing);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderClipDistance);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderCullDistance);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderFloat64);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderInt64);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderInt16);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  shaderResourceResidency);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, shaderResourceMinLod);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, sparseBinding);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, sparseResidencyBuffer);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, sparseResidencyImage2D);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, sparseResidencyImage3D);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  sparseResidency2Samples);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  sparseResidency4Samples);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  sparseResidency8Samples);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  sparseResidency16Samples);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, sparseResidencyAliased);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported,
+                                  variableMultisampleRate);
+    PHYSICAL_DEVICE_CHECK_FEATURE(requested, supported, inheritedQueries);
 
     return true;
 }
@@ -874,20 +676,10 @@ static bool PhysicalDeviceSupportsRequiredFeatures(
     const VkPhysicalDeviceFeatures2& requested,
     const PhysicalDeviceInfo& supported)
 {
-    const VkBool32* supportedFeatures =
-        reinterpret_cast<const VkBool32*>(&(supported.features));
-    const VkBool32* requestedFeatures =
-        reinterpret_cast<const VkBool32*>(&(requested.features));
 
-    const u64 featureCount =
-        sizeof(VkPhysicalDeviceFeatures) / sizeof(VkBool32);
-
-    for (u64 i = 0; i < featureCount; i++)
+    if (!PhysicalDeviceSupportsFeatures(requested.features, supported.features))
     {
-        if (requestedFeatures[i] && !supportedFeatures[i])
-        {
-            return false;
-        }
+        return false;
     }
 
     const VkBaseOutStructure* currRequestedFeaturePtr =
@@ -1121,6 +913,13 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
 
     context.deviceCount =
         MIN(FLY_PHYSICAL_DEVICE_MAX_COUNT, suitableDeviceCount);
+
+    if (context.deviceCount == 0)
+    {
+        FLY_ERROR("No suitable devices");
+        return false;
+    }
+
     for (u32 i = 0; i < context.deviceCount; i++)
     {
         context.devices[i] = suitableDevices[i];
@@ -1177,7 +976,6 @@ bool CreateContext(ContextSettings& settings, Context& context)
         VK_TRUE;
     settings.vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
     settings.vulkan12Features.runtimeDescriptorArray = VK_TRUE;
-    settings.vulkan12Features.drawIndirectCount = VK_TRUE;
     settings.vulkan12Features.timelineSemaphore = VK_TRUE;
     settings.vulkan12Features.pNext = &settings.vulkan13Features;
 

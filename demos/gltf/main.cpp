@@ -26,12 +26,6 @@ struct UniformData
 static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
 
-static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
-                                     const RHI::PhysicalDeviceInfo& info)
-{
-    return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-}
-
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
 {
@@ -187,7 +181,6 @@ int main(int argc, char* argv[])
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
-    settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;

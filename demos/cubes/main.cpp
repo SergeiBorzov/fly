@@ -202,7 +202,7 @@ int main(int argc, char* argv[])
     if (!Fly::LoadImageFromFile("CesiumLogoFlat.png", image))
     {
         FLY_ERROR("Failed to load image");
-        return false;
+        return -1;
     }
 
     UserData userData;
