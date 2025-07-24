@@ -22,15 +22,11 @@ struct GraphicsPipelineFixedStateStage
     {
         VkPipelineColorBlendAttachmentState
             attachments[FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT] = {
-                VK_FALSE,
-                VK_BLEND_FACTOR_ONE,
-                VK_BLEND_FACTOR_ZERO,
-                VK_BLEND_OP_ADD,
-                VK_BLEND_FACTOR_ONE,
-                VK_BLEND_FACTOR_ZERO,
-                VK_BLEND_OP_ADD,
-                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT};
+                {VK_FALSE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO,
+                 VK_BLEND_OP_ADD, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO,
+                 VK_BLEND_OP_ADD,
+                 VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT}};
         f32 blendConstants[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         VkPipelineColorBlendStateCreateFlags flags = 0;
         u32 attachmentCount = 0;

@@ -236,7 +236,7 @@ struct FrameGraph
             Arena& arena, u32 index, FrameGraph::TextureHandle textureHandle,
             VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
+            VkClearColorValue clearColor = {{0.0f, 0.0f, 0.0f, 1.0f}});
 
         FrameGraph::TextureHandle DepthAttachment(
             Arena& arena, FrameGraph::TextureHandle textureHandle,
