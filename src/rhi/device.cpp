@@ -412,11 +412,49 @@ static bool RecreateSwapchain(Device& device)
 
 static bool CreateDescriptorPool(Device& device)
 {
+    VkPhysicalDeviceDescriptorIndexingProperties descriptorIndexingProperties{};
+    descriptorIndexingProperties.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+    descriptorIndexingProperties.pNext = nullptr;
+
+    VkPhysicalDeviceProperties2 deviceProperties2{};
+    deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    deviceProperties2.pNext = &descriptorIndexingProperties;
+
+    vkGetPhysicalDeviceProperties2(device.physicalDevice, &deviceProperties2);
+
+    u32 uniformBufferDescriptorPoolSize =
+        MIN(FLY_DESCRIPTOR_MAX_COUNT,
+            descriptorIndexingProperties
+                .maxPerStageDescriptorUpdateAfterBindUniformBuffers);
+    u32 storageBufferDescriptorPoolSize =
+        MIN(FLY_DESCRIPTOR_MAX_COUNT,
+            descriptorIndexingProperties
+                .maxPerStageDescriptorUpdateAfterBindStorageBuffers);
+    u32 combinedImageSamplerDescriptorPoolSize =
+        MIN(FLY_DESCRIPTOR_MAX_COUNT,
+            descriptorIndexingProperties
+                .maxPerStageDescriptorUpdateAfterBindSamplers);
+    u32 storageImageDescriptorPoolSize =
+        MIN(FLY_DESCRIPTOR_MAX_COUNT,
+            descriptorIndexingProperties
+                .maxPerStageDescriptorUpdateAfterBindStorageImages);
+
+    FLY_LOG("Device %s: uniform buffer descriptor pool size %u", device.name,
+            uniformBufferDescriptorPoolSize);
+    FLY_LOG("Device %s: storage buffer descriptor pool size %u", device.name,
+            storageBufferDescriptorPoolSize);
+    FLY_LOG("Device %s: Combined image sampler descriptor pool size %u",
+            device.name, combinedImageSamplerDescriptorPoolSize);
+    FLY_LOG("Device %s: Storage image buffer descriptor pool size %u",
+            device.name, storageImageDescriptorPoolSize);
+
     VkDescriptorPoolSize poolSizes[4] = {
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, FLY_DESCRIPTOR_MAX_COUNT},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, FLY_DESCRIPTOR_MAX_COUNT},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, FLY_DESCRIPTOR_MAX_COUNT}};
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uniformBufferDescriptorPoolSize},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, storageBufferDescriptorPoolSize},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         combinedImageSamplerDescriptorPoolSize},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, storageImageDescriptorPoolSize}};
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -425,10 +463,12 @@ static bool CreateDescriptorPool(Device& device)
     createInfo.maxSets = 1;
     createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 
-    if (vkCreateDescriptorPool(device.logicalDevice, &createInfo,
-                               GetVulkanAllocationCallbacks(),
-                               &device.descriptorPool) != VK_SUCCESS)
+    VkResult res = vkCreateDescriptorPool(device.logicalDevice, &createInfo,
+                                          GetVulkanAllocationCallbacks(),
+                                          &device.descriptorPool);
+    if (res != VK_SUCCESS)
     {
+        FLY_LOG("FAiled with %d", res);
         return false;
     }
 
@@ -451,13 +491,13 @@ static bool CreateDescriptorPool(Device& device)
     bindingFlagsCreateInfo.pNext = nullptr;
 
     VkDescriptorSetLayoutBinding bindings[] = {
-        {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, FLY_DESCRIPTOR_MAX_COUNT,
+        {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uniformBufferDescriptorPoolSize,
          VK_SHADER_STAGE_ALL, nullptr},
-        {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, FLY_DESCRIPTOR_MAX_COUNT,
+        {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, storageBufferDescriptorPoolSize,
          VK_SHADER_STAGE_ALL, nullptr},
-        {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, FLY_DESCRIPTOR_MAX_COUNT,
-         VK_SHADER_STAGE_ALL, nullptr},
-        {3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, FLY_DESCRIPTOR_MAX_COUNT,
+        {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         combinedImageSamplerDescriptorPoolSize, VK_SHADER_STAGE_ALL, nullptr},
+        {3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, storageImageDescriptorPoolSize,
          VK_SHADER_STAGE_ALL, nullptr}};
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
@@ -469,11 +509,12 @@ static bool CreateDescriptorPool(Device& device)
         VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     descriptorSetLayoutCreateInfo.pNext = &bindingFlagsCreateInfo;
 
-    if (vkCreateDescriptorSetLayout(
-            device.logicalDevice, &descriptorSetLayoutCreateInfo,
-            GetVulkanAllocationCallbacks(),
-            &device.bindlessDescriptorSetLayout) != VK_SUCCESS)
+    res = vkCreateDescriptorSetLayout(
+        device.logicalDevice, &descriptorSetLayoutCreateInfo,
+        GetVulkanAllocationCallbacks(), &device.bindlessDescriptorSetLayout);
+    if (res != VK_SUCCESS)
     {
+        FLY_LOG("Failed here with %d", res);
         return false;
     }
 
@@ -484,9 +525,11 @@ static bool CreateDescriptorPool(Device& device)
     allocateInfo.descriptorSetCount = 1;
     allocateInfo.pNext = nullptr;
 
-    if (vkAllocateDescriptorSets(device.logicalDevice, &allocateInfo,
-                                 &device.bindlessDescriptorSet) != VK_SUCCESS)
+    res = vkAllocateDescriptorSets(device.logicalDevice, &allocateInfo,
+                                   &device.bindlessDescriptorSet);
+    if (res != VK_SUCCESS)
     {
+        FLY_LOG("Failed aaa with %d", res);
         return false;
     }
 
