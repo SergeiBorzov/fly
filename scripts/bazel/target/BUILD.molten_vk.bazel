@@ -1,0 +1,278 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary", "objc_library")
+
+objc_library(
+    name = "common",
+    non_arc_srcs = [],
+    hdrs = [
+        "Common/MVKCommonEnvironment.h",
+        "Common/MVKOSExtensions.h",
+        "Common/MVKStrings.h",
+    ],
+    srcs = [
+        "Common/MVKOSExtensions.mm",
+    ],
+    defines = [
+    ],
+    sdk_frameworks = [
+    ],
+)
+
+objc_library(
+    name = "shader_converter",
+    hdrs = [
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/FileSupport.h",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVConversion.h",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVReflection.h",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVSupport.h",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVToMSLConverter.h",
+    ],
+    srcs = [
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/FileSupport.mm",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVConversion.mm",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVSupport.cpp",
+        "MoltenVKShaderConverter/MoltenVKShaderConverter/SPIRVToMSLConverter.cpp",
+        
+    ],
+    includes = [
+        "Common",
+    ],
+    deps = [
+        ":common",
+        "@spirv_cross//:spirv_cross",
+        "@spirv_tools//:spirv_tools",
+    ],
+)
+
+cc_library(
+    name = "api",
+    hdrs = [
+        "MoltenVK/MoltenVK/API/mvk_config.h",
+        "MoltenVK/MoltenVK/API/mvk_datatypes.h",
+        "MoltenVK/MoltenVK/API/mvk_deprecated_api.h",
+        "MoltenVK/MoltenVK/API/mvk_private_api.h",
+        "MoltenVK/MoltenVK/API/mvk_vulkan.h",
+        "MoltenVK/MoltenVK/API/vk_mvk_moltenvk.h",
+    ],
+    strip_include_prefix = "MoltenVK/MoltenVK/API",
+    include_prefix = "MoltenVK",
+)
+
+genrule(
+    name = "mvk_git_rev_header",
+    outs = ["mvkGitRevDerived.h"],
+    cmd = "echo 'static const char* mvkRevString = \"git rev-parse HEAD\";' > $@",
+)
+
+objc_library(
+    name = "molten_vk_internal",
+    non_arc_srcs = [
+        "MoltenVK/MoltenVK/Utility/MVKBlockObserver.m",
+        "MoltenVK/MoltenVK/Utility/MVKWatermark.mm",
+        
+        "MoltenVK/MoltenVK/OS/MVKGPUCapture.mm",
+        
+        "MoltenVK/MoltenVK/GPUObjects/MVKBuffer.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKVulkanAPIObject.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKSync.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDescriptor.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDeviceMemory.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDescriptorSet.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKFramebuffer.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKImage.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKResource.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKQueryPool.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKRenderPass.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKSwapchain.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKSurface.mm",
+
+        "MoltenVK/MoltenVK/Commands/MVKMTLBufferAllocation.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCommandResourceFactory.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCommandPool.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCommandEncodingPool.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCommandEncoderState.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdTransfer.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdRendering.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdQueries.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdDebug.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm",
+        "MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm",
+
+        "MoltenVK/MoltenVK/Vulkan/mvk_api.mm",
+        "MoltenVK/MoltenVK/Vulkan/vulkan.mm",
+    ],
+    hdrs = [
+        ":mvkGitRevDerived.h",
+        
+        "MoltenVK/MoltenVK/Vulkan/mvk_datatypes.hpp",
+
+        "MoltenVK/MoltenVK/Utility/MVKBaseObject.h",
+        "MoltenVK/MoltenVK/Utility/MVKBitArray.h",
+        "MoltenVK/MoltenVK/Utility/MVKBlockObserver.h",
+        "MoltenVK/MoltenVK/Utility/MVKCodec.h",
+        "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def",
+        "MoltenVK/MoltenVK/Utility/MVKDXTnCodec.def",
+        "MoltenVK/MoltenVK/Utility/MVKEnvironment.h",
+        "MoltenVK/MoltenVK/Utility/MVKFoundation.h",
+        "MoltenVK/MoltenVK/Utility/MVKInflectionMap.h",
+        "MoltenVK/MoltenVK/Utility/MVKLogging.h",
+        "MoltenVK/MoltenVK/Utility/MVKObjectPool.h",
+        "MoltenVK/MoltenVK/Utility/MVKSmallVector.h",
+        "MoltenVK/MoltenVK/Utility/MVKSmallVectorAllocator.h",
+        "MoltenVK/MoltenVK/Utility/MVKWatermark.h",
+        "MoltenVK/MoltenVK/Utility/MVKWatermarkShaderSource.h",
+        "MoltenVK/MoltenVK/Utility/MVKWatermarkTextureContent.h",
+        
+        "MoltenVK/MoltenVK/OS/CAMetalLayer+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLRenderPassDepthAttachmentDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLRenderPassDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLRenderPassStencilAttachmentDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLRenderPipelineColorAttachmentDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLRenderPipelineDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLSamplerDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MTLTextureDescriptor+MoltenVK.h",
+        "MoltenVK/MoltenVK/OS/MVKGPUCapture.h",
+        "MoltenVK/MoltenVK/OS/NSString+MoltenVK.h",
+        
+        "MoltenVK/MoltenVK/GPUObjects/MVKBuffer.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDescriptor.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDescriptorSet.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDevice.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDeviceFeatureStructs.def",
+        "MoltenVK/MoltenVK/GPUObjects/MVKDeviceMemory.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKFramebuffer.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKImage.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKInstance.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKPixelFormats.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKQueryPool.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKQueue.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKRenderPass.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKResource.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKSurface.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKSwapchain.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKSync.h",
+        "MoltenVK/MoltenVK/GPUObjects/MVKVulkanAPIObject.h",
+
+        "MoltenVK/MoltenVK/Commands/MVKCmdDebug.h",
+        "MoltenVK/MoltenVK/Commands/MVKCmdDispatch.h",
+        "MoltenVK/MoltenVK/Commands/MVKCmdDraw.h",
+        "MoltenVK/MoltenVK/Commands/MVKCmdPipeline.h",
+        "MoltenVK/MoltenVK/Commands/MVKCmdQueries.h",
+        "MoltenVK/MoltenVK/Commands/MVKCmdRendering.h",
+        "MoltenVK/MoltenVK/Commands/MVKCmdTransfer.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommand.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandEncoderState.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandEncodingPool.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandPipelineStateFactoryShaderSource.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandPool.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandResourceFactory.h",
+        "MoltenVK/MoltenVK/Commands/MVKCommandTypePools.def",
+        "MoltenVK/MoltenVK/Commands/MVKMTLBufferAllocation.h",
+        "MoltenVK/MoltenVK/Commands/MVKMTLResourceBindings.h",
+
+        "MoltenVK/MoltenVK/Layers/MVKExtensions.def",
+        "MoltenVK/MoltenVK/Layers/MVKExtensions.h",
+        "MoltenVK/MoltenVK/Layers/MVKLayers.h",
+    ],
+    srcs = [
+        "MoltenVK/MoltenVK/Vulkan/mvk_datatypes.mm",
+
+        "MoltenVK/MoltenVK/Utility/MVKBaseObject.mm",
+        "MoltenVK/MoltenVK/Utility/MVKCodec.mm",
+        "MoltenVK/MoltenVK/Utility/MVKEnvironment.cpp",
+        "MoltenVK/MoltenVK/Utility/MVKFoundation.cpp",
+
+        "MoltenVK/MoltenVK/OS/CAMetalLayer+MoltenVK.mm",
+        "MoltenVK/MoltenVK/OS/MTLRenderPassDepthAttachmentDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/MTLRenderPassDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/MTLRenderPassStencilAttachmentDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/MTLRenderPipelineColorAttachmentDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/MTLRenderPipelineDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/MTLTextureDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/MTLSamplerDescriptor+MoltenVK.m",
+        "MoltenVK/MoltenVK/OS/NSString+MoltenVK.mm",
+        
+        "MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm",
+        "MoltenVK/MoltenVK/GPUObjects/MVKPixelFormats.mm",
+
+        "MoltenVK/MoltenVK/Layers/MVKLayers.mm",
+        "MoltenVK/MoltenVK/Layers/MVKExtensions.mm",
+    ],
+    includes = [
+        "Common",
+        "MoltenVK/MoltenVK/API",
+        "MoltenVK/MoltenVK/OS",
+        "MoltenVK/MoltenVK/GPUObjects",
+        "MoltenVK/MoltenVK/Utility",
+        "MoltenVK/MoltenVK/Layers",
+        "MoltenVK/MoltenVK/Commands",
+        "MoltenVK/MoltenVK/Vulkan",
+        "MoltenVKShaderConverter",
+    ],
+    alwayslink = True,
+    defines = [
+        "MVK_FRAMEWORK_VERSION=\"1.3.0\"",
+        "MVK_CONFIG_LOG_LEVEL=1",
+    ],
+    copts = [
+        "-fvisibility=default",
+        "-Wno-deprecated-declarations",
+        "-Wno-missing-braces",
+        "-Wno-nonportable-include-path",
+        "-Wno-tautological-pointer-compare",
+    ],
+    deps = [
+        ":api",
+        ":shader_converter",
+        "@vulkan_headers//:vulkan_headers",
+        "@cereal//:cereal",
+    ],
+    sdk_frameworks = [
+        "CoreGraphics",
+        "QuartzCore",
+        "IOKit",
+        "IOSurface",
+        "Metal",
+        "AppKit",
+    ],
+)
+
+genrule(
+    name = "icd",
+    outs = ["MoltenVK_icd.json"],
+    cmd = """
+echo '{
+    "file_format_version" : "1.0.0",
+    "ICD": {
+        "library_path": "./libmolten_vk.dylib",
+        "api_version" : "1.3.0",
+        "is_portability_driver" : true
+    }
+}' > $@
+""",
+    visibility = ["//visibility:public"],
+)
+
+
+cc_binary(
+    name = "molten_vk",
+    deps = [
+        ":molten_vk_internal"
+    ],
+    copts = [
+        "-fvisibility=default",
+    ],
+    linkopts = [
+        "-dynamiclib",
+    ],
+    linkshared = True,
+    visibility = ["//visibility:public"],
+)

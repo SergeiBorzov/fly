@@ -119,6 +119,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "cereal")
 
 external_git_repository.base(
+    name = "molten_vk",
+    build_file = "//scripts/bazel/target:BUILD.molten_vk.bazel",
+    commit = "49b97f26ae013b9e5bfb3098ee5dea5e4f58e9e8",
+    remote = "https://github.com/KhronosGroup/MoltenVK.git",
+)
+use_repo(external_git_repository, "molten_vk")
+
+external_git_repository.base(
     name = "glslang",
     build_file = "//scripts/bazel/target:BUILD.glslang.bazel",
     commit = "1062752a891c95b2bfeed9e356562d88f9df84ac",
