@@ -40,13 +40,9 @@ external_archive = use_extension(
     "external_archive",
 )
 
-external_git_repository.base(
-    name = "glfw",
-    build_file = "//scripts/bazel/target:BUILD.glfw.bazel",
-    commit = "7b6aead9fb88b3623e3b3725ebb42670cbe4c579",
-    remote = "https://github.com/glfw/glfw.git",
-)
-use_repo(external_git_repository, "glfw")
+################################################################
+# VULKAN SDK
+################################################################
 
 external_git_repository.base(
     name = "vulkan_headers",
@@ -134,13 +130,18 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "glslang")
 
+
+################################################################
+# DEPS
+################################################################
+
 external_git_repository.base(
-    name = "spirv_reflect",
-    build_file = "//scripts/bazel/target:BUILD.spirv_reflect.bazel",
-    commit = "281b55edb67b1f2e61e1dc92fdc42a650da05d83",
-    remote = "https://github.com/KhronosGroup/SPIRV-Reflect.git",
+    name = "glfw",
+    build_file = "//scripts/bazel/target:BUILD.glfw.bazel",
+    commit = "7b6aead9fb88b3623e3b3725ebb42670cbe4c579",
+    remote = "https://github.com/glfw/glfw.git",
 )
-use_repo(external_git_repository, "spirv_reflect")
+use_repo(external_git_repository, "glfw")
 
 external_git_repository.base(
     name = "mimalloc",
@@ -149,14 +150,6 @@ external_git_repository.base(
     remote = "https://github.com/microsoft/mimalloc.git",
 )
 use_repo(external_git_repository, "mimalloc")
-
-external_git_repository.base(
-    name = "stb",
-    build_file = "//scripts/bazel/target:BUILD.stb.bazel",
-    commit = "f0569113c93ad095470c54bf34a17b36646bbbb5",
-    remote = "https://github.com/nothings/stb.git",
-)
-use_repo(external_git_repository, "stb")
 
 external_archive.base(
     name = "xxhash",
@@ -175,6 +168,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "cgltf")
 
 external_git_repository.base(
+    name = "stb",
+    build_file = "//scripts/bazel/target:BUILD.stb.bazel",
+    commit = "f0569113c93ad095470c54bf34a17b36646bbbb5",
+    remote = "https://github.com/nothings/stb.git",
+)
+use_repo(external_git_repository, "stb")
+
+external_git_repository.base(
     name = "imgui",
     build_file = "//scripts/bazel/target:BUILD.imgui.bazel",
     commit = "f5befd2d29e66809cd1110a152e375a7f1981f06",
@@ -182,13 +183,9 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "imgui")
 
-external_git_repository.base(
-    name = "tinyobjloader",
-    build_file = "//scripts/bazel/target:BUILD.tinyobjloader.bazel",
-    commit = "3bb554cf74428d7db13418b4aca1b9752a1d2be8",
-    remote = "https://github.com/tinyobjloader/tinyobjloader.git",
-)
-use_repo(external_git_repository, "tinyobjloader")
+################################################################
+# SCENES / DATA
+################################################################
 
 external_git_repository.base(
     name = "gltf_sample_models",
@@ -205,4 +202,24 @@ external_git_repository.base(
     remote = "https://huggingface.co/cakewalk/splat-data.git",
 )
 use_repo(external_git_repository, "splat_sample_scenes")
+
+################################################################
+# MISC
+################################################################
+
+external_git_repository.base(
+    name = "spirv_reflect",
+    build_file = "//scripts/bazel/target:BUILD.spirv_reflect.bazel",
+    commit = "281b55edb67b1f2e61e1dc92fdc42a650da05d83",
+    remote = "https://github.com/KhronosGroup/SPIRV-Reflect.git",
+)
+use_repo(external_git_repository, "spirv_reflect")
+
+external_git_repository.base(
+    name = "tinyobjloader",
+    build_file = "//scripts/bazel/target:BUILD.tinyobjloader.bazel",
+    commit = "3bb554cf74428d7db13418b4aca1b9752a1d2be8",
+    remote = "https://github.com/tinyobjloader/tinyobjloader.git",
+)
+use_repo(external_git_repository, "tinyobjloader")
 
