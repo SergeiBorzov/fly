@@ -25,12 +25,6 @@
 
 using namespace Fly;
 
-static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
-                                     const RHI::PhysicalDeviceInfo& info)
-{
-    return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-}
-
 static RHI::ComputePipeline sCountPipeline;
 static RHI::ComputePipeline sScanPipeline;
 static RHI::ComputePipeline sSortPipeline;
@@ -366,7 +360,6 @@ int main(int argc, char* argv[])
 
     // Create graphics context
     RHI::ContextSettings settings{};
-    settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions = nullptr;
     settings.instanceExtensionCount = 0;
     settings.deviceExtensions = nullptr;
