@@ -137,7 +137,7 @@ struct HashSet
 
                     if (child)
                     {
-                        if (depth_ == MAX_DEPTH)
+                        if (depth_ == 32)
                         {
                             current_ = nullptr;
                             depth_ = 0;
@@ -159,7 +159,7 @@ struct HashSet
             current_ = nullptr;
         }
 
-        StackEntry stack_[MAX_DEPTH];
+        StackEntry stack_[32];
         u32 depth_ = 0;
         Node* current_ = nullptr;
     };
@@ -222,7 +222,7 @@ struct HashSet
 
                     if (child)
                     {
-                        if (depth_ == MAX_DEPTH)
+                        if (depth_ == 32)
                         {
                             current_ = nullptr;
                             depth_ = 0;
@@ -244,7 +244,7 @@ struct HashSet
             current_ = nullptr;
         }
 
-        StackEntry stack_[MAX_DEPTH];
+        StackEntry stack_[32];
         u32 depth_ = 0;
         const Node* current_ = nullptr;
     };

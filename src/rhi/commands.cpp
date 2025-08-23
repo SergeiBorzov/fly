@@ -104,7 +104,8 @@ void PushConstants(CommandBuffer& cmd, const void* pushConstants,
                        pushConstants);
 }
 
-void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY, u32 groupCountZ)
+void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY,
+              u32 groupCountZ)
 {
     FLY_ASSERT(cmd.device);
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
@@ -144,6 +145,29 @@ void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 size,
         size = VK_WHOLE_SIZE;
     }
     vkCmdFillBuffer(cmd.handle, buffer.handle, offset, size, value);
+}
+
+void PipelineBarrier(CommandBuffer& cmd,
+                     const VkBufferMemoryBarrier2* bufferBarriers,
+                     u32 bufferBarrierCount,
+                     const VkImageMemoryBarrier2* imageBarriers,
+                     u32 imageBarrierCount)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
+    if (bufferBarriers == nullptr && imageBarriers == nullptr)
+    {
+        return;
+    }
+
+    VkDependencyInfo dependencyInfo{};
+    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependencyInfo.pBufferMemoryBarriers = bufferBarriers;
+    dependencyInfo.bufferMemoryBarrierCount = bufferBarrierCount;
+    dependencyInfo.pImageMemoryBarriers = imageBarriers;
+    dependencyInfo.imageMemoryBarrierCount = imageBarrierCount;
+
+    vkCmdPipelineBarrier2(cmd.handle, &dependencyInfo);
 }
 
 } // namespace RHI

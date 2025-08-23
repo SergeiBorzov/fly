@@ -6,8 +6,6 @@
 #include "hash.h"
 #include "memory.h"
 
-#define MAX_DEPTH 32
-
 namespace Fly
 {
 
@@ -169,7 +167,7 @@ struct HashTrie
 
                     if (child)
                     {
-                        if (depth_ == MAX_DEPTH)
+                        if (depth_ == 32)
                         {
                             current_ = nullptr;
                             depth_ = 0;
@@ -191,7 +189,7 @@ struct HashTrie
             current_ = nullptr;
         }
 
-        StackEntry stack_[MAX_DEPTH];
+        StackEntry stack_[32];
         u32 depth_ = 0;
         Node* current_ = nullptr;
     };
@@ -254,7 +252,7 @@ struct HashTrie
 
                     if (child)
                     {
-                        if (depth_ == MAX_DEPTH)
+                        if (depth_ == 32)
                         {
                             current_ = nullptr;
                             depth_ = 0;
@@ -276,7 +274,7 @@ struct HashTrie
             current_ = nullptr;
         }
 
-        StackEntry stack_[MAX_DEPTH];
+        StackEntry stack_[32];
         u32 depth_ = 0;
         const Node* current_ = nullptr;
     };

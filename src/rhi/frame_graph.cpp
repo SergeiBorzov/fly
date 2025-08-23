@@ -249,7 +249,8 @@ ResourceHandle FrameGraph::ResourceMap::GetNextHandle()
 
 FrameGraph::BufferHandle
 FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
-                                  bool hostVisible, const void* data, u64 dataSize)
+                                  bool hostVisible, const void* data,
+                                  u64 dataSize)
 {
     FrameGraph::ResourceDescriptor rd;
     rd.data = data;
@@ -257,6 +258,7 @@ FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
     rd.arrayIndex = -1;
     rd.buffer.size = dataSize;
     rd.buffer.usage = usage;
+    rd.buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Unknown;
     rd.buffer.hostVisible = hostVisible;
     rd.buffer.external = nullptr;
 
@@ -268,8 +270,9 @@ FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
 }
 
 FrameGraph::TextureHandle FrameGraph::Builder::CreateTexture2D(
-    Arena& arena, VkImageUsageFlags usage, const void* data, u32 width, u32 height,
-    VkFormat format, Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode)
+    Arena& arena, VkImageUsageFlags usage, const void* data, u32 width,
+    u32 height, VkFormat format, Sampler::FilterMode filterMode,
+    Sampler::WrapMode wrapMode)
 {
     FrameGraph::ResourceDescriptor rd;
     rd.data = data;
@@ -320,7 +323,7 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
     VkClearColorValue clearColor)
 {
     FLY_ASSERT(currentPass_);
-    FLY_ASSERT(currentPass_->type == FrameGraph::PassNode::Type::Graphics);
+    FLY_ASSERT(currentPass_->type == FrameGraph::PassType::Graphics);
 
     if (textureHandle == FrameGraph::TextureHandle::sBackBuffer &&
         !resources_.Find(FrameGraph::TextureHandle::sBackBuffer.handle))
@@ -431,6 +434,7 @@ FrameGraph::Builder::RegisterExternalBuffer(Arena& arena, RHI::Buffer& buffer)
     rd.buffer.external = &buffer;
     rd.buffer.size = buffer.allocationInfo.size;
     rd.buffer.usage = buffer.usage;
+    rd.buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Unknown;
     rd.buffer.hostVisible = buffer.hostVisible;
 
     ResourceHandle handle = resources_.GetNextHandle();
@@ -468,7 +472,7 @@ FrameGraph::TextureHandle FrameGraph::Builder::DepthAttachment(
     VkClearDepthStencilValue clearDepthStencil)
 {
     FLY_ASSERT(currentPass_);
-    FLY_ASSERT(currentPass_->type == FrameGraph::PassNode::Type::Graphics);
+    FLY_ASSERT(currentPass_->type == FrameGraph::PassType::Graphics);
     FLY_ASSERT(textureHandle != FrameGraph::TextureHandle::sBackBuffer);
 
     FrameGraph::ResourceDescriptor* rd = resources_.Find(textureHandle.handle);
@@ -753,7 +757,7 @@ bool FrameGraph::Build(Arena& arena)
                     rh.version, rd->type, rd->arrayIndex);
         }
 
-        for (const HashSet<PassNode*>::Node* node: pass->edges)
+        for (const HashSet<PassNode*>::Node* node : pass->edges)
         {
             const PassNode* edge = node->value;
             FLY_LOG("Pass has edge to %s", edge->name);
@@ -786,6 +790,7 @@ void FrameGraph::Destroy()
                 (!rd.buffer.hostVisible) ? 1 : FLY_FRAME_IN_FLIGHT_COUNT;
             for (u32 i = 0; i < count; i++)
             {
+                FLY_LOG("Destroying buffer with handle %u", handle.id);
                 RHI::DestroyBuffer(device_, buffers_[rd.arrayIndex + i]);
             }
         }
@@ -829,6 +834,49 @@ void FrameGraph::ResizeDynamicTextures()
     }
 }
 
+static VkPipelineStageFlags2 PassTypeToStageMask(FrameGraph::PassType passType)
+{
+    switch (passType)
+    {
+        case FrameGraph::PassType::Graphics:
+        {
+            return VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+        }
+        case FrameGraph::PassType::Compute:
+        {
+            return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        }
+        case FrameGraph::PassType::Transfer:
+        {
+            return VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+        }
+    }
+}
+
+static VkAccessFlags2
+AccessToVulkan(FrameGraph::BufferCreateInfo::Access access)
+{
+    switch (access)
+    {
+        case FrameGraph::BufferCreateInfo::Access::Read:
+        {
+            return VK_ACCESS_2_SHADER_READ_BIT;
+        }
+        case FrameGraph::BufferCreateInfo::Access::Write:
+        {
+            return VK_ACCESS_2_SHADER_WRITE_BIT;
+        }
+        case FrameGraph::BufferCreateInfo::Access::ReadWrite:
+        {
+            return VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+        }
+        default:
+        {
+            return VK_ACCESS_2_NONE;
+        }
+    }
+}
+
 void FrameGraph::Execute()
 {
     Arena& arena = GetScratchArena();
@@ -837,16 +885,128 @@ void FrameGraph::Execute()
     RHI::BeginRenderFrame(device_);
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device_);
 
-    // TODO: Memory barriers, image layout transitions, compute pass
-
     for (PassNode* pass : passes_)
     {
-        if (pass->type == PassNode::Type::Transfer ||
-            pass->type == PassNode::Type::Compute)
+        if (pass->type == PassType::Transfer || pass->type == PassType::Compute)
         {
+            u32 bufferBarrierCount = 0;
+            u32 imageBarrierCount = 0;
+
+            // Count how many barriers needed
+            for (ResourceHandle rh : pass->inputs)
+            {
+                const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+                FLY_ASSERT(rd);
+                if (rd->type == FrameGraph::ResourceType::Buffer)
+                {
+                    if (rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::Write ||
+                        rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
+                    {
+                        bufferBarrierCount++;
+                    }
+                }
+            }
+            for (ResourceHandle rh : pass->outputs)
+            {
+                const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+                FLY_ASSERT(rd);
+                if (rd->type == FrameGraph::ResourceType::Buffer)
+                {
+                    if (rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::Read ||
+                        rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::Write ||
+                        rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
+                    {
+                        bufferBarrierCount++;
+                    }
+                }
+            }
+
+            VkBufferMemoryBarrier2* bufferBarriers = nullptr;
+            if (bufferBarrierCount > 0)
+            {
+                bufferBarriers = FLY_PUSH_ARENA(arena, VkBufferMemoryBarrier2,
+                                                bufferBarrierCount);
+                for (u32 i = 0; i < bufferBarrierCount; i++)
+                {
+                    bufferBarriers[i] = {};
+                    bufferBarriers[i].sType =
+                        VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+                    bufferBarriers[i].srcQueueFamilyIndex =
+                        VK_QUEUE_FAMILY_IGNORED;
+                    bufferBarriers[i].dstQueueFamilyIndex =
+                        VK_QUEUE_FAMILY_IGNORED;
+                    bufferBarriers[i].offset = 0;
+                    bufferBarriers[i].size = VK_WHOLE_SIZE;
+                }
+            }
+
+            // Record barriers
+            u32 curr = 0;
+            for (ResourceHandle rh : pass->inputs)
+            {
+                FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+                FLY_ASSERT(rd);
+                if (rd->type == FrameGraph::ResourceType::Buffer)
+                {
+                    if (rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::Write ||
+                        rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
+                    {
+                        bufferBarriers[curr].srcAccessMask =
+                            AccessToVulkan(rd->buffer.lastAccess);
+                        bufferBarriers[curr].dstAccessMask =
+                            VK_ACCESS_2_SHADER_READ_BIT;
+                        bufferBarriers[curr].srcStageMask =
+                            PassTypeToStageMask(rd->lastPass);
+                        bufferBarriers[curr].dstStageMask =
+                            PassTypeToStageMask(pass->type);
+                        bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
+                    }
+                    rd->buffer.lastAccess =
+                        FrameGraph::BufferCreateInfo::Access::Read;
+                    rd->lastPass = pass->type;
+                }
+            }
+            for (ResourceHandle rh : pass->outputs)
+            {
+                FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+                FLY_ASSERT(rd);
+                if (rd->type == FrameGraph::ResourceType::Buffer)
+                {
+                    if (rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::Read ||
+                        rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::Write ||
+                        rd->buffer.lastAccess ==
+                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
+                    {
+                        bufferBarriers[curr].srcAccessMask =
+                            AccessToVulkan(rd->buffer.lastAccess);
+                        bufferBarriers[curr].dstAccessMask =
+                            VK_ACCESS_2_SHADER_WRITE_BIT;
+                        bufferBarriers[curr].srcStageMask =
+                            PassTypeToStageMask(rd->lastPass);
+                        bufferBarriers[curr].dstStageMask =
+                            PassTypeToStageMask(pass->type);
+                        bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
+                    }
+                    rd->buffer.lastAccess =
+                        FrameGraph::BufferCreateInfo::Access::Write;
+                    rd->lastPass = pass->type;
+                }
+            }
+
+            RHI::PipelineBarrier(cmd, bufferBarriers, bufferBarrierCount,
+                                 nullptr, 0);
             pass->recordCallbackImpl(cmd, resources_, *pass);
         }
-        else if (pass->type == PassNode::Type::Graphics)
+        else if (pass->type == PassType::Graphics)
         {
 
             AttachmentCount count = CountAttachments(pass, resources_);

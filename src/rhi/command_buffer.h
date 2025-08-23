@@ -79,11 +79,17 @@ void ClearColor(CommandBuffer& cmd, Texture2D& texture2D, f32 r, f32 g, f32 b,
                 f32 a);
 void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
                    u32 pushConstantsSize, u32 offset = 0);
-void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY, u32 groupCountZ);
+void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY,
+              u32 groupCountZ);
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance);
 void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
                  u32 firstIndex, u32 vertexOffset, u32 firstInstance);
+void PipelineBarrier(CommandBuffer& cmd,
+                     const VkBufferMemoryBarrier2* bufferBarriers,
+                     u32 bufferBarrierCount,
+                     const VkImageMemoryBarrier2* imageBarriers,
+                     u32 imageBarrierCount);
 /*----------*/
 
 } // namespace RHI

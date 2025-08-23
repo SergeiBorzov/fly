@@ -3,8 +3,8 @@
 
 #include "core/arena.h"
 #include "core/hash.h"
-#include "core/hash_trie.h"
 #include "core/hash_set.h"
+#include "core/hash_trie.h"
 #include "core/list.h"
 
 #include "buffer.h"
@@ -94,9 +94,18 @@ struct FrameGraph
 
     struct BufferCreateInfo
     {
+        enum Access
+        {
+            Unknown,
+            Read,
+            Write,
+            ReadWrite
+        };
+
         RHI::Buffer* external;
         u64 size;
         VkBufferUsageFlags usage;
+        Access lastAccess;
         bool hostVisible;
     };
 
@@ -136,6 +145,13 @@ struct FrameGraph
         VkClearValue clearValue;
     };
 
+    enum class PassType
+    {
+        Graphics,
+        Compute,
+        Transfer
+    };
+
     struct ResourceDescriptor
     {
         union
@@ -146,6 +162,7 @@ struct FrameGraph
 
         const void* data;
         i32 arrayIndex;
+        PassType lastPass;
         ResourceType type;
     };
 
@@ -213,8 +230,8 @@ struct FrameGraph
 
         FrameGraph::BufferHandle CreateBuffer(Arena& arena,
                                               VkBufferUsageFlags usage,
-                                              bool hostVisible, const void* data,
-                                              u64 dataSize);
+                                              bool hostVisible,
+                                              const void* data, u64 dataSize);
 
         FrameGraph::TextureHandle
         CreateTexture2D(Arena& arena, VkImageUsageFlags usage, const void* data,
@@ -272,13 +289,6 @@ struct FrameGraph
 
     struct PassNode
     {
-        enum class Type
-        {
-            Graphics,
-            Compute,
-            Transfer
-        };
-
         using BuildFunctionImpl = void (*)(Arena&, FrameGraph::Builder&,
                                            PassNode&);
         using RecordFunctionImpl = void (*)(RHI::CommandBuffer&, ResourceMap&,
@@ -292,7 +302,7 @@ struct FrameGraph
         void* userData;
         FrameGraph* frameGraph;
         const char* name;
-        Type type;
+        PassType type;
         bool isRootPass;
     };
 
@@ -319,7 +329,7 @@ struct FrameGraph
     };
 
     template <typename T>
-    void AddPass(Arena& arena, const char* name, PassNode::Type type,
+    void AddPass(Arena& arena, const char* name, PassType type,
                  BuildFunction<T> buildCallback,
                  RecordFunction<T> recordCallback, void* userData,
                  bool isRootPass = false)
