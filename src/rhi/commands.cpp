@@ -170,5 +170,19 @@ void PipelineBarrier(CommandBuffer& cmd,
     vkCmdPipelineBarrier2(cmd.handle, &dependencyInfo);
 }
 
+void ResetQueryPool(CommandBuffer& cmd, VkQueryPool queryPool, u32 firstQuery,
+                    u32 queryCount)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    vkCmdResetQueryPool(cmd.handle, queryPool, firstQuery, queryCount);
+}
+
+void WriteTimestamp(CommandBuffer& cmd, VkPipelineStageFlagBits pipelineStage,
+                    VkQueryPool queryPool, u32 queryIndex)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    vkCmdWriteTimestamp(cmd.handle, pipelineStage, queryPool, queryIndex);
+}
+
 } // namespace RHI
 } // namespace Fly

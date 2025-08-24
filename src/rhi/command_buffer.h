@@ -90,6 +90,10 @@ void PipelineBarrier(CommandBuffer& cmd,
                      u32 bufferBarrierCount,
                      const VkImageMemoryBarrier2* imageBarriers,
                      u32 imageBarrierCount);
+void ResetQueryPool(CommandBuffer& cmd, VkQueryPool, u32 firstQuery,
+                    u32 queryCount);
+void WriteTimestamp(CommandBuffer& cmd, VkPipelineStageFlagBits pipelineStage,
+                    VkQueryPool queryPool, u32 query);
 /*----------*/
 
 } // namespace RHI
