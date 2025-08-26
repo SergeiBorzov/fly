@@ -1,5 +1,4 @@
 #include "core/assert.h"
-#include "core/log.h"
 #include "core/thread_context.h"
 
 #include "context.h"
@@ -738,33 +737,6 @@ bool FrameGraph::Build(Arena& arena)
         }
     }
 
-    for (PassNode* pass : passes_)
-    {
-        FLY_LOG("Pass name %s", pass->name);
-        for (ResourceHandle rh : pass->inputs)
-        {
-            const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-            FLY_ASSERT(rd);
-            FLY_LOG("Input resource (%u, %u) type %u, index - %d", rh.id,
-                    rh.version, rd->type, rd->arrayIndex);
-        }
-
-        for (ResourceHandle rh : pass->outputs)
-        {
-            const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-            FLY_ASSERT(rd);
-            FLY_LOG("Output resource (%u, %u) type %u, index - %d", rh.id,
-                    rh.version, rd->type, rd->arrayIndex);
-        }
-
-        for (const HashSet<PassNode*>::Node* node : pass->edges)
-        {
-            const PassNode* edge = node->value;
-            FLY_LOG("Pass has edge to %s", edge->name);
-        }
-        FLY_LOG("");
-    }
-
     device_.swapchainRecreatedCallbacks.InsertFront(
         arena, {OnSwapchainRecreated, this});
 
@@ -790,7 +762,6 @@ void FrameGraph::Destroy()
                 (!rd.buffer.hostVisible) ? 1 : FLY_FRAME_IN_FLIGHT_COUNT;
             for (u32 i = 0; i < count; i++)
             {
-                FLY_LOG("Destroying buffer with handle %u", handle.id);
                 RHI::DestroyBuffer(device_, buffers_[rd.arrayIndex + i]);
             }
         }
@@ -849,6 +820,10 @@ static VkPipelineStageFlags2 PassTypeToStageMask(FrameGraph::PassType passType)
         case FrameGraph::PassType::Transfer:
         {
             return VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
+        }
+        default:
+        {
+            return VK_PIPELINE_STAGE_2_NONE;
         }
     }
 }
