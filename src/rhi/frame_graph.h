@@ -387,6 +387,8 @@ struct FrameGraph
     void ResizeDynamicTextures();
 
 private:
+    void InsertBarriers(RHI::CommandBuffer& cmd, PassNode* pass);
+
     ResourceMap resources_;
     List<PassNode*> passes_;
     RHI::Buffer* buffers_;

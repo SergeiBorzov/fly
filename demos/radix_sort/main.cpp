@@ -420,7 +420,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    for (u32 i = 0; i < 5; i++)
+    for (u32 i = 0; i < 25; i++)
     {
         u32 keyCount = Math::RandomU32(1, maxKeyCount);
         u32* keys = FLY_PUSH_ARENA(arena, u32, keyCount);

@@ -207,6 +207,11 @@ FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle) const
     const ResourceDescriptor* rd = resources_.Find(bufferHandle.handle);
     FLY_ASSERT(rd);
 
+    if (rd->buffer.external)
+    {
+        return *(rd->buffer.external);
+    }
+
     u32 offset =
         (!rd->buffer.hostVisible) ? 0 : frameGraph_->GetSwapchainIndex();
 
@@ -225,6 +230,11 @@ RHI::Buffer& FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle)
 {
     const ResourceDescriptor* rd = resources_.Find(bufferHandle.handle);
     FLY_ASSERT(rd);
+
+    if (rd->buffer.external)
+    {
+        return *(rd->buffer.external);
+    }
 
     u32 offset =
         (!rd->buffer.hostVisible) ? 0 : frameGraph_->GetSwapchainIndex();
@@ -852,6 +862,124 @@ AccessToVulkan(FrameGraph::BufferCreateInfo::Access access)
     }
 }
 
+void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
+                                FrameGraph::PassNode* pass)
+{
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    u32 bufferBarrierCount = 0;
+    u32 imageBarrierCount = 0;
+
+    // Count how many barriers needed
+    for (ResourceHandle rh : pass->inputs)
+    {
+        const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+        FLY_ASSERT(rd);
+        if (rd->type == FrameGraph::ResourceType::Buffer)
+        {
+            if (rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::Write ||
+                rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
+            {
+                bufferBarrierCount++;
+            }
+        }
+    }
+    for (ResourceHandle rh : pass->outputs)
+    {
+        const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+        FLY_ASSERT(rd);
+        if (rd->type == FrameGraph::ResourceType::Buffer)
+        {
+            if (rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::Read ||
+                rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::Write ||
+                rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
+            {
+                bufferBarrierCount++;
+            }
+        }
+    }
+
+    VkBufferMemoryBarrier2* bufferBarriers = nullptr;
+    if (bufferBarrierCount > 0)
+    {
+        bufferBarriers =
+            FLY_PUSH_ARENA(arena, VkBufferMemoryBarrier2, bufferBarrierCount);
+        for (u32 i = 0; i < bufferBarrierCount; i++)
+        {
+            bufferBarriers[i] = {};
+            bufferBarriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+            bufferBarriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarriers[i].offset = 0;
+            bufferBarriers[i].size = VK_WHOLE_SIZE;
+        }
+    }
+
+    // Record barriers
+    u32 curr = 0;
+    for (ResourceHandle rh : pass->inputs)
+    {
+        FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+        FLY_ASSERT(rd);
+        if (rd->type == FrameGraph::ResourceType::Buffer)
+        {
+            if (rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::Write ||
+                rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
+            {
+                bufferBarriers[curr].srcAccessMask =
+                    AccessToVulkan(rd->buffer.lastAccess);
+                bufferBarriers[curr].dstAccessMask =
+                    VK_ACCESS_2_SHADER_READ_BIT;
+                bufferBarriers[curr].srcStageMask =
+                    PassTypeToStageMask(rd->lastPass);
+                bufferBarriers[curr].dstStageMask =
+                    PassTypeToStageMask(pass->type);
+                bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
+            }
+            rd->buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Read;
+            rd->lastPass = pass->type;
+        }
+    }
+    for (ResourceHandle rh : pass->outputs)
+    {
+        FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
+        FLY_ASSERT(rd);
+        if (rd->type == FrameGraph::ResourceType::Buffer)
+        {
+            if (rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::Read ||
+                rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::Write ||
+                rd->buffer.lastAccess ==
+                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
+            {
+                bufferBarriers[curr].srcAccessMask =
+                    AccessToVulkan(rd->buffer.lastAccess);
+                bufferBarriers[curr].dstAccessMask =
+                    VK_ACCESS_2_SHADER_WRITE_BIT;
+                bufferBarriers[curr].srcStageMask =
+                    PassTypeToStageMask(rd->lastPass);
+                bufferBarriers[curr].dstStageMask =
+                    PassTypeToStageMask(pass->type);
+                bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
+            }
+            rd->buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Write;
+            rd->lastPass = pass->type;
+        }
+    }
+
+    RHI::PipelineBarrier(cmd, bufferBarriers, bufferBarrierCount, nullptr, 0);
+    ArenaPopToMarker(arena, marker);
+}
+
 void FrameGraph::Execute()
 {
     Arena& arena = GetScratchArena();
@@ -864,121 +992,7 @@ void FrameGraph::Execute()
     {
         if (pass->type == PassType::Transfer || pass->type == PassType::Compute)
         {
-            u32 bufferBarrierCount = 0;
-            u32 imageBarrierCount = 0;
-
-            // Count how many barriers needed
-            for (ResourceHandle rh : pass->inputs)
-            {
-                const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-                FLY_ASSERT(rd);
-                if (rd->type == FrameGraph::ResourceType::Buffer)
-                {
-                    if (rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::Write ||
-                        rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
-                    {
-                        bufferBarrierCount++;
-                    }
-                }
-            }
-            for (ResourceHandle rh : pass->outputs)
-            {
-                const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-                FLY_ASSERT(rd);
-                if (rd->type == FrameGraph::ResourceType::Buffer)
-                {
-                    if (rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::Read ||
-                        rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::Write ||
-                        rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
-                    {
-                        bufferBarrierCount++;
-                    }
-                }
-            }
-
-            VkBufferMemoryBarrier2* bufferBarriers = nullptr;
-            if (bufferBarrierCount > 0)
-            {
-                bufferBarriers = FLY_PUSH_ARENA(arena, VkBufferMemoryBarrier2,
-                                                bufferBarrierCount);
-                for (u32 i = 0; i < bufferBarrierCount; i++)
-                {
-                    bufferBarriers[i] = {};
-                    bufferBarriers[i].sType =
-                        VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
-                    bufferBarriers[i].srcQueueFamilyIndex =
-                        VK_QUEUE_FAMILY_IGNORED;
-                    bufferBarriers[i].dstQueueFamilyIndex =
-                        VK_QUEUE_FAMILY_IGNORED;
-                    bufferBarriers[i].offset = 0;
-                    bufferBarriers[i].size = VK_WHOLE_SIZE;
-                }
-            }
-
-            // Record barriers
-            u32 curr = 0;
-            for (ResourceHandle rh : pass->inputs)
-            {
-                FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-                FLY_ASSERT(rd);
-                if (rd->type == FrameGraph::ResourceType::Buffer)
-                {
-                    if (rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::Write ||
-                        rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
-                    {
-                        bufferBarriers[curr].srcAccessMask =
-                            AccessToVulkan(rd->buffer.lastAccess);
-                        bufferBarriers[curr].dstAccessMask =
-                            VK_ACCESS_2_SHADER_READ_BIT;
-                        bufferBarriers[curr].srcStageMask =
-                            PassTypeToStageMask(rd->lastPass);
-                        bufferBarriers[curr].dstStageMask =
-                            PassTypeToStageMask(pass->type);
-                        bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
-                    }
-                    rd->buffer.lastAccess =
-                        FrameGraph::BufferCreateInfo::Access::Read;
-                    rd->lastPass = pass->type;
-                }
-            }
-            for (ResourceHandle rh : pass->outputs)
-            {
-                FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-                FLY_ASSERT(rd);
-                if (rd->type == FrameGraph::ResourceType::Buffer)
-                {
-                    if (rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::Read ||
-                        rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::Write ||
-                        rd->buffer.lastAccess ==
-                            FrameGraph::BufferCreateInfo::Access::ReadWrite)
-                    {
-                        bufferBarriers[curr].srcAccessMask =
-                            AccessToVulkan(rd->buffer.lastAccess);
-                        bufferBarriers[curr].dstAccessMask =
-                            VK_ACCESS_2_SHADER_WRITE_BIT;
-                        bufferBarriers[curr].srcStageMask =
-                            PassTypeToStageMask(rd->lastPass);
-                        bufferBarriers[curr].dstStageMask =
-                            PassTypeToStageMask(pass->type);
-                        bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
-                    }
-                    rd->buffer.lastAccess =
-                        FrameGraph::BufferCreateInfo::Access::Write;
-                    rd->lastPass = pass->type;
-                }
-            }
-
-            RHI::PipelineBarrier(cmd, bufferBarriers, bufferBarrierCount,
-                                 nullptr, 0);
+            InsertBarriers(cmd, pass);
             pass->recordCallbackImpl(cmd, resources_, *pass);
         }
         else if (pass->type == PassType::Graphics)
