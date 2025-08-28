@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
 
     RHI::FrameGraph fg(device);
     fg.AddPass<GraphicsPassContext>(
-        arena, "GraphicsPass", RHI::FrameGraph::PassNode::Type::Graphics,
+        arena, "GraphicsPass", RHI::FrameGraph::PassType::Graphics,
         GraphicsPassBuild, GraphicsPassExecute, &userData);
     fg.Build(arena);
 
@@ -255,9 +255,6 @@ int main(int argc, char* argv[])
     {
         previousFrameTime = currentFrameTime;
         currentFrameTime = Fly::ClockNow();
-
-        f32 time =
-            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
         f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
 
         glfwPollEvents();

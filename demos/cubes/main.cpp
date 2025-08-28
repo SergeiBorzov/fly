@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
 
     RHI::FrameGraph fg(device);
     fg.AddPass<CubesPassContext>(arena, "CubesPass",
-                                 RHI::FrameGraph::PassNode::Type::Graphics,
+                                 RHI::FrameGraph::PassType::Graphics,
                                  CubesPassBuild, CubesPassExecute, &userData);
     fg.Build(arena);
 

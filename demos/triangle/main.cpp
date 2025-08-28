@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
     Arena& arena = GetScratchArena();
     RHI::FrameGraph fg(device);
     fg.AddPass<TrianglePassContext>(
-        arena, "TrianglePass", RHI::FrameGraph::PassNode::Type::Graphics,
+        arena, "TrianglePass", RHI::FrameGraph::PassType::Graphics,
         TrianglePassBuild, TrianglePassExecute, &userData);
     fg.Build(arena);
 
