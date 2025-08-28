@@ -838,13 +838,17 @@ static VkPipelineStageFlags2 PassTypeToStageMask(FrameGraph::PassType passType)
     }
 }
 
-static VkAccessFlags2
-AccessToVulkan(FrameGraph::BufferCreateInfo::Access access)
+static VkAccessFlags2 AccessToVulkan(FrameGraph::BufferCreateInfo buffer)
 {
-    switch (access)
+    switch (buffer.lastAccess)
     {
         case FrameGraph::BufferCreateInfo::Access::Read:
         {
+            if (buffer.usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
+            {
+                return VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT |
+                       VK_ACCESS_2_SHADER_READ_BIT;
+            }
             return VK_ACCESS_2_SHADER_READ_BIT;
         }
         case FrameGraph::BufferCreateInfo::Access::Write:
@@ -934,8 +938,7 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
                 rd->buffer.lastAccess ==
                     FrameGraph::BufferCreateInfo::Access::ReadWrite)
             {
-                bufferBarriers[curr].srcAccessMask =
-                    AccessToVulkan(rd->buffer.lastAccess);
+                bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
                 bufferBarriers[curr].dstAccessMask =
                     VK_ACCESS_2_SHADER_READ_BIT;
                 bufferBarriers[curr].srcStageMask =
@@ -961,8 +964,7 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
                 rd->buffer.lastAccess ==
                     FrameGraph::BufferCreateInfo::Access::ReadWrite)
             {
-                bufferBarriers[curr].srcAccessMask =
-                    AccessToVulkan(rd->buffer.lastAccess);
+                bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
                 bufferBarriers[curr].dstAccessMask =
                     VK_ACCESS_2_SHADER_WRITE_BIT;
                 bufferBarriers[curr].srcStageMask =

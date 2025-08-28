@@ -133,6 +133,18 @@ void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
                      vertexOffset, firstInstance);
 }
 
+void DrawIndexedIndirectCount(CommandBuffer& cmd,
+                              const RHI::Buffer& indirectDrawBuffer, u64 offset,
+                              const RHI::Buffer& indirectCountBuffer,
+                              u64 countOffset, u32 maxCount, u32 stride)
+{
+    FLY_ASSERT(cmd.device);
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    vkCmdDrawIndexedIndirectCount(cmd.handle, indirectDrawBuffer.handle, offset,
+                                  indirectCountBuffer.handle, countOffset,
+                                  maxCount, stride);
+}
+
 void FillBuffer(CommandBuffer& cmd, Buffer& buffer, u32 value, u64 size,
                 u64 offset)
 {
