@@ -295,25 +295,14 @@ static void FinishPassExecute(RHI::CommandBuffer& cmd,
 static void RadixSort(Arena& arena, RHI::Device& device, const u32* keys,
                       u32 keyCount)
 {
-    RHI::FrameGraph fg(device);
-
     RHI::CopyDataToBuffer(device, keys, sizeof(u32) * keyCount, 0, sKeys[0]);
+    
+    RHI::FrameGraph fg(device);
 
     BufferState bufferState;
     bufferState.keyCount = keyCount;
 
     UserData userData[RADIX_PASS_COUNT];
-
-    const char* countHistogramNames[RADIX_PASS_COUNT] = {
-        "CountHistograms_0", "CountHistograms_1", "CountHistograms_2",
-        "CountHistograms_3"};
-
-    const char* scanNames[RADIX_PASS_COUNT] = {"Scan_0", "Scan_1", "Scan_2",
-                                               "Scan_3"};
-
-    const char* sortNames[RADIX_PASS_COUNT] = {"Sort_0", "Sort_1", "Sort_2",
-                                               "Sort_3"};
-
     for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
     {
         userData[i].bufferState = &bufferState;
@@ -327,14 +316,14 @@ static void RadixSort(Arena& arena, RHI::Device& device, const u32* keys,
     for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
     {
         fg.AddPass<CountHistogramsPassContext>(
-            arena, countHistogramNames[i], RHI::FrameGraph::PassType::Compute,
+            arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
             CountHistogramsPassBuild, CountHistogramsPassExecute, &userData[i]);
         fg.AddPass<ScanPassContext>(
-            arena, scanNames[i], RHI::FrameGraph::PassType::Compute,
-            ScanPassBuild, ScanPassExecute, &userData[i]);
+            arena, "Scan", RHI::FrameGraph::PassType::Compute, ScanPassBuild,
+            ScanPassExecute, &userData[i]);
         fg.AddPass<SortPassContext>(
-            arena, sortNames[i], RHI::FrameGraph::PassType::Compute,
-            SortPassBuild, SortPassExecute, &userData[i]);
+            arena, "Sort", RHI::FrameGraph::PassType::Compute, SortPassBuild,
+            SortPassExecute, &userData[i]);
     }
     fg.AddPass<FinishPassContext>(arena, "Finish",
                                   RHI::FrameGraph::PassType::Compute,
