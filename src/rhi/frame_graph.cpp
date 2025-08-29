@@ -844,7 +844,7 @@ static VkAccessFlags2 AccessToVulkan(FrameGraph::BufferCreateInfo buffer)
     {
         case FrameGraph::BufferCreateInfo::Access::Read:
         {
-            if (buffer.usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
+            if (buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
             {
                 return VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT |
                        VK_ACCESS_2_SHADER_READ_BIT;
@@ -938,9 +938,14 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
                 rd->buffer.lastAccess ==
                     FrameGraph::BufferCreateInfo::Access::ReadWrite)
             {
+                VkAccessFlagBits2 dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+                if (rd->buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
+                {
+                    dstAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+                }
+
                 bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
-                bufferBarriers[curr].dstAccessMask =
-                    VK_ACCESS_2_SHADER_READ_BIT;
+                bufferBarriers[curr].dstAccessMask = dstAccessMask;
                 bufferBarriers[curr].srcStageMask =
                     PassTypeToStageMask(rd->lastPass);
                 bufferBarriers[curr].dstStageMask =
@@ -992,9 +997,9 @@ void FrameGraph::Execute()
 
     for (PassNode* pass : passes_)
     {
+        InsertBarriers(cmd, pass);
         if (pass->type == PassType::Transfer || pass->type == PassType::Compute)
         {
-            InsertBarriers(cmd, pass);
             pass->recordCallbackImpl(cmd, resources_, *pass);
         }
         else if (pass->type == PassType::Graphics)

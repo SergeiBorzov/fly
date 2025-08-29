@@ -50,7 +50,7 @@ FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
-    uint vertexOffset;
+    int vertexOffset;
     uint firstInstance;
 })
 
@@ -68,6 +68,12 @@ void main()
     {
         return;
     }
+
+    if (index == 0)
+    {
+        gDrawCountBuffers[gIndices.drawCountBufferIndex].count = 0;
+    }
+    barrier();
 
     mat4 cullView =
         FLY_ACCESS_UNIFORM_BUFFER(Camera, gIndices.cameraBufferIndex, cullView);
