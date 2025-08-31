@@ -66,6 +66,13 @@ void main()
         return;
     }
 
+    if (gtid == 0)
+    {
+        gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex].count =
+            0;
+    }
+    barrier();
+
     vec4 cameraParameters = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, cameraParameters);
 
