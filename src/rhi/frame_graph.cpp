@@ -939,9 +939,12 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
                     FrameGraph::BufferCreateInfo::Access::ReadWrite)
             {
                 VkAccessFlagBits2 dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+                VkPipelineStageFlagBits2 dstStageMask =
+                    VK_PIPELINE_STAGE_2_NONE;
                 if (rd->buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
                 {
                     dstAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+                    dstStageMask |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
                 }
 
                 bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
@@ -949,7 +952,7 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
                 bufferBarriers[curr].srcStageMask =
                     PassTypeToStageMask(rd->lastPass);
                 bufferBarriers[curr].dstStageMask =
-                    PassTypeToStageMask(pass->type);
+                    dstStageMask | PassTypeToStageMask(pass->type);
                 bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
             }
             rd->buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Read;
@@ -969,11 +972,17 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
                 rd->buffer.lastAccess ==
                     FrameGraph::BufferCreateInfo::Access::ReadWrite)
             {
+                VkPipelineStageFlagBits2 srcStageMask =
+                    VK_PIPELINE_STAGE_2_NONE;
+                if (rd->buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
+                {
+                    srcStageMask |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+                }
                 bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
                 bufferBarriers[curr].dstAccessMask =
                     VK_ACCESS_2_SHADER_WRITE_BIT;
                 bufferBarriers[curr].srcStageMask =
-                    PassTypeToStageMask(rd->lastPass);
+                    srcStageMask | PassTypeToStageMask(rd->lastPass);
                 bufferBarriers[curr].dstStageMask =
                     PassTypeToStageMask(pass->type);
                 bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
