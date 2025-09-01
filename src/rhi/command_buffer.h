@@ -81,6 +81,8 @@ void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
                    u32 pushConstantsSize, u32 offset = 0);
 void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY,
               u32 groupCountZ);
+void DispatchIndirect(CommandBuffer& cmd, const RHI::Buffer& buffer,
+                      u64 offset = 0);
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance);
 void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,

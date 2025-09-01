@@ -113,6 +113,14 @@ void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY,
     vkCmdDispatch(cmd.handle, groupCountX, groupCountY, groupCountZ);
 }
 
+void DispatchIndirect(CommandBuffer& cmd, const RHI::Buffer& buffer, u64 offset)
+{
+    FLY_ASSERT(cmd.device);
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
+    vkCmdDispatchIndirect(cmd.handle, buffer.handle, offset);
+}
+
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance)
 {
