@@ -11,9 +11,8 @@ layout(push_constant) uniform PushConstants
 {
     uint pass;
     uint indirectDrawCountBufferIndex;
-    uint keyBufferIndex;
-    uint tileHistogramBufferIndex;
     uint globalHistogramBufferIndex;
+    uint tileHistogramBufferIndex;
 }
 gPushConstants;
 
@@ -24,10 +23,6 @@ layout(set = 0,
 }
 gDrawCountBuffers[];
 
-FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, {
-    uint key;
-    uint value;
-})
 FLY_REGISTER_STORAGE_BUFFER(readonly, GlobalHistogram, { uint count; })
 FLY_REGISTER_STORAGE_BUFFER(, TileHistograms, { uint count; })
 

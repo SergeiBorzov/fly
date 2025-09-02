@@ -69,13 +69,21 @@ struct UniformData
     Math::Vec4 time;             // 160
 };
 
-struct UserData
+struct BufferState
 {
     RHI::FrameGraph::BufferHandle pingPongKeys[2];
     RHI::FrameGraph::BufferHandle uniformBuffer;
     RHI::FrameGraph::BufferHandle indirectCount;
     RHI::FrameGraph::BufferHandle indirectDraws;
     RHI::FrameGraph::BufferHandle indirectDispatch;
+    RHI::FrameGraph::BufferHandle tileHistograms;
+    RHI::FrameGraph::BufferHandle globalHistograms;
+};
+
+struct UserData
+{
+    u32 passIndex;
+    BufferState* bufferState;
 };
 
 static Fly::SimpleCameraFPS
@@ -202,7 +210,10 @@ struct CullPassContext
 static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
                           CullPassContext& context, void* pUserData)
 {
-    UserData* userData = static_cast<UserData*>(pUserData);
+    BufferState* bufferState = static_cast<UserData*>(pUserData)->bufferState;
+
+    u32 tileCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
 
     context.splatBuffer = builder.RegisterExternalBuffer(arena, sSplatBuffer);
 
@@ -228,10 +239,19 @@ static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
 
     builder.Read(arena, context.splatBuffer);
     builder.Read(arena, context.uniformBuffer);
-    userData->pingPongKeys[0] = builder.Write(arena, context.pingPongKeys[0]);
-    userData->pingPongKeys[1] = context.pingPongKeys[1];
-    userData->indirectCount = builder.Write(arena, context.indirectCount);
-    userData->uniformBuffer = context.uniformBuffer;
+    bufferState->pingPongKeys[0] =
+        builder.Write(arena, context.pingPongKeys[0]);
+    bufferState->pingPongKeys[1] = context.pingPongKeys[1];
+    bufferState->indirectCount = builder.Write(arena, context.indirectCount);
+    bufferState->uniformBuffer = context.uniformBuffer;
+    bufferState->tileHistograms = builder.CreateBuffer(
+        arena,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        false, nullptr, sizeof(u32) * RADIX_HISTOGRAM_SIZE * tileCount);
+    bufferState->globalHistograms = builder.CreateBuffer(
+        arena,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        false, nullptr, sizeof(u32) * RADIX_HISTOGRAM_SIZE * RADIX_PASS_COUNT);
 }
 static void CullPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
@@ -251,6 +271,7 @@ static void CullPassExecute(RHI::CommandBuffer& cmd,
 
 struct WriteIndirectPassContext
 {
+    RHI::FrameGraph::BufferHandle indirectCount;
     RHI::FrameGraph::BufferHandle indirectDispatch;
     RHI::FrameGraph::BufferHandle indirectDraws;
 };
@@ -259,7 +280,7 @@ static void WriteIndirectPassBuild(Arena& arena,
                                    WriteIndirectPassContext& context,
                                    void* pUserData)
 {
-    UserData* userData = static_cast<UserData*>(pUserData);
+    BufferState* bufferState = static_cast<UserData*>(pUserData)->bufferState;
 
     context.indirectDispatch = builder.CreateBuffer(
         arena,
@@ -274,113 +295,104 @@ static void WriteIndirectPassBuild(Arena& arena,
                                  VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                              false, nullptr, sizeof(VkDrawIndirectCommand));
 
-    builder.Read(arena, userData->indirectCount);
-    userData->indirectDispatch = builder.Write(arena, context.indirectDispatch);
-    userData->indirectDraws = builder.Write(arena, context.indirectDraws);
+    context.indirectCount = builder.Read(arena, bufferState->indirectCount);
+    bufferState->indirectDispatch =
+        builder.Write(arena, context.indirectDispatch);
+    bufferState->indirectDraws = builder.Write(arena, context.indirectDraws);
 }
 static void WriteIndirectPassExecute(RHI::CommandBuffer& cmd,
                                      RHI::FrameGraph::ResourceMap& resources,
                                      const WriteIndirectPassContext& context,
                                      void* pUserData)
 {
-    UserData* userData = static_cast<UserData*>(pUserData);
-
     RHI::BindComputePipeline(cmd, sWriteIndirectDispatchPipeline);
     u32 pushConstants[] = {
-        resources.GetBuffer(userData->indirectCount).bindlessHandle,
-        resources.GetBuffer(userData->indirectDraws).bindlessHandle,
-        resources.GetBuffer(userData->indirectDispatch).bindlessHandle,
+        resources.GetBuffer(context.indirectCount).bindlessHandle,
+        resources.GetBuffer(context.indirectDraws).bindlessHandle,
+        resources.GetBuffer(context.indirectDispatch).bindlessHandle,
     };
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, 1, 1, 1);
-
-    // VkBufferMemoryBarrier indirectWriteBarriers[3];
-    // indirectWriteBarriers[0] = RHI::BufferMemoryBarrier(
-    //     sIndirectDrawCountBuffers[device.frameIndex],
-    //     VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT |
-    //     VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-    // indirectWriteBarriers[1] = RHI::BufferMemoryBarrier(
-    //     sIndirectDispatchBuffers[device.frameIndex],
-    //     VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-    // indirectWriteBarriers[2] = RHI::BufferMemoryBarrier(
-    //     sIndirectDrawBuffers[device.frameIndex],
-    //     VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT |
-    //     VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-    // vkCmdPipelineBarrier(cmd.handle,
-    // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-    //                          VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-    //                      0, 0, nullptr,
-    //                      STACK_ARRAY_COUNT(indirectWriteBarriers),
-    //                      indirectWriteBarriers, 0, nullptr);
 }
 
 struct CountHistogramsPassContext
 {
+    RHI::FrameGraph::BufferHandle keys;
+    RHI::FrameGraph::BufferHandle tileHistograms;
+    RHI::FrameGraph::BufferHandle globalHistograms;
+    RHI::FrameGraph::BufferHandle indirectCount;
+    RHI::FrameGraph::BufferHandle indirectDispatch;
 };
 static void CountHistogramsPassBuild(Arena& arena,
                                      RHI::FrameGraph::Builder& builder,
                                      CountHistogramsPassContext& context,
                                      void* pUserData)
 {
+    UserData* userData = static_cast<UserData*>(pUserData);
+    BufferState* bufferState = userData->bufferState;
+    u32 inKeysIndex = userData->passIndex % 2;
+
+    context.keys = builder.Read(arena, bufferState->pingPongKeys[inKeysIndex]);
+    context.indirectCount = builder.Read(arena, bufferState->indirectCount);
+    context.indirectDispatch =
+        builder.Read(arena, bufferState->indirectDispatch);
+    context.tileHistograms = builder.Write(arena, bufferState->tileHistograms);
+    context.globalHistograms =
+        builder.Write(arena, bufferState->globalHistograms);
+
+    bufferState->tileHistograms = context.tileHistograms;
+    bufferState->globalHistograms = context.globalHistograms;
 }
 static void CountHistogramsPassExecute(
     RHI::CommandBuffer& cmd, RHI::FrameGraph::ResourceMap& resources,
     const CountHistogramsPassContext& context, void* pUserData)
 {
-    // Calculate count histograms
-    // RHI::BindComputePipeline(cmd, sCountPipeline);
-    // u32 pushConstants[] = {
-    //     i, sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle,
-    //     sPingPongKeys[in].bindlessHandle,
-    //     sTileHistograms[device.frameIndex].bindlessHandle,
-    //     sGlobalHistograms[device.frameIndex].bindlessHandle};
-    // RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
-    // vkCmdDispatchIndirect(
-    //     cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle,
-    //     0);
+    UserData* userData = static_cast<UserData*>(pUserData);
 
-    // VkBufferMemoryBarrier countToScanBarriers[2];
-    // countToScanBarriers[0] = RHI::BufferMemoryBarrier(
-    //     sTileHistograms[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
-    //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-    // countToScanBarriers[1] = RHI::BufferMemoryBarrier(
-    //     sGlobalHistograms[device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
-    //     VK_ACCESS_SHADER_READ_BIT);
-    // vkCmdPipelineBarrier(cmd.handle,
-    // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-    //                      nullptr, STACK_ARRAY_COUNT(countToScanBarriers),
-    //                      countToScanBarriers, 0, nullptr);
+    RHI::BindComputePipeline(cmd, sCountPipeline);
+    u32 pushConstants[] = {
+        userData->passIndex,
+        resources.GetBuffer(context.indirectCount).bindlessHandle,
+        resources.GetBuffer(context.keys).bindlessHandle,
+        resources.GetBuffer(context.tileHistograms).bindlessHandle,
+        resources.GetBuffer(context.globalHistograms).bindlessHandle};
+
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
 }
 
 struct ScanPassContext
 {
+    RHI::FrameGraph::BufferHandle indirectCount;
+    RHI::FrameGraph::BufferHandle indirectDispatch;
+    RHI::FrameGraph::BufferHandle globalHistograms;
+    RHI::FrameGraph::BufferHandle tileHistograms;
 };
 static void ScanPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
                           ScanPassContext& context, void* pUserData)
 {
+    BufferState* bufferState = static_cast<UserData*>(pUserData)->bufferState;
+    context.indirectCount = builder.Read(arena, bufferState->indirectCount);
+    context.indirectDispatch =
+        builder.Read(arena, bufferState->indirectDispatch);
+    context.globalHistograms =
+        builder.Read(arena, bufferState->globalHistograms);
+    context.tileHistograms = builder.Write(arena, bufferState->tileHistograms);
 }
 static void ScanPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
                             const ScanPassContext& context, void* pUserData)
 {
-
-    // // Exclusive prefix sums - global offsets
-    // RHI::BindComputePipeline(cmd, sScanPipeline);
-    // RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
-    // vkCmdDispatchIndirect(cmd.handle,
-    //                       sIndirectDispatchBuffers[device.frameIndex].handle,
-    //                       sizeof(VkDispatchIndirectCommand));
-
-    // VkBufferMemoryBarrier scanToSortBarrier = RHI::BufferMemoryBarrier(
-    //     sTileHistograms[device.frameIndex],
-    //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-    //     VK_ACCESS_SHADER_READ_BIT);
-    // vkCmdPipelineBarrier(cmd.handle,
-    // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-    //                      nullptr, 1, &scanToSortBarrier, 0, nullptr);
+    UserData* userData = static_cast<UserData*>(pUserData);
+    // Exclusive prefix sums - global offsets
+    RHI::BindComputePipeline(cmd, sScanPipeline);
+    u32 pushConstants[] = {
+        userData->passIndex,
+        resources.GetBuffer(context.indirectCount).bindlessHandle,
+        resources.GetBuffer(context.globalHistograms).bindlessHandle,
+        resources.GetBuffer(context.tileHistograms).bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
 }
 
 struct SortPassContext
@@ -685,7 +697,10 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    BufferState bufferState;
     UserData userData;
+    userData.bufferState = &bufferState;
+    userData.passIndex = 0;
 
     Arena& arena = GetScratchArena();
     RHI::FrameGraph fg(device);
@@ -695,11 +710,20 @@ int main(int argc, char* argv[])
     fg.AddPass<WriteIndirectPassContext>(
         arena, "WriteIndirect", RHI::FrameGraph::PassType::Compute,
         WriteIndirectPassBuild, WriteIndirectPassExecute, &userData);
+
+    fg.AddPass<CountHistogramsPassContext>(
+        arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
+        CountHistogramsPassBuild, CountHistogramsPassExecute, &userData);
+
+    fg.AddPass<ScanPassContext>(arena, "Scan",
+                                RHI::FrameGraph::PassType::Compute,
+                                ScanPassBuild, ScanPassExecute, &userData);
     // for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
     // {
     //     fg.AddPass<CountHistogramsPassContext>(
     //         arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
-    //         CountHistogramsPassBuild, CountHistogramsPassExecute, &userData);
+    //         CountHistogramsPassBuild, CountHistogramsPassExecute,
+    //         &userData);
     //     fg.AddPass<ScanPassContext>(arena, "Scan",
     //                                 RHI::FrameGraph::PassType::Compute,
     //                                 ScanPassBuild, ScanPassExecute,
@@ -711,10 +735,12 @@ int main(int argc, char* argv[])
     // }
     // fg.AddPass<CopyPassContext>(arena, "Copy",
     //                             RHI::FrameGraph::PassType::Compute,
-    //                             CopyPassBuild, CopyPassExecute, &userData);
+    //                             CopyPassBuild, CopyPassExecute,
+    //                             &userData);
     // fg.AddPass<DrawPassContext>(arena, "Draw",
     //                             RHI::FrameGraph::PassType::Graphics,
-    //                             DrawPassBuild, DrawPassExecute, &userData);
+    //                             DrawPassBuild, DrawPassExecute,
+    //                             &userData);
     fg.Build(arena);
 
     u64 previousFrameTime = 0;
@@ -746,7 +772,8 @@ int main(int argc, char* argv[])
             1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
         uniformData.time.x = time;
 
-        RHI::Buffer& uniformBuffer = fg.GetBuffer(userData.uniformBuffer);
+        RHI::Buffer& uniformBuffer =
+            fg.GetBuffer(userData.bufferState->uniformBuffer);
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               uniformBuffer);
         fg.Execute();
