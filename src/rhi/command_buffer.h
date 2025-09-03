@@ -87,6 +87,10 @@ void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance);
 void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
                  u32 firstIndex, u32 vertexOffset, u32 firstInstance);
+void DrawIndirectCount(CommandBuffer& cmd,
+                       const RHI::Buffer& indirectDrawBuffer, u64 offset,
+                       const RHI::Buffer& indirectCountBuffer, u64 countOffset,
+                       u32 maxCount, u32 stride);
 void DrawIndexedIndirectCount(CommandBuffer& cmd,
                               const RHI::Buffer& indirectDrawBuffer, u64 offset,
                               const RHI::Buffer& indirectCountBuffer,
