@@ -71,6 +71,7 @@ struct UniformData
 
 struct BufferState
 {
+    RHI::Device* device;
     RHI::FrameGraph::BufferHandle pingPongKeys[2];
     RHI::FrameGraph::BufferHandle uniformBuffer;
     RHI::FrameGraph::BufferHandle indirectCount;
@@ -78,6 +79,8 @@ struct BufferState
     RHI::FrameGraph::BufferHandle indirectDispatch;
     RHI::FrameGraph::BufferHandle tileHistograms;
     RHI::FrameGraph::BufferHandle globalHistograms;
+    RHI::FrameGraph::BufferHandle splatBuffer;
+    RHI::FrameGraph::BufferHandle sortedSplatBuffer;
 };
 
 struct UserData
@@ -193,10 +196,12 @@ static void DestroyPipelines(RHI::Device& device)
 
 static u32 sSplatCount;
 static RHI::Buffer sSplatBuffer;
+static RHI::Buffer sSortedSplatBuffer;
 
 static void DestroyScene(RHI::Device& device)
 {
     RHI::DestroyBuffer(device, sSplatBuffer);
+    RHI::DestroyBuffer(device, sSortedSplatBuffer);
 }
 
 struct CullPassContext
@@ -208,9 +213,9 @@ struct CullPassContext
 };
 
 static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          CullPassContext& context, void* pUserData)
+                          CullPassContext& context, void* pBufferState)
 {
-    BufferState* bufferState = static_cast<UserData*>(pUserData)->bufferState;
+    BufferState* bufferState = static_cast<BufferState*>(pBufferState);
 
     u32 tileCount = static_cast<u32>(
         Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
@@ -252,10 +257,11 @@ static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
         arena,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         false, nullptr, sizeof(u32) * RADIX_HISTOGRAM_SIZE * RADIX_PASS_COUNT);
+    bufferState->splatBuffer = context.splatBuffer;
 }
 static void CullPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
-                            const CullPassContext& context, void* pUserData)
+                            const CullPassContext& context, void* pBufferState)
 {
     u32 workGroupCount = static_cast<u32>(
         Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
@@ -278,9 +284,9 @@ struct WriteIndirectPassContext
 static void WriteIndirectPassBuild(Arena& arena,
                                    RHI::FrameGraph::Builder& builder,
                                    WriteIndirectPassContext& context,
-                                   void* pUserData)
+                                   void* pBufferState)
 {
-    BufferState* bufferState = static_cast<UserData*>(pUserData)->bufferState;
+    BufferState* bufferState = static_cast<BufferState*>(pBufferState);
 
     context.indirectDispatch = builder.CreateBuffer(
         arena,
@@ -303,7 +309,7 @@ static void WriteIndirectPassBuild(Arena& arena,
 static void WriteIndirectPassExecute(RHI::CommandBuffer& cmd,
                                      RHI::FrameGraph::ResourceMap& resources,
                                      const WriteIndirectPassContext& context,
-                                     void* pUserData)
+                                     void* pBufferState)
 {
     RHI::BindComputePipeline(cmd, sWriteIndirectDispatchPipeline);
     u32 pushConstants[] = {
@@ -378,6 +384,8 @@ static void ScanPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
     context.globalHistograms =
         builder.Read(arena, bufferState->globalHistograms);
     context.tileHistograms = builder.Write(arena, bufferState->tileHistograms);
+
+    bufferState->tileHistograms = context.tileHistograms;
 }
 static void ScanPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
@@ -397,150 +405,127 @@ static void ScanPassExecute(RHI::CommandBuffer& cmd,
 
 struct SortPassContext
 {
+    RHI::FrameGraph::BufferHandle prefixSums;
+    RHI::FrameGraph::BufferHandle keys;
+    RHI::FrameGraph::BufferHandle sortedKeys;
+    RHI::FrameGraph::BufferHandle indirectDispatch;
+    RHI::FrameGraph::BufferHandle indirectCount;
 };
 static void SortPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
                           SortPassContext& context, void* pUserData)
 {
+    UserData* userData = static_cast<UserData*>(pUserData);
+    BufferState* bufferState = userData->bufferState;
+
+    u32 inKeysIndex = userData->passIndex % 2;
+    u32 outKeysIndex = (inKeysIndex + 1) % 2;
+
+    context.indirectCount = builder.Read(arena, bufferState->indirectCount);
+    context.indirectDispatch =
+        builder.Read(arena, bufferState->indirectDispatch);
+    context.prefixSums = builder.Read(arena, bufferState->tileHistograms);
+    context.keys = builder.Read(arena, bufferState->pingPongKeys[inKeysIndex]);
+    context.sortedKeys =
+        builder.Write(arena, bufferState->pingPongKeys[outKeysIndex]);
+
+    bufferState->pingPongKeys[outKeysIndex] = context.sortedKeys;
 }
 static void SortPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
                             const SortPassContext& context, void* pUserData)
 {
-    // Sort
-    //     RHI::BindComputePipeline(cmd, sSortPipeline);
-    //     pushConstants[4] = sPingPongKeys[out].bindlessHandle;
-    //     RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
-    //     vkCmdDispatchIndirect(
-    //         cmd.handle,
-    //         sIndirectDispatchBuffers[device.frameIndex].handle, 0);
-
-    //     if (i == RADIX_PASS_COUNT - 1)
-    //     {
-    //         break;
-    //     }
-
-    //     VkBufferMemoryBarrier nextPassBarriers[3];
-    //     nextPassBarriers[0] =
-    //         RHI::BufferMemoryBarrier(sPingPongKeys[out],
-    //         VK_ACCESS_SHADER_WRITE_BIT,
-    //                                  VK_ACCESS_SHADER_READ_BIT);
-    //     nextPassBarriers[1] =
-    //         RHI::BufferMemoryBarrier(sPingPongKeys[in],
-    //         VK_ACCESS_SHADER_READ_BIT,
-    //                                  VK_ACCESS_SHADER_WRITE_BIT);
-    //     nextPassBarriers[2] = RHI::BufferMemoryBarrier(
-    //         sGlobalHistograms[device.frameIndex],
-    //         VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-    //     vkCmdPipelineBarrier(cmd.handle,
-    //     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-    //                          nullptr,
-    //                          STACK_ARRAY_COUNT(nextPassBarriers),
-    //                          nextPassBarriers, 0, nullptr);
-    // }
-
-    // VkBufferMemoryBarrier sortToCopyBarrier = RHI::BufferMemoryBarrier(
-    //     sPingPongKeys[2 * device.frameIndex], VK_ACCESS_SHADER_WRITE_BIT,
-    //     VK_ACCESS_SHADER_READ_BIT);
-    // vkCmdPipelineBarrier(cmd.handle,
-    // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-    //                      nullptr, 1, &sortToCopyBarrier, 0, nullptr);
+    UserData* userData = static_cast<UserData*>(pUserData);
+    RHI::BindComputePipeline(cmd, sSortPipeline);
+    u32 pushConstants[] = {
+        userData->passIndex,
+        resources.GetBuffer(context.indirectCount).bindlessHandle,
+        resources.GetBuffer(context.keys).bindlessHandle,
+        resources.GetBuffer(context.prefixSums).bindlessHandle,
+        resources.GetBuffer(context.sortedKeys).bindlessHandle,
+    };
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
 }
 
 struct CopyPassContext
 {
+    RHI::FrameGraph::BufferHandle splatBuffer;
+    RHI::FrameGraph::BufferHandle sortedSplatBuffer;
+    RHI::FrameGraph::BufferHandle sortedKeys;
+    RHI::FrameGraph::BufferHandle indirectCount;
+    RHI::FrameGraph::BufferHandle indirectDispatch;
 };
 static void CopyPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          CopyPassContext& context, void* pUserData)
+                          CopyPassContext& context, void* pBufferState)
 {
+    BufferState* bufferState = static_cast<BufferState*>(pBufferState);
+    u32 sortedKeysIndex = RADIX_PASS_COUNT % 2;
+
+    context.sortedSplatBuffer =
+        builder.RegisterExternalBuffer(arena, sSortedSplatBuffer);
+    bufferState->sortedSplatBuffer =
+        builder.Write(arena, context.sortedSplatBuffer);
+    context.splatBuffer = builder.Read(arena, bufferState->splatBuffer);
+    context.sortedKeys =
+        builder.Read(arena, bufferState->pingPongKeys[sortedKeysIndex]);
+    context.indirectCount = builder.Read(arena, bufferState->indirectCount);
+    context.indirectDispatch =
+        builder.Read(arena, bufferState->indirectDispatch);
 }
 static void CopyPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
                             const CopyPassContext& context, void* pUserData)
 {
-    // RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-    // RHI::BindComputePipeline(cmd, sCopyPipeline);
-    // u32 pushConstants[] = {
-    //     sSplatBuffer.bindlessHandle,
-    //     sPingPongKeys[2 * device.frameIndex].bindlessHandle,
-    //     sSortedSplatBuffers[device.frameIndex].bindlessHandle,
-    //     sIndirectDrawCountBuffers[device.frameIndex].bindlessHandle};
-    // RHI::SetPushConstants(cmd, pushConstants, sizeof(pushConstants));
-    // vkCmdDispatchIndirect(
-    //     cmd.handle, sIndirectDispatchBuffers[device.frameIndex].handle,
-    //     0);
-
-    // VkBufferMemoryBarrier copyToGraphics = RHI::BufferMemoryBarrier(
-    //     sSortedSplatBuffers[device.frameIndex],
-    //     VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
-    // vkCmdPipelineBarrier(cmd.handle,
-    // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0,
-    //                      nullptr, 1, &copyToGraphics, 0, nullptr);
-    // VkBufferMemoryBarrier cullToCopyBarrier = RHI::BufferMemoryBarrier(
-    //     sPingPongKeys[2 * device.frameIndex], VK_ACCESS_SHADER_READ_BIT,
-    //     VK_ACCESS_SHADER_WRITE_BIT);
-    // vkCmdPipelineBarrier(cmd.handle,
-    // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    //                      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0,
-    //                      nullptr, 1, &cullToCopyBarrier, 0, nullptr);
+    RHI::BindComputePipeline(cmd, sCopyPipeline);
+    u32 pushConstants[] = {
+        resources.GetBuffer(context.splatBuffer).bindlessHandle,
+        resources.GetBuffer(context.sortedKeys).bindlessHandle,
+        resources.GetBuffer(context.sortedSplatBuffer).bindlessHandle,
+        resources.GetBuffer(context.indirectCount).bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
 }
 
 struct DrawPassContext
 {
+    RHI::FrameGraph::TextureHandle colorAttachment;
+    RHI::FrameGraph::BufferHandle uniformBuffer;
+    RHI::FrameGraph::BufferHandle sortedSplatBuffer;
+    RHI::FrameGraph::BufferHandle indirectDraws;
+    RHI::FrameGraph::BufferHandle indirectCount;
 };
 static void DrawPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          DrawPassContext& context, void* pUserData)
+                          DrawPassContext& context, void* pBufferState)
 {
+    BufferState* bufferState = static_cast<BufferState*>(pBufferState);
+    context.colorAttachment = builder.ColorAttachment(
+        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+    context.uniformBuffer = builder.Read(arena, bufferState->uniformBuffer);
+    context.sortedSplatBuffer =
+        builder.Read(arena, bufferState->sortedSplatBuffer);
+    context.indirectDraws = builder.Read(arena, bufferState->indirectDraws);
+    context.indirectCount = builder.Read(arena, bufferState->indirectCount);
 }
 static void DrawPassExecute(RHI::CommandBuffer& cmd,
                             RHI::FrameGraph::ResourceMap& resources,
-                            const DrawPassContext& context, void* pUserData)
+                            const DrawPassContext& context, void* pBufferState)
 {
-    // RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    BufferState* bufferState = static_cast<BufferState*>(pBufferState);
+    RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
 
-    // const RHI::SwapchainTexture& swapchainTexture =
-    //     RenderFrameSwapchainTexture(device);
-    // VkRect2D renderArea = {{0, 0},
-    //                        {swapchainTexture.width,
-    //                        swapchainTexture.height}};
-    // VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
-    //     swapchainTexture.imageView,
-    //     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    // VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
-    //     device.depthTexture.imageView,
-    //     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    // VkRenderingInfo renderInfo =
-    //     RHI::RenderingInfo(renderArea, &colorAttachment, 1,
-    //     &depthAttachment);
+    RHI::SetViewport(
+        cmd, 0, 0, static_cast<f32>(bufferState->device->swapchainWidth),
+        static_cast<f32>(bufferState->device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, bufferState->device->swapchainWidth,
+                    bufferState->device->swapchainHeight);
 
-    // vkCmdBeginRendering(cmd.handle, &renderInfo);
-    // RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
-
-    // VkViewport viewport = {};
-    // viewport.x = 0;
-    // viewport.y = 0;
-    // viewport.width = static_cast<f32>(renderArea.extent.width);
-    // viewport.height = static_cast<f32>(renderArea.extent.height);
-    // viewport.minDepth = 0.0f;
-    // viewport.maxDepth = 1.0f;
-    // vkCmdSetViewport(cmd.handle, 0, 1, &viewport);
-
-    // VkRect2D scissor = renderArea;
-    // vkCmdSetScissor(cmd.handle, 0, 1, &scissor);
-
-    // u32 indices[2] = {sUniformBuffers[device.frameIndex].bindlessHandle,
-    //                   sSortedSplatBuffers[device.frameIndex].bindlessHandle};
-    // RHI::SetPushConstants(cmd, indices, sizeof(indices));
-    // vkCmdDrawIndirectCount(cmd.handle,
-    //                        sIndirectDrawBuffers[device.frameIndex].handle,
-    //                        0,
-    //                        sIndirectDrawCountBuffers[device.frameIndex].handle,
-    //                        0, 1, sizeof(VkDrawIndirectCommand));
-
-    // vkCmdEndRendering(cmd.handle);
+    u32 pushConstants[] = {
+        resources.GetBuffer(context.uniformBuffer).bindlessHandle,
+        resources.GetBuffer(context.sortedSplatBuffer).bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::DrawIndirectCount(cmd, resources.GetBuffer(context.indirectDraws), 0,
+                           resources.GetBuffer(context.indirectCount), 0, 1,
+                           sizeof(VkDrawIndirectCommand));
 }
 
 static const char* splatScenes[] = {
@@ -610,6 +595,13 @@ static bool LoadNextScene(RHI::Device& device)
         ArenaPopToMarker(arena, marker);
         return false;
     }
+    if (!RHI::CreateStorageBuffer(device, false, nullptr,
+                                  sizeof(Vertex) * sSplatCount,
+                                  sSortedSplatBuffer))
+    {
+        ArenaPopToMarker(arena, marker);
+        return false;
+    }
     ArenaPopToMarker(arena, marker);
     return true;
 }
@@ -669,6 +661,7 @@ int main(int argc, char* argv[])
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
+    settings.vulkan12Features.drawIndirectCount = true;
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
@@ -698,49 +691,42 @@ int main(int argc, char* argv[])
     }
 
     BufferState bufferState;
-    UserData userData;
-    userData.bufferState = &bufferState;
-    userData.passIndex = 0;
+    bufferState.device = &device;
+
+    UserData userData[RADIX_PASS_COUNT];
+    for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
+    {
+        userData[i].passIndex = i;
+        userData[i].bufferState = &bufferState;
+    }
 
     Arena& arena = GetScratchArena();
     RHI::FrameGraph fg(device);
     fg.AddPass<CullPassContext>(arena, "ViewFrustumCull",
                                 RHI::FrameGraph::PassType::Compute,
-                                CullPassBuild, CullPassExecute, &userData);
+                                CullPassBuild, CullPassExecute, &bufferState);
     fg.AddPass<WriteIndirectPassContext>(
         arena, "WriteIndirect", RHI::FrameGraph::PassType::Compute,
-        WriteIndirectPassBuild, WriteIndirectPassExecute, &userData);
+        WriteIndirectPassBuild, WriteIndirectPassExecute, &bufferState);
 
-    fg.AddPass<CountHistogramsPassContext>(
-        arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
-        CountHistogramsPassBuild, CountHistogramsPassExecute, &userData);
-
-    fg.AddPass<ScanPassContext>(arena, "Scan",
+    for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
+    {
+        fg.AddPass<CountHistogramsPassContext>(
+            arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
+            CountHistogramsPassBuild, CountHistogramsPassExecute, &userData[i]);
+        fg.AddPass<ScanPassContext>(
+            arena, "Scan", RHI::FrameGraph::PassType::Compute, ScanPassBuild,
+            ScanPassExecute, &userData[i]);
+        fg.AddPass<SortPassContext>(
+            arena, "Sort", RHI::FrameGraph::PassType::Compute, SortPassBuild,
+            SortPassExecute, &userData[i]);
+    }
+    fg.AddPass<CopyPassContext>(arena, "Copy",
                                 RHI::FrameGraph::PassType::Compute,
-                                ScanPassBuild, ScanPassExecute, &userData);
-    // for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
-    // {
-    //     fg.AddPass<CountHistogramsPassContext>(
-    //         arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
-    //         CountHistogramsPassBuild, CountHistogramsPassExecute,
-    //         &userData);
-    //     fg.AddPass<ScanPassContext>(arena, "Scan",
-    //                                 RHI::FrameGraph::PassType::Compute,
-    //                                 ScanPassBuild, ScanPassExecute,
-    //                                 &userData);
-    //     fg.AddPass<SortPassContext>(arena, "Sort",
-    //                                 RHI::FrameGraph::PassType::Compute,
-    //                                 SortPassBuild, SortPassExecute,
-    //                                 &userData);
-    // }
-    // fg.AddPass<CopyPassContext>(arena, "Copy",
-    //                             RHI::FrameGraph::PassType::Compute,
-    //                             CopyPassBuild, CopyPassExecute,
-    //                             &userData);
-    // fg.AddPass<DrawPassContext>(arena, "Draw",
-    //                             RHI::FrameGraph::PassType::Graphics,
-    //                             DrawPassBuild, DrawPassExecute,
-    //                             &userData);
+                                CopyPassBuild, CopyPassExecute, &bufferState);
+    fg.AddPass<DrawPassContext>(arena, "Draw",
+                                RHI::FrameGraph::PassType::Graphics,
+                                DrawPassBuild, DrawPassExecute, &bufferState);
     fg.Build(arena);
 
     u64 previousFrameTime = 0;
@@ -772,8 +758,7 @@ int main(int argc, char* argv[])
             1.0f / WINDOW_WIDTH, 1.0f / WINDOW_HEIGHT);
         uniformData.time.x = time;
 
-        RHI::Buffer& uniformBuffer =
-            fg.GetBuffer(userData.bufferState->uniformBuffer);
+        RHI::Buffer& uniformBuffer = fg.GetBuffer(bufferState.uniformBuffer);
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               uniformBuffer);
         fg.Execute();
