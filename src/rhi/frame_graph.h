@@ -18,10 +18,26 @@ namespace Fly
 namespace RHI
 {
 
+enum class Access : u16
+{
+    Unknown,
+    Read,
+    Write,
+    ReadWrite,
+    Sampled,
+    ColorAttachment,
+    DepthStencilRead,
+    DepthStencilWrite,
+    TransferSrc,
+    TransferDst,
+    Present,
+};
+
 struct ResourceHandle
 {
     u32 id;
-    u32 version;
+    u16 version;
+    Access access;
 
     inline bool operator==(const ResourceHandle& other) const
     {
@@ -94,14 +110,6 @@ struct FrameGraph
 
     struct BufferCreateInfo
     {
-        enum Access
-        {
-            Unknown,
-            Read,
-            Write,
-            ReadWrite
-        };
-
         RHI::Buffer* external;
         u64 size;
         VkBufferUsageFlags usage;
@@ -297,8 +305,7 @@ struct FrameGraph
         BuildFunctionImpl buildCallbackImpl;
         RecordFunctionImpl recordCallbackImpl;
         HashSet<PassNode*> edges;
-        List<ResourceHandle> inputs;
-        List<ResourceHandle> outputs;
+        List<ResourceHandle> resources;
         void* userData;
         FrameGraph* frameGraph;
         const char* name;
@@ -344,8 +351,7 @@ struct FrameGraph
         pass->userData = userData;
         pass->name = name;
         pass->edges = {};
-        pass->inputs = {};
-        pass->outputs = {};
+        pass->resources = {};
         pass->isRootPass = isRootPass;
 
         passes_.InsertBack(arena, pass);

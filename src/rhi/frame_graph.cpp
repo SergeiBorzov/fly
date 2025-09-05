@@ -80,16 +80,10 @@ namespace RHI
 
 static ResourceHandle CommonRead(Arena& arena, ResourceHandle rh,
                                  const FrameGraph::ResourceMap& resources,
-                                 List<ResourceHandle>& inputs,
-                                 const List<ResourceHandle>& outputs)
+                                 List<ResourceHandle>& passResources)
 {
 #ifndef NDEBUG
-    for (ResourceHandle handle : inputs)
-    {
-        FLY_ASSERT(handle.id != rh.id);
-    }
-
-    for (ResourceHandle handle : outputs)
+    for (ResourceHandle handle : passResources)
     {
         FLY_ASSERT(handle.id != rh.id);
     }
@@ -98,22 +92,17 @@ static ResourceHandle CommonRead(Arena& arena, ResourceHandle rh,
     const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
     FLY_ASSERT(rd);
 
-    inputs.InsertFront(arena, rh);
+    rh.access = Access::Read;
+    passResources.InsertFront(arena, rh);
     return rh;
 }
 
 static ResourceHandle CommonWrite(Arena& arena, ResourceHandle rh,
                                   FrameGraph::ResourceMap& resources,
-                                  const List<ResourceHandle>& inputs,
-                                  List<ResourceHandle>& outputs)
+                                  List<ResourceHandle>& passResources)
 {
 #ifndef NDEBUG
-    for (ResourceHandle handle : inputs)
-    {
-        FLY_ASSERT(handle.id != rh.id);
-    }
-
-    for (ResourceHandle handle : outputs)
+    for (ResourceHandle handle : passResources)
     {
         FLY_ASSERT(handle.id != rh.id);
     }
@@ -125,25 +114,21 @@ static ResourceHandle CommonWrite(Arena& arena, ResourceHandle rh,
     ResourceHandle wh;
     wh.id = rh.id;
     wh.version = rh.version + 1;
+    wh.access = Access::Write;
     FLY_ASSERT(resources.Find(wh) == nullptr);
     resources.Insert(arena, wh, *rd);
 
-    outputs.InsertFront(arena, wh);
+    passResources.InsertFront(arena, wh);
+
     return {wh};
 }
 
 static ResourceHandle CommonReadWrite(Arena& arena, ResourceHandle rh,
                                       FrameGraph::ResourceMap& resources,
-                                      List<ResourceHandle>& inputs,
-                                      List<ResourceHandle>& outputs)
+                                      List<ResourceHandle>& passResources)
 {
 #ifndef NDEBUG
-    for (ResourceHandle handle : inputs)
-    {
-        FLY_ASSERT(handle.id != rh.id);
-    }
-
-    for (ResourceHandle handle : outputs)
+    for (ResourceHandle handle : passResources)
     {
         FLY_ASSERT(handle.id != rh.id);
     }
@@ -155,11 +140,11 @@ static ResourceHandle CommonReadWrite(Arena& arena, ResourceHandle rh,
     ResourceHandle wh;
     wh.id = rh.id;
     wh.version = rh.version + 1;
+    wh.access = Access::ReadWrite;
     FLY_ASSERT(resources.Find(wh) == nullptr);
     resources.Insert(arena, wh, *rd);
 
-    inputs.InsertFront(arena, rh);
-    outputs.InsertFront(arena, wh);
+    passResources.InsertFront(arena, wh);
     return {wh};
 }
 
@@ -179,7 +164,7 @@ CountAttachments(const FrameGraph::PassNode* pass,
     FLY_ASSERT(pass);
 
     AttachmentCount count{};
-    for (ResourceHandle rh : pass->outputs)
+    for (ResourceHandle rh : pass->resources)
     {
         const FrameGraph::ResourceDescriptor* rd = resources.Find(rh);
         FLY_ASSERT(rd);
@@ -267,7 +252,7 @@ FrameGraph::Builder::CreateBuffer(Arena& arena, VkBufferUsageFlags usage,
     rd.arrayIndex = -1;
     rd.buffer.size = dataSize;
     rd.buffer.usage = usage;
-    rd.buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Unknown;
+    rd.buffer.lastAccess = Access::Unknown;
     rd.buffer.hostVisible = hostVisible;
     rd.buffer.external = nullptr;
 
@@ -344,6 +329,7 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
         ResourceHandle rh;
         rh.id = FLY_SWAPCHAIN_TEXTURE_HANDLE_ID;
         rh.version = 0;
+        rh.access = Access::ColorAttachment;
 
         resources_.Insert(arena, rh, rd);
     }
@@ -355,11 +341,12 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
     rd->texture2D.loadOp = loadOp;
     rd->texture2D.storeOp = storeOp;
     rd->texture2D.clearValue.color = clearColor;
-    currentPass_->outputs.InsertFront(arena, textureHandle.handle);
+    currentPass_->resources.InsertFront(arena, textureHandle.handle);
 
     ResourceHandle rh;
     rh.id = textureHandle.handle.id;
     rh.version = textureHandle.handle.version + 1;
+    rh.access = Access::ColorAttachment;
     FLY_ASSERT(resources_.Find(rh) == nullptr);
     resources_.Insert(arena, rh, *rd);
 
@@ -372,7 +359,7 @@ FrameGraph::Builder::Read(Arena& arena, FrameGraph::BufferHandle bufferHandle)
     FLY_ASSERT(currentPass_);
 
     ResourceHandle rh = CommonRead(arena, bufferHandle.handle, resources_,
-                                   currentPass_->inputs, currentPass_->outputs);
+                                   currentPass_->resources);
     return {rh};
 }
 
@@ -382,7 +369,7 @@ FrameGraph::Builder::Read(Arena& arena, FrameGraph::TextureHandle textureHandle)
     FLY_ASSERT(currentPass_);
 
     ResourceHandle rh = CommonRead(arena, textureHandle.handle, resources_,
-                                   currentPass_->inputs, currentPass_->outputs);
+                                   currentPass_->resources);
     return {rh};
 }
 
@@ -391,9 +378,8 @@ FrameGraph::Builder::Write(Arena& arena, FrameGraph::BufferHandle bufferHandle)
 {
     FLY_ASSERT(currentPass_);
 
-    ResourceHandle rh =
-        CommonWrite(arena, bufferHandle.handle, resources_,
-                    currentPass_->inputs, currentPass_->outputs);
+    ResourceHandle rh = CommonWrite(arena, bufferHandle.handle, resources_,
+                                    currentPass_->resources);
     return {rh};
 }
 
@@ -403,9 +389,8 @@ FrameGraph::Builder::Write(Arena& arena,
 {
     FLY_ASSERT(currentPass_);
 
-    ResourceHandle rh =
-        CommonWrite(arena, textureHandle.handle, resources_,
-                    currentPass_->inputs, currentPass_->outputs);
+    ResourceHandle rh = CommonWrite(arena, textureHandle.handle, resources_,
+                                    currentPass_->resources);
     return {rh};
 }
 
@@ -415,9 +400,8 @@ FrameGraph::Builder::ReadWrite(Arena& arena,
 {
     FLY_ASSERT(currentPass_);
 
-    ResourceHandle rh =
-        CommonReadWrite(arena, bufferHandle.handle, resources_,
-                        currentPass_->inputs, currentPass_->outputs);
+    ResourceHandle rh = CommonReadWrite(arena, bufferHandle.handle, resources_,
+                                        currentPass_->resources);
     return {rh};
 }
 
@@ -427,9 +411,8 @@ FrameGraph::Builder::ReadWrite(Arena& arena,
 {
     FLY_ASSERT(currentPass_);
 
-    ResourceHandle rh =
-        CommonReadWrite(arena, textureHandle.handle, resources_,
-                        currentPass_->inputs, currentPass_->outputs);
+    ResourceHandle rh = CommonReadWrite(arena, textureHandle.handle, resources_,
+                                        currentPass_->resources);
     return {rh};
 }
 
@@ -443,7 +426,7 @@ FrameGraph::Builder::RegisterExternalBuffer(Arena& arena, RHI::Buffer& buffer)
     rd.buffer.external = &buffer;
     rd.buffer.size = buffer.allocationInfo.size;
     rd.buffer.usage = buffer.usage;
-    rd.buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Unknown;
+    rd.buffer.lastAccess = Access::Unknown;
     rd.buffer.hostVisible = buffer.hostVisible;
 
     ResourceHandle handle = resources_.GetNextHandle();
@@ -490,77 +473,16 @@ FrameGraph::TextureHandle FrameGraph::Builder::DepthAttachment(
     rd->texture2D.loadOp = loadOp;
     rd->texture2D.storeOp = storeOp;
     rd->texture2D.clearValue.depthStencil = clearDepthStencil;
-    currentPass_->outputs.InsertFront(arena, textureHandle.handle);
+    currentPass_->resources.InsertFront(arena, textureHandle.handle);
 
     ResourceHandle rh;
     rh.id = textureHandle.handle.id;
     rh.version = textureHandle.handle.version + 1;
+    rh.access = Access::DepthStencilWrite;
     resources_.Insert(arena, rh, *rd);
 
     return {rh};
 }
-
-// Tarjan topological sort
-// static FrameGraph::PassNode**
-// TopologicalSort(Arena& arena, const List<FrameGraph::PassNode*>& passes,
-//                 u32& sortedCount)
-// {
-//     if (passes.Count() == 0)
-//     {
-//         return nullptr;
-//     }
-
-//     HashTrie<FrameGraph::PassNode*, u8> visited;
-//     List<FrameGraph::PassNode*> stack;
-//     for (FrameGraph::PassNode* pass : passes)
-//     {
-//         visited.Insert(arena, pass, 0);
-//         stack.InsertFront(arena, pass);
-//     }
-
-//     FrameGraph::PassNode** sorted =
-//         FLY_PUSH_ARENA(arena, FrameGraph::PassNode*, passes.Count());
-//     sortedCount = 0;
-
-//     while (stack.Count())
-//     {
-//         FrameGraph::PassNode* head = *(stack.Head());
-
-//         u8 value = *(visited.Find(head));
-
-//         if (value == 0)
-//         {
-//             visited.Insert(arena, head, 1);
-//             for (FrameGraph::PassNode* child : head->edges)
-//             {
-//                 u8* pValue = visited.Find(child);
-//                 if ((*pValue) == 0)
-//                 {
-//                     stack.InsertFront(arena, child);
-//                     visited.Insert(arena, child, 1);
-//                 }
-//                 else if ((*pValue) == 1)
-//                 {
-//                     FLY_ASSERT(false, "Cycle detected!");
-//                     return nullptr;
-//                 }
-//             }
-//             continue;
-//         }
-//         else if (value == 1)
-//         {
-//             visited.Insert(arena, head, 2);
-//             sorted[sortedCount++] = head;
-//             stack.PopFront();
-//         }
-//         else
-//         {
-//             stack.PopFront();
-//         }
-//     }
-
-//     return sorted;
-// }
 
 FrameGraph::FrameGraph(RHI::Device& device) : resources_(this), device_(device)
 {
@@ -581,7 +503,7 @@ bool FrameGraph::Build(Arena& arena)
     for (PassNode* pass : passes_)
     {
         // write -> reads
-        for (ResourceHandle inputHandle : pass->inputs)
+        for (ResourceHandle firstPassHandle : pass->resources)
         {
             for (PassNode* otherPass : passes_)
             {
@@ -590,34 +512,22 @@ bool FrameGraph::Build(Arena& arena)
                     continue;
                 }
 
-                for (ResourceHandle outputHandle : otherPass->outputs)
+                for (ResourceHandle secondPassHandle : otherPass->resources)
                 {
-                    if (inputHandle == outputHandle)
-                    {
-                        otherPass->edges.Insert(arena, pass);
-                    }
-                }
-            }
-        }
+                    bool readAfterWrite =
+                        firstPassHandle == secondPassHandle &&
+                        (firstPassHandle.access == Access::Write ||
+                         firstPassHandle.access == Access::ReadWrite) &&
+                        secondPassHandle.access == Access::Read;
+                    bool writeAfterWrite =
+                        firstPassHandle.id == secondPassHandle.id &&
+                        firstPassHandle.version < secondPassHandle.version &&
+                        (firstPassHandle.access == Access::Write ||
+                         firstPassHandle.access == Access::ReadWrite) &&
+                        (secondPassHandle.access == Access::Write ||
+                         secondPassHandle.access == Access::ReadWrite);
 
-        // write -> writes
-        for (ResourceHandle outputHandle : pass->outputs)
-        {
-            if (outputHandle.version == 0)
-            {
-                continue;
-            }
-
-            for (PassNode* otherPass : passes_)
-            {
-                if (otherPass == pass)
-                {
-                    continue;
-                }
-                for (ResourceHandle otherOutputHandle : otherPass->outputs)
-                {
-                    if (outputHandle.id == otherOutputHandle.id &&
-                        outputHandle.version - 1 == otherOutputHandle.version)
+                    if (readAfterWrite || writeAfterWrite)
                     {
                         otherPass->edges.Insert(arena, pass);
                     }
@@ -838,24 +748,19 @@ static VkPipelineStageFlags2 PassTypeToStageMask(FrameGraph::PassType passType)
     }
 }
 
-static VkAccessFlags2 AccessToVulkan(FrameGraph::BufferCreateInfo buffer)
+static VkAccessFlags2 AccessToVulkan(Access access)
 {
-    switch (buffer.lastAccess)
+    switch (access)
     {
-        case FrameGraph::BufferCreateInfo::Access::Read:
+        case Access::Read:
         {
-            if (buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
-            {
-                return VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT |
-                       VK_ACCESS_2_SHADER_READ_BIT;
-            }
             return VK_ACCESS_2_SHADER_READ_BIT;
         }
-        case FrameGraph::BufferCreateInfo::Access::Write:
+        case Access::Write:
         {
             return VK_ACCESS_2_SHADER_WRITE_BIT;
         }
-        case FrameGraph::BufferCreateInfo::Access::ReadWrite:
+        case Access::ReadWrite:
         {
             return VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
         }
@@ -876,36 +781,16 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
     u32 imageBarrierCount = 0;
 
     // Count how many barriers needed
-    for (ResourceHandle rh : pass->inputs)
+    for (ResourceHandle rh : pass->resources)
     {
         const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
         FLY_ASSERT(rd);
-        if (rd->type == FrameGraph::ResourceType::Buffer)
+
+        if (rd->type == FrameGraph::ResourceType::Buffer &&
+            !(rh.access == Access::Read &&
+              rd->buffer.lastAccess == Access::Read))
         {
-            if (rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::Write ||
-                rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
-            {
-                bufferBarrierCount++;
-            }
-        }
-    }
-    for (ResourceHandle rh : pass->outputs)
-    {
-        const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-        FLY_ASSERT(rd);
-        if (rd->type == FrameGraph::ResourceType::Buffer)
-        {
-            if (rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::Read ||
-                rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::Write ||
-                rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
-            {
-                bufferBarrierCount++;
-            }
+            bufferBarrierCount++;
         }
     }
 
@@ -927,73 +812,44 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
 
     // Record barriers
     u32 curr = 0;
-    for (ResourceHandle rh : pass->inputs)
+    for (ResourceHandle rh : pass->resources)
     {
         FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
         FLY_ASSERT(rd);
-        if (rd->type == FrameGraph::ResourceType::Buffer)
-        {
-            if (rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::Write ||
-                rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
-            {
-                VkAccessFlagBits2 dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-                VkPipelineStageFlagBits2 dstStageMask =
-                    VK_PIPELINE_STAGE_2_NONE;
-                if (rd->buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
-                {
-                    dstAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-                    dstStageMask |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
-                }
 
-                bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
-                bufferBarriers[curr].dstAccessMask = dstAccessMask;
-                bufferBarriers[curr].srcStageMask =
-                    PassTypeToStageMask(rd->lastPass);
-                bufferBarriers[curr].dstStageMask =
-                    dstStageMask | PassTypeToStageMask(pass->type);
-                bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
-            }
-            rd->buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Read;
-            rd->lastPass = pass->type;
-        }
-    }
-    for (ResourceHandle rh : pass->outputs)
-    {
-        FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
-        FLY_ASSERT(rd);
-        if (rd->type == FrameGraph::ResourceType::Buffer)
+        if (rd->type == FrameGraph::ResourceType::Buffer &&
+            !(rh.access == Access::Read &&
+              rd->buffer.lastAccess == Access::Read))
         {
-            if (rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::Read ||
-                rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::Write ||
-                rd->buffer.lastAccess ==
-                    FrameGraph::BufferCreateInfo::Access::ReadWrite)
+            VkAccessFlagBits2 srcAccessMask =
+                AccessToVulkan(rd->buffer.lastAccess);
+            VkAccessFlagBits2 dstAccessMask = AccessToVulkan(rh.access);
+            VkPipelineStageFlagBits2 srcStageMask =
+                PassTypeToStageMask(rd->lastPass);
+            VkPipelineStageFlagBits2 dstStageMask =
+                PassTypeToStageMask(pass->type);
+
+            if (rd->buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
             {
-                VkPipelineStageFlagBits2 srcStageMask =
-                    VK_PIPELINE_STAGE_2_NONE;
-                if (rd->buffer.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
-                {
-                    srcStageMask |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
-                }
-                bufferBarriers[curr].srcAccessMask = AccessToVulkan(rd->buffer);
-                bufferBarriers[curr].dstAccessMask =
-                    VK_ACCESS_2_SHADER_WRITE_BIT;
-                bufferBarriers[curr].srcStageMask =
-                    srcStageMask | PassTypeToStageMask(rd->lastPass);
-                bufferBarriers[curr].dstStageMask =
-                    PassTypeToStageMask(pass->type);
-                bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
+                srcAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+                dstAccessMask |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+                srcStageMask |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+                dstStageMask |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
             }
-            rd->buffer.lastAccess = FrameGraph::BufferCreateInfo::Access::Write;
-            rd->lastPass = pass->type;
+
+            bufferBarriers[curr].srcAccessMask = srcAccessMask;
+            bufferBarriers[curr].dstAccessMask = dstAccessMask;
+            bufferBarriers[curr].srcStageMask = srcStageMask;
+            bufferBarriers[curr].dstStageMask = dstStageMask;
+            bufferBarriers[curr++].buffer = GetBuffer({rh}).handle;
         }
+        rd->buffer.lastAccess = rh.access;
+        rd->lastPass = pass->type;
     }
 
     RHI::PipelineBarrier(cmd, bufferBarriers, bufferBarrierCount, nullptr, 0);
     ArenaPopToMarker(arena, marker);
+    value++;
 }
 
 void FrameGraph::Execute()
@@ -1024,7 +880,7 @@ void FrameGraph::Execute()
             u32 i = 0;
             VkRect2D renderArea;
             renderArea.offset = {0, 0};
-            for (ResourceHandle rh : pass->outputs)
+            for (ResourceHandle rh : pass->resources)
             {
                 const FrameGraph::ResourceDescriptor* rd = resources_.Find(rh);
                 FLY_ASSERT(rd);
