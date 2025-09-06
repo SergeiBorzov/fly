@@ -748,20 +748,34 @@ static VkPipelineStageFlags2 PassTypeToStageMask(FrameGraph::PassType passType)
     }
 }
 
-static VkAccessFlags2 AccessToVulkan(Access access)
+static VkAccessFlags2 AccessToVulkan(FrameGraph::PassType passType,
+                                     Access access)
 {
     switch (access)
     {
         case Access::Read:
         {
+            if (passType == FrameGraph::PassType::Transfer)
+            {
+                return VK_ACCESS_2_TRANSFER_READ_BIT;
+            }
             return VK_ACCESS_2_SHADER_READ_BIT;
         }
         case Access::Write:
         {
+            if (passType == FrameGraph::PassType::Transfer)
+            {
+                return VK_ACCESS_2_TRANSFER_WRITE_BIT;
+            }
             return VK_ACCESS_2_SHADER_WRITE_BIT;
         }
         case Access::ReadWrite:
         {
+            if (passType == FrameGraph::PassType::Transfer)
+            {
+                return VK_ACCESS_2_TRANSFER_READ_BIT |
+                       VK_ACCESS_2_TRANSFER_WRITE_BIT;
+            }
             return VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
         }
         default:
@@ -822,8 +836,9 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
               rd->buffer.lastAccess == Access::Read))
         {
             VkAccessFlagBits2 srcAccessMask =
-                AccessToVulkan(rd->buffer.lastAccess);
-            VkAccessFlagBits2 dstAccessMask = AccessToVulkan(rh.access);
+                AccessToVulkan(pass->type, rd->buffer.lastAccess);
+            VkAccessFlagBits2 dstAccessMask =
+                AccessToVulkan(pass->type, rh.access);
             VkPipelineStageFlagBits2 srcStageMask =
                 PassTypeToStageMask(rd->lastPass);
             VkPipelineStageFlagBits2 dstStageMask =
@@ -849,7 +864,6 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
 
     RHI::PipelineBarrier(cmd, bufferBarriers, bufferBarrierCount, nullptr, 0);
     ArenaPopToMarker(arena, marker);
-    value++;
 }
 
 void FrameGraph::Execute()
