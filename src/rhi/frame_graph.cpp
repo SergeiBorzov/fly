@@ -115,8 +115,6 @@ static ResourceHandle CommonWrite(Arena& arena, ResourceHandle rh,
     wh.id = rh.id;
     wh.version = rh.version + 1;
     wh.access = Access::Write;
-    FLY_ASSERT(resources.Find(wh) == nullptr);
-    resources.Insert(arena, wh, *rd);
 
     passResources.InsertFront(arena, wh);
 
@@ -141,8 +139,6 @@ static ResourceHandle CommonReadWrite(Arena& arena, ResourceHandle rh,
     wh.id = rh.id;
     wh.version = rh.version + 1;
     wh.access = Access::ReadWrite;
-    FLY_ASSERT(resources.Find(wh) == nullptr);
-    resources.Insert(arena, wh, *rd);
 
     passResources.InsertFront(arena, wh);
     return {wh};
@@ -189,7 +185,7 @@ CountAttachments(const FrameGraph::PassNode* pass,
 const RHI::Buffer&
 FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle) const
 {
-    const ResourceDescriptor* rd = resources_.Find(bufferHandle.handle);
+    const ResourceDescriptor* rd = Find(bufferHandle.handle);
     FLY_ASSERT(rd);
 
     if (rd->buffer.external)
@@ -206,14 +202,14 @@ FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle) const
 const RHI::Texture2D&
 FrameGraph::ResourceMap::GetTexture2D(TextureHandle textureHandle) const
 {
-    const ResourceDescriptor* rd = resources_.Find(textureHandle.handle);
+    const ResourceDescriptor* rd = Find(textureHandle.handle);
     FLY_ASSERT(rd);
     return frameGraph_->textures_[rd->arrayIndex];
 }
 
 RHI::Buffer& FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle)
 {
-    const ResourceDescriptor* rd = resources_.Find(bufferHandle.handle);
+    const ResourceDescriptor* rd = Find(bufferHandle.handle);
     FLY_ASSERT(rd);
 
     if (rd->buffer.external)
@@ -230,7 +226,7 @@ RHI::Buffer& FrameGraph::ResourceMap::GetBuffer(BufferHandle bufferHandle)
 RHI::Texture2D&
 FrameGraph::ResourceMap::GetTexture2D(TextureHandle textureHandle)
 {
-    const ResourceDescriptor* rd = resources_.Find(textureHandle.handle);
+    const ResourceDescriptor* rd = Find(textureHandle.handle);
     FLY_ASSERT(rd);
     return frameGraph_->textures_[rd->arrayIndex];
 }
@@ -347,8 +343,6 @@ FrameGraph::TextureHandle FrameGraph::Builder::ColorAttachment(
     rh.id = textureHandle.handle.id;
     rh.version = textureHandle.handle.version + 1;
     rh.access = Access::ColorAttachment;
-    FLY_ASSERT(resources_.Find(rh) == nullptr);
-    resources_.Insert(arena, rh, *rd);
 
     return {rh};
 }
@@ -544,10 +538,9 @@ bool FrameGraph::Build(Arena& arena)
     bufferCount_ = 0;
     textureCount_ = 0;
 
-    for (const HashTrie<ResourceHandle, ResourceDescriptor>::Node* node :
-         resources_)
+    for (const HashTrie<u32, ResourceDescriptor>::Node* node : resources_)
     {
-        ResourceHandle handle = node->key;
+        u32 id = node->key;
         const ResourceDescriptor& rd = node->value;
 
         // Note for now all commands are submitted to one graphics/compute queue
@@ -556,14 +549,13 @@ bool FrameGraph::Build(Arena& arena)
         // uniform/storage) Logic here might change if async compute will be
         // introduced
 
-        if (rd.type == FrameGraph::ResourceType::Buffer && handle.version == 0)
+        if (rd.type == FrameGraph::ResourceType::Buffer)
         {
             u32 count = rd.buffer.hostVisible ? FLY_FRAME_IN_FLIGHT_COUNT : 1;
             bufferCount_ += count;
         }
         else if (rd.type == FrameGraph::ResourceType::Texture2D &&
-                 handle.version == 0 &&
-                 handle.id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
+                 id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
         {
             textureCount_++;
         }
@@ -581,12 +573,12 @@ bool FrameGraph::Build(Arena& arena)
     u32 bufferIndex = 0;
     u32 textureIndex = 0;
 
-    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
+    for (HashTrie<u32, ResourceDescriptor>::Node* node : resources_)
     {
-        ResourceHandle handle = node->key;
+        u32 id = node->key;
         ResourceDescriptor& rd = node->value;
 
-        if (rd.type == FrameGraph::ResourceType::Buffer && handle.version == 0)
+        if (rd.type == FrameGraph::ResourceType::Buffer)
         {
             if (!rd.buffer.external)
             {
@@ -609,8 +601,7 @@ bool FrameGraph::Build(Arena& arena)
             }
         }
         else if (rd.type == FrameGraph::ResourceType::Texture2D &&
-                 handle.version == 0 &&
-                 handle.id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
+                 id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
         {
             if (!rd.texture2D.external)
             {
@@ -642,21 +633,6 @@ bool FrameGraph::Build(Arena& arena)
         }
     }
 
-    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
-    {
-        ResourceHandle handle = node->key;
-        ResourceDescriptor& rd = node->value;
-
-        if (handle.version != 0)
-        {
-            ResourceHandle rootHandle = {handle.id, 0};
-            const FrameGraph::ResourceDescriptor* rootRD =
-                resources_.Find(rootHandle);
-            FLY_ASSERT(rootRD);
-            rd.arrayIndex = rootRD->arrayIndex;
-        }
-    }
-
     device_.swapchainRecreatedCallbacks.InsertFront(
         arena, {OnSwapchainRecreated, this});
 
@@ -666,14 +642,14 @@ bool FrameGraph::Build(Arena& arena)
 void FrameGraph::Destroy()
 {
     device_.swapchainRecreatedCallbacks.Remove({OnSwapchainRecreated, this});
-    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
+    for (HashTrie<u32, ResourceDescriptor>::Node* node : resources_)
     {
-        ResourceHandle handle = node->key;
+        u32 id = node->key;
         ResourceDescriptor& rd = node->value;
 
         if (rd.type == ResourceType::Buffer)
         {
-            if (rd.buffer.external || handle.version != 0)
+            if (rd.buffer.external)
             {
                 continue;
             }
@@ -687,8 +663,7 @@ void FrameGraph::Destroy()
         }
         else if (rd.type == ResourceType::Texture2D)
         {
-            if (rd.texture2D.external || handle.version != 0 ||
-                handle.id == FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
+            if (rd.texture2D.external || id == FLY_SWAPCHAIN_TEXTURE_HANDLE_ID)
             {
                 continue;
             }
@@ -699,13 +674,13 @@ void FrameGraph::Destroy()
 
 void FrameGraph::ResizeDynamicTextures()
 {
-    for (HashTrie<ResourceHandle, ResourceDescriptor>::Node* node : resources_)
+    for (HashTrie<u32, ResourceDescriptor>::Node* node : resources_)
     {
-        ResourceHandle handle = node->key;
+        u32 id = node->key;
         ResourceDescriptor& rd = node->value;
 
-        if (rd.type == ResourceType::Texture2D && handle.version == 0 &&
-            handle.id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID &&
+        if (rd.type == ResourceType::Texture2D &&
+            id != FLY_SWAPCHAIN_TEXTURE_HANDLE_ID &&
             rd.texture2D.sizeType ==
                 FrameGraph::TextureSizeType::SwapchainRelative)
         {
@@ -801,8 +776,8 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
         FLY_ASSERT(rd);
 
         if (rd->type == FrameGraph::ResourceType::Buffer &&
-            !(rh.access == Access::Read &&
-              rd->buffer.lastAccess == Access::Read))
+            !((rh.access == Access::Read || rh.access == Access::Unknown) &&
+              (rd->buffer.lastAccess == Access::Read)))
         {
             bufferBarrierCount++;
         }
@@ -836,7 +811,7 @@ void FrameGraph::InsertBarriers(RHI::CommandBuffer& cmd,
               rd->buffer.lastAccess == Access::Read))
         {
             VkAccessFlagBits2 srcAccessMask =
-                AccessToVulkan(pass->type, rd->buffer.lastAccess);
+                AccessToVulkan(rd->lastPass, rd->buffer.lastAccess);
             VkAccessFlagBits2 dstAccessMask =
                 AccessToVulkan(pass->type, rh.access);
             VkPipelineStageFlagBits2 srcStageMask =

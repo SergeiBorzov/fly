@@ -185,47 +185,47 @@ struct FrameGraph
 
         inline ResourceDescriptor* Find(ResourceHandle resourceHandle)
         {
-            return resources_.Find(resourceHandle);
+            return resources_.Find(resourceHandle.id);
         }
 
         inline const ResourceDescriptor*
         Find(ResourceHandle resourceHandle) const
         {
-            return resources_.Find(resourceHandle);
+            return resources_.Find(resourceHandle.id);
         }
 
         inline ResourceDescriptor& Insert(Arena& arena, ResourceHandle rh,
                                           ResourceDescriptor rd)
         {
-            return resources_.Insert(arena, rh, rd);
+            return resources_.Insert(arena, rh.id, rd);
         }
 
         ResourceHandle GetNextHandle();
 
-        inline HashTrie<ResourceHandle, ResourceDescriptor>::Iterator begin()
+        inline HashTrie<u32, ResourceDescriptor>::Iterator begin()
         {
             return resources_.begin();
         }
 
-        inline HashTrie<ResourceHandle, ResourceDescriptor>::Iterator end()
+        inline HashTrie<u32, ResourceDescriptor>::Iterator end()
         {
             return resources_.end();
         }
 
-        inline HashTrie<ResourceHandle, ResourceDescriptor>::ConstIterator
+        inline HashTrie<u32, ResourceDescriptor>::ConstIterator
         begin() const
         {
             return resources_.begin();
         }
 
-        inline HashTrie<ResourceHandle, ResourceDescriptor>::ConstIterator
+        inline HashTrie<u32, ResourceDescriptor>::ConstIterator
         end() const
         {
             return resources_.end();
         }
 
     private:
-        HashTrie<ResourceHandle, ResourceDescriptor> resources_;
+        HashTrie<u32, ResourceDescriptor> resources_;
         const FrameGraph* frameGraph_;
         u32 nextHandle_ = 0;
     };
