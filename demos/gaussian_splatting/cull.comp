@@ -57,7 +57,6 @@ uint floatKey(float f)
 void main()
 {
     uint gtid = gl_GlobalInvocationID.x;
-
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
 

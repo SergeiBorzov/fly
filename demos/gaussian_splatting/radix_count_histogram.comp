@@ -28,13 +28,25 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, Keys, {
     uint value;
 })
 FLY_REGISTER_STORAGE_BUFFER(writeonly, TileHistograms, { uint count; })
-FLY_REGISTER_STORAGE_BUFFER(writeonly, GlobalHistrogram, { uint count; })
+FLY_REGISTER_STORAGE_BUFFER(, GlobalHistrogram, { uint count; })
 
 shared uint localHistogram[RADIX_HISTOGRAM_SIZE];
 void main()
 {
+    uint gtid = gl_GlobalInvocationID.x;
     uint tid = gl_LocalInvocationIndex;
     uint tileStart = gl_WorkGroupID.x * COUNT_TILE_SIZE;
+
+    if (gl_WorkGroupID.x == 0)
+    {
+        for (uint i = tid; i < RADIX_HISTOGRAM_SIZE; i += gl_WorkGroupSize.x)
+        {
+            FLY_ACCESS_STORAGE_BUFFER(GlobalHistrogram,
+                                      gPushConstants.globalHistogramBufferIndex)
+            [RADIX_HISTOGRAM_SIZE * gPushConstants.pass + i].count = 0;
+        }
+    }
+    barrier();
 
     uint count =
         gDrawCountBuffers[gPushConstants.indirectDrawCountBufferIndex].count;

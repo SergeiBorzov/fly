@@ -32,6 +32,23 @@ using namespace Fly;
 #define COUNT_TILE_SIZE COUNT_WORKGROUP_SIZE
 #define SCAN_WORKGROUP_SIZE (COUNT_WORKGROUP_SIZE / 2)
 
+static SimpleCameraFPS sCamera(80.0f,
+                               static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT,
+                               0.01f, 100.0f, Math::Vec3(0.0f, 0.0f, -5.0f));
+
+static RHI::ComputePipeline sCullPipeline;
+static RHI::ComputePipeline sWriteIndirectDispatchPipeline;
+static RHI::ComputePipeline sCopyPipeline;
+static RHI::ComputePipeline sCountPipeline;
+static RHI::ComputePipeline sScanPipeline;
+static RHI::ComputePipeline sSortPipeline;
+static RHI::GraphicsPipeline sGraphicsPipeline;
+
+static u32 sSplatCount;
+
+static RHI::Buffer sSplatBuffer;
+static RHI::Buffer sSortedSplatBuffer;
+
 #pragma pack(push, 1)
 struct Splat
 {
@@ -89,14 +106,18 @@ struct UserData
     BufferState* bufferState;
 };
 
-static Fly::SimpleCameraFPS
-    sCamera(80.0f, static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT, 0.01f,
-            100.0f, Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
-
 static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
 {
     return info.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+}
+
+static bool DeterminePresentMode(const RHI::Context& context,
+                                 const RHI::PhysicalDeviceInfo& physicalDevice,
+                                 VkPresentModeKHR& presentMode)
+{
+    presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    return true;
 }
 
 static void ErrorCallbackGLFW(i32 error, const char* description)
@@ -104,13 +125,6 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static RHI::ComputePipeline sCullPipeline;
-static RHI::ComputePipeline sWriteIndirectDispatchPipeline;
-static RHI::ComputePipeline sCopyPipeline;
-static RHI::ComputePipeline sCountPipeline;
-static RHI::ComputePipeline sScanPipeline;
-static RHI::ComputePipeline sSortPipeline;
-static RHI::GraphicsPipeline sGraphicsPipeline;
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
@@ -141,8 +155,6 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.colorBlendState.attachments[0].blendEnable = true;
@@ -194,10 +206,6 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sCullPipeline);
 }
 
-static u32 sSplatCount;
-static RHI::Buffer sSplatBuffer;
-static RHI::Buffer sSortedSplatBuffer;
-
 static void DestroyScene(RHI::Device& device)
 {
     RHI::DestroyBuffer(device, sSplatBuffer);
@@ -228,7 +236,7 @@ static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
             builder.CreateBuffer(arena,
                                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                 false, nullptr, sizeof(u32) * sSplatCount);
+                                 false, nullptr, 2 * sizeof(u32) * sSplatCount);
     }
     context.uniformBuffer = builder.CreateBuffer(
         arena,
@@ -247,7 +255,8 @@ static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
     bufferState->pingPongKeys[0] =
         builder.Write(arena, context.pingPongKeys[0]);
     bufferState->pingPongKeys[1] = context.pingPongKeys[1];
-    bufferState->indirectCount = builder.Write(arena, context.indirectCount);
+    bufferState->indirectCount =
+        builder.ReadWrite(arena, context.indirectCount);
     bufferState->uniformBuffer = context.uniformBuffer;
     bufferState->tileHistograms = builder.CreateBuffer(
         arena,
@@ -269,7 +278,8 @@ static void CullPassExecute(RHI::CommandBuffer& cmd,
     u32 pushConstants[] = {
         resources.GetBuffer(context.uniformBuffer).bindlessHandle,
         resources.GetBuffer(context.splatBuffer).bindlessHandle,
-        resources.GetBuffer(context.pingPongKeys[0]).bindlessHandle,
+        resources.GetBuffer(context.pingPongKeys[RADIX_PASS_COUNT % 2])
+            .bindlessHandle,
         resources.GetBuffer(context.indirectCount).bindlessHandle, sSplatCount};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, workGroupCount, 1, 1);
@@ -344,7 +354,7 @@ static void CountHistogramsPassBuild(Arena& arena,
         builder.Read(arena, bufferState->indirectDispatch);
     context.tileHistograms = builder.Write(arena, bufferState->tileHistograms);
     context.globalHistograms =
-        builder.Write(arena, bufferState->globalHistograms);
+        builder.ReadWrite(arena, bufferState->globalHistograms);
 
     bufferState->tileHistograms = context.tileHistograms;
     bufferState->globalHistograms = context.globalHistograms;
@@ -364,7 +374,8 @@ static void CountHistogramsPassExecute(
         resources.GetBuffer(context.globalHistograms).bindlessHandle};
 
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch),
+                          0);
 }
 
 struct ScanPassContext
@@ -383,8 +394,8 @@ static void ScanPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
         builder.Read(arena, bufferState->indirectDispatch);
     context.globalHistograms =
         builder.Read(arena, bufferState->globalHistograms);
-    context.tileHistograms = builder.Write(arena, bufferState->tileHistograms);
-
+    context.tileHistograms =
+        builder.ReadWrite(arena, bufferState->tileHistograms);
     bufferState->tileHistograms = context.tileHistograms;
 }
 static void ScanPassExecute(RHI::CommandBuffer& cmd,
@@ -400,7 +411,8 @@ static void ScanPassExecute(RHI::CommandBuffer& cmd,
         resources.GetBuffer(context.globalHistograms).bindlessHandle,
         resources.GetBuffer(context.tileHistograms).bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch),
+                          sizeof(VkDispatchIndirectCommand));
 }
 
 struct SortPassContext
@@ -444,7 +456,8 @@ static void SortPassExecute(RHI::CommandBuffer& cmd,
         resources.GetBuffer(context.sortedKeys).bindlessHandle,
     };
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch));
+    RHI::DispatchIndirect(cmd, resources.GetBuffer(context.indirectDispatch),
+                          0);
 }
 
 struct CopyPassContext
@@ -595,7 +608,7 @@ static bool LoadNextScene(RHI::Device& device)
         ArenaPopToMarker(arena, marker);
         return false;
     }
-    if (!RHI::CreateStorageBuffer(device, false, nullptr,
+    if (!RHI::CreateStorageBuffer(device, false, vertices,
                                   sizeof(Vertex) * sSplatCount,
                                   sSortedSplatBuffer))
     {
@@ -661,13 +674,14 @@ int main(int argc, char* argv[])
     const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
-    settings.vulkan12Features.drawIndirectCount = true;
+    settings.determinePresentModeCallback = DeterminePresentMode;
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
+    settings.vulkan12Features.drawIndirectCount = true;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
@@ -709,7 +723,7 @@ int main(int argc, char* argv[])
         arena, "WriteIndirect", RHI::FrameGraph::PassType::Compute,
         WriteIndirectPassBuild, WriteIndirectPassExecute, &bufferState);
 
-    for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
+    for (u32 i = 0; i < 4; i++)
     {
         fg.AddPass<CountHistogramsPassContext>(
             arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
