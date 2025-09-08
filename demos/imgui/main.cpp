@@ -6,6 +6,7 @@
 
 #include "rhi/allocation_callbacks.h"
 #include "rhi/context.h"
+#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
@@ -16,6 +17,11 @@
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
+
+struct UserData
+{
+    RHI::Device* device;
+};
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -31,23 +37,30 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static void ExecuteCommands(RHI::Device& device)
+struct GUIPassContext
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    RHI::FrameGraph::TextureHandle colorAttachment;
+};
 
-    const RHI::SwapchainTexture& swapchainTexture =
-        RenderFrameSwapchainTexture(device);
+void GuiPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
+                  GUIPassContext& context, void* pUserData)
+{
+    context.colorAttachment = builder.ColorAttachment(
+        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+}
 
-    VkRect2D renderArea = {{0, 0},
-                           {swapchainTexture.width, swapchainTexture.height}};
-    VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
-        swapchainTexture.imageView, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo =
-        RHI::RenderingInfo(renderArea, &colorAttachment, 1);
+void GuiPassExecute(RHI::CommandBuffer& cmd,
+                    RHI::FrameGraph::ResourceMap& resources,
+                    const GUIPassContext& context, void* pUserData)
+{
+    UserData* userData = static_cast<UserData*>(pUserData);
+    RHI::SetViewport(
+        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
+        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
+                    userData->device->swapchainHeight);
 
-    vkCmdBeginRendering(cmd.handle, &renderInfo);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
-    vkCmdEndRendering(cmd.handle);
 }
 
 int main(int argc, char* argv[])
@@ -73,7 +86,8 @@ int main(int argc, char* argv[])
     glfwSetErrorCallback(ErrorCallbackGLFW);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Imgui demo", nullptr, nullptr);
+    GLFWwindow* window =
+        glfwCreateWindow(1280, 720, "Imgui demo", nullptr, nullptr);
     if (!window)
     {
         FLY_ERROR("Failed to create glfw window");
@@ -164,6 +178,14 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to create imgui font texture");
     }
 
+    UserData userData;
+    userData.device = &device;
+    Arena& arena = GetScratchArena();
+    RHI::FrameGraph fg(device);
+    fg.AddPass(arena, "GuiPass", RHI::FrameGraph::PassType::Graphics,
+               GuiPassBuild, GuiPassExecute, &userData);
+    fg.Build(arena);
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -174,12 +196,11 @@ int main(int argc, char* argv[])
         ImGui::ShowDemoWindow();
         ImGui::Render();
 
-        RHI::BeginRenderFrame(device);
-        ExecuteCommands(device);
-        RHI::EndRenderFrame(device);
+        fg.Execute();
     }
 
     RHI::WaitAllDevicesIdle(context);
+    fg.Destroy();
     ImGui_ImplVulkan_Shutdown();
     vkDestroyDescriptorPool(device.logicalDevice, descriptorPool,
                             RHI::GetVulkanAllocationCallbacks());
