@@ -48,6 +48,8 @@ struct Texture2D
 {
     VmaAllocationInfo allocationInfo;
     Sampler sampler;
+    VkAccessFlagBits2 accessMask;
+    VkPipelineStageFlagBits2 pipelineStageMask;
     VmaAllocation allocation;
     VkImage image = VK_NULL_HANDLE;
     VkImageView imageView = VK_NULL_HANDLE;

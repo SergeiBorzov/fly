@@ -4,6 +4,8 @@
 #include <volk.h>
 
 #include "core/types.h"
+#include "rhi/barrier.h"
+
 #include "vma.h"
 
 namespace Fly
@@ -16,8 +18,10 @@ struct Device;
 struct Buffer
 {
     VmaAllocationInfo allocationInfo;
-    VkBuffer handle = VK_NULL_HANDLE;
+    VkAccessFlagBits2 accessMask;
+    VkPipelineStageFlagBits2 pipelineStageMask;
     VmaAllocation allocation;
+    VkBuffer handle = VK_NULL_HANDLE;
     VkBufferUsageFlags usage;
     u32 bindlessHandle = FLY_MAX_U32;
     bool hostVisible = false;

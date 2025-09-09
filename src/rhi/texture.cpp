@@ -554,6 +554,8 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
+    texture.accessMask = VK_ACCESS_2_NONE;
+    texture.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
     texture.image = CreateVulkanImage2D(
         device, texture.allocationInfo, texture.allocation, usage, format,
         VK_IMAGE_TILING_OPTIMAL, width, height, mipLevelCount);

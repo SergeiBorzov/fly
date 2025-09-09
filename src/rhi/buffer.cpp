@@ -102,6 +102,8 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
         CopyDataToBuffer(device, data, size, 0, buffer);
     }
 
+    buffer.accessMask = VK_ACCESS_2_NONE;
+    buffer.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
     buffer.hostVisible = hostVisible;
     buffer.usage = usage;
     buffer.bindlessHandle = FLY_MAX_U32;
