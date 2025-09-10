@@ -6,6 +6,7 @@
 #include "vma.h"
 #include <volk.h>
 
+
 namespace Fly
 {
 namespace RHI
@@ -14,6 +15,7 @@ namespace RHI
 struct Device;
 
 u32 GetTexelSize(VkFormat format);
+VkImageAspectFlags GetImageAspectMask(VkFormat format);
 
 struct Sampler
 {

@@ -329,6 +329,108 @@ RenderingInfo(const VkRect2D& renderArea,
     return renderInfo;
 }
 
+static void InsertBarriers(RHI::CommandBuffer& cmd,
+                           VkPipelineStageFlagBits2 pipelineStageMask,
+                           const RecordBufferInput* bufferInput,
+                           const RecordTextureInput* textureInput)
+{
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    VkBufferMemoryBarrier2* bufferBarriers = nullptr;
+    u32 bufferBarrierCount = 0;
+
+    if (bufferInput && bufferInput->bufferCount > 0)
+    {
+        bufferBarriers = FLY_PUSH_ARENA(arena, VkBufferMemoryBarrier2,
+                                        bufferInput->bufferCount);
+        for (u32 i = 0; i < bufferInput->bufferCount; i++)
+        {
+            RHI::Buffer& buffer = *(bufferInput->buffers[i]);
+
+            // TODO
+            if (buffer.pipelineStageMask != pipelineStageMask ||
+                buffer.accessMask != bufferInput->bufferAccesses[i])
+            {
+                VkBufferMemoryBarrier2& barrier =
+                    bufferBarriers[bufferBarrierCount];
+                barrier = {};
+                barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.offset = 0;
+                barrier.size = VK_WHOLE_SIZE;
+
+                barrier.srcAccessMask = buffer.accessMask;
+                barrier.dstAccessMask = bufferInput->bufferAccesses[i];
+                barrier.srcStageMask = buffer.pipelineStageMask;
+                barrier.dstStageMask = pipelineStageMask;
+                barrier.buffer = buffer.handle;
+
+                buffer.accessMask = bufferInput->bufferAccesses[i];
+                buffer.pipelineStageMask = pipelineStageMask;
+                ++bufferBarrierCount;
+            }
+        }
+    }
+
+    VkImageMemoryBarrier2* imageBarriers = nullptr;
+    u32 imageBarrierCount = 0;
+    if (textureInput && textureInput->textureCount > 0)
+    {
+        imageBarriers = FLY_PUSH_ARENA(arena, VkImageMemoryBarrier2,
+                                       textureInput->textureCount);
+
+        for (u32 i = 0; i < textureInput->textureCount; i++)
+        {
+            RHI::Texture2D& texture = *(textureInput->textures[i]);
+
+            // TODO
+            if (texture.pipelineStageMask != pipelineStageMask ||
+                texture.imageLayout !=
+                    textureInput->imageLayoutsAccesses[i].imageLayout ||
+                texture.accessMask !=
+                    textureInput->imageLayoutsAccesses[i].accessMask)
+            {
+                VkImageMemoryBarrier2& barrier =
+                    imageBarriers[imageBarrierCount];
+                barrier = {};
+                barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+                barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier.image = texture.image;
+                barrier.srcAccessMask = texture.accessMask;
+                barrier.dstAccessMask =
+                    textureInput->imageLayoutsAccesses[i].accessMask;
+                barrier.srcStageMask = texture.pipelineStageMask;
+                barrier.dstStageMask = pipelineStageMask;
+                barrier.oldLayout = texture.imageLayout;
+                barrier.newLayout =
+                    textureInput->imageLayoutsAccesses[i].imageLayout;
+
+                barrier.subresourceRange.aspectMask =
+                    GetImageAspectMask(texture.format);
+                barrier.subresourceRange.baseMipLevel = 0;
+                barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+                barrier.subresourceRange.baseArrayLayer = 0;
+                barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+                texture.accessMask =
+                    textureInput->imageLayoutsAccesses[i].accessMask;
+                texture.pipelineStageMask = pipelineStageMask;
+                texture.imageLayout =
+                    textureInput->imageLayoutsAccesses[i].imageLayout;
+                ++imageBarrierCount;
+            }
+        }
+    }
+
+    RHI::PipelineBarrier(cmd, bufferBarriers, bufferBarrierCount, imageBarriers,
+                         imageBarrierCount);
+
+    ArenaPopToMarker(arena, marker);
+}
+
 void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
                      RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput,
@@ -336,6 +438,9 @@ void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
 {
     RHI::BeginRenderFrame(device);
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, bufferInput,
+                   textureInput);
 
     vkCmdBeginRendering(cmd.handle, &renderingInfo);
     recordCallback(cmd, bufferInput, textureInput, userData);

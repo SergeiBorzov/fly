@@ -19,28 +19,6 @@ static u32 Log2(u32 x)
     return result;
 }
 
-static VkImageAspectFlags GetImageAspect(VkFormat format)
-{
-    switch (format)
-    {
-        case VK_FORMAT_D16_UNORM:
-        case VK_FORMAT_X8_D24_UNORM_PACK32:
-        case VK_FORMAT_D32_SFLOAT:
-        {
-            return VK_IMAGE_ASPECT_DEPTH_BIT;
-        }
-        case VK_FORMAT_D24_UNORM_S8_UINT:
-        case VK_FORMAT_D32_SFLOAT_S8_UINT:
-        {
-            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-        }
-        default:
-        {
-            return VK_IMAGE_ASPECT_COLOR_BIT;
-        }
-    }
-}
-
 static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
                             Fly::RHI::Cubemap& cubemap)
 {
@@ -280,6 +258,28 @@ namespace Fly
 {
 namespace RHI
 {
+
+VkImageAspectFlags GetImageAspectMask(VkFormat format)
+{
+    switch (format)
+    {
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+        case VK_FORMAT_D32_SFLOAT:
+        {
+            return VK_IMAGE_ASPECT_DEPTH_BIT;
+        }
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        {
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+        default:
+        {
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+        }
+    }
+}
 
 u32 GetTexelSize(VkFormat format)
 {
@@ -564,8 +564,9 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
         return false;
     }
 
-    texture.imageView = CreateVulkanImageView2D(
-        device, texture.image, format, mipLevelCount, GetImageAspect(format));
+    texture.imageView =
+        CreateVulkanImageView2D(device, texture.image, format, mipLevelCount,
+                                GetImageAspectMask(format));
     if (texture.imageView == VK_NULL_HANDLE)
     {
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
