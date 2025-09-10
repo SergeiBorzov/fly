@@ -6,7 +6,6 @@
 
 #include "rhi/allocation_callbacks.h"
 #include "rhi/context.h"
-#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
@@ -17,11 +16,6 @@
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
-
-struct UserData
-{
-    RHI::Device* device;
-};
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -37,30 +31,25 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-struct GUIPassContext
+void RecordDrawGui(RHI::CommandBuffer& cmd,
+                   const RHI::RecordBufferInput* bufferInput,
+                   const RHI::RecordTextureInput* textureInput, void* pUserData)
 {
-    RHI::FrameGraph::TextureHandle colorAttachment;
-};
-
-void GuiPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                  GUIPassContext& context, void* pUserData)
-{
-    context.colorAttachment = builder.ColorAttachment(
-        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
 }
 
-void GuiPassExecute(RHI::CommandBuffer& cmd,
-                    RHI::FrameGraph::ResourceMap& resources,
-                    const GUIPassContext& context, void* pUserData)
+void DrawGui(RHI::Device& device)
 {
-    UserData* userData = static_cast<UserData*>(pUserData);
-    RHI::SetViewport(
-        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
-        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
-                    userData->device->swapchainHeight);
-
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+    VkRenderingAttachmentInfo colorAttachment =
+        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
+    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+        &colorAttachment, 1);
+    RHI::ExecuteGraphics(device, renderingInfo, RecordDrawGui);
 }
 
 int main(int argc, char* argv[])
@@ -178,14 +167,6 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to create imgui font texture");
     }
 
-    UserData userData;
-    userData.device = &device;
-    Arena& arena = GetScratchArena();
-    RHI::FrameGraph fg(device);
-    fg.AddPass(arena, "GuiPass", RHI::FrameGraph::PassType::Graphics,
-               GuiPassBuild, GuiPassExecute, &userData);
-    fg.Build(arena);
-
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -196,11 +177,10 @@ int main(int argc, char* argv[])
         ImGui::ShowDemoWindow();
         ImGui::Render();
 
-        fg.Execute();
+        DrawGui(device);
     }
 
     RHI::WaitAllDevicesIdle(context);
-    fg.Destroy();
     ImGui_ImplVulkan_Shutdown();
     vkDestroyDescriptorPool(device.logicalDevice, descriptorPool,
                             RHI::GetVulkanAllocationCallbacks());

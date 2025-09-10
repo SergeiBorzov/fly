@@ -4,7 +4,6 @@
 #include <volk.h>
 
 #include "core/types.h"
-#include "rhi/barrier.h"
 
 #include "vma.h"
 

@@ -4,8 +4,8 @@
 #include "core/platform.h"
 #include "core/thread_context.h"
 
+#include "rhi/command_buffer.h"
 #include "rhi/context.h"
-#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
@@ -14,6 +14,8 @@
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
+
+static RHI::GraphicsPipeline sGraphicsPipeline;
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -29,36 +31,52 @@ static void ErrorCallbackGLFW(int error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-struct UserData
+static bool CreatePipeline(RHI::Device& device)
 {
-    RHI::Device* device;
-    RHI::GraphicsPipeline pipeline;
-};
+    RHI::ShaderProgram shaderProgram{};
+    if (!Fly::LoadShaderFromSpv(device, "triangle.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
+    if (!Fly::LoadShaderFromSpv(device, "triangle.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
 
-struct TrianglePassContext
-{
-    RHI::FrameGraph::TextureHandle colorAttachment;
-};
+    RHI::GraphicsPipelineFixedStateStage fixedState{};
+    fixedState.pipelineRendering.colorAttachments[0] =
+        device.surfaceFormat.format;
+    fixedState.pipelineRendering.colorAttachmentCount = 1;
+    fixedState.colorBlendState.attachmentCount = 1;
 
-static void TrianglePassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                              TrianglePassContext& context, void* pUserData)
-{
-    context.colorAttachment = builder.ColorAttachment(
-        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sGraphicsPipeline))
+    {
+        FLY_ERROR("Failed to create graphics pipeline");
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+    return true;
 }
 
-static void TrianglePassExecute(RHI::CommandBuffer& cmd,
-                                RHI::FrameGraph::ResourceMap& resources,
-                                const TrianglePassContext& context,
-                                void* pUserData)
+static void DestroyPipeline(RHI::Device& device)
 {
-    UserData* userData = static_cast<UserData*>(pUserData);
-    RHI::BindGraphicsPipeline(cmd, userData->pipeline);
-    RHI::SetViewport(
-        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
-        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
-                    userData->device->swapchainHeight);
+    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+}
+
+static void DrawTriangle(RHI::CommandBuffer& cmd,
+                         const RHI::RecordBufferInput* bufferInput,
+                         const RHI::RecordTextureInput* textureInput,
+                         void* pUserData)
+{
+    RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
     RHI::Draw(cmd, 3, 1, 0, 0);
 }
 
@@ -114,54 +132,26 @@ int main(int argc, char* argv[])
 
     RHI::Device& device = context.devices[0];
 
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "triangle.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    if (!CreatePipeline(device))
     {
+        FLY_ERROR("Failed to create pipeline");
         return -1;
     }
-    if (!Fly::LoadShaderFromSpv(device, "triangle.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return -1;
-    }
-
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-
-    RHI::GraphicsPipeline graphicsPipeline{};
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     graphicsPipeline))
-    {
-        FLY_ERROR("Failed to create graphics pipeline");
-        return -1;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
-    UserData userData;
-    userData.pipeline = graphicsPipeline;
-    userData.device = &device;
-
-    Arena& arena = GetScratchArena();
-    RHI::FrameGraph fg(device);
-    fg.AddPass<TrianglePassContext>(
-        arena, "TrianglePass", RHI::FrameGraph::PassType::Graphics,
-        TrianglePassBuild, TrianglePassExecute, &userData);
-    fg.Build(arena);
 
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-        fg.Execute();
+
+        VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
+            RenderFrameSwapchainTexture(device).imageView);
+        VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+            {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+            &colorAttachment, 1, nullptr, nullptr, 1, 0);
+        RHI::ExecuteGraphics(device, renderingInfo, DrawTriangle);
     }
 
     RHI::WaitDeviceIdle(device);
-
-    RHI::DestroyGraphicsPipeline(device, graphicsPipeline);
+    DestroyPipeline(device);
     RHI::DestroyContext(context);
 
     glfwDestroyWindow(window);

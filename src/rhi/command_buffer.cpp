@@ -266,5 +266,82 @@ VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
     return barrier;
 }
 
+VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
+                                              VkAttachmentLoadOp loadOp,
+                                              VkAttachmentStoreOp storeOp,
+                                              VkClearColorValue clearColor)
+{
+    VkRenderingAttachmentInfo attachmentInfo{};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.pNext = nullptr;
+    attachmentInfo.imageView = imageView;
+    attachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    attachmentInfo.loadOp = loadOp;
+    attachmentInfo.storeOp = storeOp;
+    attachmentInfo.clearValue.color = clearColor;
+
+    return attachmentInfo;
+}
+
+VkRenderingAttachmentInfo
+DepthAttachmentInfo(VkImageView imageView, VkAttachmentLoadOp loadOp,
+                    VkAttachmentStoreOp storeOp,
+                    VkClearDepthStencilValue clearDepthStencil)
+{
+    VkRenderingAttachmentInfo attachmentInfo{};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.pNext = nullptr;
+    attachmentInfo.imageView = imageView;
+    attachmentInfo.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    attachmentInfo.loadOp = loadOp;
+    attachmentInfo.storeOp = storeOp;
+    attachmentInfo.clearValue.depthStencil = clearDepthStencil;
+
+    return attachmentInfo;
+}
+
+VkRenderingInfo
+RenderingInfo(const VkRect2D& renderArea,
+              const VkRenderingAttachmentInfo* colorAttachments,
+              u32 colorAttachmentCount,
+              const VkRenderingAttachmentInfo* depthAttachment,
+              const VkRenderingAttachmentInfo* stencilAttachment,
+              u32 layerCount, u32 viewMask)
+{
+    FLY_ASSERT(colorAttachments);
+    FLY_ASSERT(colorAttachmentCount > 0);
+
+    VkRenderingInfo renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = nullptr;
+    renderInfo.flags = 0;
+    renderInfo.viewMask = viewMask;
+    renderInfo.layerCount = layerCount;
+    renderInfo.renderArea = renderArea;
+    renderInfo.colorAttachmentCount = colorAttachmentCount;
+    renderInfo.pColorAttachments = colorAttachments;
+    renderInfo.pDepthAttachment = depthAttachment;
+    renderInfo.pStencilAttachment = stencilAttachment;
+
+    return renderInfo;
+}
+
+void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
+                     RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput,
+                     const RecordTextureInput* textureInput, void* userData)
+{
+    RHI::BeginRenderFrame(device);
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    vkCmdBeginRendering(cmd.handle, &renderingInfo);
+    recordCallback(cmd, bufferInput, textureInput, userData);
+    vkCmdEndRendering(cmd.handle);
+    RHI::EndRenderFrame(device);
+}
+
 } // namespace RHI
 } // namespace Fly

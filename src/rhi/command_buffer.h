@@ -105,6 +105,59 @@ void ResetQueryPool(CommandBuffer& cmd, VkQueryPool, u32 firstQuery,
 void WriteTimestamp(CommandBuffer& cmd, VkPipelineStageFlagBits pipelineStage,
                     VkQueryPool queryPool, u32 query);
 /*----------*/
+VkRenderingAttachmentInfo
+ColorAttachmentInfo(VkImageView imageView,
+                    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                    VkClearColorValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
+VkRenderingAttachmentInfo
+DepthAttachmentInfo(VkImageView imageView,
+                    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                    VkClearDepthStencilValue clearDepthStencil = {1.0f, 0});
+
+VkRenderingInfo
+RenderingInfo(const VkRect2D& renderArea,
+              const VkRenderingAttachmentInfo* colorAttachments,
+              u32 colorAttachmentCount,
+              const VkRenderingAttachmentInfo* depthAttachment = nullptr,
+              const VkRenderingAttachmentInfo* stencilAttachment = nullptr,
+              u32 layerCount = 1, u32 viewMask = 0);
+
+struct ImageLayoutAccess
+{
+    VkAccessFlagBits2 accessMask = VK_ACCESS_2_NONE;
+    VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+};
+
+struct RecordBufferInput
+{
+    RHI::Buffer** buffers;
+    const VkAccessFlagBits2* bufferAccesses;
+    u32 bufferCount;
+};
+
+struct RecordTextureInput
+{
+    RHI::Texture2D** textures;
+    const ImageLayoutAccess* imageLayoutsAccesses;
+    u32 textureCount;
+};
+
+typedef void (*RecordCallback)(RHI::CommandBuffer& cmd,
+                               const RecordBufferInput* bufferInput,
+                               const RecordTextureInput* textureInput,
+                               void* userData);
+
+void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
+                     RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput = nullptr,
+                     const RecordTextureInput* textureInput = nullptr,
+                     void* userData = nullptr);
+/* void ExecuteCompute(RHI::Device& device, RecordCallback recordCallback, */
+/*                     const RecordBufferInput* bufferInput = nullptr, */
+/*                     const RecordTextureInput* textureInput = nullptr, */
+/*                     void* userData = nullptr); */
 
 } // namespace RHI
 } // namespace Fly
