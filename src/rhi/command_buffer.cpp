@@ -439,6 +439,20 @@ void ExecuteCompute(RHI::Device& device, RecordCallback recordCallback,
     recordCallback(cmd, bufferInput, textureInput, userData);
 }
 
+void ExecuteComputeIndirect(RHI::Device& device, RecordCallback recordCallback,
+                            const RecordBufferInput* bufferInput,
+                            const RecordTextureInput* textureInput,
+                            void* userData)
+{
+    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+    InsertBarriers(cmd,
+                   VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
+                       VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                   bufferInput, textureInput);
+    recordCallback(cmd, bufferInput, textureInput, userData);
+}
+
 void ExecuteTransfer(RHI::Device& device, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput,
                      const RecordTextureInput* textureInput, void* userData)

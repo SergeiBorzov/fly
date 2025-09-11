@@ -158,6 +158,10 @@ void ExecuteCompute(Device& device, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput = nullptr,
                     const RecordTextureInput* textureInput = nullptr,
                     void* userData = nullptr);
+void ExecuteComputeIndirect(Device& device, RecordCallback recordCallback,
+                            const RecordBufferInput* bufferInput = nullptr,
+                            const RecordTextureInput* textureInput = nullptr,
+                            void* userData = nullptr);
 void ExecuteTransfer(Device& device, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
