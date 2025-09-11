@@ -276,7 +276,9 @@ int main(int argc, char* argv[])
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               uniformBuffer);
 
+        RHI::BeginRenderFrame(device);
         DrawCubes(device);
+        RHI::EndRenderFrame(device);
     }
 
     RHI::WaitDeviceIdle(device);

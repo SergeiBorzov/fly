@@ -4,7 +4,6 @@
 
 #include "rhi/buffer.h"
 #include "rhi/context.h"
-#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
@@ -31,8 +30,9 @@ struct UniformData
 static RHI::GraphicsPipeline sDrawPipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sIndirectDrawBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sIndirectCountBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sDrawCommands;
+static RHI::Buffer sDrawCountBuffer;
+static RHI::Texture2D sDepthTexture;
 
 static const u32 sDrawCount = 30000;
 
@@ -43,19 +43,6 @@ static Fly::SimpleCameraFPS sTopCamera(85.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                        Fly::Math::Vec3(0.0f, 20.0f, -5.0f));
 
 static Fly::SimpleCameraFPS* sMainCamera = &sCamera;
-
-struct UserData
-{
-    RHI::Device* device;
-    Fly::Scene* scene;
-    RHI::FrameGraph::BufferHandle instanceDataBuffer;
-    RHI::FrameGraph::BufferHandle meshDataBuffer;
-    RHI::FrameGraph::BufferHandle boundingSphereDrawBuffer;
-    RHI::FrameGraph::BufferHandle materialBuffer;
-    RHI::FrameGraph::BufferHandle drawCommands;
-    RHI::FrameGraph::BufferHandle drawCount;
-    RHI::FrameGraph::BufferHandle cameraBuffer;
-};
 
 static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
                                      const RHI::PhysicalDeviceInfo& info)
@@ -144,130 +131,168 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sCullPipeline);
 }
 
-struct CullPassContext
+static bool CreateResources(RHI::Device& device)
 {
-    RHI::FrameGraph::BufferHandle cameraBuffer;
-    RHI::FrameGraph::BufferHandle drawCommands;
-    RHI::FrameGraph::BufferHandle drawCount;
-};
+    if (!RHI::CreateTexture2D(
+            device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
+            device.swapchainWidth, device.swapchainHeight,
+            VK_FORMAT_D32_SFLOAT_S8_UINT, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Repeat, sDepthTexture))
+    {
+        FLY_ERROR("Failed to create depth texture");
+        return false;
+    }
 
-static void CullPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          CullPassContext& context, void* pUserData)
-{
-    UserData* userData = static_cast<UserData*>(pUserData);
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        if (!RHI::CreateBuffer(device, true,
+                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               nullptr, sizeof(UniformData),
+                               sUniformBuffers[i]))
+        {
+            FLY_ERROR("Failed to create uniform buffer %u", i);
+            return false;
+        }
+    }
 
-    userData->instanceDataBuffer = builder.RegisterExternalBuffer(
-        arena, userData->scene->indirectDrawData.instanceDataBuffer);
-    userData->meshDataBuffer = builder.RegisterExternalBuffer(
-        arena, userData->scene->indirectDrawData.meshDataBuffer);
-    userData->boundingSphereDrawBuffer = builder.RegisterExternalBuffer(
-        arena, userData->scene->indirectDrawData.boundingSphereDrawBuffer);
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           nullptr,
+                           sizeof(VkDrawIndexedIndirectCommand) * sDrawCount,
+                           sDrawCommands))
+    {
+        return false;
+    }
 
-    builder.Read(arena, userData->instanceDataBuffer);
-    builder.Read(arena, userData->meshDataBuffer);
-    builder.Read(arena, userData->boundingSphereDrawBuffer);
-
-    context.cameraBuffer = builder.CreateBuffer(
-        arena,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        true, nullptr, sizeof(UniformData));
-    builder.Read(arena, context.cameraBuffer);
-
-    context.drawCommands = builder.CreateBuffer(
-        arena,
-        VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        false, nullptr, sizeof(VkDrawIndexedIndirectCommand) * sDrawCount);
-    context.drawCount =
-        builder.CreateBuffer(arena,
-                             VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                             false, nullptr, sizeof(u32));
-
-    userData->drawCommands = builder.Write(arena, context.drawCommands);
-    userData->drawCount = builder.Write(arena, context.drawCount);
-    userData->cameraBuffer = context.cameraBuffer;
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           nullptr, sizeof(u32), sDrawCountBuffer))
+    {
+        return false;
+    }
+    return true;
 }
 
-static void CullPassExecute(RHI::CommandBuffer& cmd,
-                            RHI::FrameGraph::ResourceMap& resources,
-                            const CullPassContext& context, void* pUserData)
+static void DestroyResources(RHI::Device& device)
 {
-    UserData* userData = static_cast<UserData*>(pUserData);
+    RHI::DestroyBuffer(device, sDrawCountBuffer);
+    RHI::DestroyBuffer(device, sDrawCommands);
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        RHI::DestroyBuffer(device, sUniformBuffers[i]);
+    }
+    RHI::DestroyTexture2D(device, sDepthTexture);
+}
+
+static void RecordFrustumCull(RHI::CommandBuffer& cmd,
+                              const RHI::RecordBufferInput* bufferInput,
+                              const RHI::RecordTextureInput* textureInput,
+                              void* pUserData)
+{
+    Scene* scene = static_cast<Scene*>(pUserData);
     RHI::BindComputePipeline(cmd, sCullPipeline);
 
+    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& drawCommands = *(bufferInput->buffers[1]);
+    RHI::Buffer& drawCount = *(bufferInput->buffers[2]);
+
     u32 pushConstants[] = {
-        resources.GetBuffer(userData->instanceDataBuffer).bindlessHandle,
-        resources.GetBuffer(userData->meshDataBuffer).bindlessHandle,
-        resources.GetBuffer(userData->cameraBuffer).bindlessHandle,
-        resources.GetBuffer(userData->boundingSphereDrawBuffer).bindlessHandle,
-        resources.GetBuffer(userData->drawCommands).bindlessHandle,
-        resources.GetBuffer(userData->drawCount).bindlessHandle,
+        scene->indirectDrawData.instanceDataBuffer.bindlessHandle,
+        scene->indirectDrawData.meshDataBuffer.bindlessHandle,
+        uniformBuffer.bindlessHandle,
+        scene->indirectDrawData.boundingSphereDrawBuffer.bindlessHandle,
+        drawCommands.bindlessHandle,
+        drawCount.bindlessHandle,
         sDrawCount};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, static_cast<u32>(Math::Ceil(sDrawCount / 64.0f)), 1, 1);
 }
 
-struct DrawPassContext
+static void RecordDrawScene(RHI::CommandBuffer& cmd,
+                            const RHI::RecordBufferInput* bufferInput,
+                            const RHI::RecordTextureInput* textureInput,
+                            void* pUserData)
 {
-    RHI::FrameGraph::TextureHandle depthTexture;
-    RHI::FrameGraph::TextureHandle colorAttachment;
-    RHI::FrameGraph::TextureHandle depthAttachment;
-};
-
-static void DrawPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          DrawPassContext& context, void* pUserData)
-{
-    UserData* userData = static_cast<UserData*>(pUserData);
-
-    userData->materialBuffer =
-        builder.RegisterExternalBuffer(arena, userData->scene->materialBuffer);
-
-    builder.Read(arena, userData->instanceDataBuffer);
-    builder.Read(arena, userData->meshDataBuffer);
-    builder.Read(arena, userData->cameraBuffer);
-    builder.Read(arena, userData->materialBuffer);
-    builder.Read(arena, userData->drawCommands);
-    builder.Read(arena, userData->drawCount);
-
-    context.depthTexture = builder.CreateTexture2D(
-        arena, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 1.0f, 1.0f,
-        VK_FORMAT_D32_SFLOAT_S8_UINT);
-    context.colorAttachment = builder.ColorAttachment(
-        arena, 0, RHI::FrameGraph::TextureHandle::sBackBuffer);
-    context.depthAttachment =
-        builder.DepthAttachment(arena, context.depthTexture);
-}
-
-static void DrawPassExecute(RHI::CommandBuffer& cmd,
-                            RHI::FrameGraph::ResourceMap& resources,
-                            const DrawPassContext& context, void* pUserData)
-{
-    UserData* userData = static_cast<UserData*>(pUserData);
+    Scene* scene = static_cast<Scene*>(pUserData);
 
     RHI::BindGraphicsPipeline(cmd, sDrawPipeline);
-    RHI::BindIndexBuffer(cmd, userData->scene->indexBuffer,
-                         VK_INDEX_TYPE_UINT32);
+    RHI::BindIndexBuffer(cmd, scene->indexBuffer, VK_INDEX_TYPE_UINT32);
 
-    RHI::SetViewport(
-        cmd, 0, 0, static_cast<f32>(userData->device->swapchainWidth),
-        static_cast<f32>(userData->device->swapchainHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, userData->device->swapchainWidth,
-                    userData->device->swapchainHeight);
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+
+    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& drawCommands = *(bufferInput->buffers[1]);
+    RHI::Buffer& drawCountBuffer = *(bufferInput->buffers[2]);
 
     u32 pushConstants[] = {
-        resources.GetBuffer(userData->instanceDataBuffer).bindlessHandle,
-        resources.GetBuffer(userData->meshDataBuffer).bindlessHandle,
-        resources.GetBuffer(userData->cameraBuffer).bindlessHandle,
-        userData->scene->materialBuffer.bindlessHandle};
+        scene->indirectDrawData.instanceDataBuffer.bindlessHandle,
+        scene->indirectDrawData.meshDataBuffer.bindlessHandle,
+        uniformBuffer.bindlessHandle,
+        scene->materialBuffer.bindlessHandle,
+    };
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
-    RHI::DrawIndexedIndirectCount(
-        cmd, resources.GetBuffer(userData->drawCommands), 0,
-        resources.GetBuffer(userData->drawCount), 0, sDrawCount,
-        sizeof(VkDrawIndexedIndirectCommand));
+    RHI::DrawIndexedIndirectCount(cmd, drawCommands, 0, drawCountBuffer, 0,
+                                  sDrawCount,
+                                  sizeof(VkDrawIndexedIndirectCommand));
+}
+
+static void DrawScene(RHI::Device& device, Scene* scene)
+{
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    RHI::RecordBufferInput bufferInput;
+    bufferInput.bufferCount = 3;
+
+    RHI::Buffer** buffers =
+        FLY_PUSH_ARENA(arena, RHI::Buffer*, bufferInput.bufferCount);
+    buffers[0] = &sUniformBuffers[device.frameIndex];
+    buffers[1] = &sDrawCommands;
+    buffers[2] = &sDrawCountBuffer;
+    bufferInput.buffers = buffers;
+
+    {
+        VkAccessFlagBits2* bufferAccesses =
+            FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 3);
+        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+        bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
+        bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        bufferInput.bufferAccesses = bufferAccesses;
+
+        RHI::ExecuteCompute(device, RecordFrustumCull, &bufferInput, nullptr,
+                            scene);
+    }
+
+    {
+        VkAccessFlagBits2* bufferAccesses =
+            FLY_PUSH_ARENA(arena, VkAccessFlagBits2, bufferInput.bufferCount);
+        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+        bufferAccesses[1] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+        bufferAccesses[2] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+
+        bufferInput.bufferAccesses = bufferAccesses;
+
+        VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
+            RenderFrameSwapchainTexture(device).imageView);
+        VkRenderingAttachmentInfo depthAttachment =
+            RHI::DepthAttachmentInfo(sDepthTexture.imageView);
+        VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+            {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+            &colorAttachment, 1, &depthAttachment);
+        RHI::ExecuteGraphics(device, renderingInfo, RecordDrawScene,
+                             &bufferInput, nullptr, scene);
+    }
+    ArenaPopToMarker(arena, marker);
 }
 
 int main(int argc, char* argv[])
@@ -360,19 +385,10 @@ int main(int argc, char* argv[])
     {
         return false;
     }
-
-    UserData userData;
-    userData.scene = &scene;
-    userData.device = &device;
-
-    RHI::FrameGraph fg(device);
-    fg.AddPass<CullPassContext>(arena, "ViewFrustumCull",
-                                RHI::FrameGraph::PassType::Compute,
-                                CullPassBuild, CullPassExecute, &userData);
-    fg.AddPass<DrawPassContext>(arena, "Unlit",
-                                RHI::FrameGraph::PassType::Graphics,
-                                DrawPassBuild, DrawPassExecute, &userData);
-    fg.Build(arena);
+    if (!CreateResources(device))
+    {
+        return false;
+    }
 
     // Main Loop
     u64 previousFrameTime = 0;
@@ -403,15 +419,17 @@ int main(int argc, char* argv[])
         uniformData.nearPlane = sMainCamera->GetNear();
         uniformData.farPlane = sMainCamera->GetFar();
 
-        RHI::Buffer& cameraBuffer = fg.GetBuffer(userData.cameraBuffer);
+        RHI::Buffer& cameraBuffer = sUniformBuffers[device.frameIndex];
         RHI::CopyDataToBuffer(device, &uniformData, sizeof(UniformData), 0,
                               cameraBuffer);
-        fg.Execute();
+
+        RHI::BeginRenderFrame(device);
+        DrawScene(device, &scene);
+        RHI::EndRenderFrame(device);
     }
 
     RHI::WaitAllDevicesIdle(context);
-    fg.Destroy();
-
+    DestroyResources(device);
     Fly::UnloadScene(device, scene);
     DestroyPipelines(device);
     RHI::DestroyContext(context);

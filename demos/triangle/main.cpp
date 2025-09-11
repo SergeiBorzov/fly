@@ -147,7 +147,10 @@ int main(int argc, char* argv[])
         VkRenderingInfo renderingInfo = RHI::RenderingInfo(
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1, nullptr, nullptr, 1, 0);
+
+        RHI::BeginRenderFrame(device);
         RHI::ExecuteGraphics(device, renderingInfo, DrawTriangle);
+        RHI::EndRenderFrame(device);
     }
 
     RHI::WaitDeviceIdle(device);

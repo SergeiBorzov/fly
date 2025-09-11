@@ -149,15 +149,19 @@ typedef void (*RecordCallback)(RHI::CommandBuffer& cmd,
                                const RecordTextureInput* textureInput,
                                void* userData);
 
-void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
+void ExecuteGraphics(Device& device, const VkRenderingInfo& renderingInfo,
                      RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);
-/* void ExecuteCompute(RHI::Device& device, RecordCallback recordCallback, */
-/*                     const RecordBufferInput* bufferInput = nullptr, */
-/*                     const RecordTextureInput* textureInput = nullptr, */
-/*                     void* userData = nullptr); */
+void ExecuteCompute(Device& device, RecordCallback recordCallback,
+                    const RecordBufferInput* bufferInput = nullptr,
+                    const RecordTextureInput* textureInput = nullptr,
+                    void* userData = nullptr);
+void ExecuteTransfer(Device& device, RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput = nullptr,
+                     const RecordTextureInput* textureInput = nullptr,
+                     void* userData = nullptr);
 
 } // namespace RHI
 } // namespace Fly
