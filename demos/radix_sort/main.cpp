@@ -8,7 +8,6 @@
 #include "rhi/allocation_callbacks.h"
 #include "rhi/buffer.h"
 #include "rhi/context.h"
-#include "rhi/frame_graph.h"
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
@@ -30,8 +29,17 @@ static RHI::ComputePipeline sScanPipeline;
 static RHI::ComputePipeline sSortPipeline;
 static VkQueryPool sTimestampQueryPool;
 static f32 sTimestampPeriod;
+static u32 sMaxKeyCount;
 
 static RHI::Buffer sKeys[2];
+static RHI::Buffer sTileHistograms;
+static RHI::Buffer sGlobalHistograms;
+
+struct RadixSortData
+{
+    u32 passIndex;
+    u32 keyCount;
+};
 
 static bool CreateComputePipelines(RHI::Device& device)
 {
@@ -93,100 +101,75 @@ static void DestroyComputePipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sSortPipeline);
 }
 
-struct BufferState
+static bool CreateResources(RHI::Device& device)
 {
-    RHI::FrameGraph::BufferHandle keys[2];
-    RHI::FrameGraph::BufferHandle tileHistograms;
-    RHI::FrameGraph::BufferHandle globalHistograms;
-    u32 keyCount;
-};
+    for (u32 i = 0; i < 2; i++)
+    {
+        if (!RHI::CreateStorageBuffer(device, true, nullptr,
+                                      sizeof(u32) * sMaxKeyCount, sKeys[i]))
+        {
+            return false;
+        }
+    }
 
-struct UserData
-{
-    BufferState* bufferState;
-    u32 passIndex;
-};
+    if (!RHI::CreateBuffer(
+            device, false,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            nullptr, sizeof(u32) * RADIX_HISTOGRAM_SIZE * RADIX_PASS_COUNT,
+            sGlobalHistograms))
+    {
+        return false;
+    }
 
-struct InitPassContext
-{
-    RHI::FrameGraph::BufferHandle globalHistograms;
-};
+    u32 tileCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(sMaxKeyCount) / COUNT_TILE_SIZE));
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           nullptr,
+                           sizeof(u32) * RADIX_HISTOGRAM_SIZE * tileCount,
+                           sTileHistograms))
+    {
+        return false;
+    }
 
-static void InitPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          InitPassContext& context, void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
-    u32 tileCount = static_cast<u32>(Math::Ceil(
-        static_cast<f32>(userData.bufferState->keyCount) / COUNT_TILE_SIZE));
-
-    context.globalHistograms = builder.CreateBuffer(
-        arena,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        false, nullptr, sizeof(u32) * RADIX_HISTOGRAM_SIZE * RADIX_PASS_COUNT);
-    userData.bufferState->globalHistograms =
-        builder.Write(arena, context.globalHistograms);
-
-    userData.bufferState->tileHistograms = builder.CreateBuffer(
-        arena,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        false, nullptr, sizeof(u32) * RADIX_HISTOGRAM_SIZE * tileCount);
-
-    userData.bufferState->keys[1] =
-        builder.RegisterExternalBuffer(arena, sKeys[1]);
-    userData.bufferState->keys[0] =
-        builder.RegisterExternalBuffer(arena, sKeys[0]);
+    return true;
 }
 
-static void InitPassExecute(RHI::CommandBuffer& cmd,
-                            RHI::FrameGraph::ResourceMap& resources,
-                            const InitPassContext& context, void* pUserData)
+static void DestroyResources(RHI::Device& device)
 {
-    RHI::ResetQueryPool(cmd, sTimestampQueryPool, 0, 2);
-    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        sTimestampQueryPool, 0);
-    RHI::FillBuffer(cmd, resources.GetBuffer(context.globalHistograms), 0);
+    for (u32 i = 0; i < 2; i++)
+    {
+        RHI::DestroyBuffer(device, sKeys[i]);
+    }
+    RHI::DestroyBuffer(device, sTileHistograms);
+    RHI::DestroyBuffer(device, sGlobalHistograms);
 }
 
-struct CountHistogramsPassContext
+static void RecordCountHistograms(RHI::CommandBuffer& cmd,
+                                  const RHI::RecordBufferInput* bufferInput,
+                                  const RHI::RecordTextureInput* textureInput,
+                                  void* pUserData)
 {
-    RHI::FrameGraph::BufferHandle keys;
-    RHI::FrameGraph::BufferHandle tileHistograms;
-    RHI::FrameGraph::BufferHandle globalHistograms;
-};
+    RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
+    u32 workGroupCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(sortData.keyCount) / COUNT_TILE_SIZE));
 
-static void CountHistogramsPassBuild(Arena& arena,
-                                     RHI::FrameGraph::Builder& builder,
-                                     CountHistogramsPassContext& context,
-                                     void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
-    u32 inKeysIndex = userData.passIndex % 2;
-
-    context.keys = builder.Read(arena, userData.bufferState->keys[inKeysIndex]);
-    context.tileHistograms =
-        builder.Write(arena, userData.bufferState->tileHistograms);
-    context.globalHistograms =
-        builder.Write(arena, userData.bufferState->globalHistograms);
-
-    userData.bufferState->tileHistograms = context.tileHistograms;
-    userData.bufferState->globalHistograms = context.globalHistograms;
-}
-
-static void CountHistogramsPassExecute(
-    RHI::CommandBuffer& cmd, RHI::FrameGraph::ResourceMap& resources,
-    const CountHistogramsPassContext& context, void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
-    u32 workGroupCount = static_cast<u32>(Math::Ceil(
-        static_cast<f32>(userData.bufferState->keyCount) / COUNT_TILE_SIZE));
+    if (sortData.passIndex == 0)
+    {
+        RHI::ResetQueryPool(cmd, sTimestampQueryPool, 0, 2);
+        RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                            sTimestampQueryPool, 0);
+    }
 
     RHI::BindComputePipeline(cmd, sCountPipeline);
 
-    const RHI::Buffer& keys = resources.GetBuffer(context.keys);
-    RHI::Buffer& tileHistograms = resources.GetBuffer(context.tileHistograms);
-    RHI::Buffer& globalHistograms =
-        resources.GetBuffer(context.globalHistograms);
-    u32 pushConstants[] = {userData.passIndex, userData.bufferState->keyCount,
+    RHI::Buffer& keys = *(bufferInput->buffers[0]);
+    RHI::Buffer& tileHistograms = *(bufferInput->buffers[1]);
+    RHI::Buffer& globalHistograms = *(bufferInput->buffers[2]);
+
+    u32 pushConstants[] = {sortData.passIndex, sortData.keyCount,
                            keys.bindlessHandle, tileHistograms.bindlessHandle,
                            globalHistograms.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
@@ -194,144 +177,114 @@ static void CountHistogramsPassExecute(
     RHI::Dispatch(cmd, workGroupCount, 1, 1);
 }
 
-struct ScanPassContext
+static void RecordScan(RHI::CommandBuffer& cmd,
+                       const RHI::RecordBufferInput* bufferInput,
+                       const RHI::RecordTextureInput* textureInput,
+                       void* pUserData)
 {
-    RHI::FrameGraph::BufferHandle tileHistograms;
-    RHI::FrameGraph::BufferHandle globalHistograms;
-};
-
-static void ScanPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          ScanPassContext& context, void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
-
-    context.tileHistograms =
-        builder.Write(arena, userData.bufferState->tileHistograms);
-    context.globalHistograms =
-        builder.Read(arena, userData.bufferState->globalHistograms);
-
-    userData.bufferState->tileHistograms = context.tileHistograms;
-}
-
-static void ScanPassExecute(RHI::CommandBuffer& cmd,
-                            RHI::FrameGraph::ResourceMap& resources,
-                            const ScanPassContext& context, void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
+    RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
 
     RHI::BindComputePipeline(cmd, sScanPipeline);
 
-    RHI::Buffer& tileHistograms = resources.GetBuffer(context.tileHistograms);
-    const RHI::Buffer& globalHistograms =
-        resources.GetBuffer(context.globalHistograms);
-    u32 pushConstants[] = {userData.passIndex, userData.bufferState->keyCount,
+    RHI::Buffer& tileHistograms = *(bufferInput->buffers[0]);
+    RHI::Buffer& globalHistograms = *(bufferInput->buffers[1]);
+
+    u32 pushConstants[] = {sortData.passIndex, sortData.keyCount,
                            tileHistograms.bindlessHandle,
                            globalHistograms.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, RADIX_HISTOGRAM_SIZE, 1, 1);
 }
 
-struct SortPassContext
+static void RecordSort(RHI::CommandBuffer& cmd,
+                       const RHI::RecordBufferInput* bufferInput,
+                       const RHI::RecordTextureInput* textureInput,
+                       void* pUserData)
 {
-    RHI::FrameGraph::BufferHandle prefixSums;
-    RHI::FrameGraph::BufferHandle keys;
-    RHI::FrameGraph::BufferHandle sortedKeys;
-};
-
-static void SortPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                          SortPassContext& context, void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
-    u32 inKeysIndex = userData.passIndex % 2;
-    u32 outKeysIndex = (inKeysIndex + 1) % 2;
-    context.prefixSums =
-        builder.Read(arena, userData.bufferState->tileHistograms);
-    context.keys = builder.Read(arena, userData.bufferState->keys[inKeysIndex]);
-    context.sortedKeys =
-        builder.Write(arena, userData.bufferState->keys[outKeysIndex]);
-
-    userData.bufferState->keys[outKeysIndex] = context.sortedKeys;
-}
-
-static void SortPassExecute(RHI::CommandBuffer& cmd,
-                            RHI::FrameGraph::ResourceMap& resources,
-                            const SortPassContext& context, void* pUserData)
-{
-    UserData& userData = *(static_cast<UserData*>(pUserData));
-    u32 workGroupCount = static_cast<u32>(Math::Ceil(
-        static_cast<f32>(userData.bufferState->keyCount) / COUNT_TILE_SIZE));
+    RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
+    u32 workGroupCount = static_cast<u32>(
+        Math::Ceil(static_cast<f32>(sortData.keyCount) / COUNT_TILE_SIZE));
 
     RHI::BindComputePipeline(cmd, sSortPipeline);
 
-    const RHI::Buffer& prefixSums = resources.GetBuffer(context.prefixSums);
-    const RHI::Buffer& keys = resources.GetBuffer(context.keys);
-    RHI::Buffer& sortedKeys = resources.GetBuffer(context.sortedKeys);
+    RHI::Buffer& keys = *(bufferInput->buffers[0]);
+    RHI::Buffer& prefixSums = *(bufferInput->buffers[1]);
+    RHI::Buffer& sortedKeys = *(bufferInput->buffers[2]);
 
-    u32 pushConstants[] = {userData.passIndex, userData.bufferState->keyCount,
+    u32 pushConstants[] = {sortData.passIndex, sortData.keyCount,
                            keys.bindlessHandle, prefixSums.bindlessHandle,
                            sortedKeys.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, workGroupCount, 1, 1);
+
+    if (sortData.passIndex == RADIX_PASS_COUNT - 1)
+    {
+        RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                            sTimestampQueryPool, 1);
+    }
 }
 
-struct FinishPassContext
+static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
 {
-};
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
 
-static void FinishPassBuild(Arena& arena, RHI::FrameGraph::Builder& builder,
-                            FinishPassContext& context, void* pUserData)
-{
-    return;
-}
-
-static void FinishPassExecute(RHI::CommandBuffer& cmd,
-                              RHI::FrameGraph::ResourceMap& resources,
-                              const FinishPassContext& context, void* pUserData)
-{
-    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        sTimestampQueryPool, 1);
-}
-
-static void RadixSort(Arena& arena, RHI::Device& device, const u32* keys,
-                      u32 keyCount)
-{
     RHI::CopyDataToBuffer(device, keys, sizeof(u32) * keyCount, 0, sKeys[0]);
-    
-    RHI::FrameGraph fg(device);
 
-    BufferState bufferState;
-    bufferState.keyCount = keyCount;
+    RHI::BeginRenderFrame(device);
+    RHI::RecordBufferInput bufferInput;
 
-    UserData userData[RADIX_PASS_COUNT];
+    RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 3);
+    VkAccessFlagBits2* bufferAccesses =
+        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 3);
+    bufferInput.buffers = buffers;
+    bufferInput.bufferAccesses = bufferAccesses;
+
+    RadixSortData sortData;
+    sortData.keyCount = keyCount;
     for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
     {
-        userData[i].bufferState = &bufferState;
-        userData[i].passIndex = i;
-    }
+        sortData.passIndex = i;
+        {
+            buffers[0] = &sKeys[i % 2];
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+            buffers[1] = &sTileHistograms;
+            bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
+            buffers[2] = &sGlobalHistograms;
+            bufferAccesses[2] =
+                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+            bufferInput.bufferCount = 3;
 
-    fg.AddPass<InitPassContext>(arena, "Init",
-                                RHI::FrameGraph::PassType::Transfer,
-                                InitPassBuild, InitPassExecute, &userData[0]);
+            RHI::ExecuteCompute(device, RecordCountHistograms, &bufferInput,
+                                nullptr, &sortData);
+        }
 
-    for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
-    {
-        fg.AddPass<CountHistogramsPassContext>(
-            arena, "CountHistogram", RHI::FrameGraph::PassType::Compute,
-            CountHistogramsPassBuild, CountHistogramsPassExecute, &userData[i]);
-        fg.AddPass<ScanPassContext>(
-            arena, "Scan", RHI::FrameGraph::PassType::Compute, ScanPassBuild,
-            ScanPassExecute, &userData[i]);
-        fg.AddPass<SortPassContext>(
-            arena, "Sort", RHI::FrameGraph::PassType::Compute, SortPassBuild,
-            SortPassExecute, &userData[i]);
+        {
+            buffers[0] = &sTileHistograms;
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_WRITE_BIT;
+            buffers[1] = &sGlobalHistograms;
+            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+            bufferInput.bufferCount = 2;
+
+            RHI::ExecuteCompute(device, RecordScan, &bufferInput, nullptr,
+                                &sortData);
+        }
+
+        {
+            buffers[0] = &sKeys[i % 2];
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+            buffers[1] = &sTileHistograms;
+            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+            buffers[2] = &sKeys[(i + 1) % 2];
+            bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
+            RHI::ExecuteCompute(device, RecordSort, &bufferInput, nullptr,
+                                &sortData);
+        }
     }
-    fg.AddPass<FinishPassContext>(arena, "Finish",
-                                  RHI::FrameGraph::PassType::Compute,
-                                  FinishPassBuild, FinishPassExecute, nullptr);
-    fg.Build(arena);
-    fg.Execute();
+    RHI::EndRenderFrame(device);
+
+    ArenaPopToMarker(arena, marker);
     RHI::WaitDeviceIdle(device);
-    fg.Destroy();
 }
 
 static int CompareU32(const void* a, const void* b)
@@ -357,7 +310,6 @@ int main(int argc, char* argv[])
     {
         return -1;
     }
-    Arena& arena = GetScratchArena();
 
     // Initialize volk, window
     if (volkInitialize() != VK_SUCCESS)
@@ -397,28 +349,26 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    ArenaMarker marker = ArenaGetMarker(arena);
-    u32 maxKeyCount = 100000;
-    for (u32 i = 0; i < 2; i++)
+    sMaxKeyCount = 100000;
+    if (!CreateResources(device))
     {
-        if (!RHI::CreateStorageBuffer(device, true, nullptr,
-                                      sizeof(u32) * maxKeyCount, sKeys[i]))
-        {
-            FLY_ERROR("Failed to create keys buffer");
-            return -1;
-        }
+        return false;
     }
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
 
     for (u32 i = 0; i < 25; i++)
     {
-        u32 keyCount = Math::RandomU32(1, maxKeyCount);
+        u32 keyCount = Math::RandomU32(1, sMaxKeyCount);
         u32* keys = FLY_PUSH_ARENA(arena, u32, keyCount);
         for (u32 i = 0; i < keyCount; i++)
         {
             keys[i] = Math::RandomU32(0, 12345678);
         }
 
-        RadixSort(arena, device, keys, keyCount);
+        RadixSort(device, keys, keyCount);
+
         u64 timestamps[2];
         vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
                               sizeof(timestamps), timestamps, sizeof(uint64_t),
@@ -447,16 +397,12 @@ int main(int argc, char* argv[])
         FLY_LOG("[%u]: Uniform random elements count %u: radix sort: "
                 "%f ms | qsort: %f ms",
                 i, keyCount, radixSortTime, qsortTime);
+        ArenaPopToMarker(arena, marker);
     }
-    ArenaPopToMarker(arena, marker);
 
     RHI::WaitAllDevicesIdle(context);
+    DestroyResources(device);
     DestroyComputePipelines(device);
-
-    for (u32 i = 0; i < 2; i++)
-    {
-        RHI::DestroyBuffer(device, sKeys[i]);
-    }
 
     RHI::DestroyContext(context);
 
