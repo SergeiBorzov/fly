@@ -37,8 +37,10 @@ bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
 
     RHI::BeginTransfer(device);
     RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-    RHI::ChangeTexture2DLayout(cmd, texture,
-                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    RHI::ChangeTextureAccessLayout(cmd, texture,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   VK_ACCESS_2_MEMORY_READ_BIT);
     RHI::EndTransfer(device);
 
     return true;

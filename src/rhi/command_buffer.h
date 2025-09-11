@@ -50,8 +50,6 @@ bool SubmitCommandBuffer(CommandBuffer& commandBuffer, VkQueue queue,
                          void* pNext = nullptr);
 bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources);
 
-void ChangeTexture2DLayout(CommandBuffer& commandBuffer,
-                           RHI::Texture2D& texture, VkImageLayout newLayout);
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout);
@@ -166,6 +164,10 @@ void ExecuteTransfer(Device& device, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);
+
+void ChangeTextureAccessLayout(CommandBuffer& commandBuffer, Texture2D& texture,
+                               VkImageLayout newLayout,
+                               VkAccessFlagBits2 accessMask);
 
 } // namespace RHI
 } // namespace Fly

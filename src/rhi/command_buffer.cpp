@@ -202,19 +202,6 @@ ImageSubresourceRange(VkImageAspectFlags aspectMask)
     return subImage;
 }
 
-void ChangeTexture2DLayout(CommandBuffer& commandBuffer,
-                           RHI::Texture2D& texture, VkImageLayout newLayout)
-{
-    if (texture.imageLayout == newLayout)
-    {
-        return;
-    }
-
-    RecordTransitionImageLayout(commandBuffer, texture.image,
-                                texture.imageLayout, newLayout);
-    texture.imageLayout = newLayout;
-}
-
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout)
@@ -462,6 +449,29 @@ void ExecuteTransfer(RHI::Device& device, RecordCallback recordCallback,
     InsertBarriers(cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, bufferInput,
                    textureInput);
     recordCallback(cmd, bufferInput, textureInput, userData);
+}
+
+void ChangeTextureAccessLayout(CommandBuffer& cmd, RHI::Texture2D& texture,
+                               VkImageLayout newLayout,
+                               VkAccessFlagBits2 accessMask)
+{
+    if (texture.imageLayout == newLayout && texture.accessMask == accessMask)
+    {
+        return;
+    }
+
+    RHI::ImageLayoutAccess layoutAccess;
+    layoutAccess.imageLayout = newLayout;
+    layoutAccess.accessMask = accessMask;
+
+    RHI::RecordTextureInput textureInput;
+    RHI::Texture2D* pTexture = &texture;
+    textureInput.textureCount = 1;
+    textureInput.textures = &pTexture;
+    textureInput.imageLayoutsAccesses = &layoutAccess;
+
+    RHI::InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, nullptr,
+                        &textureInput);
 }
 
 } // namespace RHI
