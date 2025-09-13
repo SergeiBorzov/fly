@@ -1,0 +1,47 @@
+################################################################
+# SCENES / DATA
+################################################################
+
+external_git_repository = use_extension(
+    "//scripts/bazel/extensions:external_git_repository.bzl",
+    "external_git_repository",
+)
+
+external_assets = use_extension(
+    "//scripts/bazel/extensions:external_assets.bzl",
+    "external_assets",
+)
+
+external_git_repository.base(
+    name = "gltf_sample_models",
+    build_file = "//scripts/bazel/target:BUILD.gltf_sample_models.bazel",
+    commit = "d7a3cc8e51d7c573771ae77a57f16b0662a905c6",
+    remote = "https://github.com/KhronosGroup/glTF-Sample-Models.git",
+)
+use_repo(external_git_repository, "gltf_sample_models")
+
+external_git_repository.base(
+    name = "splat_sample_scenes",
+    build_file = "//scripts/bazel/target:BUILD.splat_sample_scenes.bazel",
+    commit = "2c9796f59101d77d23f6eee53baa5018c9a6fcdc",
+    remote = "https://huggingface.co/cakewalk/splat-data.git",
+)
+use_repo(external_git_repository, "splat_sample_scenes")
+
+################################################################
+# AMBIENTCG
+################################################################
+
+external_assets.base(
+    name = "ambientcg",
+    urls = [
+        "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/DaySkyHDRI051B_somO930g/DaySkyHDRI051B_4K-TONEMAPPED.jpg",
+        "https://ambientcg.com/get?file=Onyx010_4K-PNG.zip",
+    ],
+    sha256 = [
+        "3c809dd5d2a5ec97a4cd3b6fa9d9667472e866e99eb0b140dadb0758a0fd19b3",
+        "b5edf829368864965fe8b5f8a14e02b32882967be74edfd888ce5fe497164647",
+    ],
+    build_file = "//scripts/bazel/target:BUILD.ambientcg.bazel",
+)
+use_repo(external_assets, "ambientcg")
