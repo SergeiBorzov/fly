@@ -69,9 +69,13 @@ cc_library(
             "WIN32_LEAN_AND_MEAN",
             "_CRT_SECURE_NO_WARNINGS",
         ],
-        "@platforms//os:linux": [
+        "@fly//scripts/bazel/platform:linux_wayland": [
             "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WAYLAND_KHR",
+        ],
+        "@fly//scripts/bazel/platform:linux_x11": [
+            "VK_ENABLE_BETA_EXTENSIONS",
+            "VK_USE_PLATFORM_XCB_KHR",
         ],
 	"@platforms//os:osx": [
 	    "VK_ENABLE_BETA_EXTENSIONS",
@@ -448,9 +452,13 @@ cc_library(
             "NOMINMAX",
             "WIN32_LEAN_AND_MEAN",
         ],
-        "@platforms//os:linux": [
+        "@fly//scripts/bazel/platform:linux_wayland": [
             "VK_ENABLE_BETA_EXTENSIONS",
             "VK_USE_PLATFORM_WAYLAND_KHR",
+        ],
+        "@fly//scripts/bazel/platform:linux_x11": [
+            "VK_ENABLE_BETA_EXTENSIONS",
+            "VK_USE_PLATFORM_XCB_KHR",
         ],
 	"@platforms//os:osx": [
 	    "VK_ENABLE_BETA_EXTENSIONS",

@@ -1,0 +1,19 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
+string_flag(
+    name = "window_system",
+    build_setting_default = "x11",  # Linux default
+)
+
+config_setting(
+    name = "linux_x11",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {"window_system": "x11"},
+)
+
+config_setting(
+    name = "linux_wayland",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {"window_system": "wayland"},
+)
+
