@@ -9,245 +9,6 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-static u32 Log2(u32 x)
-{
-    u32 result = 0;
-    while (x >>= 1)
-    {
-        ++result;
-    }
-    return result;
-}
-
-static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
-                            Fly::RHI::Texture& texture)
-{
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.image = texture.image;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.subresourceRange.levelCount = 1;
-
-    i32 mipWidth = static_cast<i32>(texture.width);
-    i32 mipHeight = static_cast<i32>(texture.height);
-
-    for (u32 i = 1; i < texture.mipLevelCount; i++)
-    {
-        barrier.subresourceRange.baseMipLevel = i - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                             nullptr, 1, &barrier);
-
-        VkImageBlit blit{};
-        blit.srcOffsets[0] = {0, 0, 0};
-        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.srcSubresource.mipLevel = i - 1;
-        blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = 1;
-        blit.dstOffsets[0] = {0, 0, 0};
-        blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
-                              mipHeight > 1 ? mipHeight / 2 : 1, 1};
-        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.dstSubresource.mipLevel = i;
-        blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = 1;
-
-        vkCmdBlitImage(cmd.handle, texture.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-                       VK_FILTER_LINEAR);
-
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-                             nullptr, 0, nullptr, 1, &barrier);
-
-        if (mipWidth > 1)
-        {
-            mipWidth /= 2;
-        }
-        if (mipHeight > 1)
-        {
-            mipHeight /= 2;
-        }
-    }
-
-    barrier.subresourceRange.baseMipLevel = texture.mipLevelCount - 1;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
-                         0, nullptr, 1, &barrier);
-}
-
-static VkImage CreateVulkanImage2D(Fly::RHI::Device& device,
-                                   VmaAllocationInfo& allocationInfo,
-                                   VmaAllocation& allocation,
-                                   VkImageUsageFlags usage, VkFormat format,
-                                   VkImageTiling tiling, u32 width, u32 height,
-                                   u32 mipLevelCount = 1)
-{
-    VkImageCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    createInfo.flags = 0;
-    createInfo.imageType = VK_IMAGE_TYPE_2D;
-    createInfo.format = format;
-    createInfo.extent.width = width;
-    createInfo.extent.height = height;
-    createInfo.extent.depth = 1;
-    createInfo.mipLevels = mipLevelCount;
-    createInfo.arrayLayers = 1;
-    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    createInfo.usage = usage;
-    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    allocCreateInfo.requiredFlags =
-        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    VkImage result = VK_NULL_HANDLE;
-    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo, &result,
-                       &allocation, &allocationInfo) != VK_SUCCESS)
-    {
-        return VK_NULL_HANDLE;
-    }
-    return result;
-}
-
-static VkImageView CreateVulkanImageView2D(Fly::RHI::Device& device,
-                                           VkImage image, VkFormat format,
-                                           u32 mipLevelCount,
-                                           VkImageAspectFlags aspectMask)
-{
-    VkImageViewCreateInfo viewCreateInfo{};
-    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewCreateInfo.image = image;
-    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewCreateInfo.format = format;
-    viewCreateInfo.subresourceRange.aspectMask = aspectMask;
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = mipLevelCount;
-    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 1;
-
-    VkImageView result;
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
-                          Fly::RHI::GetVulkanAllocationCallbacks(),
-                          &result) != VK_SUCCESS)
-    {
-        return VK_NULL_HANDLE;
-    }
-
-    return result;
-}
-
-static void CreateDescriptors(Fly::RHI::Device& device,
-                              Fly::RHI::Texture& texture)
-{
-    u32 count = (texture.usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
-
-    VkImageLayout layouts[2] = {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                VK_IMAGE_LAYOUT_GENERAL};
-    VkDescriptorImageInfo imageInfo[2];
-
-    VkWriteDescriptorSet descriptorWrites[2];
-    for (u32 i = 0; i < count; i++)
-    {
-        imageInfo[i].imageLayout = layouts[i];
-        imageInfo[i].imageView = texture.imageView;
-        imageInfo[i].sampler = texture.sampler.handle;
-
-        descriptorWrites[i] = {};
-        descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[i].dstSet = device.bindlessDescriptorSet;
-        descriptorWrites[i].descriptorCount = 1;
-        descriptorWrites[i].pImageInfo = &(imageInfo[i]);
-    }
-
-    descriptorWrites[0].dstBinding = FLY_TEXTURE_BINDING_INDEX;
-    descriptorWrites[0].dstArrayElement = device.bindlessTextureHandleCount;
-    descriptorWrites[0].descriptorType =
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
-    descriptorWrites[1].dstBinding = FLY_STORAGE_TEXTURE_BINDING_INDEX;
-    descriptorWrites[1].dstArrayElement =
-        device.bindlessWriteTextureHandleCount;
-    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-
-    vkUpdateDescriptorSets(device.logicalDevice, count, descriptorWrites, 0,
-                           nullptr);
-
-    texture.bindlessHandle = device.bindlessTextureHandleCount++;
-    texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
-}
-
-static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
-                               u64 dataSize, Fly::RHI::Texture& texture)
-{
-    if (data)
-    {
-        Fly::RHI::Buffer stagingBuffer;
-        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
-                          dataSize, stagingBuffer))
-        {
-            DestroySampler(device, texture.sampler);
-            vkDestroyImageView(device.logicalDevice, texture.imageView,
-                               Fly::RHI::GetVulkanAllocationCallbacks());
-            vmaDestroyImage(device.allocator, texture.image,
-                            texture.allocation);
-            return false;
-        }
-
-        BeginTransfer(device);
-        Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-
-        // Also sets all mip-map levels to transfer dst optimal
-        Fly::RHI::RecordTransitionImageLayout(
-            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        VkBufferImageCopy copyRegion{};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent.width = texture.width;
-        copyRegion.imageExtent.height = texture.height;
-        copyRegion.imageExtent.depth = 1;
-
-        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copyRegion);
-
-        GenerateMipmaps(cmd, texture);
-        EndTransfer(device);
-        DestroyBuffer(device, stagingBuffer);
-    }
-    return true;
-}
-
 namespace Fly
 {
 namespace RHI
@@ -389,6 +150,246 @@ u32 GetTexelSize(VkFormat format)
             return 0;
         }
     }
+}
+
+static u32 Log2(u32 x)
+{
+    u32 result = 0;
+    while (x >>= 1)
+    {
+        ++result;
+    }
+    return result;
+}
+
+static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
+                            Fly::RHI::Texture& texture, u32 layerCount)
+{
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image = texture.image;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = layerCount;
+    barrier.subresourceRange.levelCount = 1;
+
+    i32 mipWidth = static_cast<i32>(texture.width);
+    i32 mipHeight = static_cast<i32>(texture.height);
+
+    for (u32 i = 1; i < texture.mipLevelCount; i++)
+    {
+        barrier.subresourceRange.baseMipLevel = i - 1;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                             nullptr, 1, &barrier);
+
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = {0, 0, 0};
+        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = layerCount;
+        blit.dstOffsets[0] = {0, 0, 0};
+        blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
+                              mipHeight > 1 ? mipHeight / 2 : 1, 1};
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = layerCount;
+
+        vkCmdBlitImage(cmd.handle, texture.image,
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+                       VK_FILTER_LINEAR);
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &barrier);
+
+        if (mipWidth > 1)
+        {
+            mipWidth /= 2;
+        }
+        if (mipHeight > 1)
+        {
+            mipHeight /= 2;
+        }
+    }
+
+    barrier.subresourceRange.baseMipLevel = texture.mipLevelCount - 1;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
+                         0, nullptr, 1, &barrier);
+}
+
+static VkImage
+CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
+                  VmaAllocation& allocation, VkImageCreateFlags flags,
+                  VkImageType imageType, VkImageUsageFlags usage,
+                  VkFormat format, VkImageTiling tiling, u32 width, u32 height,
+                  u32 depth, u32 layerCount, u32 mipLevelCount = 1)
+{
+    VkImageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    createInfo.flags = flags;
+    createInfo.imageType = imageType;
+    createInfo.format = format;
+    createInfo.extent.width = width;
+    createInfo.extent.height = height;
+    createInfo.extent.depth = depth;
+    createInfo.mipLevels = mipLevelCount;
+    createInfo.arrayLayers = layerCount;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    createInfo.usage = usage;
+    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    allocCreateInfo.requiredFlags =
+        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    VkImage result = VK_NULL_HANDLE;
+    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo, &result,
+                       &allocation, &allocationInfo) != VK_SUCCESS)
+    {
+        return VK_NULL_HANDLE;
+    }
+    return result;
+}
+
+static VkImageView
+CreateVulkanImageView(Fly::RHI::Device& device, VkImage image, VkFormat format,
+                      u32 mipLevelCount, VkImageViewType imageViewType,
+                      VkImageAspectFlags aspectMask, u32 layerCount)
+{
+    VkImageViewCreateInfo viewCreateInfo{};
+    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewCreateInfo.image = image;
+    viewCreateInfo.viewType = imageViewType;
+    viewCreateInfo.format = format;
+    viewCreateInfo.subresourceRange.aspectMask = GetImageAspectMask(format);
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.levelCount = mipLevelCount;
+    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
+
+    VkImageView result;
+    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
+                          Fly::RHI::GetVulkanAllocationCallbacks(),
+                          &result) != VK_SUCCESS)
+    {
+        return VK_NULL_HANDLE;
+    }
+
+    return result;
+}
+
+static void CreateDescriptors(Fly::RHI::Device& device,
+                              Fly::RHI::Texture& texture)
+{
+    u32 count = (texture.usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
+
+    VkImageLayout layouts[2] = {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorImageInfo imageInfo[2];
+
+    VkWriteDescriptorSet descriptorWrites[2];
+    for (u32 i = 0; i < count; i++)
+    {
+        imageInfo[i].imageLayout = layouts[i];
+        imageInfo[i].imageView = texture.imageView;
+        imageInfo[i].sampler = texture.sampler.handle;
+
+        descriptorWrites[i] = {};
+        descriptorWrites[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[i].dstSet = device.bindlessDescriptorSet;
+        descriptorWrites[i].descriptorCount = 1;
+        descriptorWrites[i].pImageInfo = &(imageInfo[i]);
+    }
+
+    descriptorWrites[0].dstBinding = FLY_TEXTURE_BINDING_INDEX;
+    descriptorWrites[0].dstArrayElement = device.bindlessTextureHandleCount;
+    descriptorWrites[0].descriptorType =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    descriptorWrites[1].dstBinding = FLY_STORAGE_TEXTURE_BINDING_INDEX;
+    descriptorWrites[1].dstArrayElement =
+        device.bindlessWriteTextureHandleCount;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    vkUpdateDescriptorSets(device.logicalDevice, count, descriptorWrites, 0,
+                           nullptr);
+
+    texture.bindlessHandle = device.bindlessTextureHandleCount++;
+    texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
+}
+
+static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
+                               u64 dataSize, Fly::RHI::Texture& texture,
+                               u32 layerCount)
+{
+    if (data)
+    {
+        Fly::RHI::Buffer stagingBuffer;
+        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
+                          dataSize, stagingBuffer))
+        {
+            DestroySampler(device, texture.sampler);
+            vkDestroyImageView(device.logicalDevice, texture.imageView,
+                               Fly::RHI::GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, texture.image,
+                            texture.allocation);
+            return false;
+        }
+
+        BeginTransfer(device);
+        Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+
+        // Also sets all mip-map levels to transfer dst optimal
+        Fly::RHI::RecordTransitionImageLayout(
+            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copyRegion{};
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent.width = texture.width;
+        copyRegion.imageExtent.height = texture.height;
+        copyRegion.imageExtent.depth = 1;
+
+        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                               &copyRegion);
+
+        GenerateMipmaps(cmd, texture, layerCount);
+        EndTransfer(device);
+        DestroyBuffer(device, stagingBuffer);
+    }
+    return true;
 }
 
 bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
@@ -550,36 +551,28 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
 
     texture.accessMask = VK_ACCESS_2_NONE;
     texture.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
-    texture.image = CreateVulkanImage2D(
-        device, texture.allocationInfo, texture.allocation, usage, format,
-        VK_IMAGE_TILING_OPTIMAL, width, height, mipLevelCount);
+    texture.image = CreateVulkanImage(device, texture.allocationInfo,
+                                      texture.allocation, 0, VK_IMAGE_TYPE_2D,
+                                      usage, format, VK_IMAGE_TILING_OPTIMAL,
+                                      width, height, 1, 1, mipLevelCount);
     if (texture.image == VK_NULL_HANDLE)
     {
         return false;
     }
 
-    texture.imageView =
-        CreateVulkanImageView2D(device, texture.image, format, mipLevelCount,
-                                GetImageAspectMask(format));
+    texture.imageView = CreateVulkanImageView(
+        device, texture.image, format, mipLevelCount, VK_IMAGE_VIEW_TYPE_2D,
+        GetImageAspectMask(format), 1);
     if (texture.imageView == VK_NULL_HANDLE)
     {
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
         return false;
     }
 
-    VkImageViewCreateInfo arrayViewCreateInfo{};
-    arrayViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    arrayViewCreateInfo.image = texture.image;
-    arrayViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    arrayViewCreateInfo.format = format;
-    arrayViewCreateInfo.subresourceRange.aspectMask = GetImageAspectMask(format);
-    arrayViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    arrayViewCreateInfo.subresourceRange.levelCount = 1;
-    arrayViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    arrayViewCreateInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device.logicalDevice, &arrayViewCreateInfo,
-                          RHI::GetVulkanAllocationCallbacks(),
-                          &texture.arrayImageView))
+    texture.arrayImageView = CreateVulkanImageView(
+        device, texture.image, format, mipLevelCount,
+        VK_IMAGE_VIEW_TYPE_2D_ARRAY, GetImageAspectMask(format), 1);
+    if (texture.arrayImageView == VK_NULL_HANDLE)
     {
         vkDestroyImageView(device.logicalDevice, texture.imageView,
                            GetVulkanAllocationCallbacks());
@@ -612,7 +605,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     texture.mipLevelCount = mipLevelCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!InitializeWithData(device, data, dataSize, texture))
+    if (!InitializeWithData(device, data, dataSize, texture, 1))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -621,7 +614,96 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
         return false;
     }
 
-    FLY_DEBUG_LOG("Texture [%llu] created with size %f MB: bindless %u storage "
+    FLY_DEBUG_LOG(
+        "Texture2D [%llu] created with size %f MB: bindless %u storage "
+        "bindless handle %u",
+        texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
+        texture.bindlessHandle, texture.bindlessStorageHandle);
+    return true;
+}
+
+bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
+                   u32 size, VkFormat format, Sampler::FilterMode filterMode,
+                   Texture& texture)
+{
+    FLY_ASSERT(size > 0);
+
+    u32 dataSize = GetTexelSize(format) * size * size;
+
+    u32 mipLevelCount = 1;
+    if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
+        filterMode != Sampler::FilterMode::Nearest)
+    {
+        mipLevelCount = Log2(size) + 1;
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+
+    texture.accessMask = VK_ACCESS_2_NONE;
+    texture.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
+    texture.image = CreateVulkanImage(
+        device, texture.allocationInfo, texture.allocation,
+        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_TYPE_2D, usage, format,
+        VK_IMAGE_TILING_OPTIMAL, size, size, 1, 6, mipLevelCount);
+    if (texture.image == VK_NULL_HANDLE)
+    {
+        return false;
+    }
+
+    texture.imageView = CreateVulkanImageView(
+        device, texture.image, format, mipLevelCount, VK_IMAGE_VIEW_TYPE_CUBE,
+        GetImageAspectMask(format), 6);
+    if (texture.imageView == VK_NULL_HANDLE)
+    {
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    texture.arrayImageView = CreateVulkanImageView(
+        device, texture.image, format, mipLevelCount,
+        VK_IMAGE_VIEW_TYPE_2D_ARRAY, GetImageAspectMask(format), 6);
+    if (texture.arrayImageView == VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(device.logicalDevice, texture.imageView,
+                           GetVulkanAllocationCallbacks());
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    texture.usage = usage;
+    texture.sampler.handle = VK_NULL_HANDLE;
+    texture.bindlessHandle = FLY_MAX_U32;
+    texture.bindlessStorageHandle = FLY_MAX_U32;
+    if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+    {
+        if (!CreateSampler(device, filterMode, Sampler::WrapMode::Clamp,
+                           mipLevelCount, texture.sampler))
+        {
+            vkDestroyImageView(device.logicalDevice, texture.imageView,
+                               GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, texture.image,
+                            texture.allocation);
+            return false;
+        }
+
+        CreateDescriptors(device, texture);
+    }
+
+    texture.width = size;
+    texture.height = size;
+    texture.format = format;
+    texture.mipLevelCount = mipLevelCount;
+    texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (!InitializeWithData(device, data, dataSize, texture, 6))
+    {
+        DestroySampler(device, texture.sampler);
+        vkDestroyImageView(device.logicalDevice, texture.imageView,
+                           GetVulkanAllocationCallbacks());
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    FLY_DEBUG_LOG("Cubemap [%llu] created with size %f MB: bindless %u storage "
                   "bindless handle %u",
                   texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
                   texture.bindlessHandle, texture.bindlessStorageHandle);
@@ -642,180 +724,6 @@ void DestroyTexture(Device& device, Texture& texture)
     texture.width = 0;
     texture.height = 0;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-}
-
-bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
-                   VkFormat format, Sampler::FilterMode filterMode,
-                   Texture& cubemap)
-{
-    FLY_ASSERT(size > 0);
-    FLY_ASSERT(dataSize == GetTexelSize(format) * size * size * 6);
-
-    VkImageCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    createInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-    createInfo.imageType = VK_IMAGE_TYPE_2D;
-    createInfo.format = format;
-    createInfo.extent = {size, size, 1};
-    createInfo.mipLevels = 1;
-    createInfo.arrayLayers = 6;
-    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    createInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                       VK_IMAGE_USAGE_SAMPLED_BIT |
-                       VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    allocCreateInfo.requiredFlags =
-        VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    if (vmaCreateImage(device.allocator, &createInfo, &allocCreateInfo,
-                       &cubemap.image, &cubemap.allocation,
-                       &cubemap.allocationInfo) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    VkImageViewCreateInfo viewCreateInfo{};
-    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewCreateInfo.image = cubemap.image;
-    viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    viewCreateInfo.format = format;
-    viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = 1;
-    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 6;
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
-                          RHI::GetVulkanAllocationCallbacks(),
-                          &cubemap.imageView) != VK_SUCCESS)
-    {
-        vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
-        return false;
-    }
-
-    VkImageViewCreateInfo arrayViewCreateInfo{};
-    arrayViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    arrayViewCreateInfo.image = cubemap.image;
-    arrayViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    arrayViewCreateInfo.format = format;
-    arrayViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    arrayViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    arrayViewCreateInfo.subresourceRange.levelCount = 1;
-    arrayViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    arrayViewCreateInfo.subresourceRange.layerCount = 6;
-    if (vkCreateImageView(device.logicalDevice, &arrayViewCreateInfo,
-                          RHI::GetVulkanAllocationCallbacks(),
-                          &cubemap.arrayImageView))
-    {
-        vkDestroyImageView(device.logicalDevice, cubemap.imageView,
-                           GetVulkanAllocationCallbacks());
-        vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
-        return false;
-    }
-
-    if (!CreateSampler(device, filterMode, Sampler::WrapMode::Clamp, 1,
-                       cubemap.sampler))
-    {
-        vkDestroyImageView(device.logicalDevice, cubemap.arrayImageView,
-                           GetVulkanAllocationCallbacks());
-        vkDestroyImageView(device.logicalDevice, cubemap.imageView,
-                           GetVulkanAllocationCallbacks());
-        vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
-        return false;
-    }
-
-    VkImageLayout targetImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkDescriptorImageInfo imageInfos[2];
-    imageInfos[0].imageLayout = targetImageLayout;
-    imageInfos[0].imageView = cubemap.imageView;
-    imageInfos[0].sampler = cubemap.sampler.handle;
-
-    imageInfos[1].imageLayout = targetImageLayout;
-    imageInfos[1].imageView = cubemap.arrayImageView;
-    imageInfos[1].sampler = cubemap.sampler.handle;
-
-    VkWriteDescriptorSet descriptorWrite{};
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = device.bindlessDescriptorSet;
-    descriptorWrite.dstBinding = FLY_TEXTURE_BINDING_INDEX;
-    descriptorWrite.dstArrayElement = device.bindlessTextureHandleCount;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrite.descriptorCount = 2;
-    descriptorWrite.pImageInfo = imageInfos;
-
-    vkUpdateDescriptorSets(device.logicalDevice, 1, &descriptorWrite, 0,
-                           nullptr);
-    cubemap.bindlessHandle = device.bindlessTextureHandleCount++;
-    cubemap.bindlessArrayHandle = device.bindlessTextureHandleCount++;
-    cubemap.width = size;
-    cubemap.height = size;
-    cubemap.format = format;
-    cubemap.mipLevelCount = 1;
-
-    if (data)
-    {
-        RHI::Buffer stagingBuffer;
-        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
-                          dataSize, stagingBuffer))
-        {
-            DestroySampler(device, cubemap.sampler);
-            vkDestroyImageView(device.logicalDevice, cubemap.arrayImageView,
-                               GetVulkanAllocationCallbacks());
-            vkDestroyImageView(device.logicalDevice, cubemap.imageView,
-                               GetVulkanAllocationCallbacks());
-            vmaDestroyImage(device.allocator, cubemap.image,
-                            cubemap.allocation);
-            return false;
-        }
-
-        BeginTransfer(device);
-        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-
-        RHI::RecordTransitionImageLayout(cmd, cubemap.image,
-                                         VK_IMAGE_LAYOUT_UNDEFINED,
-                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        VkBufferImageCopy copyRegion{};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 6;
-        copyRegion.imageExtent.width = size;
-        copyRegion.imageExtent.height = size;
-        copyRegion.imageExtent.depth = 1;
-
-        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, cubemap.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copyRegion);
-
-        GenerateMipmaps(cmd, cubemap);
-        EndTransfer(device);
-
-        DestroyBuffer(device, stagingBuffer);
-    }
-    else
-    {
-        BeginTransfer(device);
-        RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-        RHI::RecordTransitionImageLayout(
-            cmd, cubemap.image, VK_IMAGE_LAYOUT_UNDEFINED, targetImageLayout);
-        EndTransfer(device);
-    }
-
-    cubemap.imageLayout = targetImageLayout;
-
-    FLY_DEBUG_LOG("Cubemap [%llu] created with size %f MB: bindless handle %u",
-                  cubemap.image, cubemap.allocationInfo.size / 1024.0 / 1024.0,
-                  cubemap.bindlessHandle);
-    return true;
 }
 
 } // namespace RHI

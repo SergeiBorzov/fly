@@ -72,10 +72,9 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      Texture& texture);
 void DestroyTexture(Device& device, Texture& texture);
 
-bool CreateCubemap(Device& device, VkImageUsageFlags usage, void* data,
-                   u64 dataSize, u32 size, VkFormat format,
-                   Sampler::FilterMode filterMode, Texture& cubemap);
-void DestroyCubemap(Device& device, Texture& cubemap);
+bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
+                   u32 size, VkFormat format, Sampler::FilterMode filterMode,
+                   Texture& texture);
 
 } // namespace RHI
 } // namespace Fly

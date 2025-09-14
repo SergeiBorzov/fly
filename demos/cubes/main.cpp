@@ -21,8 +21,8 @@ using namespace Fly;
 
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Texture2D sDepthTexture;
-static RHI::Texture2D sCubeTexture;
+static RHI::Texture sDepthTexture;
+static RHI::Texture sCubeTexture;
 
 struct UniformData
 {
@@ -140,8 +140,8 @@ static void DestroyResources(RHI::Device& device)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
-    RHI::DestroyTexture2D(device, sDepthTexture);
-    RHI::DestroyTexture2D(device, sCubeTexture);
+    RHI::DestroyTexture(device, sDepthTexture);
+    RHI::DestroyTexture(device, sCubeTexture);
 }
 
 static void RecordDrawCubes(RHI::CommandBuffer& cmd,
@@ -155,7 +155,7 @@ static void RecordDrawCubes(RHI::CommandBuffer& cmd,
                     cmd.device->swapchainHeight);
 
     const RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    const RHI::Texture2D& cubeTexture = *(textureInput->textures[0]);
+    const RHI::Texture& cubeTexture = *(textureInput->textures[0]);
 
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
 
@@ -174,7 +174,7 @@ static void DrawCubes(RHI::Device& device)
     bufferInput.bufferCount = 1;
 
     RHI::RecordTextureInput textureInput;
-    RHI::Texture2D* pCubeTexture = &sCubeTexture;
+    RHI::Texture* pCubeTexture = &sCubeTexture;
     RHI::ImageLayoutAccess imageLayoutAccess;
     imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
