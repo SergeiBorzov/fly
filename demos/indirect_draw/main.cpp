@@ -32,7 +32,7 @@ static RHI::ComputePipeline sCullPipeline;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sDrawCommands;
 static RHI::Buffer sDrawCountBuffer;
-static RHI::Texture2D sDepthTexture;
+static RHI::Texture sDepthTexture;
 
 static const u32 sDrawCount = 30000;
 
@@ -186,7 +186,7 @@ static void DestroyResources(RHI::Device& device)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
-    RHI::DestroyTexture2D(device, sDepthTexture);
+    RHI::DestroyTexture(device, sDepthTexture);
 }
 
 static void RecordFrustumCull(RHI::CommandBuffer& cmd,

@@ -94,7 +94,7 @@ static bool ProcessTextures(Arena& arena, RHI::Device& device, cgltf_data* data,
 
     ArenaMarker marker = ArenaGetMarker(arena);
     scene.textureCount = static_cast<u32>(data->textures_count);
-    scene.textures = FLY_PUSH_ARENA(arena, RHI::Texture2D, scene.textureCount);
+    scene.textures = FLY_PUSH_ARENA(arena, RHI::Texture, scene.textureCount);
 
     for (u64 i = 0; i < data->textures_count; i++)
     {
@@ -606,7 +606,7 @@ void UnloadScene(RHI::Device& device, Scene& scene)
 
     for (u64 i = 0; i < scene.textureCount; i++)
     {
-        RHI::DestroyTexture2D(device, scene.textures[i]);
+        RHI::DestroyTexture(device, scene.textures[i]);
     }
 }
 

@@ -177,7 +177,9 @@ int main(int argc, char* argv[])
         ImGui::ShowDemoWindow();
         ImGui::Render();
 
+        RHI::BeginRenderFrame(device);
         DrawGui(device);
+        RHI::EndRenderFrame(device);
     }
 
     RHI::WaitAllDevicesIdle(context);

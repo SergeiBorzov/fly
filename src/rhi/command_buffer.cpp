@@ -352,7 +352,7 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
 
         for (u32 i = 0; i < textureInput->textureCount; i++)
         {
-            RHI::Texture2D& texture = *(textureInput->textures[i]);
+            RHI::Texture& texture = *(textureInput->textures[i]);
 
             // TODO
             if (texture.pipelineStageMask != pipelineStageMask ||
@@ -451,7 +451,7 @@ void ExecuteTransfer(RHI::Device& device, RecordCallback recordCallback,
     recordCallback(cmd, bufferInput, textureInput, userData);
 }
 
-void ChangeTextureAccessLayout(CommandBuffer& cmd, RHI::Texture2D& texture,
+void ChangeTextureAccessLayout(CommandBuffer& cmd, RHI::Texture& texture,
                                VkImageLayout newLayout,
                                VkAccessFlagBits2 accessMask)
 {
@@ -465,7 +465,7 @@ void ChangeTextureAccessLayout(CommandBuffer& cmd, RHI::Texture2D& texture,
     layoutAccess.accessMask = accessMask;
 
     RHI::RecordTextureInput textureInput;
-    RHI::Texture2D* pTexture = &texture;
+    RHI::Texture* pTexture = &texture;
     textureInput.textureCount = 1;
     textureInput.textures = &pTexture;
     textureInput.imageLayoutsAccesses = &layoutAccess;

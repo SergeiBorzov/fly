@@ -6,7 +6,6 @@
 #include "vma.h"
 #include <volk.h>
 
-
 namespace Fly
 {
 namespace RHI
@@ -46,7 +45,7 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
                    Sampler& sampler);
 void DestroySampler(Device& device, Sampler& sampler);
 
-struct Texture2D
+struct Texture
 {
     VmaAllocationInfo allocationInfo;
     Sampler sampler;
@@ -55,6 +54,7 @@ struct Texture2D
     VmaAllocation allocation;
     VkImage image = VK_NULL_HANDLE;
     VkImageView imageView = VK_NULL_HANDLE;
+    VkImageView arrayImageView = VK_NULL_HANDLE;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImageUsageFlags usage;
@@ -63,36 +63,19 @@ struct Texture2D
     u32 mipLevelCount = 0;
     u32 bindlessHandle = FLY_MAX_U32;
     u32 bindlessStorageHandle = FLY_MAX_U32;
+    u32 bindlessArrayHandle = FLY_MAX_U32;
 };
 
 bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                     Texture2D& texture);
-void DestroyTexture2D(Device& device, Texture2D& texture);
-bool ModifySampler(Device& device, Sampler::FilterMode filterMode,
-                   Sampler::WrapMode wrapMode);
+                     Texture& texture);
+void DestroyTexture(Device& device, Texture& texture);
 
-struct Cubemap
-{
-    VmaAllocationInfo allocationInfo;
-    Sampler sampler;
-    VmaAllocation allocation;
-    VkImage image = VK_NULL_HANDLE;
-    VkImageView imageView = VK_NULL_HANDLE;
-    VkImageView arrayImageView = VK_NULL_HANDLE;
-    VkFormat format = VK_FORMAT_UNDEFINED;
-    VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    u32 size = 0;
-    u32 mipLevelCount = 0;
-    u32 bindlessHandle = FLY_MAX_U32;
-    u32 bindlessArrayHandle = FLY_MAX_U32;
-    u32 bindlessStorageHandle = FLY_MAX_U32;
-};
-bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
-                   VkFormat format, Sampler::FilterMode filterMode,
-                   Cubemap& cubemap);
-void DestroyCubemap(Device& device, Cubemap& cubemap);
+bool CreateCubemap(Device& device, VkImageUsageFlags usage, void* data,
+                   u64 dataSize, u32 size, VkFormat format,
+                   Sampler::FilterMode filterMode, Texture& cubemap);
+void DestroyCubemap(Device& device, Texture& cubemap);
 
 } // namespace RHI
 } // namespace Fly

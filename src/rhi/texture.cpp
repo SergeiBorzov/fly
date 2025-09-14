@@ -20,13 +20,7 @@ static u32 Log2(u32 x)
 }
 
 static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
-                            Fly::RHI::Cubemap& cubemap)
-{
-    return;
-}
-
-static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
-                            Fly::RHI::Texture2D& texture)
+                            Fly::RHI::Texture& texture)
 {
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -167,7 +161,7 @@ static VkImageView CreateVulkanImageView2D(Fly::RHI::Device& device,
 }
 
 static void CreateDescriptors(Fly::RHI::Device& device,
-                              Fly::RHI::Texture2D& texture)
+                              Fly::RHI::Texture& texture)
 {
     u32 count = (texture.usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
 
@@ -207,7 +201,7 @@ static void CreateDescriptors(Fly::RHI::Device& device,
 }
 
 static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
-                               u64 dataSize, Fly::RHI::Texture2D& texture)
+                               u64 dataSize, Fly::RHI::Texture& texture)
 {
     if (data)
     {
@@ -539,7 +533,7 @@ void DestroySampler(Device& device, Sampler& sampler)
 bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                     Texture2D& texture)
+                     Texture& texture)
 {
     FLY_ASSERT(width > 0);
     FLY_ASSERT(height > 0);
@@ -569,6 +563,26 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                                 GetImageAspectMask(format));
     if (texture.imageView == VK_NULL_HANDLE)
     {
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    VkImageViewCreateInfo arrayViewCreateInfo{};
+    arrayViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    arrayViewCreateInfo.image = texture.image;
+    arrayViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    arrayViewCreateInfo.format = format;
+    arrayViewCreateInfo.subresourceRange.aspectMask = GetImageAspectMask(format);
+    arrayViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    arrayViewCreateInfo.subresourceRange.levelCount = 1;
+    arrayViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    arrayViewCreateInfo.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(device.logicalDevice, &arrayViewCreateInfo,
+                          RHI::GetVulkanAllocationCallbacks(),
+                          &texture.arrayImageView))
+    {
+        vkDestroyImageView(device.logicalDevice, texture.imageView,
+                           GetVulkanAllocationCallbacks());
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
         return false;
     }
@@ -614,9 +628,11 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     return true;
 }
 
-void DestroyTexture2D(Device& device, Texture2D& texture)
+void DestroyTexture(Device& device, Texture& texture)
 {
     DestroySampler(device, texture.sampler);
+    vkDestroyImageView(device.logicalDevice, texture.arrayImageView,
+                       GetVulkanAllocationCallbacks());
     vkDestroyImageView(device.logicalDevice, texture.imageView,
                        GetVulkanAllocationCallbacks());
     vmaDestroyImage(device.allocator, texture.image, texture.allocation);
@@ -628,29 +644,9 @@ void DestroyTexture2D(Device& device, Texture2D& texture)
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
-bool ModifySampler(Device& device, Sampler::FilterMode filterMode,
-                   Sampler::WrapMode wrapMode, u32 anisotropy,
-                   Texture2D& texture)
-{
-    FLY_ASSERT(texture.image != VK_NULL_HANDLE);
-    FLY_ASSERT(texture.sampler.handle != VK_NULL_HANDLE);
-
-    if (texture.sampler.filterMode == filterMode &&
-        texture.sampler.wrapMode == wrapMode)
-    {
-        return true;
-    }
-
-    WaitDeviceIdle(device);
-
-    DestroySampler(device, texture.sampler);
-    return CreateSampler(device, filterMode, wrapMode, texture.mipLevelCount,
-                         texture.sampler);
-}
-
 bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
                    VkFormat format, Sampler::FilterMode filterMode,
-                   Cubemap& cubemap)
+                   Texture& cubemap)
 {
     FLY_ASSERT(size > 0);
     FLY_ASSERT(dataSize == GetTexelSize(format) * size * size * 6);
@@ -756,7 +752,8 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
                            nullptr);
     cubemap.bindlessHandle = device.bindlessTextureHandleCount++;
     cubemap.bindlessArrayHandle = device.bindlessTextureHandleCount++;
-    cubemap.size = size;
+    cubemap.width = size;
+    cubemap.height = size;
     cubemap.format = format;
     cubemap.mipLevelCount = 1;
 
@@ -819,22 +816,6 @@ bool CreateCubemap(Device& device, void* data, u64 dataSize, u32 size,
                   cubemap.image, cubemap.allocationInfo.size / 1024.0 / 1024.0,
                   cubemap.bindlessHandle);
     return true;
-}
-
-void DestroyCubemap(Device& device, Cubemap& cubemap)
-{
-    DestroySampler(device, cubemap.sampler);
-    vkDestroyImageView(device.logicalDevice, cubemap.arrayImageView,
-                       GetVulkanAllocationCallbacks());
-    vkDestroyImageView(device.logicalDevice, cubemap.imageView,
-                       GetVulkanAllocationCallbacks());
-    vmaDestroyImage(device.allocator, cubemap.image, cubemap.allocation);
-    cubemap.image = VK_NULL_HANDLE;
-    cubemap.imageView = VK_NULL_HANDLE;
-    cubemap.arrayImageView = VK_NULL_HANDLE;
-    cubemap.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    cubemap.format = VK_FORMAT_UNDEFINED;
-    cubemap.size = 0;
 }
 
 } // namespace RHI

@@ -92,7 +92,7 @@ struct Scene
     RHI::Buffer indexBuffer;
     RHI::Buffer materialBuffer;
     RHI::Buffer* vertexBuffers = nullptr;
-    RHI::Texture2D* textures = nullptr;
+    RHI::Texture* textures = nullptr;
     MeshNode* meshNodes = nullptr;
     u32 meshNodeCount = 0;
     u32 vertexBufferCount = 0;

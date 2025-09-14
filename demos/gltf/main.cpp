@@ -18,7 +18,7 @@ using namespace Fly;
 
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Texture2D sDepthTexture;
+static RHI::Texture sDepthTexture;
 
 struct UniformData
 {
@@ -121,7 +121,7 @@ static void DestroyResources(RHI::Device& device)
     {
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
-    RHI::DestroyTexture2D(device, sDepthTexture);
+    RHI::DestroyTexture(device, sDepthTexture);
 }
 
 static void RecordDrawScene(RHI::CommandBuffer& cmd,
