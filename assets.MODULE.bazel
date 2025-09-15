@@ -36,11 +36,11 @@ external_assets.base(
     name = "ambientcg",
     urls = [
         "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/DaySkyHDRI051B_somO930g/DaySkyHDRI051B_4K-TONEMAPPED.jpg",
-        "https://ambientcg.com/get?file=Onyx010_4K-PNG.zip",
+        "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/DayEnvironmentHDRI052_lZgBC49u/DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
     ],
     sha256 = [
         "3c809dd5d2a5ec97a4cd3b6fa9d9667472e866e99eb0b140dadb0758a0fd19b3",
-        "b5edf829368864965fe8b5f8a14e02b32882967be74edfd888ce5fe497164647",
+        "e67cd622ee9efd17d26658cbfe096a21a1d471e3a487f226b0c50c3764a3e941",
     ],
     build_file = "//scripts/bazel/target:BUILD.ambientcg.bazel",
 )

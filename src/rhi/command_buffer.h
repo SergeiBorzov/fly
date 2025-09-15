@@ -152,6 +152,12 @@ void ExecuteGraphics(Device& device, const VkRenderingInfo& renderingInfo,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);
+void ExecuteGraphics(Device& device, RHI::CommandBuffer& cmd,
+                     const VkRenderingInfo& renderingInfo,
+                     RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput = nullptr,
+                     const RecordTextureInput* textureInput = nullptr,
+                     void* userData = nullptr);
 void ExecuteCompute(Device& device, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput = nullptr,
                     const RecordTextureInput* textureInput = nullptr,

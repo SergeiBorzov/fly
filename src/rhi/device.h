@@ -19,7 +19,6 @@ namespace RHI
 {
 
 struct Context;
-struct CommandBuffer;
 
 struct FrameData
 {

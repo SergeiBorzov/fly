@@ -290,7 +290,7 @@ CreateVulkanImageView(Fly::RHI::Device& device, VkImage image, VkFormat format,
     viewCreateInfo.subresourceRange.baseMipLevel = 0;
     viewCreateInfo.subresourceRange.levelCount = mipLevelCount;
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.subresourceRange.layerCount = layerCount;
 
     VkImageView result;
     if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
@@ -376,7 +376,7 @@ static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
         copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         copyRegion.imageSubresource.mipLevel = 0;
         copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageSubresource.layerCount = layerCount;
         copyRegion.imageExtent.width = texture.width;
         copyRegion.imageExtent.height = texture.height;
         copyRegion.imageExtent.depth = 1;
@@ -628,7 +628,7 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
 {
     FLY_ASSERT(size > 0);
 
-    u32 dataSize = GetTexelSize(format) * size * size;
+    u32 dataSize = GetTexelSize(format) * size * size * 6;
 
     u32 mipLevelCount = 1;
     if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
@@ -720,10 +720,15 @@ void DestroyTexture(Device& device, Texture& texture)
     vmaDestroyImage(device.allocator, texture.image, texture.allocation);
     texture.image = VK_NULL_HANDLE;
     texture.imageView = VK_NULL_HANDLE;
+    texture.arrayImageView = VK_NULL_HANDLE;
     texture.format = VK_FORMAT_UNDEFINED;
     texture.width = 0;
     texture.height = 0;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    FLY_DEBUG_LOG("Texture [%llu] destroyed: bindless handle %u dealloc size "
+                  "%f MB",
+                  texture.image, texture.bindlessHandle,
+                  texture.allocationInfo.size / 1024.0 / 1024.0);
 }
 
 } // namespace RHI

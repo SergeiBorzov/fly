@@ -415,6 +415,20 @@ void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
     vkCmdEndRendering(cmd.handle);
 }
 
+void ExecuteGraphics(RHI::Device& device, RHI::CommandBuffer& cmd,
+                     const VkRenderingInfo& renderingInfo,
+                     RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput,
+                     const RecordTextureInput* textureInput, void* userData)
+{
+    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, bufferInput,
+                   textureInput);
+
+    vkCmdBeginRendering(cmd.handle, &renderingInfo);
+    recordCallback(cmd, bufferInput, textureInput, userData);
+    vkCmdEndRendering(cmd.handle);
+}
+
 void ExecuteCompute(RHI::Device& device, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput,
                     const RecordTextureInput* textureInput, void* userData)
