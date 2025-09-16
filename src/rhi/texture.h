@@ -60,6 +60,8 @@ struct Texture
     VkImageUsageFlags usage;
     u32 width = 0;
     u32 height = 0;
+    u32 depth = 0;
+    u32 layerCount = 0;
     u32 mipLevelCount = 0;
     u32 bindlessHandle = FLY_MAX_U32;
     u32 bindlessStorageHandle = FLY_MAX_U32;

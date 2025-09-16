@@ -465,6 +465,16 @@ void ExecuteTransfer(RHI::Device& device, RecordCallback recordCallback,
     recordCallback(cmd, bufferInput, textureInput, userData);
 }
 
+void ExecuteTransfer(RHI::Device& device, RHI::CommandBuffer& cmd,
+                     RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput,
+                     const RecordTextureInput* textureInput, void* userData)
+{
+    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, bufferInput,
+                   textureInput);
+    recordCallback(cmd, bufferInput, textureInput, userData);
+}
+
 void ChangeTextureAccessLayout(CommandBuffer& cmd, RHI::Texture& texture,
                                VkImageLayout newLayout,
                                VkAccessFlagBits2 accessMask)

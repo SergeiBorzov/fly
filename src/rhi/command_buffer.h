@@ -57,19 +57,22 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
 void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value,
                 u64 size = 0, u64 offset = 0);
 
-VkBufferMemoryBarrier BufferMemoryBarrier(const RHI::Buffer& buffer,
+VkBufferMemoryBarrier BufferMemoryBarrier(const Buffer& buffer,
                                           VkAccessFlags srcAccessMask,
                                           VkAccessFlags dstAccessMask,
                                           u64 offset = 0,
                                           u64 size = VK_WHOLE_SIZE);
 
 /*--Commands--*/
-void BindGraphicsPipeline(CommandBuffer& commandBuffer,
+void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
+                         Buffer& srcBuffer);
+void GenerateMipmaps(CommandBuffer& cmd, Texture& texture);
+void BindGraphicsPipeline(CommandBuffer& cmd,
                           const GraphicsPipeline& graphicsPipeline);
-void BindComputePipeline(CommandBuffer& commandBuffer,
+void BindComputePipeline(CommandBuffer& cmd,
                          const ComputePipeline& computePipeline);
-void BindIndexBuffer(CommandBuffer& commandBuffer, RHI::Buffer& buffer,
-                     VkIndexType indexType, u64 offset = 0);
+void BindIndexBuffer(CommandBuffer& cmd, Buffer& buffer, VkIndexType indexType,
+                     u64 offset = 0);
 void SetViewport(CommandBuffer& cmd, f32 x, f32 y, f32 w, f32 h, f32 minDepth,
                  f32 maxDepth);
 void SetScissor(CommandBuffer& cmd, i32 x, i32 y, u32 w, u32 h);
@@ -79,19 +82,17 @@ void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
                    u32 pushConstantsSize, u32 offset = 0);
 void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY,
               u32 groupCountZ);
-void DispatchIndirect(CommandBuffer& cmd, const RHI::Buffer& buffer,
-                      u64 offset = 0);
+void DispatchIndirect(CommandBuffer& cmd, const Buffer& buffer, u64 offset = 0);
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance);
 void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
                  u32 firstIndex, u32 vertexOffset, u32 firstInstance);
-void DrawIndirectCount(CommandBuffer& cmd,
-                       const RHI::Buffer& indirectDrawBuffer, u64 offset,
-                       const RHI::Buffer& indirectCountBuffer, u64 countOffset,
-                       u32 maxCount, u32 stride);
+void DrawIndirectCount(CommandBuffer& cmd, const Buffer& indirectDrawBuffer,
+                       u64 offset, const Buffer& indirectCountBuffer,
+                       u64 countOffset, u32 maxCount, u32 stride);
 void DrawIndexedIndirectCount(CommandBuffer& cmd,
-                              const RHI::Buffer& indirectDrawBuffer, u64 offset,
-                              const RHI::Buffer& indirectCountBuffer,
+                              const Buffer& indirectDrawBuffer, u64 offset,
+                              const Buffer& indirectCountBuffer,
                               u64 countOffset, u32 maxCount, u32 stride);
 void PipelineBarrier(CommandBuffer& cmd,
                      const VkBufferMemoryBarrier2* bufferBarriers,
@@ -130,19 +131,19 @@ struct ImageLayoutAccess
 
 struct RecordBufferInput
 {
-    RHI::Buffer** buffers;
+    Buffer** buffers;
     const VkAccessFlagBits2* bufferAccesses;
     u32 bufferCount;
 };
 
 struct RecordTextureInput
 {
-    RHI::Texture** textures;
+    Texture** textures;
     const ImageLayoutAccess* imageLayoutsAccesses;
     u32 textureCount;
 };
 
-typedef void (*RecordCallback)(RHI::CommandBuffer& cmd,
+typedef void (*RecordCallback)(CommandBuffer& cmd,
                                const RecordBufferInput* bufferInput,
                                const RecordTextureInput* textureInput,
                                void* userData);
@@ -152,7 +153,7 @@ void ExecuteGraphics(Device& device, const VkRenderingInfo& renderingInfo,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);
-void ExecuteGraphics(Device& device, RHI::CommandBuffer& cmd,
+void ExecuteGraphics(Device& device, CommandBuffer& cmd,
                      const VkRenderingInfo& renderingInfo,
                      RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
@@ -167,6 +168,11 @@ void ExecuteComputeIndirect(Device& device, RecordCallback recordCallback,
                             const RecordTextureInput* textureInput = nullptr,
                             void* userData = nullptr);
 void ExecuteTransfer(Device& device, RecordCallback recordCallback,
+                     const RecordBufferInput* bufferInput = nullptr,
+                     const RecordTextureInput* textureInput = nullptr,
+                     void* userData = nullptr);
+void ExecuteTransfer(Device& device, CommandBuffer& cmd,
+                     RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);

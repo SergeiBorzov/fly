@@ -530,6 +530,18 @@ static void RecordConvertFromEquirectangular(
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
+static void RecordGenerateMipmaps(RHI::CommandBuffer& cmd,
+                                  const RHI::RecordBufferInput* bufferInput,
+                                  const RHI::RecordTextureInput* textureInput,
+                                  void* pUserData)
+{
+    RHI::Texture& cubemap = *(textureInput->textures[1]);
+    RHI::GenerateMipmaps(cmd, cubemap);
+    RHI::ChangeTextureAccessLayout(cmd, cubemap,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   VK_ACCESS_2_SHADER_READ_BIT);
+}
+
 bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
                                         VkFormat format,
                                         RHI::Sampler::FilterMode filterMode,
@@ -576,11 +588,12 @@ bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     RHI::Texture texture2D;
-    if (!RHI::CreateTexture2D(
-            device,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            image.data, image.width, image.height, format, filterMode,
-            RHI::Sampler::WrapMode::Clamp, texture2D))
+    if (!RHI::CreateTexture2D(device,
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                  VK_IMAGE_USAGE_SAMPLED_BIT,
+                              image.data, image.width, image.height, format,
+                              RHI::Sampler::FilterMode::Nearest,
+                              RHI::Sampler::WrapMode::Clamp, texture2D))
     {
         return false;
     }
@@ -589,7 +602,8 @@ bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
 
     if (!RHI::CreateCubemap(device,
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                VK_IMAGE_USAGE_SAMPLED_BIT,
+                                VK_IMAGE_USAGE_SAMPLED_BIT |
+                                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                             nullptr, size, format, filterMode, cubemap))
     {
         return false;
@@ -622,6 +636,8 @@ bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
     RHI::ExecuteGraphics(device, TransferCommandBuffer(device), renderingInfo,
                          RecordConvertFromEquirectangular, nullptr,
                          &textureInfo, &graphicsPipeline);
+    RHI::ExecuteTransfer(device, TransferCommandBuffer(device),
+                         RecordGenerateMipmaps, nullptr, &textureInfo);
     RHI::EndTransfer(device);
 
     RHI::DestroyTexture(device, texture2D);

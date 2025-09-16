@@ -162,83 +162,6 @@ static u32 Log2(u32 x)
     return result;
 }
 
-static void GenerateMipmaps(Fly::RHI::CommandBuffer& cmd,
-                            Fly::RHI::Texture& texture, u32 layerCount)
-{
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.image = texture.image;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = layerCount;
-    barrier.subresourceRange.levelCount = 1;
-
-    i32 mipWidth = static_cast<i32>(texture.width);
-    i32 mipHeight = static_cast<i32>(texture.height);
-
-    for (u32 i = 1; i < texture.mipLevelCount; i++)
-    {
-        barrier.subresourceRange.baseMipLevel = i - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                             nullptr, 1, &barrier);
-
-        VkImageBlit blit{};
-        blit.srcOffsets[0] = {0, 0, 0};
-        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.srcSubresource.mipLevel = i - 1;
-        blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = layerCount;
-        blit.dstOffsets[0] = {0, 0, 0};
-        blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
-                              mipHeight > 1 ? mipHeight / 2 : 1, 1};
-        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.dstSubresource.mipLevel = i;
-        blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = layerCount;
-
-        vkCmdBlitImage(cmd.handle, texture.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-                       VK_FILTER_LINEAR);
-
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-                             nullptr, 0, nullptr, 1, &barrier);
-
-        if (mipWidth > 1)
-        {
-            mipWidth /= 2;
-        }
-        if (mipHeight > 1)
-        {
-            mipHeight /= 2;
-        }
-    }
-
-    barrier.subresourceRange.baseMipLevel = texture.mipLevelCount - 1;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
-                         0, nullptr, 1, &barrier);
-}
-
 static VkImage
 CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
                   VmaAllocation& allocation, VkImageCreateFlags flags,
@@ -344,8 +267,7 @@ static void CreateDescriptors(Fly::RHI::Device& device,
 }
 
 static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
-                               u64 dataSize, Fly::RHI::Texture& texture,
-                               u32 layerCount)
+                               u64 dataSize, Fly::RHI::Texture& texture)
 {
     if (data)
     {
@@ -353,39 +275,19 @@ static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
         if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
                           dataSize, stagingBuffer))
         {
-            DestroySampler(device, texture.sampler);
-            vkDestroyImageView(device.logicalDevice, texture.imageView,
-                               Fly::RHI::GetVulkanAllocationCallbacks());
-            vmaDestroyImage(device.allocator, texture.image,
-                            texture.allocation);
             return false;
         }
 
         BeginTransfer(device);
         Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-
-        // Also sets all mip-map levels to transfer dst optimal
-        Fly::RHI::RecordTransitionImageLayout(
-            cmd, texture.image, VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        VkBufferImageCopy copyRegion{};
-        copyRegion.bufferOffset = 0;
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = layerCount;
-        copyRegion.imageExtent.width = texture.width;
-        copyRegion.imageExtent.height = texture.height;
-        copyRegion.imageExtent.depth = 1;
-
-        vkCmdCopyBufferToImage(cmd.handle, stagingBuffer.handle, texture.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copyRegion);
-
-        GenerateMipmaps(cmd, texture, layerCount);
+        RHI::ChangeTextureAccessLayout(cmd, texture,
+                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                       VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        RHI::CopyBufferToTexture(cmd, texture, stagingBuffer);
+        RHI::GenerateMipmaps(cmd, texture);
+        RHI::ChangeTextureAccessLayout(cmd, texture,
+                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                       VK_ACCESS_2_SHADER_READ_BIT);
         EndTransfer(device);
         DestroyBuffer(device, stagingBuffer);
     }
@@ -549,12 +451,14 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
+    texture.depth = 1;
+    texture.layerCount = 1;
     texture.accessMask = VK_ACCESS_2_NONE;
     texture.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
-    texture.image = CreateVulkanImage(device, texture.allocationInfo,
-                                      texture.allocation, 0, VK_IMAGE_TYPE_2D,
-                                      usage, format, VK_IMAGE_TILING_OPTIMAL,
-                                      width, height, 1, 1, mipLevelCount);
+    texture.image = CreateVulkanImage(
+        device, texture.allocationInfo, texture.allocation, 0, VK_IMAGE_TYPE_2D,
+        usage, format, VK_IMAGE_TILING_OPTIMAL, width, height, texture.depth,
+        texture.layerCount, mipLevelCount);
     if (texture.image == VK_NULL_HANDLE)
     {
         return false;
@@ -562,23 +466,14 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
 
     texture.imageView = CreateVulkanImageView(
         device, texture.image, format, mipLevelCount, VK_IMAGE_VIEW_TYPE_2D,
-        GetImageAspectMask(format), 1);
+        GetImageAspectMask(format), texture.layerCount);
     if (texture.imageView == VK_NULL_HANDLE)
     {
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
         return false;
     }
 
-    texture.arrayImageView = CreateVulkanImageView(
-        device, texture.image, format, mipLevelCount,
-        VK_IMAGE_VIEW_TYPE_2D_ARRAY, GetImageAspectMask(format), 1);
-    if (texture.arrayImageView == VK_NULL_HANDLE)
-    {
-        vkDestroyImageView(device.logicalDevice, texture.imageView,
-                           GetVulkanAllocationCallbacks());
-        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
-        return false;
-    }
+    texture.arrayImageView = VK_NULL_HANDLE;
 
     texture.usage = usage;
     texture.sampler.handle = VK_NULL_HANDLE;
@@ -605,7 +500,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     texture.mipLevelCount = mipLevelCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!InitializeWithData(device, data, dataSize, texture, 1))
+    if (!InitializeWithData(device, data, dataSize, texture))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -638,6 +533,8 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
+    texture.depth = 1;
+    texture.layerCount = 6;
     texture.accessMask = VK_ACCESS_2_NONE;
     texture.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
     texture.image = CreateVulkanImage(
@@ -694,7 +591,7 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
     texture.mipLevelCount = mipLevelCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!InitializeWithData(device, data, dataSize, texture, 6))
+    if (!InitializeWithData(device, data, dataSize, texture))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -713,8 +610,11 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
 void DestroyTexture(Device& device, Texture& texture)
 {
     DestroySampler(device, texture.sampler);
-    vkDestroyImageView(device.logicalDevice, texture.arrayImageView,
-                       GetVulkanAllocationCallbacks());
+    if (texture.arrayImageView != VK_NULL_HANDLE)
+    {
+        vkDestroyImageView(device.logicalDevice, texture.arrayImageView,
+                           GetVulkanAllocationCallbacks());
+    }
     vkDestroyImageView(device.logicalDevice, texture.imageView,
                        GetVulkanAllocationCallbacks());
     vmaDestroyImage(device.allocator, texture.image, texture.allocation);
