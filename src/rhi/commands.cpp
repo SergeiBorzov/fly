@@ -13,42 +13,68 @@ namespace RHI
 
 void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
 {
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.image = texture.image;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = texture.layerCount;
-    barrier.subresourceRange.levelCount = 1;
-
     i32 mipWidth = static_cast<i32>(texture.width);
     i32 mipHeight = static_cast<i32>(texture.height);
 
+    RHI::ChangeTextureAccessLayout(cmd, texture,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT);
+
+    VkImageMemoryBarrier2 imageBarriers[2];
+    for (u32 i = 0; i < 2; i++)
+    {
+        imageBarriers[i] = {};
+        imageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+        imageBarriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageBarriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageBarriers[i].subresourceRange.aspectMask =
+            GetImageAspectMask(texture.format);
+        imageBarriers[i].subresourceRange.baseArrayLayer = 0;
+        imageBarriers[i].subresourceRange.layerCount = texture.layerCount;
+        imageBarriers[i].subresourceRange.levelCount = 1;
+        imageBarriers[i].image = texture.image;
+    }
+
+    VkAccessFlags2 srcAccessMask = texture.accessMask;
+    VkPipelineStageFlags2 srcPipelineStageMask = texture.pipelineStageMask;
+
+    VkAccessFlags2 dstAccessMask = texture.accessMask;
+    VkPipelineStageFlags2 dstPipelineStageMask = texture.pipelineStageMask;
+
     for (u32 i = 1; i < texture.mipLevelCount; i++)
     {
-        barrier.subresourceRange.baseMipLevel = i - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        imageBarriers[0].srcAccessMask = srcAccessMask;
+        imageBarriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+        imageBarriers[0].srcStageMask = srcPipelineStageMask;
+        imageBarriers[0].dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+        imageBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        imageBarriers[0].subresourceRange.baseMipLevel = i - 1;
 
-        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                             nullptr, 1, &barrier);
+        imageBarriers[1].srcAccessMask = dstAccessMask;
+        imageBarriers[1].dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        imageBarriers[1].srcStageMask = dstPipelineStageMask;
+        imageBarriers[1].dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+        imageBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageBarriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        imageBarriers[1].subresourceRange.baseMipLevel = i;
+
+        PipelineBarrier(cmd, nullptr, 0, imageBarriers, 1);
+        srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+        srcPipelineStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 
         VkImageBlit blit{};
         blit.srcOffsets[0] = {0, 0, 0};
         blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.aspectMask = GetImageAspectMask(texture.format);
         blit.srcSubresource.mipLevel = i - 1;
         blit.srcSubresource.baseArrayLayer = 0;
         blit.srcSubresource.layerCount = texture.layerCount;
+
         blit.dstOffsets[0] = {0, 0, 0};
         blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
                               mipHeight > 1 ? mipHeight / 2 : 1, 1};
-        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.aspectMask = GetImageAspectMask(texture.format);
         blit.dstSubresource.mipLevel = i;
         blit.dstSubresource.baseArrayLayer = 0;
         blit.dstSubresource.layerCount = texture.layerCount;
@@ -57,15 +83,6 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
                        VK_FILTER_LINEAR);
-
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-        vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-                             nullptr, 0, nullptr, 1, &barrier);
 
         if (mipWidth > 1)
         {
@@ -77,104 +94,13 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
         }
     }
 
-    barrier.subresourceRange.baseMipLevel = texture.mipLevelCount - 1;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    vkCmdPipelineBarrier(cmd.handle, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
-                         0, nullptr, 1, &barrier);
-
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    texture.accessMask =
+        VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT;
+    RHI::ChangeTextureAccessLayout(cmd, texture,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   VK_ACCESS_2_SHADER_READ_BIT);
 }
-
-// void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
-// {
-//     i32 mipWidth = static_cast<i32>(texture.width);
-//     i32 mipHeight = static_cast<i32>(texture.height);
-
-//     VkImageMemoryBarrier2 imageBarriers[2];
-//     for (u32 i = 0; i < 2; i++)
-//     {
-//         imageBarriers[i] = {};
-//         imageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-//         imageBarriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//         imageBarriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//         imageBarriers[i].subresourceRange.aspectMask =
-//             GetImageAspectMask(texture.format);
-//         imageBarriers[i].subresourceRange.baseArrayLayer = 0;
-//         imageBarriers[i].subresourceRange.layerCount = texture.layerCount;
-//         imageBarriers[i].subresourceRange.levelCount = 1;
-//         imageBarriers[i].image = texture.image;
-//     }
-
-//     VkAccessFlags2 srcAccessMask = texture.accessMask;
-//     VkPipelineStageFlags2 srcPipelineStageMask = texture.pipelineStageMask;
-//     VkImageLayout srcImageLayout = texture.imageLayout;
-
-//     VkAccessFlags2 dstAccessMask = texture.accessMask;
-//     VkPipelineStageFlags2 dstPipelineStageMask = texture.pipelineStageMask;
-//     VkImageLayout dstImageLayout = texture.imageLayout;
-
-//     for (u32 i = 1; i <= 1; i++)
-//     {
-//         imageBarriers[0].srcAccessMask = srcAccessMask;
-//         imageBarriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-//         imageBarriers[0].srcStageMask = srcPipelineStageMask;
-//         imageBarriers[0].dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-//         imageBarriers[0].oldLayout = srcImageLayout;
-//         imageBarriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-//         imageBarriers[0].subresourceRange.baseMipLevel = i - 1;
-
-//         imageBarriers[1].srcAccessMask = dstAccessMask;
-//         imageBarriers[1].dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-//         imageBarriers[1].srcStageMask = dstPipelineStageMask;
-//         imageBarriers[1].dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-//         imageBarriers[1].oldLayout = dstImageLayout;
-//         imageBarriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-//         imageBarriers[1].subresourceRange.baseMipLevel = i;
-
-//         PipelineBarrier(cmd, nullptr, 0, imageBarriers, 1);
-//         srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-//         srcPipelineStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
-//         srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-
-//         VkImageBlit blit{};
-//         blit.srcOffsets[0] = {0, 0, 0};
-//         blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
-//         blit.srcSubresource.aspectMask = GetImageAspectMask(texture.format);
-//         blit.srcSubresource.mipLevel = i - 1;
-//         blit.srcSubresource.baseArrayLayer = 0;
-//         blit.srcSubresource.layerCount = texture.layerCount;
-
-//         blit.dstOffsets[0] = {0, 0, 0};
-//         blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
-//                               mipHeight > 1 ? mipHeight / 2 : 1, 1};
-//         blit.dstSubresource.aspectMask = GetImageAspectMask(texture.format);
-//         blit.dstSubresource.mipLevel = i;
-//         blit.dstSubresource.baseArrayLayer = 0;
-//         blit.dstSubresource.layerCount = texture.layerCount;
-
-//         vkCmdBlitImage(cmd.handle, texture.image,
-//                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
-//                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-//                        VK_FILTER_LINEAR);
-
-//         if (mipWidth > 1)
-//         {
-//             mipWidth /= 2;
-//         }
-//         if (mipHeight > 1)
-//         {
-//             mipHeight /= 2;
-//         }
-//     }
-
-//     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//     texture.accessMask =
-//         VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT;
-// }
 
 void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
                          Buffer& srcBuffer)

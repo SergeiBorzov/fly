@@ -460,7 +460,7 @@ void ExecuteTransfer(RHI::Device& device, RecordCallback recordCallback,
 {
     RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, bufferInput,
+    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, bufferInput,
                    textureInput);
     recordCallback(cmd, bufferInput, textureInput, userData);
 }
@@ -470,7 +470,7 @@ void ExecuteTransfer(RHI::Device& device, RHI::CommandBuffer& cmd,
                      const RecordBufferInput* bufferInput,
                      const RecordTextureInput* textureInput, void* userData)
 {
-    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, bufferInput,
+    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, bufferInput,
                    textureInput);
     recordCallback(cmd, bufferInput, textureInput, userData);
 }

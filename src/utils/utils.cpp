@@ -537,9 +537,6 @@ static void RecordGenerateMipmaps(RHI::CommandBuffer& cmd,
 {
     RHI::Texture& cubemap = *(textureInput->textures[1]);
     RHI::GenerateMipmaps(cmd, cubemap);
-    RHI::ChangeTextureAccessLayout(cmd, cubemap,
-                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   VK_ACCESS_2_SHADER_READ_BIT);
 }
 
 bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
