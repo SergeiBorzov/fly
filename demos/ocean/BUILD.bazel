@@ -11,6 +11,15 @@ copy_files_to_directory(
     output_directory = ".",
 )
 
+copy_files_to_directory(
+    name = "copy_scene_data",
+    srcs = [
+        "@ambientcg//:DaySkyHDRI051B_4K-TONEMAPPED.jpg",
+        "@ambientcg//:DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
+    ],
+    output_directory = ".",
+)
+
 config_setting(
     name = "release_build",
     values = {
@@ -67,8 +76,11 @@ glsl_shader(
 )
 
 glsl_shader(
-    name = "screen_quad.vert.spv",
-    src = "screen_quad.vert",
+    name = "sky.vert.spv",
+    src = "sky.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
 )
 
 glsl_shader(
@@ -92,23 +104,19 @@ glsl_shader(
     ],
 )
 
-cc_library(
-    name = "lib",
-    hdrs = [
-        "cascades.h",
-        "skybox_renderer.h",
-        "ocean_renderer.h"
-    ],
-    srcs = [
-        "cascades.cpp",
-        "skybox_renderer.cpp",
-        "ocean_renderer.cpp",
-    ],
+glsl_shader(
+    name = "plane.vert.spv",
+    src = "plane.vert",
     deps = [
-        "//src/rhi:context",
-        "//src/math:math",
-        "//demos/common:scene",
-        "//demos/common:simple_camera_fps",
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "plane.frag.spv",
+    src = "plane.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
     ],
 )
 
@@ -118,11 +126,17 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
-        ":lib",
         "@imgui//:imgui",
+        "//src/rhi:context",
+        "//src/math:math",
+        "//src/utils:utils",
+        "//demos/common:simple_camera_fps",
+
     ],
     data = [
-        ":screen_quad.vert.spv",
+        ":plane.vert.spv",
+        ":plane.frag.spv",
+        ":sky.vert.spv",
         ":sky.frag.spv",
         ":foam.frag.spv",
         ":skybox.frag.spv",
@@ -137,6 +151,7 @@ cc_binary(
         ],
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
+            ":copy_scene_data",
         ],
     }),
 )
