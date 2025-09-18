@@ -899,6 +899,15 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
     }
 }
 
+static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height, void*)
+{
+    RHI::DestroyTexture(device, sDepthTexture);
+    RHI::CreateTexture2D(device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                         nullptr, width, height, VK_FORMAT_D32_SFLOAT_S8_UINT,
+                         RHI::Sampler::FilterMode::Nearest,
+                         RHI::Sampler::WrapMode::Repeat, sDepthTexture);
+}
+
 int main(int argc, char* argv[])
 {
     InitThreadContext();
@@ -962,6 +971,7 @@ int main(int argc, char* argv[])
         return -1;
     }
     RHI::Device& device = context.devices[0];
+    device.swapchainRecreatedCallback.func = OnFramebufferResize;
     glfwSetWindowUserPointer(window, &device);
 
     if (!CreateImGuiContext(context, device, window))

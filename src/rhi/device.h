@@ -19,6 +19,7 @@ namespace RHI
 {
 
 struct Context;
+struct Device;
 
 struct FrameData
 {
@@ -42,7 +43,7 @@ struct SwapchainTexture
     VkImageView imageView = VK_NULL_HANDLE;
 };
 
-typedef void (*SwapchainRecreatedFn)(u32 w, u32 h, void*);
+typedef void (*SwapchainRecreatedFn)(Device& device, u32 w, u32 h, void*);
 
 struct SwapchainRecreatedCallback
 {
@@ -68,7 +69,7 @@ struct Device
     FrameData frameData[FLY_FRAME_IN_FLIGHT_COUNT];
     TransferData transferData = {};
     VkSurfaceFormatKHR surfaceFormat = {};
-    List<SwapchainRecreatedCallback> swapchainRecreatedCallbacks;
+    SwapchainRecreatedCallback swapchainRecreatedCallback;
     Context* context = nullptr;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice logicalDevice = VK_NULL_HANDLE;

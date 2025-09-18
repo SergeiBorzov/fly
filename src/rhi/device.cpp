@@ -396,11 +396,11 @@ static bool RecreateSwapchain(Device& device)
 
     device.isFramebufferResized = false;
 
-    for (const SwapchainRecreatedCallback& callback :
-         device.swapchainRecreatedCallbacks)
+    if (device.swapchainRecreatedCallback.func)
     {
-        callback.func(device.swapchainWidth, device.swapchainHeight,
-                      callback.data);
+        device.swapchainRecreatedCallback.func(
+            device, device.swapchainWidth, device.swapchainHeight,
+            device.swapchainRecreatedCallback.data);
     }
 
     return true;
