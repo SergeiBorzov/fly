@@ -48,11 +48,30 @@ struct OceanFrequencyVertex
     Math::Vec2 dyDisplacement;
 };
 
+struct OceanPushConstants
+{
+    u32 uniformBufferIndex;
+    u32 shadeParamsBufferIndex;
+    u32 vertexBufferIndex;
+    u32 heightMaps[OCEAN_CASCADE_COUNT];
+    u32 diffDisplacements[OCEAN_CASCADE_COUNT];
+    u32 skyboxTextureIndex;
+    f32 waveChopiness;
+};
+
 struct JonswapData
 {
     Math::Vec4 fetchSpeedDirSpread;
     Math::Vec4 timeScale;
     Math::Vec4 domainMinMax;
+};
+
+struct ShadeParams
+{
+    Math::Vec4 lightColorReflectivity;
+    Math::Vec4 waterScatterColor;
+    Math::Vec4 coefficients;
+    Math::Vec4 bubbleColorDensity;
 };
 
 struct Cascade
@@ -68,12 +87,23 @@ struct Cascade
     f32 kMax;
 };
 
-static float sFetch = 500000.0f;
-static float sWindSpeed = 3.0f;
+static float sFetch = 334917.0f;
+static float sWindSpeed = 12.0f;
 static float sWindDirection = -2.4f;
-static float sSpread = 18.0f;
-static float sAmplitudeScale = 2.0f;
+static float sSpread = 7.32f;
+static float sAmplitudeScale = 6.32f;
 static float sTime = 0.0f;
+static float sWaveChopiness = 2.8f;
+
+static Math::Vec3 sLightColor = Math::Vec3(0.961f, 0.945f, 0.89f);
+static Math::Vec3 sWaterScatterColor = Math::Vec3(0.18f, 0.28f, 0.32f);
+static Math::Vec3 sBubbleColor = Math::Vec3(1.0f);
+static float sSS1 = 5.92f;
+static float sSS2 = 0.17f;
+static float sA1 = 0.01f;
+static float sA2 = 0.1f;
+static float sReflectivity = 1.0f;
+static float sBubbleDensity = 0.14f;
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static RHI::ComputePipeline sSpectrumPipeline;
@@ -89,6 +119,7 @@ static RHI::Buffer sOceanPlaneVertex;
 static RHI::Buffer sOceanPlaneIndex;
 static u32 sOceanPlaneIndexCount;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sShadeParams[FLY_FRAME_IN_FLIGHT_COUNT];
 static Cascade sCascades[OCEAN_CASCADE_COUNT];
 static u32 sCascadeResolution = 256;
 
@@ -216,9 +247,8 @@ static void ProcessImGuiFrame()
             ImGui::SliderFloat("Wind Direction", &sWindDirection, -FLY_MATH_PI,
                                FLY_MATH_PI, "%.2f rad");
             ImGui::SliderFloat("Spread", &sSpread, 1.0f, 30.0f, "%.2f");
-            // ImGui::SliderFloat("Wave Chopiness",
-            // &sOceanRenderer.waveChopiness,
-            //                    -10.0f, 10.0f, "%.2f");
+            ImGui::SliderFloat("Wave Chopiness", &sWaveChopiness, -10.0f, 10.0f,
+                               "%.2f");
             ImGui::SliderFloat("Amplitude scale", &sAmplitudeScale, 0.0f, 20.0f,
                                "%.2f");
             // ImGui::SliderFloat("Foam Decay", &sOceanRenderer.foamDecay, 0.0f,
@@ -230,21 +260,16 @@ static void ProcessImGuiFrame()
 
         if (ImGui::TreeNode("Ocean shade"))
         {
-            // ImGui::ColorEdit3("Water scatter",
-            //                   sOceanRenderer.waterScatterColor.data);
-            // ImGui::ColorEdit3("Light color", sOceanRenderer.lightColor.data);
-            // ImGui::SliderFloat("ss1", &sOceanRenderer.ss1, 0.0f, 100.0f,
-            //                    "%.2f");
-            // ImGui::SliderFloat("ss2", &sOceanRenderer.ss2, 0.0f, 100.0f,
-            //                    "%.2f");
-            // ImGui::SliderFloat("a1", &sOceanRenderer.a1, 0.0f, 0.05f,
-            // "%.2f"); ImGui::SliderFloat("a2", &sOceanRenderer.a2, 0.0f, 1.0f,
-            // "%.2f"); ImGui::SliderFloat("reflectivity",
-            // &sOceanRenderer.reflectivity,
-            //                    0.0f, 1.0f, "%.2f");
-            // ImGui::SliderFloat("bubble density",
-            // &sOceanRenderer.bubbleDensity,
-            //                    0.0f, 1.0f, "%.2f");
+            ImGui::ColorEdit3("Water scatter", sWaterScatterColor.data);
+            ImGui::ColorEdit3("Light color", sLightColor.data);
+            ImGui::SliderFloat("ss1", &sSS1, 0.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("ss2", &sSS2, 0.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("a1", &sA1, 0.0f, 0.05f, "%.2f");
+            ImGui::SliderFloat("a2", &sA2, 0.0f, 1.0f, "%.2f");
+            ImGui::SliderFloat("reflectivity", &sReflectivity, 0.0f, 1.0f,
+                               "%.2f");
+            ImGui::SliderFloat("bubble density", &sBubbleDensity, 0.0f, 1.0f,
+                               "%.2f");
             ImGui::TreePop();
         }
 
@@ -312,12 +337,12 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    if (!LoadShaderFromSpv(device, "plane.vert.spv",
+    if (!LoadShaderFromSpv(device, "ocean.vert.spv",
                            shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!LoadShaderFromSpv(device, "plane.frag.spv",
+    if (!LoadShaderFromSpv(device, "ocean.frag.spv",
                            shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -325,7 +350,7 @@ static bool CreatePipelines(RHI::Device& device)
     fixedState.pipelineRendering.depthAttachmentFormat =
         VK_FORMAT_D32_SFLOAT_S8_UINT;
     fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
+    // fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      sOceanPipeline))
     {
@@ -368,6 +393,13 @@ static bool CreateResources(RHI::Device& device)
         {
             return false;
         }
+        if (!RHI::CreateBuffer(device, true,
+                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               nullptr, sizeof(ShadeParams), sShadeParams[i]))
+        {
+            return false;
+        }
     }
 
     if (!LoadCubemapEquirectangularFromFile(
@@ -382,8 +414,8 @@ static bool CreateResources(RHI::Device& device)
         Arena& arena = GetScratchArena();
         ArenaMarker marker = ArenaGetMarker(arena);
 
-        f32 tileSize = 1000.0f;
-        f32 quadSize = 1.0f;
+        f32 tileSize = 2000.0f;
+        f32 quadSize = 0.5f;
         i32 quadPerSide = static_cast<i32>(tileSize / quadSize);
         i32 offset = quadPerSide / 2;
         u32 vertexPerSide = quadPerSide + 1;
@@ -525,6 +557,17 @@ void UpdateCascades(RHI::Device& device)
     }
 }
 
+void UpdateShadeParams(RHI::Device& device)
+{
+    ShadeParams shadeParams;
+    shadeParams.lightColorReflectivity = Math::Vec4(sLightColor, sReflectivity);
+    shadeParams.waterScatterColor = Math::Vec4(sWaterScatterColor, 0.0f);
+    shadeParams.coefficients = Math::Vec4(sSS1, sSS2, sA1, sA2);
+    shadeParams.bubbleColorDensity = Math::Vec4(sBubbleColor, sBubbleDensity);
+    RHI::CopyDataToBuffer(device, &shadeParams, sizeof(ShadeParams), 0,
+                          sShadeParams[device.frameIndex]);
+}
+
 static void DestroyCascade(RHI::Device& device, Cascade& cascade)
 {
     RHI::DestroyTexture(device, cascade.heightMap);
@@ -544,6 +587,7 @@ static void DestroyResources(RHI::Device& device)
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
+        RHI::DestroyBuffer(device, sShadeParams[i]);
     }
     RHI::DestroyBuffer(device, sOceanPlaneVertex);
     RHI::DestroyBuffer(device, sOceanPlaneIndex);
@@ -561,8 +605,57 @@ static void RecordCascadeSpectrum(RHI::CommandBuffer& cmd,
     RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
     RHI::Buffer& frequencyBuffer = *(bufferInput->buffers[1]);
 
+    u32 pushConstants[] = {uniformBuffer.bindlessHandle,
+                           frequencyBuffer.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, sCascadeResolution, 1, 1);
+}
+
+static void RecordIFFT(RHI::CommandBuffer& cmd,
+                       const RHI::RecordBufferInput* bufferInput,
+                       const RHI::RecordTextureInput* textureInput,
+                       void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sIFFTPipeline);
+
+    RHI::Buffer& frequencyBuffer = *(bufferInput->buffers[0]);
+
+    u32 pushConstants[] = {frequencyBuffer.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, sCascadeResolution, 1, 1);
+}
+
+static void RecordTranspose(RHI::CommandBuffer& cmd,
+                            const RHI::RecordBufferInput* bufferInput,
+                            const RHI::RecordTextureInput* textureInput,
+                            void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sTransposePipeline);
+
+    RHI::Buffer& inFrequencyBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& outFrequencyBuffer = *(bufferInput->buffers[1]);
+    u32 pushConstants[] = {inFrequencyBuffer.bindlessHandle,
+                           outFrequencyBuffer.bindlessHandle,
+                           sCascadeResolution};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+    RHI::Dispatch(cmd, sCascadeResolution / 16, sCascadeResolution / 16, 1);
+}
+
+static void RecordCopy(RHI::CommandBuffer& cmd,
+                       const RHI::RecordBufferInput* bufferInput,
+                       const RHI::RecordTextureInput* textureInput,
+                       void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sCopyPipeline);
+
+    RHI::Buffer& frequencyBuffer = *(bufferInput->buffers[0]);
+    RHI::Texture& diffDisplacementMap = *(textureInput->textures[0]);
+    RHI::Texture& heightMap = *(textureInput->textures[1]);
+
     u32 pushConstants[] = {frequencyBuffer.bindlessHandle,
-                           uniformBuffer.bindlessHandle};
+                           diffDisplacementMap.bindlessStorageHandle,
+                           heightMap.bindlessStorageHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, sCascadeResolution, 1, 1);
 }
@@ -597,11 +690,25 @@ static void RecordDrawOcean(RHI::CommandBuffer& cmd,
                     cmd.device->swapchainHeight);
 
     RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& shadeParams = *(bufferInput->buffers[1]);
 
     RHI::BindGraphicsPipeline(cmd, sOceanPipeline);
-    u32 pushConstants[] = {uniformBuffer.bindlessHandle,
-                           sOceanPlaneVertex.bindlessHandle};
-    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+    OceanPushConstants pushConstants;
+    pushConstants.uniformBufferIndex = uniformBuffer.bindlessHandle;
+    pushConstants.shadeParamsBufferIndex = shadeParams.bindlessHandle;
+    pushConstants.vertexBufferIndex = sOceanPlaneVertex.bindlessHandle;
+    for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+    {
+        pushConstants.diffDisplacements[i] =
+            textureInput->textures[i]->bindlessHandle;
+        pushConstants.heightMaps[i] =
+            textureInput->textures[OCEAN_CASCADE_COUNT + i]->bindlessHandle;
+    }
+    pushConstants.skyboxTextureIndex = sSkyboxTexture.bindlessHandle;
+    pushConstants.waveChopiness = sWaveChopiness;
+
+    RHI::PushConstants(cmd, &pushConstants, sizeof(pushConstants));
 
     RHI::BindIndexBuffer(cmd, sOceanPlaneIndex, VK_INDEX_TYPE_UINT32);
     RHI::DrawIndexed(cmd, sOceanPlaneIndexCount, 1, 0, 0, 0);
@@ -627,12 +734,13 @@ static void Draw(RHI::Device& device)
 
     RHI::RecordBufferInput bufferInput;
     RHI::RecordTextureInput textureInput;
-    RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 5);
+    RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 2);
     VkAccessFlagBits2* bufferAccesses =
-        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 5);
-    RHI::Texture** textures = FLY_PUSH_ARENA(arena, RHI::Texture*, 5);
+        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 2);
+    RHI::Texture** textures =
+        FLY_PUSH_ARENA(arena, RHI::Texture*, OCEAN_CASCADE_COUNT * 2);
     RHI::ImageLayoutAccess* imageLayoutsAccesses =
-        FLY_PUSH_ARENA(arena, RHI::ImageLayoutAccess, 5);
+        FLY_PUSH_ARENA(arena, RHI::ImageLayoutAccess, OCEAN_CASCADE_COUNT * 2);
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
     textureInput.textures = textures;
@@ -648,6 +756,63 @@ static void Draw(RHI::Device& device)
             bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
 
             RHI::ExecuteCompute(device, RecordCascadeSpectrum, &bufferInput);
+        }
+    }
+
+    {
+        bufferInput.bufferCount = 1;
+        for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+        {
+            buffers[0] = &sCascades[i].frequencyBuffers[0];
+            bufferAccesses[0] =
+                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+            RHI::ExecuteCompute(device, RecordIFFT, &bufferInput);
+        }
+    }
+
+    {
+        bufferInput.bufferCount = 2;
+        for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+        {
+            buffers[0] = &sCascades[i].frequencyBuffers[0];
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+            buffers[1] = &sCascades[i].frequencyBuffers[1];
+            bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+            RHI::ExecuteCompute(device, RecordTranspose, &bufferInput);
+        }
+    }
+
+    {
+        bufferInput.bufferCount = 1;
+        for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+        {
+            buffers[0] = &sCascades[i].frequencyBuffers[1];
+            bufferAccesses[0] =
+                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+            RHI::ExecuteCompute(device, RecordIFFT, &bufferInput);
+        }
+    }
+
+    {
+        bufferInput.bufferCount = 1;
+        textureInput.textureCount = 2;
+        for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+        {
+            buffers[0] = &sCascades[i].frequencyBuffers[1];
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+
+            textures[0] = &sCascades[i].diffDisplacementMap;
+            imageLayoutsAccesses[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+            textures[1] = &sCascades[i].heightMap;
+            imageLayoutsAccesses[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+            RHI::ExecuteCompute(device, RecordCopy, &bufferInput,
+                                &textureInput);
         }
     }
 
@@ -672,7 +837,28 @@ static void Draw(RHI::Device& device)
     }
 
     {
-        bufferInput.bufferCount = 1;
+        bufferInput.bufferCount = 2;
+        buffers[0] = &sCameraBuffers[device.frameIndex];
+        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+        buffers[1] = &sShadeParams[device.frameIndex];
+        bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+
+        textureInput.textureCount = OCEAN_CASCADE_COUNT * 2;
+        for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+        {
+            textures[i] = &sCascades[i].diffDisplacementMap;
+            imageLayoutsAccesses[i].imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageLayoutsAccesses[i].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+        }
+        for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
+        {
+            textures[OCEAN_CASCADE_COUNT + i] = &sCascades[i].heightMap;
+            imageLayoutsAccesses[OCEAN_CASCADE_COUNT + i].imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageLayoutsAccesses[OCEAN_CASCADE_COUNT + i].accessMask =
+                VK_ACCESS_2_SHADER_READ_BIT;
+        }
 
         VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
             RenderFrameSwapchainTexture(device).imageView,
@@ -683,7 +869,7 @@ static void Draw(RHI::Device& device)
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1, &depthAttachment);
         RHI::ExecuteGraphics(device, renderingInfo, RecordDrawOcean,
-                             &bufferInput);
+                             &bufferInput, &textureInput);
     }
 
     {
@@ -698,29 +884,6 @@ static void Draw(RHI::Device& device)
 
     ArenaPopToMarker(arena, marker);
 }
-
-// static void ExecuteCommands(RHI::Device& device, f64 deltaTime)
-// {
-//     RecordJonswapCascadesRendererCommands(device, sCascadesRenderer);
-//     RecordSkyBoxRendererCommands(device, sSkyBoxRenderer);
-
-//     OceanRendererInputs inputs;
-//     for (u32 i = 0; i < DEMO_OCEAN_CASCADE_COUNT; i++)
-//     {
-//         inputs.heightMaps[i] = sCascadesRenderer.cascades[i]
-//                                    .heightMaps[device.frameIndex]
-//                                    .bindlessHandle;
-//         inputs.diffDisplacementMaps[i] =
-//             sCascadesRenderer.cascades[i]
-//                 .diffDisplacementMaps[device.frameIndex]
-//                 .bindlessHandle;
-//     }
-//     inputs.skyBox =
-//     sSkyBoxRenderer.skyBoxes[device.frameIndex].bindlessHandle;
-//     inputs.deltaTime = static_cast<f32>(deltaTime);
-//     RecordOceanRendererCommands(device, inputs, sOceanRenderer);
-//     RecordUICommands(device);
-// }
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -835,36 +998,6 @@ int main(int argc, char* argv[])
     u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
 
-    // if (!CreateJonswapCascadesRenderer(device, 256, sCascadesRenderer))
-    // {
-    //     return false;
-    // }
-
-    // float ratio = 1 + Math::Sqrt(11);
-    // float domain = 512.0f;
-    // sCascadesRenderer.cascades[0].domain = domain;
-    // sCascadesRenderer.cascades[0].kMin = 0.0f;
-    // sCascadesRenderer.cascades[0].kMax = 0.5f;
-    // sCascadesRenderer.cascades[1].domain = domain / ratio;
-    // sCascadesRenderer.cascades[1].kMin = 0.5f;
-    // sCascadesRenderer.cascades[1].kMax = 3.0f;
-    // sCascadesRenderer.cascades[2].domain = domain / ratio / ratio;
-    // sCascadesRenderer.cascades[2].kMin = 3.0f;
-    // sCascadesRenderer.cascades[2].kMax = 20.0f;
-    // sCascadesRenderer.cascades[3].domain = domain / ratio / ratio / ratio;
-    // sCascadesRenderer.cascades[3].kMin = 20.0f;
-    // sCascadesRenderer.cascades[3].kMax = 230.0f;
-
-    // if (!CreateSkyBoxRenderer(device, 256, sSkyBoxRenderer))
-    // {
-    //     return false;
-    // }
-
-    // if (!CreateOceanRenderer(device, 4096, sOceanRenderer))
-    // {
-    //     return false;
-    // }
-
     sCamera.speed = 60.0f;
     while (!glfwWindowShouldClose(window))
     {
@@ -898,32 +1031,11 @@ int main(int argc, char* argv[])
                               sCameraBuffers[device.frameIndex]);
 
         UpdateCascades(device);
+        UpdateShadeParams(device);
 
-        // UpdateOceanRendererUniforms(device, sCamera, WINDOW_WIDTH,
-        //                             WINDOW_HEIGHT, sOceanRenderer);
-
-        // uint64_t waitValues[2] = {0, sOceanRenderer.currentTimelineValue};
-        // uint64_t signalValues[2] = {0, sOceanRenderer.currentTimelineValue +
-        // 1};
-
-        // VkTimelineSemaphoreSubmitInfo timelineSubmitInfo{};
-        // timelineSubmitInfo.sType =
-        //     VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-        // timelineSubmitInfo.waitSemaphoreValueCount = 2;
-        // timelineSubmitInfo.pWaitSemaphoreValues = waitValues;
-        // timelineSubmitInfo.signalSemaphoreValueCount = 2;
-        // timelineSubmitInfo.pSignalSemaphoreValues = signalValues;
-
-        // VkPipelineStageFlags waitStage =
-        // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         RHI::BeginRenderFrame(device);
         Draw(device);
         RHI::EndRenderFrame(device);
-        // RHI::EndRenderFrame(device, &sOceanRenderer.foamSemaphore,
-        // &waitStage,
-        //                     1, &sOceanRenderer.foamSemaphore, 1,
-        //                     &timelineSubmitInfo);
-        // sOceanRenderer.currentTimelineValue = signalValues[1];
     }
 
     RHI::WaitAllDevicesIdle(context);
@@ -932,10 +1044,6 @@ int main(int argc, char* argv[])
     {
         DestroyCascade(device, sCascades[i]);
     }
-
-    // DestroyJonswapCascadesRenderer(device, sCascadesRenderer);
-    // DestroySkyBoxRenderer(device, sSkyBoxRenderer);
-    // DestroyOceanRenderer(device, sOceanRenderer);
 
     DestroyResources(device);
     DestroyPipelines(device);

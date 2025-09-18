@@ -7,6 +7,7 @@
 
 layout(location = 0) out VertexData
 {
+    vec3 viewPos;
     vec3 view;
     vec2 uv;
     float height;
@@ -21,7 +22,6 @@ layout(push_constant) uniform PushConstants
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
-    uint foamTextureIndex;
     float waveChopiness;
 }
 gPushConstants;
@@ -83,7 +83,10 @@ void main()
     mat3 R = mat3(view);
     vec3 T = vec3(view[3]);
     vec3 camPos = -transpose(R) * T;
-    outData.view = normalize(camPos - worldPos);
 
-    gl_Position = projection * view * vec4(worldPos, 1.0f);
+    vec4 viewPos = view * vec4(worldPos, 1.0f);
+    outData.view = normalize(camPos - worldPos);
+    outData.viewPos = viewPos.xyz;
+
+    gl_Position = projection * viewPos;
 }

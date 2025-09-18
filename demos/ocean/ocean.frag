@@ -8,6 +8,7 @@
 
 layout(location = 0) in VertexData
 {
+    vec3 viewPos;
     vec3 view;
     vec2 uv;
     float height;
@@ -24,7 +25,6 @@ layout(push_constant) uniform PushConstants
     uint heightMapCascades[4];
     uint diffDisplacementCascades[4];
     uint skyBoxTextureIndex;
-    uint foamTextureIndex;
     float waveChopiness;
 }
 gPushConstants;
@@ -82,19 +82,22 @@ vec2 SampleSlope(float bias)
     return slope;
 }
 
-float SampleFoam(float bias)
-{
-    vec2 dxScaled = dFdx(inData.uv) * bias;
-    vec2 dyScaled = dFdy(inData.uv) * bias;
-    float foamValue =
-        textureGrad(FLY_ACCESS_TEXTURE_BUFFER(Textures,
-                                              gPushConstants.foamTextureIndex),
-                    inData.uv, dxScaled, dyScaled)
-            .r;
-    return foamValue;
-}
+// float SampleFoam(float bias)
+// {
+//     vec2 dxScaled = dFdx(inData.uv) * bias;
+//     vec2 dyScaled = dFdy(inData.uv) * bias;
+//     float foamValue =
+//         textureGrad(FLY_ACCESS_TEXTURE_BUFFER(Textures,
+//                                               gPushConstants.foamTextureIndex),
+//                     inData.uv, dxScaled, dyScaled)
+//             .r;
+//     return foamValue;
+// }
 
-float Fresnel(vec3 n, vec3 v) { return pow(1.0 - max(0.0, dot(n, v)), 5.0); }
+float Fresnel(vec3 n, vec3 v)
+{
+    return pow(1.0 - clamp(dot(n, v), 0.0f, 1.0f), 5.0f);
+}
 
 float SpecularBlinnPhong(vec3 n, vec3 h, float alpha)
 {
@@ -134,7 +137,7 @@ vec3 AmbientColor(vec3 l, vec3 n, float k1, float k2, float bubbleDensity,
 
 vec3 FresnelSchlick(vec3 n, vec3 v, vec3 F0)
 {
-    return F0 + (1.0 - F0) * pow(1.0 - max(dot(n, v), 0.0f), 5.0);
+    return F0 + (1.0 - F0) * pow(1.0 - clamp(dot(n, v), 0.0f, 1.0f), 5.0);
 }
 
 void main()
@@ -161,6 +164,9 @@ void main()
 
     vec3 specularColor =
         SpecularBlinnPhong(n, h, 250.0f) * lightColorReflectivity.xyz;
+    
+    r.y = max(r.y, 0.0f);
+    r = normalize(r);
     vec3 reflectedColor = ReflectedColor(fresnel, r, lightColorReflectivity.w);
 
     vec3 ssColor =
@@ -173,10 +179,16 @@ void main()
                      bubbleColorDensity.xyz);
 
     vec3 waterColor = ambientColor + ssColor + specularColor + reflectedColor;
-    vec3 foamColor = mix(lightColorReflectivity.xyz, vec3(1.0), 0.5) * 1.1;
 
-    vec3 finalColor =
-        mix(waterColor, foamColor, clamp(SampleFoam(MIP_BIAS), 0.0f, 1.0f));
+    // vec3 foamColor = mix(lightColorReflectivity.xyz, vec3(1.0), 0.5) * 1.1;
+    //  vec3 finalColor =
+    //      mix(waterColor, foamColor, clamp(SampleFoam(MIP_BIAS), 0.0f, 1.0f));
+
+    vec3 fogColor = vec3(0.7f, 0.75f, 0.8f);
+    float dist = length(inData.viewPos);
+    float fogFactor = smoothstep(75.0f, 500.0f, dist);
+
+    vec3 finalColor = mix(waterColor, fogColor, fogFactor);
 
     outColor = vec4(finalColor, 1.0f);
 }
