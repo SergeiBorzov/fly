@@ -7,3 +7,27 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+cc_library(
+    name = "stb_image_write",
+    hdrs = [
+        "stb_image_write.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "stb_image_resize2",
+    hdrs = [
+        "stb_image_resize2.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+   name = "stb_dxt",
+   hdrs = [
+       "stb_dxt.h",
+   ],
+   visibility = ["//visibility:public"],
+)
