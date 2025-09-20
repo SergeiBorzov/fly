@@ -7,14 +7,7 @@ namespace Fly
 {
 
 struct Path;
-
-struct Image
-{
-    u8* data = nullptr;
-    u32 width = 0;
-    u32 height = 0;
-    u32 channelCount = 0;
-};
+struct Image;
 
 bool LoadImageFromFile(const Fly::Path& path, Image& image);
 bool LoadImageFromFile(const char* path, Image& image);

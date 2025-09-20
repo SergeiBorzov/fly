@@ -1,3 +1,4 @@
+#include "image.h"
 #include "import_image.h"
 
 #include "core/assert.h"

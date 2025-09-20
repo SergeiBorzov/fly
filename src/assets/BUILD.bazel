@@ -4,6 +4,7 @@ cc_library(
     name = "import_image",
     hdrs = [
         "import_image.h",
+        "image.h",
     ],
     srcs = [
         "import_image.cpp",
@@ -69,6 +70,37 @@ cc_library(
         ":import_obj",
         ":import_gltf",
         ":import_image",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "cook_image",
+    hdrs = [
+        "image.h",
+        "image_bc.h",
+    ],
+    srcs = [
+        "image_bc.cpp",
+    ],
+    includes = [
+        "..",
+    ],
+    deps = [
+        "//src/core:core",
+        "//src/math:math",
+        "@stb//:stb_dxt",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "cooker",
+    srcs = [
+        "cooker.cpp",
+    ],
+    deps = [
+        ":cook_image",
     ],
     visibility = ["//visibility:public"],
 )
