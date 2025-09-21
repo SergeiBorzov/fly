@@ -34,7 +34,7 @@ float DensityOzone(float h)
     return max(0.0f, 1.0f - abs(h - 25000.0f) / 15000.0f);
 }
 
-float ExtinctionRayleigh(float h)
+vec3 ExtinctionRayleigh(float h)
 {
     return sRayleighScattering * DensityRayleigh(h);
 }
