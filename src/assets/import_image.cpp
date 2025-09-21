@@ -7,6 +7,7 @@
 #include "core/filesystem.h"
 #include "core/log.h"
 #include "core/memory.h"
+#include "core/string8.h"
 
 #define STBI_ASSERT(x) FLY_ASSERT(x)
 #define STBI_MALLOC(size) (Fly::Alloc(size))
@@ -15,88 +16,67 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+struct MipRow
+{
+    u32 width;
+    u32 height;
+    u64 offset;
+};
+
 namespace Fly
 {
+
+bool LoadCompressedImageFromFile(String8 path, Image& image)
+{
+    FLY_ASSERT(path);
+
+    u8 channelCount = 0;
+
+    if (path.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
+    {
+        channelCount = 3;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
+    {
+        channelCount = 4;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
+    {
+        channelCount = 1;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
+    {
+        channelCount = 2;
+    }
+
+    u64 size = 0;
+    u8* bytes = ReadFileToByteArray(path.Data(), size);
+    image.channelCount = channelCount;
+    image.mem = bytes;
+    image.mipLevelCount = *(reinterpret_cast<u32*>(bytes));
+    MipRow* mipRow = reinterpret_cast<MipRow*>(bytes + sizeof(u32));
+    image.width = mipRow->width;
+    image.height = mipRow->height;
+    image.data = bytes + mipRow->offset;
+
+    return true;
+}
 
 bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
 {
     FLY_ASSERT(path);
 
-    const char* lastDot = strrchr(path, '.');
-    if (!lastDot)
-    {
-        return false;
-    }
+    String8 pathStr = Fly::String8(path, strlen(path));
 
-    if (strncmp(lastDot, ".bc1", strlen(".bc1")) == 0)
+    if (String8::FindLast(pathStr, '.').StartsWith(FLY_STRING8_LITERAL(".fbc")))
     {
-        u64 size = 0;
-        u8* bytes = ReadFileToByteArray(path, size);
-        if (!bytes)
-        {
-            return false;
-        }
-
-        image.mem = bytes;
-        image.width = *(reinterpret_cast<u32*>(bytes));
-        image.height = *(reinterpret_cast<u32*>(bytes) + 1);
-        image.channelCount = 3;
-        image.data = reinterpret_cast<u8*>(reinterpret_cast<u32*>(bytes) + 2);
-        return true;
-    }
-    else if (strncmp(lastDot, ".bc3", strlen(".bc3")) == 0)
-    {
-        u64 size = 0;
-        u8* bytes = ReadFileToByteArray(path, size);
-        if (!bytes)
-        {
-            return false;
-        }
-
-        image.mem = bytes;
-        image.width = *(reinterpret_cast<u32*>(bytes));
-        FLY_LOG("Width read %u", image.width);
-        image.height = *(reinterpret_cast<u32*>(bytes) + 1);
-        FLY_LOG("Height read %u", image.height);
-        image.channelCount = 4;
-        image.data = reinterpret_cast<u8*>(reinterpret_cast<u32*>(bytes) + 2);
-        return true;
-    }
-    else if (strncmp(lastDot, ".bc4", strlen(".bc4")) == 0)
-    {
-        u64 size = 0;
-        u8* bytes = ReadFileToByteArray(path, size);
-        if (!bytes)
-        {
-            return false;
-        }
-
-        image.mem = bytes;
-        image.width = *(reinterpret_cast<u32*>(bytes));
-        image.height = *(reinterpret_cast<u32*>(bytes) + 1);
-        image.channelCount = 1;
-        image.data = reinterpret_cast<u8*>(reinterpret_cast<u32*>(bytes) + 2);
-        return true;
-    }
-    else if (strncmp(lastDot, ".bc5", strlen(".bc5")) == 0)
-    {
-        u64 size = 0;
-        u8* bytes = ReadFileToByteArray(path, size);
-        if (!bytes)
-        {
-            return false;
-        }
-
-        image.width = *(reinterpret_cast<u32*>(bytes));
-        image.height = *(reinterpret_cast<u32*>(bytes) + 1);
-        image.channelCount = 1;
-        image.data = reinterpret_cast<u8*>(reinterpret_cast<u32*>(bytes) + 2);
-        return true;
+        return LoadCompressedImageFromFile(pathStr, image);
     }
 
     int x = 0, y = 0, n = 0;
     image.mem = stbi_load(path, &x, &y, &n, desiredChannelCount);
     image.data = image.mem;
+    image.mipLevelCount = 1;
     image.width = static_cast<u32>(x);
     image.height = static_cast<u32>(y);
     image.channelCount = static_cast<u32>(desiredChannelCount);

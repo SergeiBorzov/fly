@@ -1,7 +1,7 @@
 def _cook_image_impl(ctx):
     outs = []
     for f in ctx.files.inputs:
-        out_name = f.basename.rsplit(".", 1)[0] + "." + ctx.attr.codec
+        out_name = f.basename.rsplit(".", 1)[0] + ".f" + ctx.attr.codec
         out = ctx.actions.declare_file(out_name)
         outs.append(out)
         

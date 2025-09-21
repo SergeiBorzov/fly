@@ -103,7 +103,7 @@ static void DestroyPipeline(RHI::Device& device)
 static bool CreateResources(RHI::Device& device)
 {
     Image image;
-    if (!Fly::LoadImageFromFile("CesiumLogoFlat.bc1", image))
+    if (!Fly::LoadImageFromFile("CesiumLogoFlat.fbc1", image))
     {
         FLY_ERROR("Failed to load image");
         return false;

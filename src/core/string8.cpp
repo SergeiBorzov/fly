@@ -44,6 +44,24 @@ bool String8::StartsWith(String8 str)
     return true;
 }
 
+bool String8::EndsWith(String8 str)
+{
+    if (str.Size() > size_)
+    {
+        return false;
+    }
+
+    for (u64 i = 0; i < str.Size(); i++)
+    {
+        if (data_[size_ - str.Size() + i] != str[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool String8::Cut(String8 str, char sep, String8CutPair& cutPair)
 {
     if (!str.data_ || str.size_ == 0)
@@ -124,7 +142,8 @@ String8 String8::FindLast(String8 str, i32 character)
 char* String8::CopyNullTerminate(Arena& arena, String8 str)
 {
     bool isNullTerminated = str[str.Size() - 1] == '\0';
-    char* copyData = FLY_PUSH_ARENA(arena, char, str.Size() + !isNullTerminated);
+    char* copyData =
+        FLY_PUSH_ARENA(arena, char, str.Size() + !isNullTerminated);
     memcpy(copyData, str.Data(), str.Size());
     if (!isNullTerminated)
     {

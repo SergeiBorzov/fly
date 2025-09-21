@@ -3,10 +3,28 @@
 #include "stb_dxt.h"
 
 #include "core/assert.h"
+#include "core/memory.h"
 #include "math/functions.h"
 
 #include "image.h"
 #include "image_bc.h"
+
+static u32 Log2(u32 x)
+{
+    u32 result = 0;
+    while (x >>= 1)
+    {
+        ++result;
+    }
+    return result;
+}
+
+struct MipRow
+{
+    u32 width;
+    u32 height;
+    u64 offset;
+};
 
 namespace Fly
 {
@@ -56,13 +74,13 @@ static void CopyImageBlock4Bytes(u32 block[16], const u32* data, u32 width,
     }
 }
 
-u64 SizeBlock8(u32 width, u32 height)
+static u64 SizeBlock8(u32 width, u32 height)
 {
     return static_cast<u64>(Math::Ceil(width / 4.0f) *
                             Math::Ceil(height / 4.0f) * 8);
 }
 
-u64 SizeBlock16(u32 width, u32 height)
+static u64 SizeBlock16(u32 width, u32 height)
 {
     return static_cast<u64>(Math::Ceil(width / 4.0f) *
                             Math::Ceil(height / 4.0f) * 16);
@@ -175,6 +193,33 @@ static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image)
     return true;
 }
 
+const char* CodecToExtension(CodecType codec)
+{
+    switch (codec)
+    {
+        case CodecType::BC1:
+        {
+            return ".fbc1";
+        }
+        case CodecType::BC3:
+        {
+            return ".fbc3";
+        }
+        case CodecType::BC4:
+        {
+            return ".fbc4";
+        }
+        case CodecType::BC5:
+        {
+            return ".fbc5";
+        }
+        default:
+        {
+            return nullptr;
+        }
+    }
+}
+
 bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec)
 {
     FLY_ASSERT(dst);
@@ -203,6 +248,101 @@ bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec)
         }
     }
     return true;
+}
+
+u64 GetCompressedImageSize(u32 width, u32 height, CodecType codec)
+{
+    switch (codec)
+    {
+        case CodecType::BC1:
+        case CodecType::BC4:
+        {
+            return SizeBlock8(width, height);
+            break;
+        }
+        case CodecType::BC3:
+        case CodecType::BC5:
+        {
+            return SizeBlock16(width, height);
+            break;
+        }
+        default:
+        {
+            return 0;
+        }
+    }
+}
+
+u8 GetCompressedImageChannelCount(CodecType codec)
+{
+    switch (codec)
+    {
+        case CodecType::BC3:
+        case CodecType::BC1:
+        {
+            return 4;
+        }
+        case CodecType::BC4:
+        {
+            return 1;
+        }
+        case CodecType::BC5:
+        {
+            return 2;
+        }
+        default:
+        {
+            return 0;
+        }
+    }
+}
+
+u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
+                  u64& size)
+{
+    u32 mipLevelCount = 1;
+    if (generateMips)
+    {
+        mipLevelCount = Log2(Math::Max(image.width, image.height)) + 1;
+    }
+
+    u32 width = image.width;
+    u32 height = image.height;
+    for (u32 i = 0; i < mipLevelCount; i++)
+    {
+        size += GetCompressedImageSize(width, height, codec);
+        width = (width > 1) ? width / 2 : 1;
+        height = (height > 1) ? height / 2 : 1;
+    }
+
+    u8* data = static_cast<u8*>(Fly::Alloc(
+        sizeof(u32) + mipLevelCount * sizeof(MipRow) + sizeof(u8) * size));
+
+    *(reinterpret_cast<u32*>(data)) = mipLevelCount;
+    u64 offset = sizeof(u32) + mipLevelCount * sizeof(MipRow);
+    width = image.width;
+    height = image.height;
+    for (u32 i = 0; i < mipLevelCount; i++)
+    {
+        MipRow* mipRow =
+            reinterpret_cast<MipRow*>(data + sizeof(u32) + sizeof(MipRow) * i);
+        mipRow->width = width;
+        mipRow->height = height;
+        mipRow->offset = offset;
+
+        u8* dst = data + offset;
+        u64 dstSize = GetCompressedImageSize(width, height, codec);
+        if (!CompressImage(dst, dstSize, image, codec))
+        {
+            return nullptr;
+        }
+
+        offset += dstSize;
+        width = (width > 1) ? width / 2 : 1;
+        height = (height > 1) ? height / 2 : 1;
+    }
+
+    return data;
 }
 
 } // namespace Fly

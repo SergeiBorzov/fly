@@ -5,6 +5,7 @@
 
 namespace Fly
 {
+struct Image;
 
 enum class CodecType
 {
@@ -15,14 +16,12 @@ enum class CodecType
     BC5,
 };
 
-struct Image;
-
-// BC1, BC4
-u64 SizeBlock8(u32 width, u32 height);
-// BC3, BC5, BC6, BC7
-u64 SizeBlock16(u32 width, u32 height);
-
+const char* CodecToExtension(CodecType codec);
+u8 GetCompressedImageChannelCount(CodecType codec);
+u64 GetCompressedImageSize(u32 width, u32 height);
 bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec);
+u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
+                  u64& size);
 
 } // namespace Fly
 
