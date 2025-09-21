@@ -1,16 +1,11 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
-load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
 load("@fly//scripts/bazel/rules:cook.bzl", "cook_image")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
+load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 
-copy_files_to_directory(
-    name = "copy_vulkan_validation_layer",
-    srcs = [
-        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
-        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
-    ],
-    output_directory = ".",
-)
+copy_vulkan_layers()
+copy_molten_vk()
 
 cook_image(
     name = "cook_cesium_logo",
@@ -21,27 +16,11 @@ cook_image(
 )
 
 copy_files_to_directory(
-    name = "copy_molten_vk",
-    srcs = [
-        "@molten_vk//:icd",
-        "@molten_vk//:molten_vk",
-    ],
-    output_directory = ".",
-)
-
-copy_files_to_directory(
     name = "copy_scene_data",
     srcs = [
         "@gltf_sample_models//:box_textured_scene",
     ],
     output_directory = ".",
-)
-
-config_setting(
-    name = "release_build",
-    values = {
-        "compilation_mode": "opt",
-    },
 )
 
 glsl_shader(
@@ -77,7 +56,7 @@ cc_binary(
         ":copy_scene_data",
         ":cook_cesium_logo",
     ] + select({
-        ":release_build": [
+        "@fly//scripts/bazel/build_type:release": [
         ],
         "//conditions:default": [
             ":copy_vulkan_validation_layer",

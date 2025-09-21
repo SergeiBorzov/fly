@@ -1,22 +1,9 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
-load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
 
-copy_files_to_directory(
-    name = "copy_vulkan_validation_layer",
-    srcs = [
-        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
-        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
-    ],
-    output_directory = ".",
-)
-
-config_setting(
-    name = "release_build",
-    values = {
-        "compilation_mode": "opt",
-    },
-)
+copy_vulkan_layers()
+copy_molten_vk()
 
 cc_binary(
     name = "app",
@@ -29,11 +16,16 @@ cc_binary(
     ],
     data = [
     ] + select({
-        ":release_build": [
+        "@fly//scripts/bazel/build_type:release": [
         ],
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
         ],
+    }) + select({
+        "@platforms//os:osx": [
+            ":copy_molten_vk",
+	],
+        "//conditions:default": [],
     }),
 )
 

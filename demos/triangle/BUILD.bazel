@@ -1,31 +1,9 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
-load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 
-copy_files_to_directory(
-    name = "copy_vulkan_validation_layer",
-    srcs = [
-        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation_json",
-        "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
-    ],
-    output_directory = ".",
-)
-
-copy_files_to_directory(
-    name = "copy_molten_vk",
-    srcs = [
-        "@molten_vk//:icd",
-        "@molten_vk//:molten_vk",
-    ],
-    output_directory = ".",
-)
-
-config_setting(
-    name = "release_build",
-    values = {
-        "compilation_mode": "opt",
-    },
-)
+copy_vulkan_layers()
+copy_molten_vk()
 
 glsl_shader(
     name = "triangle.vert.spv",
@@ -50,7 +28,7 @@ cc_binary(
         ":triangle.frag.spv",
         ":triangle.vert.spv",
     ] + select({
-        ":release_build": [
+        "@fly//scripts/bazel/build_type:release": [
         ],
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
