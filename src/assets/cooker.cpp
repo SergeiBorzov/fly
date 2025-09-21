@@ -8,9 +8,6 @@
 #include "image_bc.h"
 #include "import_image.h"
 
-#include <limits.h>
-#include <unistd.h>
-
 using namespace Fly;
 
 enum class Mode
@@ -297,15 +294,6 @@ i32 Compress(Input& input)
         }
     }
 
-    char cwd[PATH_MAX];
-    if (getcwd(cwd, sizeof(cwd)) != NULL)
-    {
-        printf("Current working directory: %s\n", cwd);
-    }
-    else
-    {
-        perror("getcwd() error");
-    }
     for (u32 i = 0; i < input.inputCount; i++)
     {
         Image image;
