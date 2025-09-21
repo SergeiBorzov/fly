@@ -1,6 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_image")
 
 copy_files_to_directory(
     name = "copy_vulkan_validation_layer",
@@ -9,6 +10,14 @@ copy_files_to_directory(
         "@vulkan_validation_layers//:VK_LAYER_KHRONOS_validation",
     ],
     output_directory = ".",
+)
+
+cook_image(
+    name = "cook_cesium_logo",
+    codec = "bc1",
+    inputs = [
+        "@gltf_sample_models//:2.0/BoxTextured/glTF/CesiumLogoFlat.png",
+    ],
 )
 
 copy_files_to_directory(
@@ -66,6 +75,7 @@ cc_binary(
         ":cubes.frag.spv",
         ":cubes.vert.spv",
         ":copy_scene_data",
+        ":cook_cesium_logo",
     ] + select({
         ":release_build": [
         ],

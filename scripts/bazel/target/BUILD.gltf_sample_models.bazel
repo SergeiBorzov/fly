@@ -1,3 +1,7 @@
+exports_files([
+    "2.0/BoxTextured/glTF/CesiumLogoFlat.png",
+])
+
 filegroup(
     name = "box_textured_scene",
     srcs = [
