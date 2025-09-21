@@ -36,7 +36,7 @@ VkImageAspectFlags GetImageAspectMask(VkFormat format)
     }
 }
 
-u32 GetTexelSize(VkFormat format)
+u32 GetImageSize(u32 width, u32 height, VkFormat format)
 {
     switch (format)
     {
@@ -46,8 +46,14 @@ u32 GetTexelSize(VkFormat format)
         case VK_FORMAT_R8_SINT:
         case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_S8_UINT:
+        case VK_FORMAT_BC2_UNORM_BLOCK:
+        case VK_FORMAT_BC2_SRGB_BLOCK:
+        case VK_FORMAT_BC3_UNORM_BLOCK:
+        case VK_FORMAT_BC3_SRGB_BLOCK:
+        case VK_FORMAT_BC5_UNORM_BLOCK:
+        case VK_FORMAT_BC5_SNORM_BLOCK:
         {
-            return 1;
+            return width * height;
         }
 
         case VK_FORMAT_R8G8_UNORM:
@@ -62,7 +68,7 @@ u32 GetTexelSize(VkFormat format)
         case VK_FORMAT_R16_SFLOAT:
         case VK_FORMAT_D16_UNORM:
         {
-            return 2;
+            return 2 * width * height;
         }
 
         case VK_FORMAT_R8G8B8_UNORM:
@@ -76,7 +82,7 @@ u32 GetTexelSize(VkFormat format)
         case VK_FORMAT_B8G8R8_SINT:
         case VK_FORMAT_B8G8R8_SRGB:
         {
-            return 3;
+            return 3 * width * height;
         }
 
         case VK_FORMAT_R8G8B8A8_UNORM:
@@ -101,12 +107,12 @@ u32 GetTexelSize(VkFormat format)
         case VK_FORMAT_D24_UNORM_S8_UINT:
         case VK_FORMAT_D32_SFLOAT:
         {
-            return 4;
+            return 4 * width * height;
         }
 
         case VK_FORMAT_D32_SFLOAT_S8_UINT:
         {
-            return 5;
+            return 5 * width * height;
         }
 
         case VK_FORMAT_R16G16B16_UNORM:
@@ -115,7 +121,7 @@ u32 GetTexelSize(VkFormat format)
         case VK_FORMAT_R16G16B16_SINT:
         case VK_FORMAT_R16G16B16_SFLOAT:
         {
-            return 6;
+            return 6 * width * height;
         }
 
         case VK_FORMAT_R16G16B16A16_UNORM:
@@ -127,21 +133,31 @@ u32 GetTexelSize(VkFormat format)
         case VK_FORMAT_R32G32_SINT:
         case VK_FORMAT_R32G32_SFLOAT:
         {
-            return 8;
+            return 8 * width * height;
         }
 
         case VK_FORMAT_R32G32B32_UINT:
         case VK_FORMAT_R32G32B32_SINT:
         case VK_FORMAT_R32G32B32_SFLOAT:
         {
-            return 12;
+            return 12 * width * height;
         }
 
         case VK_FORMAT_R32G32B32A32_UINT:
         case VK_FORMAT_R32G32B32A32_SINT:
         case VK_FORMAT_R32G32B32A32_SFLOAT:
         {
-            return 16;
+            return 16 * width * height;
+        }
+
+        case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+        case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+        case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+        case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+        case VK_FORMAT_BC4_UNORM_BLOCK:
+        case VK_FORMAT_BC4_SNORM_BLOCK:
+        {
+            return 0.5 * width * height;
         }
 
         default:
@@ -441,7 +457,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     FLY_ASSERT(width > 0);
     FLY_ASSERT(height > 0);
 
-    u32 dataSize = GetTexelSize(format) * width * height;
+    u32 dataSize = GetImageSize(width, height, format);
 
     u32 mipLevelCount = 1;
     if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
@@ -523,7 +539,7 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
 {
     FLY_ASSERT(size > 0);
 
-    u32 dataSize = GetTexelSize(format) * size * size * 6;
+    u32 dataSize = GetImageSize(size, size, format) * 6;
 
     u32 mipLevelCount = 1;
     if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&

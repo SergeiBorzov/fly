@@ -44,13 +44,19 @@ private:
     u64 size_ = 0;
 };
 
-bool IsValidPathString(String8 string);
+bool IsValidPathString(String8 str);
 bool NormalizePathString(Arena& arena, String8 path, String8& out);
 
 bool GetParentDirectoryPath(Arena& arena, const Path& path, Path& out);
 
 String8 ReadFileToString(Arena& arena, const char* filename, u32 align = 1);
 String8 ReadFileToString(Arena& arena, const Path& path, u32 align = 1);
+u8* ReadFileToByteArray(const char* filename, u64& size, u32 align = 1);
+
+bool WriteStringToFile(const String8& str, const char* path, bool append = false);
+
+char* ReplaceExtension(const char* filepath, const char* extension);
+
 } // namespace Fly
 
 #endif /* FLY_FILESYSTEM_H */

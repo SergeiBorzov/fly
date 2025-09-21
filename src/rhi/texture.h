@@ -13,7 +13,7 @@ namespace RHI
 
 struct Device;
 
-u32 GetTexelSize(VkFormat format);
+u32 GetImageSize(u32 width, u32 height, VkFormat format);
 VkImageAspectFlags GetImageAspectMask(VkFormat format);
 
 struct Sampler

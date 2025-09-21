@@ -5,6 +5,7 @@
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
+#include "assets/image.h"
 #include "assets/import_image.h"
 #include "assets/import_spv.h"
 

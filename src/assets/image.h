@@ -8,6 +8,7 @@ namespace Fly
 
 struct Image
 {
+    u8* mem = nullptr;
     u8* data = nullptr;
     u32 width = 0;
     u32 height = 0;

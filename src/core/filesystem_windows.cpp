@@ -128,7 +128,8 @@ bool NormalizePathString(Arena& arena, String8 path, String8& out)
     if (slashReplacedPath.StartsWith(extendedLengthPrefix) ||
         slashReplacedPath.StartsWith(devicePathPrefix))
     {
-        char* normalized = FLY_PUSH_ARENA(arena, char, slashReplacedPath.Size() + 1);
+        char* normalized =
+            FLY_PUSH_ARENA(arena, char, slashReplacedPath.Size() + 1);
         memcpy(normalized, slashReplacedPath.Data(), slashReplacedPath.Size());
         normalized[slashReplacedPath.Size()] = '\0';
         out = String8(normalized, slashReplacedPath.Size());
@@ -424,9 +425,85 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
     return String8(content, fileSize);
 }
 
+u8* ReadFileToByteArray(const char* path, u64& size, u32 align)
+{
+    const char* mode = "rb";
+
+    FILE* file = fopen(path, mode);
+    if (!file)
+    {
+        return nullptr;
+    }
+
+    // Move the file pointer to the end of the file to determine its size
+    fseek(file, 0, SEEK_END);
+    i64 fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
+
+    // Allocate memory for the string
+    u8* content =
+        static_cast<u8*>(Fly::AllocAligned(sizeof(u8) * (fileSize + 1), align));
+    content[fileSize] = '\0';
+
+    if (!content)
+    {
+        fclose(file);
+        return nullptr;
+    }
+
+    // Read the file into the string
+    if (fread(content, 1, fileSize, file) != static_cast<size_t>(fileSize))
+    {
+        fclose(file);
+        Fly::Free(content);
+        return nullptr;
+    }
+
+    fclose(file);
+
+    size = fileSize;
+    return content;
+}
+
 String8 ReadFileToString(Arena& arena, const Path& path, u32 align)
 {
     return ReadFileToString(arena, path.ToCStr(), align);
+}
+
+static bool CreateDirectories(const char* path)
+{
+    // TODO
+    return false;
+}
+
+bool WriteStringToFile(const String8& str, const char* path, bool append)
+{
+    if (!CreateDirectories(path))
+    {
+        return false;
+    }
+
+    const char* mode = append ? "ab" : "wb";
+    FILE* f = fopen(path, mode);
+    if (!f)
+    {
+        return false;
+    }
+
+    if (fwrite(str.Data(), 1, str.Size(), f) != str.Size())
+    {
+        fclose(f);
+        return false;
+    }
+
+    fclose(f);
+    return true;
+}
+
+char* ReplaceExtension(const char* filepath, const char* extension)
+{
+    // TODO;
+    return nullptr;
 }
 
 } // namespace Fly

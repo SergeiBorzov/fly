@@ -87,7 +87,7 @@ cc_library(
         "..",
     ],
     deps = [
-        "//src/core:core",
+        ":import_image",
         "//src/math:math",
         "@stb//:stb_dxt",
     ],

@@ -9,8 +9,10 @@ namespace Fly
 struct Path;
 struct Image;
 
-bool LoadImageFromFile(const Fly::Path& path, Image& image);
-bool LoadImageFromFile(const char* path, Image& image);
+bool LoadImageFromFile(const Fly::Path& path, Image& image,
+                       u8 desiredChannelCount = 4);
+bool LoadImageFromFile(const char* path, Image& image,
+                       u8 desiredChannelCount = 4);
 void FreeImage(Image& image);
 
 } // namespace Fly

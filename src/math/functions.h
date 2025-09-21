@@ -16,8 +16,23 @@ namespace Math
 inline f32 Degrees(f32 radians) { return radians / FLY_MATH_PI * 180.0f; }
 inline f32 Radians(f32 degrees) { return degrees / 180.0f * FLY_MATH_PI; }
 inline f32 Min(f32 a, f32 b) { return (a < b) ? a : b; }
+inline i32 Min(i32 a, i32 b) { return (a < b) ? a : b; }
+inline u32 Min(u32 a, u32 b) { return (a < b) ? a : b; }
 inline f32 Max(f32 a, f32 b) { return (a > b) ? a : b; }
+inline i32 Max(i32 a, i32 b) { return (a > b) ? a : b; }
+inline u32 Max(u32 a, u32 b) { return (a > b) ? a : b; }
+
 inline f32 Clamp(f32 value, f32 min, f32 max)
+{
+    return Max(min, Min(value, max));
+}
+
+inline i32 Clamp(i32 value, i32 min, i32 max)
+{
+    return Max(min, Min(value, max));
+}
+
+inline u32 Clamp(u32 value, u32 min, u32 max)
 {
     return Max(min, Min(value, max));
 }

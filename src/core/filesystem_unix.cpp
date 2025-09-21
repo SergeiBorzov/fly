@@ -1,3 +1,8 @@
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -196,6 +201,7 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
 
     // Allocate memory for the string
     char* content = FLY_PUSH_ARENA_ALIGNED(arena, char, fileSize + 1, align);
+    content[fileSize] = '\0';
 
     if (!content)
     {
@@ -215,9 +221,131 @@ String8 ReadFileToString(Arena& arena, const char* path, u32 align)
     return String8(content, fileSize);
 }
 
+u8* ReadFileToByteArray(const char* path, u64& size, u32 align)
+{
+    const char* mode = "rb";
+
+    FILE* file = fopen(path, mode);
+    if (!file)
+    {
+        return nullptr;
+    }
+
+    // Move the file pointer to the end of the file to determine its size
+    fseek(file, 0, SEEK_END);
+    i64 fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET); // Move back to the beginning of the file
+
+    // Allocate memory for the string
+    u8* content =
+        static_cast<u8*>(Fly::AllocAligned(sizeof(u8) * (fileSize + 1), align));
+    content[fileSize] = '\0';
+
+    if (!content)
+    {
+        fclose(file);
+        return nullptr;
+    }
+
+    // Read the file into the string
+    if (fread(content, 1, fileSize, file) != static_cast<size_t>(fileSize))
+    {
+        fclose(file);
+        Fly::Free(content);
+        return nullptr;
+    }
+
+    fclose(file);
+
+    size = fileSize;
+    return content;
+}
+
 String8 ReadFileToString(Arena& arena, const Path& path, u32 align)
 {
     return ReadFileToString(arena, path.ToCStr(), align);
+}
+
+static bool CreateDirectories(const char* path)
+{
+    char tmp[PATH_MAX];
+    strncpy(tmp, path, sizeof(tmp));
+    tmp[sizeof(tmp) - 1] = '\0';
+
+    for (char* p = tmp + 1; *p; p++)
+    {
+        if (*p == '/' || *p == '\\')
+        {
+            *p = '\0';
+            if (mkdir(tmp, 0755) != 0)
+            {
+                if (errno == EEXIST)
+                {
+                    continue;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            *p = '/';
+        }
+    }
+
+    return true;
+}
+
+bool WriteStringToFile(const String8& str, const char* path, bool append)
+{
+    if (!CreateDirectories(path))
+    {
+        return false;
+    }
+
+    const char* mode = append ? "ab" : "wb";
+    FILE* f = fopen(path, mode);
+    if (!f)
+    {
+        return false;
+    }
+
+    if (fwrite(str.Data(), 1, str.Size(), f) != str.Size())
+    {
+        fclose(f);
+        return false;
+    }
+
+    fclose(f);
+    return true;
+}
+
+char* ReplaceExtension(const char* filepath, const char* extension)
+{
+    if (!filepath || !extension)
+    {
+        return nullptr;
+    }
+
+    const char* lastSlash = strrchr(filepath, '/');
+    const char* lastDot = strrchr(filepath, '.');
+
+    char* result = nullptr;
+    if (lastDot && (!lastSlash || lastDot > lastSlash))
+    {
+        size_t len = (lastDot - filepath) + strlen(extension) + 1;
+        result = static_cast<char*>(malloc(len * sizeof(char)));
+        strncpy(result, filepath, lastDot - filepath);
+        result[lastDot - filepath] = '\0';
+        strcat(result, extension);
+    }
+    else
+    {
+        size_t len = strlen(filepath) + strlen(extension) + 1;
+        result = static_cast<char*>(malloc(len * sizeof(char)));
+        strcpy(result, filepath);
+        strcat(result, extension);
+    }
+    return result;
 }
 
 } // namespace Fly
