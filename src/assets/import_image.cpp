@@ -16,13 +16,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-struct MipRow
-{
-    u32 width;
-    u32 height;
-    u64 offset;
-};
-
 namespace Fly
 {
 
@@ -53,7 +46,7 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     u8* bytes = ReadFileToByteArray(path.Data(), size);
     image.channelCount = channelCount;
     image.mem = bytes;
-    image.mipLevelCount = *(reinterpret_cast<u32*>(bytes));
+    image.mipCount = *(reinterpret_cast<u32*>(bytes));
     MipRow* mipRow = reinterpret_cast<MipRow*>(bytes + sizeof(u32));
     image.width = mipRow->width;
     image.height = mipRow->height;
@@ -76,7 +69,7 @@ bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
     int x = 0, y = 0, n = 0;
     image.mem = stbi_load(path, &x, &y, &n, desiredChannelCount);
     image.data = image.mem;
-    image.mipLevelCount = 1;
+    image.mipCount = 1;
     image.width = static_cast<u32>(x);
     image.height = static_cast<u32>(y);
     image.channelCount = static_cast<u32>(desiredChannelCount);
@@ -101,6 +94,29 @@ void FreeImage(Image& image)
     image.channelCount = 0;
     image.width = 0;
     image.height = 0;
+}
+
+bool GetMipLevel(Image& image, u32 mipLevel, Mip& mip)
+{
+    if (mipLevel >= image.mipCount)
+    {
+        return false;
+    }
+
+    if (mipLevel == 0)
+    {
+        mip.data = image.data;
+        mip.width = image.width;
+        mip.height = image.height;
+        return true;
+    }
+
+    MipRow* mipRow = reinterpret_cast<MipRow*>(image.mem + sizeof(u32) +
+                                               sizeof(MipRow) * mipLevel);
+    mip.width = mipRow->width;
+    mip.height = mipRow->height;
+    mip.data = image.mem + mipRow->offset;
+    return true;
 }
 
 } // namespace Fly

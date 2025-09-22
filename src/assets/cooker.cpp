@@ -5,23 +5,18 @@
 #include "core/filesystem.h"
 #include "core/memory.h"
 
+#include "export_image.h"
 #include "image.h"
-#include "image_bc.h"
 #include "import_image.h"
 
 using namespace Fly;
 
-enum class Mode
-{
-    Invalid,
-    Compress,
-    Transform
-};
-
 enum class TransformType
 {
     Invalid,
-    Eq2Cube
+    None,
+    Resize,
+    Eq2Cube,
 };
 
 struct Input
@@ -30,12 +25,7 @@ struct Input
     char** outputs = nullptr;
     u32 inputCount = 0;
     u32 outputCount = 0;
-    Mode mode = Mode::Invalid;
-    union
-    {
-        CodecType codec;
-        TransformType transform;
-    } modeArg;
+    TransformType transform;
 };
 
 static TransformType ParseTransform(const char* str)
@@ -44,28 +34,11 @@ static TransformType ParseTransform(const char* str)
     {
         return TransformType::Eq2Cube;
     }
+    if (strcmp(str, "resize"))
+    {
+        return TransformType::Resize;
+    }
     return TransformType::Invalid;
-}
-
-static CodecType ParseCodec(const char* str)
-{
-    if (strcmp(str, "bc1") == 0)
-    {
-        return CodecType::BC1;
-    }
-    if (strcmp(str, "bc3") == 0)
-    {
-        return CodecType::BC3;
-    }
-    if (strcmp(str, "bc4") == 0)
-    {
-        return CodecType::BC4;
-    }
-    if (strcmp(str, "bc5") == 0)
-    {
-        return CodecType::BC5;
-    }
-    return CodecType::Invalid;
 }
 
 static bool IsOption(const char* str) { return str[0] == '-'; }
@@ -117,31 +90,15 @@ static void ParseCommandLine(int argc, char* argv[], Input& data)
                 Fly::Alloc(sizeof(char*) * data.outputCount));
             ParseArray(argc, argv, i + 1, data.outputs);
         }
-        else if (strcmp(argv[i], "-c") == 0)
-        {
-            data.mode = Mode::Compress;
-            if (i + 1 >= argc)
-            {
-                fprintf(stderr, "Parse error: no codec type specified\n");
-                exit(-3);
-            }
-            data.modeArg.codec = ParseCodec(argv[++i]);
-            if (data.modeArg.codec == CodecType::Invalid)
-            {
-                fprintf(stderr, "Parse error: invalid codec type\n");
-                exit(-3);
-            }
-        }
         else if (strcmp(argv[i], "-t") == 0)
         {
-            data.mode = Mode::Transform;
             if (i + 1 >= argc)
             {
                 fprintf(stderr, "Parse error: no codec type specified\n");
                 exit(-4);
             }
-            data.modeArg.transform = ParseTransform(argv[i++]);
-            if (data.modeArg.transform == TransformType::Invalid)
+            data.transform = ParseTransform(argv[i++]);
+            if (data.transform == TransformType::Invalid)
             {
                 fprintf(stderr, "Parse error: invalid codec type\n");
                 exit(-4);
@@ -152,16 +109,10 @@ static void ParseCommandLine(int argc, char* argv[], Input& data)
 
 static void CheckSemantic(const Input& input)
 {
-    if (input.mode == Mode::Invalid)
-    {
-        fprintf(stderr, "Semantic error: Mode is not specified\n");
-        exit(-5);
-    }
-
     if (input.inputCount == 0)
     {
         fprintf(stderr, "Semantic error: No input specified\n");
-        exit(-6);
+        exit(-5);
     }
 
     if (input.outputCount > input.inputCount)
@@ -204,8 +155,12 @@ static void FillOutputs(Input& input)
 
     for (u32 i = input.outputCount; i < input.inputCount; i++)
     {
-        outputs[i] = ReplaceExtension(input.inputs[i],
-                                      CodecToExtension(input.modeArg.codec));
+        size_t len = strlen(input.inputs[i]);
+        outputs[i] = static_cast<char*>(Fly::Alloc(sizeof(char) * (len + 5)));
+        outputs[i][0] = '\0';
+        strcat(outputs[i], "out_");
+        strcat(outputs[i], input.inputs[i]);
+
         if (!outputs[i])
         {
             fprintf(stderr, "Failed to autofill output path");
@@ -215,31 +170,51 @@ static void FillOutputs(Input& input)
     input.outputs = outputs;
 }
 
-void Compress(Input& input)
+static u8 GetCompressedImageChannelCount(const char* path)
+{
+    String8 pathStr = Fly::String8(path, strlen(path));
+
+    if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
+    {
+        return 4;
+    }
+    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
+    {
+        return 4;
+    }
+    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
+    {
+        return 1;
+    }
+    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
+    {
+        return 2;
+    }
+
+    return 0;
+}
+
+void ProcessInput(Input& input)
 {
     for (u32 i = 0; i < input.inputCount; i++)
     {
         Image image;
-        u32 channelCount = GetCompressedImageChannelCount(input.modeArg.codec);
+        u32 channelCount = GetCompressedImageChannelCount(input.outputs[i]);
         if (!LoadImageFromFile(input.inputs[i], image, channelCount))
         {
-            fprintf(stderr, "Compression error: failed to load image %s\n",
+            fprintf(stderr, "Import error: failed to load image %s\n",
                     input.inputs[i]);
             exit(-7);
         }
-        u64 size = 0;
-        u8* data = CompressImage(image, input.modeArg.codec, false, size);
 
-        String8 str(reinterpret_cast<const char*>(data), size);
-        if (!WriteStringToFile(str, input.outputs[i]))
+        if (!ExportImage(input.outputs[i], image, false))
         {
             fprintf(stderr,
-                    "Compression error: failed to write compressed image %s\n",
+                    "Export error: failed to write compressed image %s\n",
                     input.outputs[i]);
-            exit(-9);
+            exit(-8);
         }
 
-        Fly::Free(data);
         FreeImage(image);
     }
 }
@@ -250,10 +225,7 @@ int main(int argc, char* argv[])
     ParseCommandLine(argc, argv, input);
     CheckSemantic(input);
     FillOutputs(input);
-    if (input.mode == Mode::Compress)
-    {
-        Compress(input);
-    }
+    ProcessInput(input);
     Shutdown(input);
     return 0;
 }

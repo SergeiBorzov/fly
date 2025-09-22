@@ -1,17 +1,14 @@
-def _cook_image_impl(ctx):
+def _cook_images_impl(ctx):
     outs = []
-    for f in ctx.files.inputs:
-        out_name = f.basename.rsplit(".", 1)[0] + ".f" + ctx.attr.codec
-        out = ctx.actions.declare_file(out_name)
+    for f in ctx.files.outputs:
+        out = ctx.actions.declare_file(f.basename)
         outs.append(out)
-        
+
     ctx.actions.run(
         inputs = ctx.files.inputs,
         outputs = outs,
         executable = ctx.executable._command,
         arguments = [
-            "-c",
-            ctx.attr.codec,
             "-i"
         ] +
         [f.path for f in ctx.files.inputs] + [
@@ -22,14 +19,15 @@ def _cook_image_impl(ctx):
 
     return [DefaultInfo(files = depset(outs))]
 
-cook_image = rule(
-    implementation = _cook_image_impl,
+cook_images = rule(
+    implementation = _cook_images_impl,
     attrs = {
-        "codec": attr.string(
-            mandatory = True,
-            values = ["bc1", "bc3", "bc4", "bc5"],
-        ),
         "inputs": attr.label_list(
+            mandatory = True,
+            allow_empty = False,
+            allow_files = True,
+        ),
+        "outputs": attr.label_list(
             mandatory = True,
             allow_empty = False,
             allow_files = True,

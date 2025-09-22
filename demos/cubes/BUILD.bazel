@@ -1,17 +1,19 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
-load("@fly//scripts/bazel/rules:cook.bzl", "cook_image")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_images")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 
 copy_vulkan_layers()
 copy_molten_vk()
 
-cook_image(
+cook_images(
     name = "cook_cesium_logo",
-    codec = "bc1",
     inputs = [
         "@gltf_sample_models//:2.0/BoxTextured/glTF/CesiumLogoFlat.png",
+    ],
+    outputs = [
+        "CesiumLogoFlat.fbc1",
     ],
 )
 

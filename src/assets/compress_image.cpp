@@ -1,4 +1,5 @@
 #include <string.h>
+
 #define STB_DXT_IMPLEMENTATION
 #include "stb_dxt.h"
 
@@ -6,8 +7,8 @@
 #include "core/memory.h"
 #include "math/functions.h"
 
+#include "compress_image.h"
 #include "image.h"
-#include "image_bc.h"
 
 static u32 Log2(u32 x)
 {
@@ -18,13 +19,6 @@ static u32 Log2(u32 x)
     }
     return result;
 }
-
-struct MipRow
-{
-    u32 width;
-    u32 height;
-    u64 offset;
-};
 
 namespace Fly
 {
@@ -273,56 +267,35 @@ u64 GetCompressedImageSize(u32 width, u32 height, CodecType codec)
     }
 }
 
-u8 GetCompressedImageChannelCount(CodecType codec)
-{
-    switch (codec)
-    {
-        case CodecType::BC3:
-        case CodecType::BC1:
-        {
-            return 4;
-        }
-        case CodecType::BC4:
-        {
-            return 1;
-        }
-        case CodecType::BC5:
-        {
-            return 2;
-        }
-        default:
-        {
-            return 0;
-        }
-    }
-}
-
 u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
-                  u64& size)
+                  u64& totalSize)
 {
-    u32 mipLevelCount = 1;
-    if (generateMips)
-    {
-        mipLevelCount = Log2(Math::Max(image.width, image.height)) + 1;
-    }
+    u32 mipCount = 1;
+    // if (generateMips)
+    // {
+    //     mipLevelCount = Log2(Math::Max(image.width, image.height)) + 1;
+    // }
 
-    u32 width = image.width;
-    u32 height = image.height;
-    for (u32 i = 0; i < mipLevelCount; i++)
+    u32 width = static_cast<u32>(Math::Ceil(image.width / 4.0f)) * 4;
+    u32 height = static_cast<u32>(Math::Ceil(image.height / 4.0f)) * 4;
+
+    u64 imagesSize = 0;
+    for (u32 i = 0; i < mipCount; i++)
     {
-        size += GetCompressedImageSize(width, height, codec);
+        imagesSize += GetCompressedImageSize(width, height, codec);
         width = (width > 1) ? width / 2 : 1;
         height = (height > 1) ? height / 2 : 1;
     }
 
-    u8* data = static_cast<u8*>(Fly::Alloc(
-        sizeof(u32) + mipLevelCount * sizeof(MipRow) + sizeof(u8) * size));
+    totalSize =
+        sizeof(u32) + mipCount * sizeof(MipRow) + sizeof(u8) * imagesSize;
+    u8* data = static_cast<u8*>(Fly::Alloc(totalSize));
 
-    *(reinterpret_cast<u32*>(data)) = mipLevelCount;
-    u64 offset = sizeof(u32) + mipLevelCount * sizeof(MipRow);
-    width = image.width;
-    height = image.height;
-    for (u32 i = 0; i < mipLevelCount; i++)
+    *(reinterpret_cast<u32*>(data)) = mipCount;
+    u64 offset = sizeof(u32) + mipCount * sizeof(MipRow);
+    width = static_cast<u32>(Math::Ceil(image.width / 4.0f)) * 4;
+    height = static_cast<u32>(Math::Ceil(image.height / 4.0f)) * 4;
+    for (u32 i = 0; i < mipCount; i++)
     {
         MipRow* mipRow =
             reinterpret_cast<MipRow*>(data + sizeof(u32) + sizeof(MipRow) * i);
@@ -334,6 +307,7 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
         u64 dstSize = GetCompressedImageSize(width, height, codec);
         if (!CompressImage(dst, dstSize, image, codec))
         {
+            Free(data);
             return nullptr;
         }
 

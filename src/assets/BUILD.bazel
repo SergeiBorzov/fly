@@ -3,8 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "import_image",
     hdrs = [
-        "import_image.h",
         "image.h",
+        "import_image.h",
     ],
     srcs = [
         "import_image.cpp",
@@ -13,6 +13,28 @@ cc_library(
     deps = [
         "//src/core:core",
         "@stb//:stb_image",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "export_image",
+    hdrs = [
+        "image.h",
+        "export_image.h",
+        "compress_image.h",
+    ],
+    srcs = [
+        "compress_image.cpp",
+        "export_image.cpp",
+    ],
+    includes = [".."],
+    deps = [
+        "//src/core:core",
+        "//src/math:math",
+        "@stb//:stb_image_write",
+        "@stb//:stb_dxt",
+
     ],
     visibility = ["//visibility:public"],
 )
@@ -74,33 +96,14 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-cc_library(
-    name = "cook_image",
-    hdrs = [
-        "image.h",
-        "image_bc.h",
-    ],
-    srcs = [
-        "image_bc.cpp",
-    ],
-    includes = [
-        "..",
-    ],
-    deps = [
-        ":import_image",
-        "//src/math:math",
-        "@stb//:stb_dxt",
-    ],
-    visibility = ["//visibility:public"],
-)
-
 cc_binary(
     name = "cooker",
     srcs = [
         "cooker.cpp",
     ],
     deps = [
-        ":cook_image",
+        ":import_image",
+        ":export_image",
     ],
     visibility = ["//visibility:public"],
 )

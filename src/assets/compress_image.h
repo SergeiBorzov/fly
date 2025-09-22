@@ -17,7 +17,6 @@ enum class CodecType
 };
 
 const char* CodecToExtension(CodecType codec);
-u8 GetCompressedImageChannelCount(CodecType codec);
 u64 GetCompressedImageSize(u32 width, u32 height);
 bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec);
 u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
