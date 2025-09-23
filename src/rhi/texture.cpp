@@ -1,5 +1,6 @@
 #include "core/assert.h"
 #include "core/log.h"
+#include "core/thread_context.h"
 
 #include "allocation_callbacks.h"
 #include "buffer.h"
@@ -651,6 +652,53 @@ void DestroyTexture(Device& device, Texture& texture)
                   "%f MB",
                   texture.image, texture.bindlessHandle,
                   texture.allocationInfo.size / 1024.0 / 1024.0);
+}
+
+bool CopyMipsToTexture(Device& device, Texture& texture, const MipDesc* mips,
+                       u32 mipCount)
+{
+    FLY_ASSERT(mips);
+    FLY_ASSERT(mipCount > 0);
+    FLY_ASSERT(mipCount <= texture.mipCount);
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    Fly::RHI::Buffer* stagingBuffers =
+        FLY_PUSH_ARENA(arena, Fly::RHI::Buffer, mipCount);
+
+    for (u32 i = 0; i < mipCount; i++)
+    {
+        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                          mips[i].data, mips[i].size, stagingBuffers[i]))
+        {
+            ArenaPopToMarker(arena, marker);
+            return false;
+        }
+    }
+
+    BeginTransfer(device);
+    Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+    RHI::ChangeTextureAccessLayout(cmd, texture,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   VK_ACCESS_2_TRANSFER_WRITE_BIT);
+    for (u32 i = 0; i < mipCount; i++)
+    {
+        RHI::CopyBufferToMip(cmd, texture, i, mips[i].width, mips[i].height, 1,
+                             stagingBuffers[i]);
+    }
+    RHI::ChangeTextureAccessLayout(cmd, texture,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   VK_ACCESS_2_SHADER_READ_BIT);
+    EndTransfer(device);
+
+    for (u32 i = 0; i < mipCount; i++)
+    {
+        DestroyBuffer(device, stagingBuffers[i]);
+    }
+    ArenaPopToMarker(arena, marker);
+
+    return true;
 }
 
 } // namespace RHI

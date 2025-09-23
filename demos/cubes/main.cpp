@@ -10,8 +10,6 @@
 #include "rhi/shader_program.h"
 #include "rhi/texture.h"
 
-#include "assets/image.h"
-#include "assets/import_image.h"
 #include "utils/utils.h"
 
 #include "demos/common/simple_camera_fps.h"
@@ -102,23 +100,13 @@ static void DestroyPipeline(RHI::Device& device)
 
 static bool CreateResources(RHI::Device& device)
 {
-    Image image;
-    if (!Fly::LoadImageFromFile("CesiumLogoFlat.fbc1", image))
+    if (!Fly::LoadCompressedTexture2D(device, "CesiumLogoFlat.fbc1",
+                                      VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+                                      RHI::Sampler::FilterMode::Nearest,
+                                      RHI::Sampler::WrapMode::Repeat, sCubeTexture))
     {
-        FLY_ERROR("Failed to load image");
         return false;
     }
-    if (!RHI::CreateTexture2D(
-            device,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            image.data, image.width, image.height, VK_FORMAT_BC1_RGB_SRGB_BLOCK,
-            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
-            1, sCubeTexture))
-    {
-        FLY_ERROR("Failed to create cube texture");
-        return false;
-    }
-    FreeImage(image);
 
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,

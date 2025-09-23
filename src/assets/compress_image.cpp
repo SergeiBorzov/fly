@@ -300,9 +300,9 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
     {
         MipRow* mipRow =
             reinterpret_cast<MipRow*>(data + sizeof(u32) + sizeof(MipRow) * i);
+        mipRow->offset = offset;
         mipRow->width = width;
         mipRow->height = height;
-        mipRow->offset = offset;
 
         const Image* target = &image;
         Image targetImage;

@@ -66,6 +66,8 @@ VkBufferMemoryBarrier BufferMemoryBarrier(const Buffer& buffer,
 /*--Commands--*/
 void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
                          Buffer& srcBuffer);
+void CopyBufferToMip(CommandBuffer& cmd, Texture& dstTexture, u32 mipLevel,
+                     u32 width, u32 height, u32 depth, Buffer& srcBuffer);
 void GenerateMipmaps(CommandBuffer& cmd, Texture& texture);
 void BindGraphicsPipeline(CommandBuffer& cmd,
                           const GraphicsPipeline& graphicsPipeline);

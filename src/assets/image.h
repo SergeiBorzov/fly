@@ -8,14 +8,14 @@ namespace Fly
 
 struct MipRow
 {
+    u64 offset;
     u32 width;
     u32 height;
-    u64 offset;
 };
 
 struct Mip
 {
-    u8* data = nullptr;
+    void* data = nullptr;
     u32 width = 0;
     u32 height = 0;
 };

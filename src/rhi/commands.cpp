@@ -123,6 +123,27 @@ void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
                            &copyRegion);
 }
 
+void CopyBufferToMip(CommandBuffer& cmd, Texture& dstTexture, u32 mipLevel,
+                     u32 width, u32 height, u32 depth, Buffer& srcBuffer)
+{
+    VkBufferImageCopy copyRegion{};
+    copyRegion.bufferOffset = 0;
+    copyRegion.bufferRowLength = 0;
+    copyRegion.bufferImageHeight = 0;
+    copyRegion.imageSubresource.aspectMask =
+        GetImageAspectMask(dstTexture.format);
+    copyRegion.imageSubresource.mipLevel = mipLevel;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = dstTexture.layerCount;
+    copyRegion.imageExtent.width = width;
+    copyRegion.imageExtent.height = height;
+    copyRegion.imageExtent.depth = depth;
+
+    vkCmdCopyBufferToImage(cmd.handle, srcBuffer.handle, dstTexture.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                           &copyRegion);
+}
+
 void BindGraphicsPipeline(CommandBuffer& cmd,
                           const GraphicsPipeline& graphicsPipeline)
 {
