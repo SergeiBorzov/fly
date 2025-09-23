@@ -183,7 +183,7 @@ CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
                   VmaAllocation& allocation, VkImageCreateFlags flags,
                   VkImageType imageType, VkImageUsageFlags usage,
                   VkFormat format, VkImageTiling tiling, u32 width, u32 height,
-                  u32 depth, u32 layerCount, u32 mipLevelCount = 1)
+                  u32 depth, u32 layerCount, u32 mipCount = 1)
 {
     VkImageCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -193,7 +193,7 @@ CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
     createInfo.extent.width = width;
     createInfo.extent.height = height;
     createInfo.extent.depth = depth;
-    createInfo.mipLevels = mipLevelCount;
+    createInfo.mipLevels = mipCount;
     createInfo.arrayLayers = layerCount;
     createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -217,7 +217,7 @@ CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
 
 static VkImageView
 CreateVulkanImageView(Fly::RHI::Device& device, VkImage image, VkFormat format,
-                      u32 mipLevelCount, VkImageViewType imageViewType,
+                      u32 mipCount, VkImageViewType imageViewType,
                       VkImageAspectFlags aspectMask, u32 layerCount)
 {
     VkImageViewCreateInfo viewCreateInfo{};
@@ -227,7 +227,7 @@ CreateVulkanImageView(Fly::RHI::Device& device, VkImage image, VkFormat format,
     viewCreateInfo.format = format;
     viewCreateInfo.subresourceRange.aspectMask = GetImageAspectMask(format);
     viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = mipLevelCount;
+    viewCreateInfo.subresourceRange.levelCount = mipCount;
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = layerCount;
 
@@ -282,8 +282,8 @@ static void CreateDescriptors(Fly::RHI::Device& device,
     texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
 }
 
-static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
-                               u64 dataSize, Fly::RHI::Texture& texture)
+static bool CopyDataToTexture(Fly::RHI::Device& device, const void* data,
+                              u64 dataSize, Fly::RHI::Texture& texture)
 {
     if (data)
     {
@@ -300,7 +300,10 @@ static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
                                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                        VK_ACCESS_2_TRANSFER_WRITE_BIT);
         RHI::CopyBufferToTexture(cmd, texture, stagingBuffer);
-        RHI::GenerateMipmaps(cmd, texture);
+        if (texture.mipCount > 1)
+        {
+            RHI::GenerateMipmaps(cmd, texture);
+        }
         RHI::ChangeTextureAccessLayout(cmd, texture,
                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                        VK_ACCESS_2_SHADER_READ_BIT);
@@ -311,8 +314,7 @@ static bool InitializeWithData(Fly::RHI::Device& device, const void* data,
 }
 
 bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
-                   Sampler::WrapMode wrapMode, u32 mipLevelCount,
-                   Sampler& sampler)
+                   Sampler::WrapMode wrapMode, u32 mipCount, Sampler& sampler)
 {
     VkSamplerCreateInfo samplerCreateInfo{};
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -416,7 +418,7 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
 
     samplerCreateInfo.mipLodBias = 0.0f;
     samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = static_cast<f32>(mipLevelCount);
+    samplerCreateInfo.maxLod = static_cast<f32>(mipCount);
 
     samplerCreateInfo.anisotropyEnable = anisotropy > 0;
     samplerCreateInfo.maxAnisotropy = static_cast<f32>(anisotropy);
@@ -452,18 +454,20 @@ void DestroySampler(Device& device, Sampler& sampler)
 bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                     Texture& texture)
+                     u32 mipCount, Texture& texture)
 {
     FLY_ASSERT(width > 0);
     FLY_ASSERT(height > 0);
 
     u32 dataSize = GetImageSize(width, height, format);
 
-    u32 mipLevelCount = 1;
-    if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
-        filterMode != Sampler::FilterMode::Nearest)
+    if (mipCount == 0)
     {
-        mipLevelCount = Log2(MAX(width, height)) + 1;
+        mipCount = Log2(MAX(width, height)) + 1;
+    }
+
+    if (mipCount > 1)
+    {
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
@@ -474,14 +478,14 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     texture.image = CreateVulkanImage(
         device, texture.allocationInfo, texture.allocation, 0, VK_IMAGE_TYPE_2D,
         usage, format, VK_IMAGE_TILING_OPTIMAL, width, height, texture.depth,
-        texture.layerCount, mipLevelCount);
+        texture.layerCount, mipCount);
     if (texture.image == VK_NULL_HANDLE)
     {
         return false;
     }
 
     texture.imageView = CreateVulkanImageView(
-        device, texture.image, format, mipLevelCount, VK_IMAGE_VIEW_TYPE_2D,
+        device, texture.image, format, mipCount, VK_IMAGE_VIEW_TYPE_2D,
         GetImageAspectMask(format), texture.layerCount);
     if (texture.imageView == VK_NULL_HANDLE)
     {
@@ -497,7 +501,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     texture.bindlessStorageHandle = FLY_MAX_U32;
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
     {
-        if (!CreateSampler(device, filterMode, wrapMode, mipLevelCount,
+        if (!CreateSampler(device, filterMode, wrapMode, mipCount,
                            texture.sampler))
         {
             vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -513,10 +517,10 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     texture.width = width;
     texture.height = height;
     texture.format = format;
-    texture.mipLevelCount = mipLevelCount;
+    texture.mipCount = mipCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!InitializeWithData(device, data, dataSize, texture))
+    if (!CopyDataToTexture(device, data, dataSize, texture))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -535,17 +539,19 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
 
 bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
                    u32 size, VkFormat format, Sampler::FilterMode filterMode,
-                   Texture& texture)
+                   u32 mipCount, Texture& texture)
 {
     FLY_ASSERT(size > 0);
 
     u32 dataSize = GetImageSize(size, size, format) * 6;
 
-    u32 mipLevelCount = 1;
-    if ((usage & VK_IMAGE_USAGE_SAMPLED_BIT) &&
-        filterMode != Sampler::FilterMode::Nearest)
+    if (mipCount == 0)
     {
-        mipLevelCount = Log2(size) + 1;
+        mipCount = Log2(size) + 1;
+    }
+
+    if (mipCount > 1)
+    {
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
@@ -556,15 +562,15 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
     texture.image = CreateVulkanImage(
         device, texture.allocationInfo, texture.allocation,
         VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT, VK_IMAGE_TYPE_2D, usage, format,
-        VK_IMAGE_TILING_OPTIMAL, size, size, 1, 6, mipLevelCount);
+        VK_IMAGE_TILING_OPTIMAL, size, size, 1, 6, mipCount);
     if (texture.image == VK_NULL_HANDLE)
     {
         return false;
     }
 
-    texture.imageView = CreateVulkanImageView(
-        device, texture.image, format, mipLevelCount, VK_IMAGE_VIEW_TYPE_CUBE,
-        GetImageAspectMask(format), 6);
+    texture.imageView = CreateVulkanImageView(device, texture.image, format,
+                                              mipCount, VK_IMAGE_VIEW_TYPE_CUBE,
+                                              GetImageAspectMask(format), 6);
     if (texture.imageView == VK_NULL_HANDLE)
     {
         vmaDestroyImage(device.allocator, texture.image, texture.allocation);
@@ -572,8 +578,8 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
     }
 
     texture.arrayImageView = CreateVulkanImageView(
-        device, texture.image, format, mipLevelCount,
-        VK_IMAGE_VIEW_TYPE_2D_ARRAY, GetImageAspectMask(format), 6);
+        device, texture.image, format, mipCount, VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+        GetImageAspectMask(format), 6);
     if (texture.arrayImageView == VK_NULL_HANDLE)
     {
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -589,7 +595,7 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
     {
         if (!CreateSampler(device, filterMode, Sampler::WrapMode::Clamp,
-                           mipLevelCount, texture.sampler))
+                           mipCount, texture.sampler))
         {
             vkDestroyImageView(device.logicalDevice, texture.imageView,
                                GetVulkanAllocationCallbacks());
@@ -604,10 +610,10 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
     texture.width = size;
     texture.height = size;
     texture.format = format;
-    texture.mipLevelCount = mipLevelCount;
+    texture.mipCount = mipCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!InitializeWithData(device, data, dataSize, texture))
+    if (!CopyDataToTexture(device, data, dataSize, texture))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,

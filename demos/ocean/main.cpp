@@ -379,7 +379,7 @@ static bool CreateResources(RHI::Device& device)
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
             device.swapchainWidth, device.swapchainHeight,
             VK_FORMAT_D32_SFLOAT_S8_UINT, RHI::Sampler::FilterMode::Nearest,
-            RHI::Sampler::WrapMode::Repeat, sDepthTexture))
+            RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture))
     {
         return false;
     }
@@ -520,7 +520,7 @@ static bool CreateCascade(RHI::Device& device, Cascade& cascade, float domain,
             nullptr, sCascadeResolution, sCascadeResolution,
             VK_FORMAT_R16G16B16A16_SFLOAT,
             RHI::Sampler::FilterMode::Anisotropy4x,
-            RHI::Sampler::WrapMode::Repeat, cascade.diffDisplacementMap))
+            RHI::Sampler::WrapMode::Repeat, 0, cascade.diffDisplacementMap))
     {
         return false;
     }
@@ -532,7 +532,7 @@ static bool CreateCascade(RHI::Device& device, Cascade& cascade, float domain,
             nullptr, sCascadeResolution, sCascadeResolution,
             VK_FORMAT_R16G16B16A16_SFLOAT,
             RHI::Sampler::FilterMode::Anisotropy4x,
-            RHI::Sampler::WrapMode::Repeat, cascade.heightMap))
+            RHI::Sampler::WrapMode::Repeat, 0, cascade.heightMap))
     {
         return false;
     }
@@ -899,13 +899,14 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
     }
 }
 
-static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height, void*)
+static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
+                                void*)
 {
     RHI::DestroyTexture(device, sDepthTexture);
     RHI::CreateTexture2D(device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                          nullptr, width, height, VK_FORMAT_D32_SFLOAT_S8_UINT,
                          RHI::Sampler::FilterMode::Nearest,
-                         RHI::Sampler::WrapMode::Repeat, sDepthTexture);
+                         RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture);
 }
 
 int main(int argc, char* argv[])

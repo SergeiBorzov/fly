@@ -41,7 +41,7 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
     VkAccessFlags2 dstAccessMask = texture.accessMask;
     VkPipelineStageFlags2 dstPipelineStageMask = texture.pipelineStageMask;
 
-    for (u32 i = 1; i < texture.mipLevelCount; i++)
+    for (u32 i = 1; i < texture.mipCount; i++)
     {
         imageBarriers[0].srcAccessMask = srcAccessMask;
         imageBarriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;

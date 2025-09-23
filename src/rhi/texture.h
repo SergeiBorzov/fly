@@ -62,7 +62,7 @@ struct Texture
     u32 height = 0;
     u32 depth = 0;
     u32 layerCount = 0;
-    u32 mipLevelCount = 0;
+    u32 mipCount = 0;
     u32 bindlessHandle = FLY_MAX_U32;
     u32 bindlessStorageHandle = FLY_MAX_U32;
     u32 bindlessArrayHandle = FLY_MAX_U32;
@@ -71,12 +71,12 @@ struct Texture
 bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
-                     Texture& texture);
+                     u32 mipCount, Texture& texture);
 void DestroyTexture(Device& device, Texture& texture);
 
 bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
                    u32 size, VkFormat format, Sampler::FilterMode filterMode,
-                   Texture& texture);
+                   u32 mipCount, Texture& texture);
 
 } // namespace RHI
 } // namespace Fly

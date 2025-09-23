@@ -495,7 +495,7 @@ bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                   VK_IMAGE_USAGE_SAMPLED_BIT,
                               image.data, image.width, image.height, format,
-                              filterMode, wrapMode, texture))
+                              filterMode, wrapMode, 0, texture))
     {
         return false;
     }
@@ -591,7 +591,7 @@ bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
                                   VK_IMAGE_USAGE_SAMPLED_BIT,
                               image.data, image.width, image.height, format,
                               RHI::Sampler::FilterMode::Nearest,
-                              RHI::Sampler::WrapMode::Clamp, texture2D))
+                              RHI::Sampler::WrapMode::Clamp, 1, texture2D))
     {
         return false;
     }
@@ -602,7 +602,7 @@ bool LoadCubemapEquirectangularFromFile(RHI::Device& device, const char* path,
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                                 VK_IMAGE_USAGE_SAMPLED_BIT |
                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                            nullptr, size, format, filterMode, cubemap))
+                            nullptr, size, format, filterMode, 0, cubemap))
     {
         return false;
     }
