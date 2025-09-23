@@ -4,6 +4,10 @@ def _cook_images_impl(ctx):
         out = ctx.actions.declare_file(f.basename)
         outs.append(out)
 
+    extra_options = []
+    if ctx.attr.generate_mips:
+        extra_options.append("-m")
+
     ctx.actions.run(
         inputs = ctx.files.inputs,
         outputs = outs,
@@ -11,10 +15,8 @@ def _cook_images_impl(ctx):
         arguments = [
             "-i"
         ] +
-        [f.path for f in ctx.files.inputs] + [
-            "-o"
-        ]
-        + [f.path for f in outs],
+        [f.path for f in ctx.files.inputs] +
+        extra_options + ["-o"] + [f.path for f in outs],
     )
 
     return [DefaultInfo(files = depset(outs))]
@@ -32,6 +34,7 @@ cook_images = rule(
             allow_empty = False,
             allow_files = True,
         ),
+        "generate_mips": attr.bool(),
         "_command": attr.label(
             cfg = "exec",
             executable = True,

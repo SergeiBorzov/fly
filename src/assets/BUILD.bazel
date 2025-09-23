@@ -22,10 +22,12 @@ cc_library(
     hdrs = [
         "image.h",
         "export_image.h",
+        "transform_image.h",
         "compress_image.h",
     ],
     srcs = [
         "compress_image.cpp",
+        "transform_image.cpp",
         "export_image.cpp",
     ],
     includes = [".."],
@@ -34,7 +36,7 @@ cc_library(
         "//src/math:math",
         "@stb//:stb_image_write",
         "@stb//:stb_dxt",
-
+        "@stb//:stb_image_resize2",
     ],
     visibility = ["//visibility:public"],
 )

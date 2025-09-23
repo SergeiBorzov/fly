@@ -9,6 +9,7 @@
 
 #include "compress_image.h"
 #include "image.h"
+#include "transform_image.h"
 
 static u32 Log2(u32 x)
 {
@@ -271,10 +272,10 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
                   u64& totalSize)
 {
     u32 mipCount = 1;
-    // if (generateMips)
-    // {
-    //     mipLevelCount = Log2(Math::Max(image.width, image.height)) + 1;
-    // }
+    if (generateMips)
+    {
+        mipCount = Log2(Math::Max(image.width, image.height)) + 1;
+    }
 
     u32 width = static_cast<u32>(Math::Ceil(image.width / 4.0f)) * 4;
     u32 height = static_cast<u32>(Math::Ceil(image.height / 4.0f)) * 4;
@@ -303,12 +304,39 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
         mipRow->height = height;
         mipRow->offset = offset;
 
+        const Image* target = &image;
+        Image targetImage;
+        if (i > 0)
+        {
+            targetImage.width = width;
+            targetImage.height = height;
+            targetImage.channelCount = image.channelCount;
+            targetImage.mem = static_cast<u8*>(Fly::Alloc(
+                sizeof(u8) * width * height * targetImage.channelCount));
+            targetImage.data = targetImage.mem;
+
+            if (!ResizeImageSRGB(image, targetImage))
+            {
+                FreeImage(targetImage);
+                return nullptr;
+            }
+            target = &targetImage;
+        }
+
         u8* dst = data + offset;
         u64 dstSize = GetCompressedImageSize(width, height, codec);
-        if (!CompressImage(dst, dstSize, image, codec))
+        if (!CompressImage(dst, dstSize, *target, codec))
         {
+            if (i > 0)
+            {
+                FreeImage(targetImage);
+            }
             Free(data);
             return nullptr;
+        }
+        if (i > 0)
+        {
+            FreeImage(targetImage);
         }
 
         offset += dstSize;

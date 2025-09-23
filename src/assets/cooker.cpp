@@ -8,6 +8,7 @@
 #include "export_image.h"
 #include "image.h"
 #include "import_image.h"
+#include "transform_image.h"
 
 using namespace Fly;
 
@@ -25,21 +26,11 @@ struct Input
     char** outputs = nullptr;
     u32 inputCount = 0;
     u32 outputCount = 0;
-    TransformType transform;
+    i32 resizeX = 0;
+    i32 resizeY = 0;
+    bool resize = false;
+    bool generateMips = false;
 };
-
-static TransformType ParseTransform(const char* str)
-{
-    if (strcmp(str, "eq2cube"))
-    {
-        return TransformType::Eq2Cube;
-    }
-    if (strcmp(str, "resize"))
-    {
-        return TransformType::Resize;
-    }
-    return TransformType::Invalid;
-}
 
 static bool IsOption(const char* str) { return str[0] == '-'; }
 
@@ -90,19 +81,30 @@ static void ParseCommandLine(int argc, char* argv[], Input& data)
                 Fly::Alloc(sizeof(char*) * data.outputCount));
             ParseArray(argc, argv, i + 1, data.outputs);
         }
-        else if (strcmp(argv[i], "-t") == 0)
+        else if (strcmp(argv[i], "-r") == 0)
         {
-            if (i + 1 >= argc)
+            data.resize = true;
+
+            const char* argX = argv[++i];
+            String8 strX(argX, strlen(argX));
+
+            if (!String8::ParseI32(strX, data.resizeX))
             {
-                fprintf(stderr, "Parse error: no codec type specified\n");
+                fprintf(stderr, "Parse error: no size for resize specified\n");
                 exit(-4);
             }
-            data.transform = ParseTransform(argv[i++]);
-            if (data.transform == TransformType::Invalid)
+
+            const char* argY = argv[++i];
+            String8 strY(argY, strlen(argY));
+            if (!String8::ParseI32(strY, data.resizeY))
             {
-                fprintf(stderr, "Parse error: invalid codec type\n");
+                fprintf(stderr, "Parse error: no size for resize specified\n");
                 exit(-4);
             }
+        }
+        else if (strcmp(argv[i], "-m") == 0)
+        {
+            data.generateMips = true;
         }
     }
 }
@@ -118,6 +120,12 @@ static void CheckSemantic(const Input& input)
     if (input.outputCount > input.inputCount)
     {
         fprintf(stderr, "Semantic warning: Ignoring extra outputs\n");
+    }
+
+    if (input.resize && (input.resizeX <= 0 || input.resizeY <= 0))
+    {
+        fprintf(stderr, "Semantic error: Invalid resize dimensions\n");
+        exit(-6);
     }
 }
 
@@ -200,6 +208,13 @@ void ProcessInput(Input& input)
     {
         Image image;
         u32 channelCount = GetCompressedImageChannelCount(input.outputs[i]);
+        if (channelCount == 0 && input.generateMips)
+        {
+            fprintf(stderr, "Transform error: Mipmaps are only allowed for "
+                            "compressed bc formats\n");
+            exit(-11);
+        }
+
         if (!LoadImageFromFile(input.inputs[i], image, channelCount))
         {
             fprintf(stderr, "Import error: failed to load image %s\n",
@@ -207,7 +222,30 @@ void ProcessInput(Input& input)
             exit(-7);
         }
 
-        if (!ExportImage(input.outputs[i], image, false))
+        if (input.resize)
+        {
+            Image transformedImage;
+            transformedImage.channelCount = image.channelCount;
+            transformedImage.mipCount = image.mipCount;
+            transformedImage.width = input.resizeX;
+            transformedImage.height = input.resizeY;
+
+            transformedImage.mem = static_cast<u8*>(Fly::Alloc(
+                sizeof(u8) * transformedImage.width * transformedImage.height *
+                transformedImage.channelCount));
+            transformedImage.data = transformedImage.mem;
+
+            if (!ResizeImageSRGB(image, transformedImage))
+            {
+                fprintf(stderr, "Transform error: Failed to resize %s\n",
+                        input.inputs[i]);
+                exit(-10);
+            }
+            FreeImage(image);
+            image = transformedImage;
+        }
+
+        if (!ExportImage(input.outputs[i], image, input.generateMips))
         {
             fprintf(stderr,
                     "Export error: failed to write compressed image %s\n",

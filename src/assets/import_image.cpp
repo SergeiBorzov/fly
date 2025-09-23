@@ -72,7 +72,14 @@ bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
     image.mipCount = 1;
     image.width = static_cast<u32>(x);
     image.height = static_cast<u32>(y);
-    image.channelCount = static_cast<u32>(desiredChannelCount);
+    if (desiredChannelCount != 0)
+    {
+        image.channelCount = static_cast<u32>(desiredChannelCount);
+    }
+    else
+    {
+        image.channelCount = static_cast<u32>(n);
+    }
 
     return image.data;
 }

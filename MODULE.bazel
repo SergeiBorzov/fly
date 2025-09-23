@@ -171,7 +171,7 @@ use_repo(external_git_repository, "cgltf")
 external_git_repository.base(
     name = "stb",
     build_file = "//scripts/bazel/target:BUILD.stb.bazel",
-    commit = "f0569113c93ad095470c54bf34a17b36646bbbb5",
+    commit = "fede005abaf93d9d7f3a679d1999b2db341b360f",
     remote = "https://github.com/nothings/stb.git",
 )
 use_repo(external_git_repository, "stb")

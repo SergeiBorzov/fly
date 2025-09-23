@@ -15,6 +15,7 @@ cook_images(
     outputs = [
         "CesiumLogoFlat.fbc1",
     ],
+    generate_mips = True,
 )
 
 copy_files_to_directory(
