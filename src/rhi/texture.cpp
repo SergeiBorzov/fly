@@ -684,8 +684,8 @@ bool CopyMipsToTexture(Device& device, Texture& texture, const MipDesc* mips,
                                    VK_ACCESS_2_TRANSFER_WRITE_BIT);
     for (u32 i = 0; i < mipCount; i++)
     {
-        RHI::CopyBufferToMip(cmd, texture, i, mips[i].width, mips[i].height, 1,
-                             stagingBuffers[i]);
+        RHI::CopyBufferToMip(cmd, texture, 0, i, mips[i].width, mips[i].height,
+                             1, stagingBuffers[i]);
     }
     RHI::ChangeTextureAccessLayout(cmd, texture,
                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,

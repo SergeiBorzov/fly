@@ -23,31 +23,17 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
 {
     FLY_ASSERT(path);
 
-    u8 channelCount = 0;
-
-    if (path.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
-    {
-        channelCount = 3;
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
-    {
-        channelCount = 4;
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
-    {
-        channelCount = 1;
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
-    {
-        channelCount = 2;
-    }
-
     u64 size = 0;
     u8* bytes = ReadFileToByteArray(path.Data(), size);
-    image.channelCount = channelCount;
     image.mem = bytes;
-    image.mipCount = *(reinterpret_cast<u32*>(bytes));
-    MipRow* mipRow = reinterpret_cast<MipRow*>(bytes + sizeof(u32));
+
+    ImageHeader* header = reinterpret_cast<ImageHeader*>(bytes);
+    image.storageType = header->storageType;
+    image.channelCount = header->channelCount;
+    image.mipCount = header->mipCount;
+    image.layerCount = header->layerCount;
+
+    MipRow* mipRow = reinterpret_cast<MipRow*>(bytes + sizeof(ImageHeader));
     image.width = mipRow->width;
     image.height = mipRow->height;
     image.data = bytes + mipRow->offset;
@@ -69,16 +55,20 @@ bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
     int x = 0, y = 0, n = 0;
     image.mem = stbi_load(path, &x, &y, &n, desiredChannelCount);
     image.data = image.mem;
+
+    image.storageType = ImageStorageType::Byte;
     image.mipCount = 1;
+    image.layerCount = 1;
     image.width = static_cast<u32>(x);
     image.height = static_cast<u32>(y);
+
     if (desiredChannelCount != 0)
     {
-        image.channelCount = static_cast<u32>(desiredChannelCount);
+        image.channelCount = static_cast<u8>(desiredChannelCount);
     }
     else
     {
-        image.channelCount = static_cast<u32>(n);
+        image.channelCount = static_cast<u8>(n);
     }
 
     return image.data;
@@ -103,27 +93,71 @@ void FreeImage(Image& image)
     image.height = 0;
 }
 
-bool GetMipLevel(Image& image, u32 mipLevel, Mip& mip)
+bool GetImageMipLevel(Image& image, u32 layer, u32 mipLevel, Mip& mip)
 {
+    if (layer >= image.layerCount)
+    {
+        return false;
+    }
     if (mipLevel >= image.mipCount)
     {
         return false;
     }
 
-    if (mipLevel == 0)
+    if (mipLevel == 0 && layer == 0)
     {
         mip.data = image.data;
         mip.width = image.width;
         mip.height = image.height;
-        return true;
+    }
+    else
+    {
+        MipRow* mipRow =
+            reinterpret_cast<MipRow*>(image.mem + sizeof(ImageHeader) +
+                                      image.mipCount * sizeof(MipRow) * layer +
+                                      sizeof(MipRow) * mipLevel);
+        mip.width = mipRow->width;
+        mip.height = mipRow->height;
+        mip.data = image.mem + mipRow->offset;
     }
 
-    MipRow* mipRow = reinterpret_cast<MipRow*>(image.mem + sizeof(u32) +
-                                               sizeof(MipRow) * mipLevel);
-    mip.width = mipRow->width;
-    mip.height = mipRow->height;
-    mip.data = image.mem + mipRow->offset;
+    if (image.storageType == ImageStorageType::Block8 ||
+        image.storageType == ImageStorageType::Block16)
+    {
+        mip.size =
+            mip.width * mip.height * GetImageStorageTypeSize(image.storageType);
+    }
+    else
+    {
+        mip.size = mip.width * mip.height * image.channelCount *
+                   GetImageStorageTypeSize(image.storageType);
+    }
+
     return true;
+}
+
+u32 GetImageStorageTypeSize(ImageStorageType type)
+{
+    switch (type)
+    {
+        case ImageStorageType::Byte:
+        {
+            return sizeof(u8);
+        }
+        case ImageStorageType::Half:
+        {
+            return sizeof(u16);
+        }
+        case ImageStorageType::Block8:
+        {
+            return 8;
+        }
+        case ImageStorageType::Block16:
+        {
+            return 16;
+        }
+    }
+    return 0;
 }
 
 } // namespace Fly

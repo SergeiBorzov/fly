@@ -33,7 +33,6 @@ cc_library(
     includes = [".."],
     deps = [
         "//src/core:core",
-        "//src/math:math",
         "@stb//:stb_image_write",
         "@stb//:stb_dxt",
         "@stb//:stb_image_resize2",

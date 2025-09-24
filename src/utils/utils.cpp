@@ -1,4 +1,5 @@
 #include "core/assert.h"
+#include "core/log.h"
 #include "core/thread_context.h"
 
 #include "math/functions.h"
@@ -575,14 +576,14 @@ bool LoadCompressedTexture2D(RHI::Device& device, const char* path,
     for (u32 i = 0; i < image.mipCount; i++)
     {
         Mip mip;
-        if (!GetMipLevel(image, i, mip))
+        if (!GetImageMipLevel(image, 0, i, mip))
         {
             return false;
         }
         mips[i].data = mip.data;
         mips[i].width = mip.width;
         mips[i].height = mip.height;
-        mips[i].size = GetCompressedSize(mip.width, mip.height, format);
+        mips[i].size = mip.size;
     }
 
     if (!CopyMipsToTexture(device, texture, mips, image.mipCount))

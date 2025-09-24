@@ -5,11 +5,13 @@
 
 #include "core/assert.h"
 #include "core/memory.h"
-#include "math/functions.h"
 
 #include "compress_image.h"
 #include "image.h"
 #include "transform_image.h"
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static u32 Log2(u32 x)
 {
@@ -31,8 +33,8 @@ static void CopyImageBlock1Byte(u8 block[16], const u8* data, u32 width,
     {
         for (u32 j = 0; j < 4; j++)
         {
-            u32 kh = Math::Min(y + i, height - 1);
-            u32 kw = Math::Min(x + j, width - 1);
+            u32 kh = MIN(y + i, height - 1);
+            u32 kw = MAX(x + j, width - 1);
 
             block[4 * i + j] = data[width * kh + kw];
         }
@@ -46,8 +48,8 @@ static void CopyImageBlock2Bytes(u16 block[16], const u16* data, u32 width,
     {
         for (u32 j = 0; j < 4; j++)
         {
-            u32 kh = Math::Min(y * 2 + i, height - 1);
-            u32 kw = Math::Min(x * 2 + j, width - 1);
+            u32 kh = MIN(y * 2 + i, height - 1);
+            u32 kw = MIN(x * 2 + j, width - 1);
 
             block[4 * i + j] = data[width * kh + kw];
         }
@@ -61,8 +63,8 @@ static void CopyImageBlock4Bytes(u32 block[16], const u32* data, u32 width,
     {
         for (u32 j = 0; j < 4; j++)
         {
-            u32 kh = Math::Min(y * 4 + i, height - 1);
-            u32 kw = Math::Min(x * 4 + j, width - 1);
+            u32 kh = MIN(y * 4 + i, height - 1);
+            u32 kw = MIN(x * 4 + j, width - 1);
 
             block[4 * i + j] = data[width * kh + kw];
         }
@@ -71,14 +73,12 @@ static void CopyImageBlock4Bytes(u32 block[16], const u32* data, u32 width,
 
 static u64 SizeBlock8(u32 width, u32 height)
 {
-    return static_cast<u64>(Math::Ceil(width / 4.0f) *
-                            Math::Ceil(height / 4.0f) * 8);
+    return (width + 3) / 4 * (height + 3) / 4 * 8;
 }
 
 static u64 SizeBlock16(u32 width, u32 height)
 {
-    return static_cast<u64>(Math::Ceil(width / 4.0f) *
-                            Math::Ceil(height / 4.0f) * 16);
+    return (width + 3) / 4 * (height + 3) / 4 * 16;
 }
 
 static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image)
@@ -89,8 +89,8 @@ static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image)
         return false;
     }
 
-    const u32 blockWidth = static_cast<u32>(Math::Ceil(image.width / 4.0f));
-    const u32 blockHeight = static_cast<u32>(Math::Ceil(image.height / 4.0f));
+    const u32 blockWidth = (image.width + 3) / 4;
+    const u32 blockHeight = (image.height + 3) / 4;
 
     u32 block[16] = {0};
     for (u32 i = 0; i < blockHeight; i++)
@@ -117,8 +117,8 @@ static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image)
         return false;
     }
 
-    const u32 blockWidth = static_cast<u32>(Math::Ceil(image.width / 4.0f));
-    const u32 blockHeight = static_cast<u32>(Math::Ceil(image.height / 4.0f));
+    const u32 blockWidth = (image.width + 3) / 4;
+    const u32 blockHeight = (image.height + 3) / 4;
 
     u32 block[16] = {0};
     for (u32 i = 0; i < blockHeight; i++)
@@ -145,8 +145,8 @@ static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image)
         return false;
     }
 
-    const u32 blockWidth = static_cast<u32>(Math::Ceil(image.width / 4.0f));
-    const u32 blockHeight = static_cast<u32>(Math::Ceil(image.height / 4.0f));
+    const u32 blockWidth = (image.width + 3) / 4;
+    const u32 blockHeight = (image.height + 3) / 4;
 
     u8 block[16] = {0};
     for (u32 i = 0; i < blockHeight; i++)
@@ -170,8 +170,8 @@ static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image)
         return false;
     }
 
-    const u32 blockWidth = static_cast<u32>(Math::Ceil(image.width / 4.0f));
-    const u32 blockHeight = static_cast<u32>(Math::Ceil(image.height / 4.0f));
+    const u32 blockWidth = (image.width + 3) / 4;
+    const u32 blockHeight = (image.height + 3) / 4;
 
     u16 block[16] = {0};
     for (u32 i = 0; i < blockHeight; i++)
@@ -215,6 +215,34 @@ const char* CodecToExtension(CodecType codec)
     }
 }
 
+ImageStorageType CodecToImageStorageType(CodecType codec)
+{
+    switch (codec)
+    {
+        case CodecType::BC1:
+        {
+            return ImageStorageType::Block8;
+        }
+        case CodecType::BC3:
+        {
+            return ImageStorageType::Block16;
+        }
+        case CodecType::BC4:
+        {
+            return ImageStorageType::Block8;
+        }
+        case CodecType::BC5:
+        {
+            return ImageStorageType::Block16;
+        }
+        default:
+        {
+            FLY_ASSERT(false);
+            return ImageStorageType::Block16;
+        }
+    }
+}
+
 bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec)
 {
     FLY_ASSERT(dst);
@@ -253,13 +281,11 @@ u64 GetCompressedImageSize(u32 width, u32 height, CodecType codec)
         case CodecType::BC4:
         {
             return SizeBlock8(width, height);
-            break;
         }
         case CodecType::BC3:
         case CodecType::BC5:
         {
             return SizeBlock16(width, height);
-            break;
         }
         default:
         {
@@ -268,80 +294,122 @@ u64 GetCompressedImageSize(u32 width, u32 height, CodecType codec)
     }
 }
 
+static Image AllocImage(u32 width, u32 height, ImageStorageType storageType,
+                        u8 channelCount)
+{
+    Image image;
+
+    u64 size = 0;
+    if (storageType == ImageStorageType::Block8)
+    {
+        size = width * height * 8;
+    }
+    else if (storageType == ImageStorageType::Block16)
+    {
+        size = width * height * 16;
+    }
+    else
+    {
+        size = width * height * channelCount *
+               GetImageStorageTypeSize(storageType);
+    }
+
+    image.mem = static_cast<u8*>(Fly::Alloc(size));
+    image.data = image.mem;
+    image.storageType = storageType;
+    image.mipCount = 1;
+    image.layerCount = 1;
+    image.channelCount = channelCount;
+    image.width = width;
+    image.height = height;
+
+    return image;
+}
+
 u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
                   u64& totalSize)
 {
+    ImageStorageType storageType = CodecToImageStorageType(codec);
     u32 mipCount = 1;
     if (generateMips)
     {
-        mipCount = Log2(Math::Max(image.width, image.height)) + 1;
+        mipCount = Log2(MAX(image.width, image.height)) + 1;
     }
 
-    u32 width = static_cast<u32>(Math::Ceil(image.width / 4.0f)) * 4;
-    u32 height = static_cast<u32>(Math::Ceil(image.height / 4.0f)) * 4;
+    const u32 width = ((image.width + 3) / 4) * 4;
+    const u32 height = ((image.height + 3) / 4) * 4;
 
     u64 imagesSize = 0;
+    u32 mipWidth = width;
+    u32 mipHeight = height;
     for (u32 i = 0; i < mipCount; i++)
     {
-        imagesSize += GetCompressedImageSize(width, height, codec);
-        width = (width > 1) ? width / 2 : 1;
-        height = (height > 1) ? height / 2 : 1;
+        imagesSize += GetCompressedImageSize(mipWidth, mipHeight, codec);
+        mipWidth = (mipWidth > 1) ? mipWidth >> 1 : 1;
+        mipHeight = (mipHeight > 1) ? mipHeight >> 1 : 1;
     }
+    imagesSize *= image.layerCount;
 
-    totalSize =
-        sizeof(u32) + mipCount * sizeof(MipRow) + sizeof(u8) * imagesSize;
+    totalSize = sizeof(ImageHeader) +
+                image.layerCount * mipCount * sizeof(MipRow) + imagesSize;
     u8* data = static_cast<u8*>(Fly::Alloc(totalSize));
 
-    *(reinterpret_cast<u32*>(data)) = mipCount;
-    u64 offset = sizeof(u32) + mipCount * sizeof(MipRow);
-    width = static_cast<u32>(Math::Ceil(image.width / 4.0f)) * 4;
-    height = static_cast<u32>(Math::Ceil(image.height / 4.0f)) * 4;
-    for (u32 i = 0; i < mipCount; i++)
+    ImageHeader* header = reinterpret_cast<ImageHeader*>(data);
+    header->storageType = storageType;
+    header->channelCount = image.channelCount;
+    header->mipCount = mipCount;
+    header->layerCount = image.layerCount;
+
+    u64 offset =
+        sizeof(ImageHeader) + image.layerCount * mipCount * sizeof(MipRow);
+    mipWidth = width;
+    mipHeight = height;
+
+    for (u32 i = 0; i < image.layerCount; i++)
     {
-        MipRow* mipRow =
-            reinterpret_cast<MipRow*>(data + sizeof(u32) + sizeof(MipRow) * i);
-        mipRow->offset = offset;
-        mipRow->width = width;
-        mipRow->height = height;
-
-        const Image* target = &image;
-        Image targetImage;
-        if (i > 0)
+        for (u32 j = 0; j < mipCount; j++)
         {
-            targetImage.width = width;
-            targetImage.height = height;
-            targetImage.channelCount = image.channelCount;
-            targetImage.mem = static_cast<u8*>(Fly::Alloc(
-                sizeof(u8) * width * height * targetImage.channelCount));
-            targetImage.data = targetImage.mem;
+            MipRow* mipRow = reinterpret_cast<MipRow*>(
+                data + sizeof(ImageHeader) + i * sizeof(MipRow) * mipCount +
+                sizeof(MipRow) * j);
+            mipRow->offset = offset;
+            mipRow->width = mipWidth;
+            mipRow->height = mipHeight;
 
-            if (!ResizeImageSRGB(image, targetImage))
+            const Image* target = &image;
+            Image targetImage;
+            if (j > 0)
             {
+                Image targetImage = AllocImage(mipWidth, mipHeight, storageType,
+                                               image.channelCount);
+                if (!ResizeImageSRGB(image, targetImage))
+                {
+                    FreeImage(targetImage);
+                    return nullptr;
+                }
+                target = &targetImage;
+            }
+
+            u8* dst = data + offset;
+            u64 dstSize = GetCompressedImageSize(mipWidth, mipHeight, codec);
+            if (!CompressImage(dst, dstSize, *target, codec))
+            {
+                if (j > 0)
+                {
+                    FreeImage(targetImage);
+                }
                 FreeImage(targetImage);
                 return nullptr;
             }
-            target = &targetImage;
-        }
-
-        u8* dst = data + offset;
-        u64 dstSize = GetCompressedImageSize(width, height, codec);
-        if (!CompressImage(dst, dstSize, *target, codec))
-        {
-            if (i > 0)
+            if (j > 0)
             {
                 FreeImage(targetImage);
             }
-            Free(data);
-            return nullptr;
-        }
-        if (i > 0)
-        {
-            FreeImage(targetImage);
-        }
 
-        offset += dstSize;
-        width = (width > 1) ? width / 2 : 1;
-        height = (height > 1) ? height / 2 : 1;
+            offset += dstSize;
+            mipWidth = (mipWidth > 1) ? mipWidth >> 1 : 1;
+            mipHeight = (mipHeight > 1) ? mipHeight >> 1 : 1;
+        }
     }
 
     return data;
