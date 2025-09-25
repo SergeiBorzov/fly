@@ -7,6 +7,8 @@ def _cook_images_impl(ctx):
     extra_options = []
     if ctx.attr.generate_mips:
         extra_options.append("-m")
+    if ctx.attr.eq2cube:
+        extra_options.append("-eq2cube")
 
     ctx.actions.run(
         inputs = ctx.files.inputs,
@@ -17,6 +19,9 @@ def _cook_images_impl(ctx):
         ] +
         [f.path for f in ctx.files.inputs] +
         extra_options + ["-o"] + [f.path for f in outs],
+        #env = {
+        #    "VK_LOADER_DEBUG": "all",
+        #},
     )
 
     return [DefaultInfo(files = depset(outs))]
@@ -35,10 +40,11 @@ cook_images = rule(
             allow_files = True,
         ),
         "generate_mips": attr.bool(),
+        "eq2cube": attr.bool(),
         "_command": attr.label(
             cfg = "exec",
             executable = True,
-            default = Label("//src/assets:cooker"),
+            default = Label("//src/assets/cooker:cooker"),
         ),
     },
 )

@@ -33,6 +33,15 @@ static const char* GetBinaryDirectoryPath(Arena& arena)
     return exeDirPath;
 }
 
+void InitArenas()
+{
+    for (i32 i = 0; i < 2; i++)
+    {
+        stThreadContext.arenas[i] =
+            ArenaCreate(FLY_SIZE_GB(2), FLY_ARENA_MIN_CAPACITY);
+    }
+}
+
 void InitThreadContext()
 {
     for (i32 i = 0; i < 2; i++)

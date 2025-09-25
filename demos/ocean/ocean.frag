@@ -165,7 +165,7 @@ void main()
     vec3 specularColor =
         SpecularBlinnPhong(n, h, 250.0f) * lightColorReflectivity.xyz;
     
-    r.y = max(r.y, 0.0f);
+    r.y = max(r.y, 0.05f);
     r = normalize(r);
     vec3 reflectedColor = ReflectedColor(fresnel, r, lightColorReflectivity.w);
 

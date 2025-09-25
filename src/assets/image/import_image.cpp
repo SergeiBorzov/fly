@@ -33,10 +33,11 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     image.mipCount = header->mipCount;
     image.layerCount = header->layerCount;
 
-    MipRow* mipRow = reinterpret_cast<MipRow*>(bytes + sizeof(ImageHeader));
-    image.width = mipRow->width;
-    image.height = mipRow->height;
-    image.data = bytes + mipRow->offset;
+    ImageLayerRow* layerRow =
+        reinterpret_cast<ImageLayerRow*>(bytes + sizeof(ImageHeader));
+    image.width = layerRow->width;
+    image.height = layerRow->height;
+    image.data = bytes + layerRow->offset;
 
     return true;
 }
@@ -112,13 +113,11 @@ bool GetImageMipLevel(Image& image, u32 layer, u32 mipLevel, Mip& mip)
     }
     else
     {
-        MipRow* mipRow =
-            reinterpret_cast<MipRow*>(image.mem + sizeof(ImageHeader) +
-                                      image.mipCount * sizeof(MipRow) * layer +
-                                      sizeof(MipRow) * mipLevel);
-        mip.width = mipRow->width;
-        mip.height = mipRow->height;
-        mip.data = image.mem + mipRow->offset;
+        ImageLayerRow* layerRow = reinterpret_cast<ImageLayerRow*>(
+            image.mem + sizeof(ImageHeader) + mipLevel * sizeof(ImageLayerRow));
+        mip.width = layerRow->width;
+        mip.height = layerRow->height;
+        mip.data = image.mem + layerRow->offset + layer * layerRow->size;
     }
 
     if (image.storageType == ImageStorageType::Block8 ||

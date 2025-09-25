@@ -1,17 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_images")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 
 copy_vulkan_layers()
 copy_molten_vk()
 
-copy_files_to_directory(
-    name = "copy_scene_data",
-    srcs = [
+cook_images(
+    name = "cook_skybox",
+    inputs = [
         "@ambientcg//:DaySkyHDRI051B_4K-TONEMAPPED.jpg",
     ],
-    output_directory = ".",
+    outputs = [
+        "DaySkyHDRI051B_4K-TONEMAPPED.fbc1",
+    ],
+    generate_mips = False,
+    eq2cube = True,
 )
 
 glsl_shader(
@@ -113,7 +118,7 @@ cc_binary(
         ],
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
-            ":copy_scene_data",
+            ":cook_skybox",
         ],
     }),
 )

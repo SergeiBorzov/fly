@@ -3,10 +3,10 @@
 #include "thread_context.h"
 
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
 
 #if defined(FLY_PLATFORM_OS_MAC_OSX)
 #include <mach-o/dyld.h>
@@ -74,6 +74,15 @@ static const char* GetBinaryDirectoryPath(Arena& arena)
 }
 #endif
 
+void InitArenas()
+{
+    for (i32 i = 0; i < 2; i++)
+    {
+        stThreadContext.arenas[i] =
+            ArenaCreate(FLY_SIZE_GB(2), FLY_ARENA_MIN_CAPACITY);
+    }
+}
+
 void InitThreadContext()
 {
     for (i32 i = 0; i < 2; i++)
@@ -85,7 +94,7 @@ void InitThreadContext()
     Arena& scratch = stThreadContext.arenas[0];
     const char* binaryDirectoryPath = GetBinaryDirectoryPath(scratch);
     FLY_ASSERT(binaryDirectoryPath);
-    
+
     bool res = SetEnv("VK_LAYER_PATH", binaryDirectoryPath);
     FLY_ASSERT(res);
 
@@ -95,7 +104,7 @@ void InitThreadContext()
     res = SetEnv("VK_ICD_FILENAMES", moltenPath);
     FLY_ASSERT(res);
 #endif
-    
+
     res = chdir(binaryDirectoryPath) == 0;
     FLY_ASSERT(res);
 }

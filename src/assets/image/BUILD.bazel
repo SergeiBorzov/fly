@@ -1,0 +1,42 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "import_image",
+    hdrs = [
+        "image.h",
+        "import_image.h",
+    ],
+    srcs = [
+        "import_image.cpp",
+    ],
+    includes = ["../.."],
+    deps = [
+        "//src/core:core",
+        "@stb//:stb_image",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "export_image",
+    hdrs = [
+        "image.h",
+        "export_image.h",
+        "transform_image.h",
+        "compress_image.h",
+    ],
+    srcs = [
+        "compress_image.cpp",
+        "transform_image.cpp",
+        "export_image.cpp",
+    ],
+    includes = ["../.."],
+    deps = [
+        "//src/core:core",
+        "//src/rhi:context",
+        "@stb//:stb_image_write",
+        "@stb//:stb_dxt",
+        "@stb//:stb_image_resize2",
+    ],
+    visibility = ["//visibility:public"],
+)

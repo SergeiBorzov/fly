@@ -11,6 +11,7 @@ struct ThreadContext
     Arena arenas[2];
 };
 
+void InitArenas();
 void InitThreadContext();
 void ReleaseThreadContext();
 ThreadContext& GetThreadContext();

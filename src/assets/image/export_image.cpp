@@ -21,32 +21,33 @@ namespace Fly
 
 bool ExportPNG(const char* path, const Image& image)
 {
-    return stbi_write_png(path, image.width, image.height, image.channelCount,
-                          image.data,
+    return stbi_write_png(path, image.width, image.height * image.layerCount,
+                          image.channelCount, image.data,
                           image.width * image.channelCount * sizeof(u8));
 }
 
 bool ExportBMP(const char* path, const Image& image)
 {
-    return stbi_write_bmp(path, image.width, image.height, image.channelCount,
-                          image.data);
+    return stbi_write_bmp(path, image.width, image.height * image.layerCount,
+                          image.channelCount, image.data);
 }
 
 bool ExportTGA(const char* path, const Image& image)
 {
-    return stbi_write_tga(path, image.width, image.height, image.channelCount,
-                          image.data);
+    return stbi_write_tga(path, image.width, image.height * image.layerCount,
+                          image.channelCount, image.data);
 }
 
 bool ExportJPG(const char* path, const Image& image)
 {
-    return stbi_write_jpg(path, image.width, image.height, image.channelCount,
-                          image.data, 90);
+    return stbi_write_jpg(path, image.width, image.height * image.layerCount,
+                          image.channelCount, image.data, 90);
 }
 
 bool ExportHDR(const char* path, const Image& image)
 {
-    return stbi_write_hdr(path, image.width, image.height, image.channelCount,
+    return stbi_write_hdr(path, image.width, image.height * image.layerCount,
+                          image.channelCount,
                           reinterpret_cast<const float*>(image.data));
 }
 

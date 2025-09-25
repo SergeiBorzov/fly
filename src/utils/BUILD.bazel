@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 cc_library(
     name = "utils",
     hdrs = [
@@ -9,7 +11,7 @@ cc_library(
     includes = [".."],
     deps = [
         "//src/math:math",
-        "//src/assets:import_image",
+        "//src/assets/image:import_image",
         "//src/assets:import_spv",
         "//src/rhi:context",
     ],

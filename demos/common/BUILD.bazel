@@ -35,7 +35,7 @@ cc_library(
     deps = [
         "//src/math:math",
         "//src/assets:import_gltf",
-        "//src/assets:import_image",
+        "//src/assets/image:import_image",
         "//src/assets:import_spv",
         "//src/rhi:context",
         "//src/utils:utils",

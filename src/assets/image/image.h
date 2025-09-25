@@ -22,9 +22,10 @@ struct ImageHeader
     u8 layerCount;
 };
 
-struct MipRow
+struct ImageLayerRow
 {
     u64 offset;
+    u64 size;
     u32 width;
     u32 height;
 };

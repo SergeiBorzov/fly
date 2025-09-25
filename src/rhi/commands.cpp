@@ -102,16 +102,43 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
                                    VK_ACCESS_2_SHADER_READ_BIT);
 }
 
-void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
+void CopyTextureToBuffer(CommandBuffer& cmd, Texture& srcTexture, u32 mipLevel,
+                         Buffer& dstBuffer)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(mipLevel < srcTexture.mipCount);
+
+    VkBufferImageCopy copyRegion{};
+
+    copyRegion.bufferOffset = 0;
+    copyRegion.bufferRowLength = 0;
+    copyRegion.bufferImageHeight = 0;
+    copyRegion.imageSubresource.aspectMask =
+        GetImageAspectMask(srcTexture.format);
+    copyRegion.imageSubresource.mipLevel = mipLevel;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = srcTexture.layerCount;
+    copyRegion.imageExtent.width = srcTexture.width;
+    copyRegion.imageExtent.height = srcTexture.height;
+    copyRegion.imageExtent.depth = srcTexture.depth;
+
+    vkCmdCopyImageToBuffer(cmd.handle, srcTexture.image, srcTexture.imageLayout,
+                           dstBuffer.handle, 1, &copyRegion);
+}
+
+void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture, u32 mipLevel,
                          Buffer& srcBuffer)
 {
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(mipLevel < dstTexture.mipCount);
+
     VkBufferImageCopy copyRegion{};
     copyRegion.bufferOffset = 0;
     copyRegion.bufferRowLength = 0;
     copyRegion.bufferImageHeight = 0;
     copyRegion.imageSubresource.aspectMask =
         GetImageAspectMask(dstTexture.format);
-    copyRegion.imageSubresource.mipLevel = 0;
+    copyRegion.imageSubresource.mipLevel = mipLevel;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = dstTexture.layerCount;
     copyRegion.imageExtent.width = dstTexture.width;
@@ -127,6 +154,8 @@ void CopyBufferToMip(CommandBuffer& cmd, Texture& dstTexture, u32 layer,
                      u32 mipLevel, u32 width, u32 height, u32 depth,
                      Buffer& srcBuffer)
 {
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
     VkBufferImageCopy copyRegion{};
     copyRegion.bufferOffset = 0;
     copyRegion.bufferRowLength = 0;

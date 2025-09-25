@@ -402,9 +402,10 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!LoadCubemapEquirectangularFromFile(
-            device, "DaySkyHDRI051B_4K-TONEMAPPED.jpg", VK_FORMAT_R8G8B8A8_SRGB,
-            RHI::Sampler::FilterMode::Trilinear, sSkyboxTexture))
+    if (!LoadCompressedCubemap(device, "DaySkyHDRI051B_4K-TONEMAPPED.fbc1",
+                               VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+                               RHI::Sampler::FilterMode::Nearest,
+                               sSkyboxTexture))
     {
         return false;
     }
@@ -414,8 +415,8 @@ static bool CreateResources(RHI::Device& device)
         Arena& arena = GetScratchArena();
         ArenaMarker marker = ArenaGetMarker(arena);
 
-        f32 tileSize = 2000.0f;
-        f32 quadSize = 0.5f;
+        f32 tileSize = 1000.0f;
+        f32 quadSize = 1.0f;
         i32 quadPerSide = static_cast<i32>(tileSize / quadSize);
         i32 offset = quadPerSide / 2;
         u32 vertexPerSide = quadPerSide + 1;
@@ -991,7 +992,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    f32 domain = 512.0f;
+    f32 domain = 1000.0f;
     f32 ratio = 1 + Math::Sqrt(11);
     f32 kMins[OCEAN_CASCADE_COUNT] = {0.0f, 0.5f, 3.0f, 20.0f};
     f32 kMaxs[OCEAN_CASCADE_COUNT] = {0.5f, 3.0f, 20.0f, 230.0f};

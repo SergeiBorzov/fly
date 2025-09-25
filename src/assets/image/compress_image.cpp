@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #define STB_DXT_IMPLEMENTATION
@@ -73,21 +74,24 @@ static void CopyImageBlock4Bytes(u32 block[16], const u32* data, u32 width,
 
 static u64 SizeBlock8(u32 width, u32 height)
 {
-    return (width + 3) / 4 * (height + 3) / 4 * 8;
+    return ((width + 3) / 4) * ((height + 3) / 4) * 8;
 }
 
 static u64 SizeBlock16(u32 width, u32 height)
 {
-    return (width + 3) / 4 * (height + 3) / 4 * 16;
+    return ((width + 3) / 4) * ((height + 3) / 4) * 16;
 }
 
-static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image)
+static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image, u8 layer)
 {
     if (image.channelCount < 3 ||
         dstSize < SizeBlock8(image.width, image.height))
     {
         return false;
     }
+
+    const u8* srcData = reinterpret_cast<const u8*>(image.mem) +
+                        image.width * image.height * image.channelCount * layer;
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -97,10 +101,9 @@ static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image)
     {
         for (u32 j = 0; j < blockWidth; j++)
         {
-            CopyImageBlock4Bytes(block,
-                                 reinterpret_cast<const u32*>(image.data),
+            CopyImageBlock4Bytes(block, reinterpret_cast<const u32*>(srcData),
                                  image.width, image.height, j, i);
-            stb_compress_dxt_block(dst + i * blockWidth * 8 + j * 8,
+            stb_compress_dxt_block(dst + (i * blockWidth + j) * 8,
                                    reinterpret_cast<unsigned char*>(block), 0,
                                    STB_DXT_NORMAL);
         }
@@ -109,13 +112,16 @@ static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image)
     return true;
 }
 
-static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image)
+static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image, u8 layer)
 {
     if (image.channelCount != 4 ||
         dstSize < SizeBlock16(image.width, image.height))
     {
         return false;
     }
+
+    const u8* srcData = reinterpret_cast<const u8*>(image.data) +
+                        image.width * image.height * image.channelCount * layer;
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -125,8 +131,7 @@ static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image)
     {
         for (u32 j = 0; j < blockWidth; j++)
         {
-            CopyImageBlock4Bytes(block,
-                                 reinterpret_cast<const u32*>(image.data),
+            CopyImageBlock4Bytes(block, reinterpret_cast<const u32*>(srcData),
                                  image.width, image.height, j, i);
             stb_compress_dxt_block(dst + i * blockWidth * 16 + j * 16,
                                    reinterpret_cast<unsigned char*>(block), 1,
@@ -137,13 +142,16 @@ static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image)
     return true;
 }
 
-static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image)
+static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image, u8 layer)
 {
     if (image.channelCount != 1 ||
         dstSize < SizeBlock8(image.width, image.height))
     {
         return false;
     }
+
+    const u8* srcData = reinterpret_cast<const u8*>(image.data) +
+                        image.width * image.height * image.channelCount * layer;
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -153,7 +161,7 @@ static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image)
     {
         for (u32 j = 0; j < blockWidth; j++)
         {
-            CopyImageBlock1Byte(block, image.data, image.width, image.height, j,
+            CopyImageBlock1Byte(block, srcData, image.width, image.height, j,
                                 i);
             stb_compress_bc4_block(dst + i * blockWidth * 8 + j * 8,
                                    reinterpret_cast<unsigned char*>(block));
@@ -162,13 +170,16 @@ static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image)
     return true;
 }
 
-static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image)
+static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image, u8 layer)
 {
     if (image.channelCount != 2 ||
         dstSize < SizeBlock16(image.width, image.height))
     {
         return false;
     }
+
+    const u8* srcData = reinterpret_cast<const u8*>(image.data) +
+                        image.width * image.height * image.channelCount * layer;
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -178,8 +189,7 @@ static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image)
     {
         for (u32 j = 0; j < blockWidth; j++)
         {
-            CopyImageBlock2Bytes(block,
-                                 reinterpret_cast<const u16*>(image.data),
+            CopyImageBlock2Bytes(block, reinterpret_cast<const u16*>(srcData),
                                  image.width, image.height, j, i);
             stb_compress_bc5_block(dst + i * blockWidth * 16 + j * 16,
                                    reinterpret_cast<unsigned char*>(block));
@@ -243,7 +253,8 @@ ImageStorageType CodecToImageStorageType(CodecType codec)
     }
 }
 
-bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec)
+bool CompressImage(u8* dst, u64 dstSize, const Image& image, u8 layer,
+                   CodecType codec)
 {
     FLY_ASSERT(dst);
     FLY_ASSERT(dstSize > 0);
@@ -251,19 +262,19 @@ bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec)
     {
         case CodecType::BC1:
         {
-            return CompressImageBC1(dst, dstSize, image);
+            return CompressImageBC1(dst, dstSize, image, layer);
         }
         case CodecType::BC3:
         {
-            return CompressImageBC3(dst, dstSize, image);
+            return CompressImageBC3(dst, dstSize, image, layer);
         }
         case CodecType::BC4:
         {
-            return CompressImageBC4(dst, dstSize, image);
+            return CompressImageBC4(dst, dstSize, image, layer);
         }
         case CodecType::BC5:
         {
-            return CompressImageBC5(dst, dstSize, image);
+            return CompressImageBC5(dst, dstSize, image, layer);
         }
         case CodecType::Invalid:
         {
@@ -294,38 +305,6 @@ u64 GetCompressedImageSize(u32 width, u32 height, CodecType codec)
     }
 }
 
-static Image AllocImage(u32 width, u32 height, ImageStorageType storageType,
-                        u8 channelCount)
-{
-    Image image;
-
-    u64 size = 0;
-    if (storageType == ImageStorageType::Block8)
-    {
-        size = width * height * 8;
-    }
-    else if (storageType == ImageStorageType::Block16)
-    {
-        size = width * height * 16;
-    }
-    else
-    {
-        size = width * height * channelCount *
-               GetImageStorageTypeSize(storageType);
-    }
-
-    image.mem = static_cast<u8*>(Fly::Alloc(size));
-    image.data = image.mem;
-    image.storageType = storageType;
-    image.mipCount = 1;
-    image.layerCount = 1;
-    image.channelCount = channelCount;
-    image.width = width;
-    image.height = height;
-
-    return image;
-}
-
 u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
                   u64& totalSize)
 {
@@ -350,8 +329,8 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
     }
     imagesSize *= image.layerCount;
 
-    totalSize = sizeof(ImageHeader) +
-                image.layerCount * mipCount * sizeof(MipRow) + imagesSize;
+    totalSize =
+        sizeof(ImageHeader) + mipCount * sizeof(ImageLayerRow) + imagesSize;
     u8* data = static_cast<u8*>(Fly::Alloc(totalSize));
 
     ImageHeader* header = reinterpret_cast<ImageHeader*>(data);
@@ -360,39 +339,36 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
     header->mipCount = mipCount;
     header->layerCount = image.layerCount;
 
-    u64 offset =
-        sizeof(ImageHeader) + image.layerCount * mipCount * sizeof(MipRow);
+    u64 offset = sizeof(ImageHeader) + mipCount * sizeof(ImageLayerRow);
     mipWidth = width;
     mipHeight = height;
-
-    for (u32 i = 0; i < image.layerCount; i++)
+    for (u32 j = 0; j < mipCount; j++)
     {
-        for (u32 j = 0; j < mipCount; j++)
+        ImageLayerRow* layerRow = reinterpret_cast<ImageLayerRow*>(
+            data + sizeof(ImageHeader) + j * sizeof(ImageLayerRow));
+        layerRow->offset = offset;
+        layerRow->width = mipWidth;
+        layerRow->height = mipHeight;
+        layerRow->size = GetCompressedImageSize(mipWidth, mipHeight, codec);
+
+        const Image* target = &image;
+        Image targetImage;
+        if (j > 0)
         {
-            MipRow* mipRow = reinterpret_cast<MipRow*>(
-                data + sizeof(ImageHeader) + i * sizeof(MipRow) * mipCount +
-                sizeof(MipRow) * j);
-            mipRow->offset = offset;
-            mipRow->width = mipWidth;
-            mipRow->height = mipHeight;
-
-            const Image* target = &image;
             Image targetImage;
-            if (j > 0)
+            if (!ResizeImageSRGB(image, mipWidth, mipHeight, targetImage))
             {
-                Image targetImage = AllocImage(mipWidth, mipHeight, storageType,
-                                               image.channelCount);
-                if (!ResizeImageSRGB(image, targetImage))
-                {
-                    FreeImage(targetImage);
-                    return nullptr;
-                }
-                target = &targetImage;
+                FreeImage(targetImage);
+                return nullptr;
             }
+            target = &targetImage;
+        }
 
+        for (u32 i = 0; i < image.layerCount; i++)
+        {
             u8* dst = data + offset;
             u64 dstSize = GetCompressedImageSize(mipWidth, mipHeight, codec);
-            if (!CompressImage(dst, dstSize, *target, codec))
+            if (!CompressImage(dst, dstSize, *target, i, codec))
             {
                 if (j > 0)
                 {
@@ -407,9 +383,10 @@ u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
             }
 
             offset += dstSize;
-            mipWidth = (mipWidth > 1) ? mipWidth >> 1 : 1;
-            mipHeight = (mipHeight > 1) ? mipHeight >> 1 : 1;
         }
+
+        mipWidth = (mipWidth > 1) ? mipWidth >> 1 : 1;
+        mipHeight = (mipHeight > 1) ? mipHeight >> 1 : 1;
     }
 
     return data;

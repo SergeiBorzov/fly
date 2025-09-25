@@ -49,7 +49,6 @@ cc_binary(
     ],
     deps = [
         "//src/rhi:context",
-        "//src/assets:import_image",
         "//src/utils:utils",
         "//demos/common:simple_camera_fps",
     ],

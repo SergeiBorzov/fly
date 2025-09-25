@@ -158,7 +158,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_BC4_UNORM_BLOCK:
         case VK_FORMAT_BC4_SNORM_BLOCK:
         {
-            return 0.5 * width * height;
+            return width * height / 2;
         }
 
         default:
@@ -300,7 +300,7 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const void* data,
         RHI::ChangeTextureAccessLayout(cmd, texture,
                                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                        VK_ACCESS_2_TRANSFER_WRITE_BIT);
-        RHI::CopyBufferToTexture(cmd, texture, stagingBuffer);
+        RHI::CopyBufferToTexture(cmd, texture, 0, stagingBuffer);
         if (texture.mipCount > 1)
         {
             RHI::GenerateMipmaps(cmd, texture);
