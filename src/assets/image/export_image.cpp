@@ -51,10 +51,10 @@ bool ExportHDR(const char* path, const Image& image)
                           reinterpret_cast<const float*>(image.data));
 }
 
-bool ExportFBC1(const char* path, const Image& image, bool generateMips)
+bool ExportFBC1(const char* path, const Image& image)
 {
     u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC1, generateMips, size);
+    u8* data = CompressImage(image, CodecType::BC1, size);
     if (!data)
     {
         return false;
@@ -69,10 +69,10 @@ bool ExportFBC1(const char* path, const Image& image, bool generateMips)
     return true;
 }
 
-bool ExportFBC3(const char* path, const Image& image, bool generateMips)
+bool ExportFBC3(const char* path, const Image& image)
 {
     u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC3, generateMips, size);
+    u8* data = CompressImage(image, CodecType::BC3, size);
     if (!data)
     {
         return false;
@@ -87,10 +87,10 @@ bool ExportFBC3(const char* path, const Image& image, bool generateMips)
     return true;
 }
 
-bool ExportFBC4(const char* path, const Image& image, bool generateMips)
+bool ExportFBC4(const char* path, const Image& image)
 {
     u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC4, generateMips, size);
+    u8* data = CompressImage(image, CodecType::BC4, size);
     if (!data)
     {
         return false;
@@ -105,10 +105,10 @@ bool ExportFBC4(const char* path, const Image& image, bool generateMips)
     return true;
 }
 
-bool ExportFBC5(const char* path, const Image& image, bool generateMips)
+bool ExportFBC5(const char* path, const Image& image)
 {
     u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC5, generateMips, size);
+    u8* data = CompressImage(image, CodecType::BC5, size);
     if (!data)
     {
         return false;
@@ -123,7 +123,7 @@ bool ExportFBC5(const char* path, const Image& image, bool generateMips)
     return true;
 }
 
-bool ExportImage(const char* path, const Image& image, bool generateMips)
+bool ExportImage(const char* path, const Image& image)
 {
     String8 pathStr = Fly::String8(path, strlen(path));
 
@@ -150,19 +150,19 @@ bool ExportImage(const char* path, const Image& image, bool generateMips)
     }
     else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
     {
-        return ExportFBC1(path, image, generateMips);
+        return ExportFBC1(path, image);
     }
     else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
     {
-        return ExportFBC3(path, image, generateMips);
+        return ExportFBC3(path, image);
     }
     else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
     {
-        return ExportFBC4(path, image, generateMips);
+        return ExportFBC4(path, image);
     }
     else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
     {
-        return ExportFBC5(path, image, generateMips);
+        return ExportFBC5(path, image);
     }
 
     return false;

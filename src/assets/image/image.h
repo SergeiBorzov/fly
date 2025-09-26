@@ -30,14 +30,6 @@ struct ImageLayerRow
     u32 height;
 };
 
-struct Mip
-{
-    void* data = nullptr;
-    u32 width = 0;
-    u32 height = 0;
-    u64 size = 0;
-};
-
 struct Image
 {
     u8* mem = nullptr;
@@ -51,7 +43,6 @@ struct Image
 };
 
 u32 GetImageStorageTypeSize(ImageStorageType type);
-bool GetImageMipLevel(Image& image, u32 layer, u32 mipLevel, Mip& mip);
 void FreeImage(Image& image);
 
 } // namespace Fly

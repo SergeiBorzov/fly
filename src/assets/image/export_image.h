@@ -8,7 +8,7 @@ namespace Fly
 
 struct Image;
 
-bool ExportImage(const char* path, const Image& image, bool generateMips);
+bool ExportImage(const char* path, const Image& image);
 
 } // namespace Fly
 

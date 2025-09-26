@@ -781,7 +781,8 @@ void ProcessInput(Input& input)
         if (input.resize)
         {
             Image transformedImage;
-            if (!ResizeImageSRGB(image, input.resizeX, input.resizeY, transformedImage))
+            if (!ResizeImageSRGB(image, input.resizeX, input.resizeY,
+                                 transformedImage))
             {
                 fprintf(stderr, "Transform error: Failed to resize %s\n",
                         input.inputs[i]);
@@ -803,7 +804,15 @@ void ProcessInput(Input& input)
             image = transformedImage;
         }
 
-        if (!ExportImage(input.outputs[i], image, input.generateMips))
+        if (input.generateMips && !input.eq2cube)
+        {
+            Image transformedImage;
+            GenerateMips(image, transformedImage);
+            FreeImage(image);
+            image = transformedImage;
+        }
+
+        if (!ExportImage(input.outputs[i], image))
         {
             fprintf(stderr,
                     "Export error: failed to write compressed image %s\n",

@@ -1,6 +1,6 @@
 #include "core/assert.h"
 #include "core/memory.h"
-#include <stdio.h>
+#include "core/thread_context.h"
 
 #include "rhi/buffer.h"
 #include "rhi/command_buffer.h"
@@ -8,6 +8,7 @@
 #include "rhi/pipeline.h"
 #include "rhi/texture.h"
 
+#include "export_image.h"
 #include "image.h"
 #include "transform_image.h"
 
@@ -18,6 +19,18 @@
 #define STBIR_FREE(ptr, userData) (Fly::Free(ptr))
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize2.h"
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+static u32 Log2(u32 x)
+{
+    u32 result = 0;
+    while (x >>= 1)
+    {
+        ++result;
+    }
+    return result;
+}
 
 namespace Fly
 {
@@ -37,10 +50,17 @@ bool ResizeImageSRGB(const Image& srcImage, u32 width, u32 height,
         sizeof(u8) * dstImage.width * dstImage.height * dstImage.channelCount));
     dstImage.data = dstImage.mem;
 
-    return stbir_resize_uint8_srgb(
+    u8* res = stbir_resize_uint8_srgb(
         srcImage.data, srcImage.width, srcImage.height, 0, dstImage.data,
         dstImage.width, dstImage.height, 0,
         static_cast<stbir_pixel_layout>(dstImage.channelCount));
+    if (!res)
+    {
+        Fly::Free(dstImage.mem);
+        dstImage.mem = nullptr;
+        dstImage.data = nullptr;
+    }
+    return res;
 }
 
 bool ResizeImageLinear(const Image& srcImage, u32 width, u32 height,
@@ -58,10 +78,17 @@ bool ResizeImageLinear(const Image& srcImage, u32 width, u32 height,
         sizeof(u8) * dstImage.width * dstImage.height * dstImage.channelCount));
     dstImage.data = dstImage.mem;
 
-    return stbir_resize_uint8_linear(
+    u8* res = stbir_resize_uint8_linear(
         srcImage.data, srcImage.width, srcImage.height, 0, dstImage.data,
         dstImage.width, dstImage.height, 0,
         static_cast<stbir_pixel_layout>(dstImage.channelCount));
+    if (!res)
+    {
+        Fly::Free(dstImage.mem);
+        dstImage.mem = nullptr;
+        dstImage.data = nullptr;
+    }
+    return res;
 }
 
 static void RecordConvertFromEquirectangular(
@@ -98,35 +125,71 @@ static void RecordReadbackCubemap(RHI::CommandBuffer& cmd,
                                   void* pUserData)
 {
     RHI::Texture& cubemap = *(textureInput->textures[0]);
-    RHI::Buffer& stagingBuffer = *(bufferInput->buffers[0]);
-    RHI::CopyTextureToBuffer(cmd, cubemap, 0, stagingBuffer);
+    for (u32 i = 0; i < cubemap.mipCount; i++)
+    {
+        RHI::Buffer& stagingBuffer = *(bufferInput->buffers[i]);
+        RHI::CopyTextureToBuffer(cmd, stagingBuffer, cubemap, i);
+    }
+}
+
+bool GenerateMips(const Image& srcImage, Image& dstImage)
+{
+    FLY_ASSERT(srcImage.storageType == ImageStorageType::Byte);
+
+    dstImage = srcImage;
+    u32 mipCount = Log2(MAX(srcImage.width, srcImage.height)) + 1;
+    u64 totalSize = 0;
+    for (u32 i = 0; i < mipCount; i++)
+    {
+        u32 mipWidth = MAX(srcImage.width >> i, 1);
+        u32 mipHeight = MAX(srcImage.height >> i, 1);
+        totalSize +=
+            mipWidth * mipHeight * srcImage.channelCount * srcImage.layerCount;
+    }
+
+    dstImage.mem = static_cast<u8*>(Fly::Alloc(totalSize));
+    dstImage.data = dstImage.mem;
+
+    u64 offset = srcImage.width * srcImage.height * srcImage.channelCount *
+                 srcImage.layerCount;
+    memcpy(dstImage.data, srcImage.data, offset);
+    for (u32 i = 1; i < mipCount; i++)
+    {
+        u32 mipWidth = MAX(srcImage.width >> i, 1);
+        u32 mipHeight = MAX(srcImage.height >> i, 1);
+
+        Image resized;
+        if (!ResizeImageSRGB(srcImage, mipWidth, mipHeight, resized))
+        {
+            return false;
+        }
+        u64 size =
+            mipWidth * mipHeight * srcImage.channelCount * srcImage.layerCount;
+        memcpy(dstImage.data + offset, resized.data, size);
+        offset += size;
+        FreeImage(resized);
+    }
+    return true;
 }
 
 bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
              const Image& srcImage, Image& dstImage, bool generateMips)
 {
     FLY_ASSERT(srcImage.storageType == ImageStorageType::Byte);
-    FLY_ASSERT(srcImage.channelCount >= 3);
+    FLY_ASSERT(srcImage.channelCount == 4);
 
-    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-    if (srcImage.channelCount == 3)
-    {
-        format = VK_FORMAT_R8G8B8_SRGB;
-    }
-
-    u32 size = srcImage.width / 4;
-
+    u32 side = srcImage.width / 4;
     u32 mipCount = generateMips ? 0 : 1;
 
     RHI::Texture texture2D;
     RHI::Texture cubemap;
 
-    if (!RHI::CreateTexture2D(device,
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                  VK_IMAGE_USAGE_SAMPLED_BIT,
-                              srcImage.data, srcImage.width, srcImage.height,
-                              format, RHI::Sampler::FilterMode::Nearest,
-                              RHI::Sampler::WrapMode::Clamp, 1, texture2D))
+    if (!RHI::CreateTexture2D(
+            device,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            srcImage.data, srcImage.width, srcImage.height,
+            VK_FORMAT_R8G8B8A8_SRGB, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Clamp, 1, texture2D))
     {
         return false;
     }
@@ -135,7 +198,7 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                            nullptr, size, VK_FORMAT_R8G8B8A8_SRGB,
+                            nullptr, side, VK_FORMAT_R8G8B8A8_SRGB,
                             RHI::Sampler::FilterMode::Nearest, mipCount,
                             cubemap))
     {
@@ -145,17 +208,44 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(cubemap.arrayImageView);
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
-        {{0, 0}, {size, size}}, &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
+        {{0, 0}, {side, side}}, &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
 
     RHI::RecordBufferInput bufferInput;
-    VkAccessFlagBits2 bufferAccessMask;
     RHI::RecordTextureInput textureInput;
     RHI::Texture* textures[2];
     RHI::ImageLayoutAccess imageLayoutsAccesses[2];
     textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
     textureInput.textures = textures;
 
-    printf("kalakakalk\n");
+    RHI::Buffer* stagingBuffers =
+        FLY_PUSH_ARENA(arena, RHI::Buffer, cubemap.mipCount);
+    VkAccessFlagBits2* bufferAccesses =
+        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, cubemap.mipCount);
+    RHI::Buffer** buffers =
+        FLY_PUSH_ARENA(arena, RHI::Buffer*, cubemap.mipCount);
+    bufferInput.buffers = buffers;
+    bufferInput.bufferAccesses = bufferAccesses;
+    bufferInput.bufferCount = cubemap.mipCount;
+
+    u64 totalSize = 0;
+    for (u32 i = 0; i < cubemap.mipCount; i++)
+    {
+        u32 mipSide = MAX(side >> i, 1);
+        u64 size =
+            mipSide * mipSide * srcImage.channelCount * cubemap.layerCount;
+        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               nullptr, size, stagingBuffers[i]))
+        {
+            return false;
+        }
+        buffers[i] = &(stagingBuffers[i]);
+        bufferAccesses[i] = VK_ACCESS_2_TRANSFER_READ_BIT;
+        totalSize += size;
+    }
+
     RHI::BeginTransfer(device);
     {
 
@@ -180,22 +270,8 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
                                  RecordGenerateMipmaps, nullptr, &textureInput);
         }
     }
-    u64 dstSize = size * size * srcImage.channelCount * 6;
-    RHI::Buffer stagingBuffer;
+
     {
-
-        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                               nullptr, dstSize, stagingBuffer))
-        {
-            return false;
-        }
-
-        bufferInput.bufferCount = 1;
-        RHI::Buffer* pStagingBuffer = &stagingBuffer;
-        bufferInput.buffers = &pStagingBuffer;
-        bufferAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        bufferInput.bufferAccesses = &bufferAccessMask;
-
         textureInput.textureCount = 1;
         textures[0] = &cubemap;
         imageLayoutsAccesses[0].imageLayout =
@@ -204,23 +280,37 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
 
         RHI::ExecuteTransfer(device, TransferCommandBuffer(device),
                              RecordReadbackCubemap, &bufferInput, &textureInput,
-                             &dstImage);
+                             nullptr);
     }
     RHI::EndTransfer(device);
 
-    dstImage.mem = static_cast<u8*>(Fly::Alloc(dstSize));
+    u64 offset = 0;
+    dstImage.mem = static_cast<u8*>(Fly::Alloc(totalSize));
     dstImage.data = dstImage.mem;
-    dstImage.width = size;
-    dstImage.height = size;
-    dstImage.channelCount = 4;
-    dstImage.mipCount = 1;
-    dstImage.layerCount = 6;
+    dstImage.width = side;
+    dstImage.height = side;
+    dstImage.channelCount = srcImage.channelCount;
+    dstImage.mipCount = cubemap.mipCount;
+    dstImage.layerCount = cubemap.layerCount;
     dstImage.storageType = ImageStorageType::Byte;
-    memcpy(dstImage.mem, RHI::BufferMappedPtr(stagingBuffer), dstSize);
+    for (u32 i = 0; i < cubemap.mipCount; i++)
+    {
+        u32 mipSide = MAX(side >> i, 1);
+        u64 size =
+            mipSide * mipSide * srcImage.channelCount * cubemap.layerCount;
+        memcpy(dstImage.mem + offset, RHI::BufferMappedPtr(stagingBuffers[i]),
+               size);
+        offset += size;
+    }
 
-    RHI::DestroyBuffer(device, stagingBuffer);
+    for (u32 i = 0; i < cubemap.mipCount; i++)
+    {
+        RHI::DestroyBuffer(device, stagingBuffers[i]);
+    }
     RHI::DestroyTexture(device, texture2D);
     RHI::DestroyTexture(device, cubemap);
+
+    ArenaPopToMarker(arena, marker);
     return true;
 }
 

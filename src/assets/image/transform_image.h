@@ -18,6 +18,7 @@ bool ResizeImageSRGB(const Image& srcImage, u32 width, u32 height,
                      Image& dstImage);
 bool ResizeImageLinear(const Image& srcImage, u32 width, u32 height,
                        Image& dstImage);
+bool GenerateMips(const Image& srcImage, Image& dstImage);
 bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
              const Image& srcImage, Image& dstImage, bool generateMips);
 

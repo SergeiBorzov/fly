@@ -15,7 +15,6 @@ bool LoadImageFromFile(const char* path, Image& image,
                        u8 desiredChannelCount = 4);
 
 void FreeImage(Image& image);
-bool GetMipLevel(Image& image, u32 mipLevel, Mip& mip);
 
 } // namespace Fly
 

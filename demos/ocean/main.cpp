@@ -404,7 +404,7 @@ static bool CreateResources(RHI::Device& device)
 
     if (!LoadCompressedCubemap(device, "DaySkyHDRI051B_4K-TONEMAPPED.fbc1",
                                VK_FORMAT_BC1_RGB_SRGB_BLOCK,
-                               RHI::Sampler::FilterMode::Nearest,
+                               RHI::Sampler::FilterMode::Trilinear,
                                sSkyboxTexture))
     {
         return false;

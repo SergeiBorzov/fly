@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <string.h>
 
 #define STB_DXT_IMPLEMENTATION
@@ -13,16 +12,6 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
-
-static u32 Log2(u32 x)
-{
-    u32 result = 0;
-    while (x >>= 1)
-    {
-        ++result;
-    }
-    return result;
-}
 
 namespace Fly
 {
@@ -82,7 +71,7 @@ static u64 SizeBlock16(u32 width, u32 height)
     return ((width + 3) / 4) * ((height + 3) / 4) * 16;
 }
 
-static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image, u8 layer)
+static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image)
 {
     if (image.channelCount < 3 ||
         dstSize < SizeBlock8(image.width, image.height))
@@ -90,8 +79,7 @@ static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image, u8 layer)
         return false;
     }
 
-    const u8* srcData = reinterpret_cast<const u8*>(image.mem) +
-                        image.width * image.height * image.channelCount * layer;
+    const u8* srcData = reinterpret_cast<const u8*>(image.mem);
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -112,7 +100,7 @@ static bool CompressImageBC1(u8* dst, u64 dstSize, const Image& image, u8 layer)
     return true;
 }
 
-static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image, u8 layer)
+static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image)
 {
     if (image.channelCount != 4 ||
         dstSize < SizeBlock16(image.width, image.height))
@@ -120,8 +108,7 @@ static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image, u8 layer)
         return false;
     }
 
-    const u8* srcData = reinterpret_cast<const u8*>(image.data) +
-                        image.width * image.height * image.channelCount * layer;
+    const u8* srcData = reinterpret_cast<const u8*>(image.data);
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -142,7 +129,7 @@ static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image, u8 layer)
     return true;
 }
 
-static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image, u8 layer)
+static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image)
 {
     if (image.channelCount != 1 ||
         dstSize < SizeBlock8(image.width, image.height))
@@ -150,8 +137,7 @@ static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image, u8 layer)
         return false;
     }
 
-    const u8* srcData = reinterpret_cast<const u8*>(image.data) +
-                        image.width * image.height * image.channelCount * layer;
+    const u8* srcData = reinterpret_cast<const u8*>(image.data);
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -170,7 +156,7 @@ static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image, u8 layer)
     return true;
 }
 
-static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image, u8 layer)
+static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image)
 {
     if (image.channelCount != 2 ||
         dstSize < SizeBlock16(image.width, image.height))
@@ -178,8 +164,7 @@ static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image, u8 layer)
         return false;
     }
 
-    const u8* srcData = reinterpret_cast<const u8*>(image.data) +
-                        image.width * image.height * image.channelCount * layer;
+    const u8* srcData = reinterpret_cast<const u8*>(image.data);
 
     const u32 blockWidth = (image.width + 3) / 4;
     const u32 blockHeight = (image.height + 3) / 4;
@@ -253,8 +238,7 @@ ImageStorageType CodecToImageStorageType(CodecType codec)
     }
 }
 
-bool CompressImage(u8* dst, u64 dstSize, const Image& image, u8 layer,
-                   CodecType codec)
+bool CompressImage(u8* dst, u64 dstSize, const Image& image, CodecType codec)
 {
     FLY_ASSERT(dst);
     FLY_ASSERT(dstSize > 0);
@@ -262,19 +246,19 @@ bool CompressImage(u8* dst, u64 dstSize, const Image& image, u8 layer,
     {
         case CodecType::BC1:
         {
-            return CompressImageBC1(dst, dstSize, image, layer);
+            return CompressImageBC1(dst, dstSize, image);
         }
         case CodecType::BC3:
         {
-            return CompressImageBC3(dst, dstSize, image, layer);
+            return CompressImageBC3(dst, dstSize, image);
         }
         case CodecType::BC4:
         {
-            return CompressImageBC4(dst, dstSize, image, layer);
+            return CompressImageBC4(dst, dstSize, image);
         }
         case CodecType::BC5:
         {
-            return CompressImageBC5(dst, dstSize, image, layer);
+            return CompressImageBC5(dst, dstSize, image);
         }
         case CodecType::Invalid:
         {
@@ -305,88 +289,67 @@ u64 GetCompressedImageSize(u32 width, u32 height, CodecType codec)
     }
 }
 
-u8* CompressImage(const Image& image, CodecType codec, bool generateMips,
-                  u64& totalSize)
+u8* CompressImage(const Image& image, CodecType codec, u64& totalSize)
 {
     ImageStorageType storageType = CodecToImageStorageType(codec);
-    u32 mipCount = 1;
-    if (generateMips)
-    {
-        mipCount = Log2(MAX(image.width, image.height)) + 1;
-    }
-
-    const u32 width = ((image.width + 3) / 4) * 4;
-    const u32 height = ((image.height + 3) / 4) * 4;
 
     u64 imagesSize = 0;
-    u32 mipWidth = width;
-    u32 mipHeight = height;
-    for (u32 i = 0; i < mipCount; i++)
+    u32 mipWidth = image.width;
+    u32 mipHeight = image.height;
+    for (u32 i = 0; i < image.mipCount; i++)
     {
-        imagesSize += GetCompressedImageSize(mipWidth, mipHeight, codec);
-        mipWidth = (mipWidth > 1) ? mipWidth >> 1 : 1;
-        mipHeight = (mipHeight > 1) ? mipHeight >> 1 : 1;
+        imagesSize += GetCompressedImageSize(mipWidth, mipHeight, codec) *
+                      image.layerCount;
+        mipWidth = MAX(mipWidth >> 1, 1);
+        mipHeight = MAX(mipHeight >> 1, 1);
     }
-    imagesSize *= image.layerCount;
 
-    totalSize =
-        sizeof(ImageHeader) + mipCount * sizeof(ImageLayerRow) + imagesSize;
+    totalSize = sizeof(ImageHeader) + image.mipCount * sizeof(ImageLayerRow) +
+                imagesSize;
     u8* data = static_cast<u8*>(Fly::Alloc(totalSize));
 
     ImageHeader* header = reinterpret_cast<ImageHeader*>(data);
     header->storageType = storageType;
     header->channelCount = image.channelCount;
-    header->mipCount = mipCount;
+    header->mipCount = image.mipCount;
     header->layerCount = image.layerCount;
 
-    u64 offset = sizeof(ImageHeader) + mipCount * sizeof(ImageLayerRow);
-    mipWidth = width;
-    mipHeight = height;
-    for (u32 j = 0; j < mipCount; j++)
+    u64 imageOffset = 0;
+    u64 offset = sizeof(ImageHeader) + image.mipCount * sizeof(ImageLayerRow);
+    mipWidth = image.width;
+    mipHeight = image.height;
+
+    for (u32 i = 0; i < image.mipCount; i++)
     {
         ImageLayerRow* layerRow = reinterpret_cast<ImageLayerRow*>(
-            data + sizeof(ImageHeader) + j * sizeof(ImageLayerRow));
+            data + sizeof(ImageHeader) + i * sizeof(ImageLayerRow));
         layerRow->offset = offset;
         layerRow->width = mipWidth;
         layerRow->height = mipHeight;
         layerRow->size = GetCompressedImageSize(mipWidth, mipHeight, codec);
 
-        const Image* target = &image;
-        Image targetImage;
-        if (j > 0)
-        {
-            Image targetImage;
-            if (!ResizeImageSRGB(image, mipWidth, mipHeight, targetImage))
-            {
-                FreeImage(targetImage);
-                return nullptr;
-            }
-            target = &targetImage;
-        }
+        Image target = image;
+        target.width = mipWidth;
+        target.height = mipHeight;
 
-        for (u32 i = 0; i < image.layerCount; i++)
+        for (u32 j = 0; j < image.layerCount; j++)
         {
+            target.mem = image.mem + imageOffset;
+            target.data = target.mem;
+
             u8* dst = data + offset;
-            u64 dstSize = GetCompressedImageSize(mipWidth, mipHeight, codec);
-            if (!CompressImage(dst, dstSize, *target, i, codec))
+            if (!CompressImage(dst, layerRow->size, target, codec))
             {
-                if (j > 0)
-                {
-                    FreeImage(targetImage);
-                }
-                FreeImage(targetImage);
+                Free(data);
                 return nullptr;
             }
-            if (j > 0)
-            {
-                FreeImage(targetImage);
-            }
 
-            offset += dstSize;
+            imageOffset += mipWidth * mipHeight * target.channelCount;
+            offset += layerRow->size;
         }
 
-        mipWidth = (mipWidth > 1) ? mipWidth >> 1 : 1;
-        mipHeight = (mipHeight > 1) ? mipHeight >> 1 : 1;
+        mipWidth = MAX(mipWidth >> 1, 1);
+        mipHeight = MAX(mipHeight >> 1, 1);
     }
 
     return data;

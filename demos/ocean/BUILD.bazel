@@ -15,7 +15,7 @@ cook_images(
     outputs = [
         "DaySkyHDRI051B_4K-TONEMAPPED.fbc1",
     ],
-    generate_mips = False,
+    generate_mips = True,
     eq2cube = True,
 )
 

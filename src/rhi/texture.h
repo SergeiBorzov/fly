@@ -16,15 +16,6 @@ struct Device;
 u32 GetImageSize(u32 width, u32 height, VkFormat format);
 VkImageAspectFlags GetImageAspectMask(VkFormat format);
 
-struct MipDesc
-{
-    void* data;
-    u64 size;
-    u32 width;
-    u32 height;
-    u32 depth;
-};
-
 struct Sampler
 {
     enum class FilterMode
@@ -86,8 +77,6 @@ void DestroyTexture(Device& device, Texture& texture);
 bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
                    u32 size, VkFormat format, Sampler::FilterMode filterMode,
                    u32 mipCount, Texture& texture);
-bool CopyMipsToTexture(Device& device, Texture& texture, const MipDesc* mips,
-                       u32 mipCount);
 
 } // namespace RHI
 } // namespace Fly

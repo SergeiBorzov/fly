@@ -94,47 +94,6 @@ void FreeImage(Image& image)
     image.height = 0;
 }
 
-bool GetImageMipLevel(Image& image, u32 layer, u32 mipLevel, Mip& mip)
-{
-    if (layer >= image.layerCount)
-    {
-        return false;
-    }
-    if (mipLevel >= image.mipCount)
-    {
-        return false;
-    }
-
-    if (mipLevel == 0 && layer == 0)
-    {
-        mip.data = image.data;
-        mip.width = image.width;
-        mip.height = image.height;
-    }
-    else
-    {
-        ImageLayerRow* layerRow = reinterpret_cast<ImageLayerRow*>(
-            image.mem + sizeof(ImageHeader) + mipLevel * sizeof(ImageLayerRow));
-        mip.width = layerRow->width;
-        mip.height = layerRow->height;
-        mip.data = image.mem + layerRow->offset + layer * layerRow->size;
-    }
-
-    if (image.storageType == ImageStorageType::Block8 ||
-        image.storageType == ImageStorageType::Block16)
-    {
-        mip.size =
-            mip.width * mip.height * GetImageStorageTypeSize(image.storageType);
-    }
-    else
-    {
-        mip.size = mip.width * mip.height * image.channelCount *
-                   GetImageStorageTypeSize(image.storageType);
-    }
-
-    return true;
-}
-
 u32 GetImageStorageTypeSize(ImageStorageType type)
 {
     switch (type)

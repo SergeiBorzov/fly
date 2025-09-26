@@ -103,35 +103,6 @@ bool LoadCompressedCubemap(RHI::Device& device, const char* path,
         return false;
     }
 
-    if (image.mipCount == 1)
-    {
-        FreeImage(image);
-        return true;
-    }
-
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-
-    RHI::MipDesc* mips = FLY_PUSH_ARENA(arena, RHI::MipDesc, image.mipCount);
-    for (u32 i = 0; i < image.mipCount; i++)
-    {
-        Mip mip;
-        if (!GetImageMipLevel(image, 0, i, mip))
-        {
-            return false;
-        }
-        mips[i].data = mip.data;
-        mips[i].width = mip.width;
-        mips[i].height = mip.height;
-        mips[i].size = mip.size;
-    }
-
-    if (!CopyMipsToTexture(device, texture, mips, image.mipCount))
-    {
-        return false;
-    }
-    ArenaPopToMarker(arena, marker);
-
     FreeImage(image);
     return true;
 }
@@ -162,40 +133,11 @@ bool LoadCompressedTexture2D(RHI::Device& device, const char* path,
     if (!RHI::CreateTexture2D(device,
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                   VK_IMAGE_USAGE_SAMPLED_BIT,
-                              nullptr, image.width, image.height, format,
+                              image.data, image.width, image.height, format,
                               filterMode, wrapMode, image.mipCount, texture))
     {
         return false;
     }
-
-    if (image.mipCount == 1)
-    {
-        FreeImage(image);
-        return true;
-    }
-
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-
-    RHI::MipDesc* mips = FLY_PUSH_ARENA(arena, RHI::MipDesc, image.mipCount);
-    for (u32 i = 0; i < image.mipCount; i++)
-    {
-        Mip mip;
-        if (!GetImageMipLevel(image, 0, i, mip))
-        {
-            return false;
-        }
-        mips[i].data = mip.data;
-        mips[i].width = mip.width;
-        mips[i].height = mip.height;
-        mips[i].size = mip.size;
-    }
-
-    if (!CopyMipsToTexture(device, texture, mips, image.mipCount))
-    {
-        return false;
-    }
-    ArenaPopToMarker(arena, marker);
 
     FreeImage(image);
     return true;

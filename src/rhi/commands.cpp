@@ -6,6 +6,8 @@
 #include "pipeline.h"
 #include "texture.h"
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 namespace Fly
 {
 namespace RHI
@@ -102,14 +104,17 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
                                    VK_ACCESS_2_SHADER_READ_BIT);
 }
 
-void CopyTextureToBuffer(CommandBuffer& cmd, Texture& srcTexture, u32 mipLevel,
-                         Buffer& dstBuffer)
+void CopyTextureToBuffer(CommandBuffer& cmd, Buffer& dstBuffer,
+                         const Texture& srcTexture, u32 mipLevel)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
     FLY_ASSERT(mipLevel < srcTexture.mipCount);
 
-    VkBufferImageCopy copyRegion{};
+    u32 width = MAX(srcTexture.width >> mipLevel, 1);
+    u32 height = MAX(srcTexture.height >> mipLevel, 1);
+    u32 depth = MAX(srcTexture.depth >> mipLevel, 1);
 
+    VkBufferImageCopy copyRegion{};
     copyRegion.bufferOffset = 0;
     copyRegion.bufferRowLength = 0;
     copyRegion.bufferImageHeight = 0;
@@ -118,19 +123,23 @@ void CopyTextureToBuffer(CommandBuffer& cmd, Texture& srcTexture, u32 mipLevel,
     copyRegion.imageSubresource.mipLevel = mipLevel;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = srcTexture.layerCount;
-    copyRegion.imageExtent.width = srcTexture.width;
-    copyRegion.imageExtent.height = srcTexture.height;
-    copyRegion.imageExtent.depth = srcTexture.depth;
+    copyRegion.imageExtent.width = width;
+    copyRegion.imageExtent.height = height;
+    copyRegion.imageExtent.depth = depth;
 
     vkCmdCopyImageToBuffer(cmd.handle, srcTexture.image, srcTexture.imageLayout,
                            dstBuffer.handle, 1, &copyRegion);
 }
 
-void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture, u32 mipLevel,
-                         Buffer& srcBuffer)
+void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
+                         Buffer& srcBuffer, u32 mipLevel)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
     FLY_ASSERT(mipLevel < dstTexture.mipCount);
+
+    u32 width = MAX(dstTexture.width >> mipLevel, 1);
+    u32 height = MAX(dstTexture.height >> mipLevel, 1);
+    u32 depth = MAX(dstTexture.depth >> mipLevel, 1);
 
     VkBufferImageCopy copyRegion{};
     copyRegion.bufferOffset = 0;
@@ -141,30 +150,6 @@ void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture, u32 mipLevel,
     copyRegion.imageSubresource.mipLevel = mipLevel;
     copyRegion.imageSubresource.baseArrayLayer = 0;
     copyRegion.imageSubresource.layerCount = dstTexture.layerCount;
-    copyRegion.imageExtent.width = dstTexture.width;
-    copyRegion.imageExtent.height = dstTexture.height;
-    copyRegion.imageExtent.depth = dstTexture.depth;
-
-    vkCmdCopyBufferToImage(cmd.handle, srcBuffer.handle, dstTexture.image,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                           &copyRegion);
-}
-
-void CopyBufferToMip(CommandBuffer& cmd, Texture& dstTexture, u32 layer,
-                     u32 mipLevel, u32 width, u32 height, u32 depth,
-                     Buffer& srcBuffer)
-{
-    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
-
-    VkBufferImageCopy copyRegion{};
-    copyRegion.bufferOffset = 0;
-    copyRegion.bufferRowLength = 0;
-    copyRegion.bufferImageHeight = 0;
-    copyRegion.imageSubresource.aspectMask =
-        GetImageAspectMask(dstTexture.format);
-    copyRegion.imageSubresource.mipLevel = mipLevel;
-    copyRegion.imageSubresource.baseArrayLayer = 0;
-    copyRegion.imageSubresource.layerCount = 1;
     copyRegion.imageExtent.width = width;
     copyRegion.imageExtent.height = height;
     copyRegion.imageExtent.depth = depth;

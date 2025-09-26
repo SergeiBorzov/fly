@@ -64,10 +64,10 @@ VkBufferMemoryBarrier BufferMemoryBarrier(const Buffer& buffer,
                                           u64 size = VK_WHOLE_SIZE);
 
 /*--Commands--*/
-void CopyTextureToBuffer(CommandBuffer& cmd, Texture& srcTexture, u32 mipLevel,
-                         Buffer& dstBuffer);
-void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture, u32 mipLevel,
-                         Buffer& srcBuffer);
+void CopyTextureToBuffer(CommandBuffer& cmd, Buffer& dstBuffer,
+                         const Texture& srcTexture, u32 mipLevel);
+void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
+                         Buffer& srcBuffer, u32 mipLevel);
 void CopyBufferToMip(CommandBuffer& cmd, Texture& dstTexture, u32 layer,
                      u32 mipLevel, u32 width, u32 height, u32 depth,
                      Buffer& srcBuffer);

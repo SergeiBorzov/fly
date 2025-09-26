@@ -47,6 +47,9 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_R8_SINT:
         case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_S8_UINT:
+        {
+            return width * height;
+        }
         case VK_FORMAT_BC2_UNORM_BLOCK:
         case VK_FORMAT_BC2_SRGB_BLOCK:
         case VK_FORMAT_BC3_UNORM_BLOCK:
@@ -54,7 +57,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_BC5_UNORM_BLOCK:
         case VK_FORMAT_BC5_SNORM_BLOCK:
         {
-            return width * height;
+            return ((width + 3) / 4) * ((height + 3) / 4) * 16;
         }
 
         case VK_FORMAT_R8G8_UNORM:
@@ -158,7 +161,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_BC4_UNORM_BLOCK:
         case VK_FORMAT_BC4_SNORM_BLOCK:
         {
-            return width * height / 2;
+            return ((width + 3) / 4) * ((height + 3) / 4) * 8;
         }
 
         default:
@@ -283,11 +286,17 @@ static void CreateDescriptors(Fly::RHI::Device& device,
     texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
 }
 
-static bool CopyDataToTexture(Fly::RHI::Device& device, const void* data,
-                              u64 dataSize, Fly::RHI::Texture& texture)
+static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
+                              bool generateMips, Fly::RHI::Texture& texture)
 {
     if (data)
     {
+        u64 dataSize =
+            GetImageSize(texture.width, texture.height, texture.format) *
+            texture.layerCount;
+        Arena& arena = GetScratchArena();
+        ArenaMarker marker = ArenaGetMarker(arena);
+
         Fly::RHI::Buffer stagingBuffer;
         if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, data,
                           dataSize, stagingBuffer))
@@ -300,16 +309,57 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const void* data,
         RHI::ChangeTextureAccessLayout(cmd, texture,
                                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                        VK_ACCESS_2_TRANSFER_WRITE_BIT);
-        RHI::CopyBufferToTexture(cmd, texture, 0, stagingBuffer);
-        if (texture.mipCount > 1)
+        RHI::CopyBufferToTexture(cmd, texture, stagingBuffer, 0);
+
+        RHI::Buffer* mipStagingBuffers = nullptr;
+        if (generateMips)
         {
             RHI::GenerateMipmaps(cmd, texture);
+        }
+        else if (texture.mipCount > 1)
+        {
+            u64 offset = dataSize;
+            mipStagingBuffers =
+                FLY_PUSH_ARENA(arena, RHI::Buffer, texture.mipCount - 1);
+            for (u32 i = 1; i < texture.mipCount; i++)
+            {
+                u32 mipWidth = MAX(texture.width >> i, 1);
+                u32 mipHeight = MAX(texture.height >> i, 1);
+                u64 mipSize =
+                    GetImageSize(mipWidth, mipHeight, texture.format) *
+                    texture.layerCount;
+                const u8* mipData = data + offset;
+                if (!CreateBuffer(device, true,
+                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT, mipData,
+                                  mipSize, mipStagingBuffers[i - 1]))
+                {
+                    return false;
+                }
+                offset += mipSize;
+            }
+            FLY_LOG("SSSSSSS is %lu", offset);
+
+            for (u32 i = 0; i < texture.mipCount - 1; i++)
+            {
+
+                RHI::CopyBufferToTexture(cmd, texture, mipStagingBuffers[i],
+                                         i + 1);
+            }
         }
         RHI::ChangeTextureAccessLayout(cmd, texture,
                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                        VK_ACCESS_2_SHADER_READ_BIT);
         EndTransfer(device);
         DestroyBuffer(device, stagingBuffer);
+
+        if (mipStagingBuffers)
+        {
+            for (u32 i = 0; i < texture.mipCount - 1; i++)
+            {
+                DestroyBuffer(device, mipStagingBuffers[i]);
+            }
+        }
+        ArenaPopToMarker(arena, marker);
     }
     return true;
 }
@@ -460,15 +510,10 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     FLY_ASSERT(width > 0);
     FLY_ASSERT(height > 0);
 
-    u32 dataSize = GetImageSize(width, height, format);
-
-    if (mipCount == 0)
+    bool generateMips = mipCount == 0;
+    if (generateMips)
     {
         mipCount = Log2(MAX(width, height)) + 1;
-    }
-
-    if (mipCount > 1)
-    {
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
@@ -521,7 +566,8 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     texture.mipCount = mipCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!CopyDataToTexture(device, data, dataSize, texture))
+    if (!CopyDataToTexture(device, static_cast<const u8*>(data), generateMips,
+                           texture))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -544,15 +590,10 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
 {
     FLY_ASSERT(size > 0);
 
-    u32 dataSize = GetImageSize(size, size, format) * 6;
-
-    if (mipCount == 0)
+    bool generateMips = mipCount == 0;
+    if (generateMips)
     {
         mipCount = Log2(size) + 1;
-    }
-
-    if (mipCount > 1)
-    {
         usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     }
 
@@ -614,7 +655,8 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
     texture.mipCount = mipCount;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (!CopyDataToTexture(device, data, dataSize, texture))
+    if (!CopyDataToTexture(device, static_cast<const u8*>(data), generateMips,
+                           texture))
     {
         DestroySampler(device, texture.sampler);
         vkDestroyImageView(device.logicalDevice, texture.imageView,
@@ -652,53 +694,6 @@ void DestroyTexture(Device& device, Texture& texture)
                   "%f MB",
                   texture.image, texture.bindlessHandle,
                   texture.allocationInfo.size / 1024.0 / 1024.0);
-}
-
-bool CopyMipsToTexture(Device& device, Texture& texture, const MipDesc* mips,
-                       u32 mipCount)
-{
-    FLY_ASSERT(mips);
-    FLY_ASSERT(mipCount > 0);
-    FLY_ASSERT(mipCount <= texture.mipCount);
-
-    Arena& arena = GetScratchArena();
-    ArenaMarker marker = ArenaGetMarker(arena);
-
-    Fly::RHI::Buffer* stagingBuffers =
-        FLY_PUSH_ARENA(arena, Fly::RHI::Buffer, mipCount);
-
-    for (u32 i = 0; i < mipCount; i++)
-    {
-        if (!CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                          mips[i].data, mips[i].size, stagingBuffers[i]))
-        {
-            ArenaPopToMarker(arena, marker);
-            return false;
-        }
-    }
-
-    BeginTransfer(device);
-    Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
-    RHI::ChangeTextureAccessLayout(cmd, texture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   VK_ACCESS_2_TRANSFER_WRITE_BIT);
-    for (u32 i = 0; i < mipCount; i++)
-    {
-        RHI::CopyBufferToMip(cmd, texture, 0, i, mips[i].width, mips[i].height,
-                             1, stagingBuffers[i]);
-    }
-    RHI::ChangeTextureAccessLayout(cmd, texture,
-                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   VK_ACCESS_2_SHADER_READ_BIT);
-    EndTransfer(device);
-
-    for (u32 i = 0; i < mipCount; i++)
-    {
-        DestroyBuffer(device, stagingBuffers[i]);
-    }
-    ArenaPopToMarker(arena, marker);
-
-    return true;
 }
 
 } // namespace RHI
