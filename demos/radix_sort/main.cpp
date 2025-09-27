@@ -255,8 +255,9 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
             bufferInput.bufferCount = 3;
 
-            RHI::ExecuteCompute(device, RecordCountHistograms, &bufferInput,
-                                nullptr, &sortData);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                                RecordCountHistograms, &bufferInput, nullptr,
+                                &sortData);
         }
 
         {
@@ -266,8 +267,8 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
             bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
             bufferInput.bufferCount = 2;
 
-            RHI::ExecuteCompute(device, RecordScan, &bufferInput, nullptr,
-                                &sortData);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordScan,
+                                &bufferInput, nullptr, &sortData);
         }
 
         {
@@ -277,8 +278,8 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
             bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
             buffers[2] = &sKeys[(i + 1) % 2];
             bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-            RHI::ExecuteCompute(device, RecordSort, &bufferInput, nullptr,
-                                &sortData);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordSort,
+                                &bufferInput, nullptr, &sortData);
         }
     }
     RHI::EndRenderFrame(device);

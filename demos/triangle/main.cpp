@@ -149,7 +149,8 @@ int main(int argc, char* argv[])
             &colorAttachment, 1, nullptr, nullptr, 1, 0);
 
         RHI::BeginRenderFrame(device);
-        RHI::ExecuteGraphics(device, renderingInfo, DrawTriangle);
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             DrawTriangle);
         RHI::EndRenderFrame(device);
     }
 

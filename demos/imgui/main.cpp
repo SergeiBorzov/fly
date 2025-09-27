@@ -49,7 +49,8 @@ void DrawGui(RHI::Device& device)
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1);
-    RHI::ExecuteGraphics(device, renderingInfo, RecordDrawGui);
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordDrawGui);
 }
 
 int main(int argc, char* argv[])

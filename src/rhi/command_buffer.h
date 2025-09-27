@@ -153,31 +153,20 @@ typedef void (*RecordCallback)(CommandBuffer& cmd,
                                const RecordTextureInput* textureInput,
                                void* userData);
 
-void ExecuteGraphics(Device& device, const VkRenderingInfo& renderingInfo,
+void ExecuteGraphics(CommandBuffer& cmd, const VkRenderingInfo& renderingInfo,
                      RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);
-void ExecuteGraphics(Device& device, CommandBuffer& cmd,
-                     const VkRenderingInfo& renderingInfo,
-                     RecordCallback recordCallback,
-                     const RecordBufferInput* bufferInput = nullptr,
-                     const RecordTextureInput* textureInput = nullptr,
-                     void* userData = nullptr);
-void ExecuteCompute(Device& device, RecordCallback recordCallback,
+void ExecuteCompute(CommandBuffer& cmd, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput = nullptr,
                     const RecordTextureInput* textureInput = nullptr,
                     void* userData = nullptr);
-void ExecuteComputeIndirect(Device& device, RecordCallback recordCallback,
+void ExecuteComputeIndirect(CommandBuffer& cmd, RecordCallback recordCallback,
                             const RecordBufferInput* bufferInput = nullptr,
                             const RecordTextureInput* textureInput = nullptr,
                             void* userData = nullptr);
-void ExecuteTransfer(Device& device, RecordCallback recordCallback,
-                     const RecordBufferInput* bufferInput = nullptr,
-                     const RecordTextureInput* textureInput = nullptr,
-                     void* userData = nullptr);
-void ExecuteTransfer(Device& device, CommandBuffer& cmd,
-                     RecordCallback recordCallback,
+void ExecuteTransfer(CommandBuffer& cmd, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
                      const RecordTextureInput* textureInput = nullptr,
                      void* userData = nullptr);

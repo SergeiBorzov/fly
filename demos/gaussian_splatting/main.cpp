@@ -428,7 +428,8 @@ static void DrawSplats(RHI::Device& device)
         bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
         buffers[2] = &sIndirectCount;
         bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-        RHI::ExecuteCompute(device, RecordFrustumCull, &bufferInput);
+        RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordFrustumCull,
+                            &bufferInput);
     }
 
     {
@@ -439,7 +440,8 @@ static void DrawSplats(RHI::Device& device)
         bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
         buffers[2] = &sIndirectDispatch;
         bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-        RHI::ExecuteCompute(device, RecordWriteIndirect, &bufferInput);
+        RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                            RecordWriteIndirect, &bufferInput);
     }
 
     for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
@@ -458,8 +460,9 @@ static void DrawSplats(RHI::Device& device)
                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
             buffers[4] = &sIndirectDispatch;
             bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-            RHI::ExecuteComputeIndirect(device, RecordCountHistograms,
-                                        &bufferInput, nullptr, &sortData);
+            RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
+                                        RecordCountHistograms, &bufferInput,
+                                        nullptr, &sortData);
         }
         {
             bufferInput.bufferCount = 4;
@@ -472,8 +475,9 @@ static void DrawSplats(RHI::Device& device)
                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
             buffers[3] = &sIndirectDispatch;
             bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-            RHI::ExecuteComputeIndirect(device, RecordScan, &bufferInput,
-                                        nullptr, &sortData);
+            RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
+                                        RecordScan, &bufferInput, nullptr,
+                                        &sortData);
         }
         {
             bufferInput.bufferCount = 5;
@@ -488,8 +492,9 @@ static void DrawSplats(RHI::Device& device)
             buffers[4] = &sIndirectDispatch;
             bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
 
-            RHI::ExecuteComputeIndirect(device, RecordSort, &bufferInput,
-                                        nullptr, &sortData);
+            RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
+                                        RecordSort, &bufferInput, nullptr,
+                                        &sortData);
         }
     }
 
@@ -503,7 +508,8 @@ static void DrawSplats(RHI::Device& device)
         bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
         buffers[3] = &sIndirectDispatch;
         bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-        RHI::ExecuteComputeIndirect(device, RecordCopy, &bufferInput);
+        RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
+                                    RecordCopy, &bufferInput);
     }
     {
         bufferInput.bufferCount = 4;
@@ -521,7 +527,8 @@ static void DrawSplats(RHI::Device& device)
         VkRenderingInfo renderingInfo = RHI::RenderingInfo(
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1);
-        RHI::ExecuteGraphics(device, renderingInfo, RecordDraw, &bufferInput);
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDraw, &bufferInput);
     }
 
     ArenaPopToMarker(arena, marker);

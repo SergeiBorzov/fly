@@ -756,7 +756,8 @@ static void Draw(RHI::Device& device)
             buffers[1] = &sCascades[i].frequencyBuffers[0];
             bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
 
-            RHI::ExecuteCompute(device, RecordCascadeSpectrum, &bufferInput);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                                RecordCascadeSpectrum, &bufferInput);
         }
     }
 
@@ -768,7 +769,8 @@ static void Draw(RHI::Device& device)
             bufferAccesses[0] =
                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 
-            RHI::ExecuteCompute(device, RecordIFFT, &bufferInput);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordIFFT,
+                                &bufferInput);
         }
     }
 
@@ -781,7 +783,8 @@ static void Draw(RHI::Device& device)
             buffers[1] = &sCascades[i].frequencyBuffers[1];
             bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
 
-            RHI::ExecuteCompute(device, RecordTranspose, &bufferInput);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                                RecordTranspose, &bufferInput);
         }
     }
 
@@ -793,7 +796,8 @@ static void Draw(RHI::Device& device)
             bufferAccesses[0] =
                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 
-            RHI::ExecuteCompute(device, RecordIFFT, &bufferInput);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordIFFT,
+                                &bufferInput);
         }
     }
 
@@ -812,8 +816,8 @@ static void Draw(RHI::Device& device)
             imageLayoutsAccesses[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
             imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
 
-            RHI::ExecuteCompute(device, RecordCopy, &bufferInput,
-                                &textureInput);
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCopy,
+                                &bufferInput, &textureInput);
         }
     }
 
@@ -833,8 +837,8 @@ static void Draw(RHI::Device& device)
         VkRenderingInfo renderingInfo = RHI::RenderingInfo(
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1);
-        RHI::ExecuteGraphics(device, renderingInfo, RecordDrawSky, &bufferInput,
-                             &textureInput);
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDrawSky, &bufferInput, &textureInput);
     }
 
     {
@@ -869,8 +873,8 @@ static void Draw(RHI::Device& device)
         VkRenderingInfo renderingInfo = RHI::RenderingInfo(
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1, &depthAttachment);
-        RHI::ExecuteGraphics(device, renderingInfo, RecordDrawOcean,
-                             &bufferInput, &textureInput);
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDrawOcean, &bufferInput, &textureInput);
     }
 
     {
@@ -880,7 +884,8 @@ static void Draw(RHI::Device& device)
         VkRenderingInfo renderingInfo = RHI::RenderingInfo(
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1);
-        RHI::ExecuteGraphics(device, renderingInfo, RecordDrawGUI);
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDrawGUI);
     }
 
     ArenaPopToMarker(arena, marker);

@@ -261,12 +261,12 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
         imageLayoutsAccesses[1].accessMask =
             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 
-        RHI::ExecuteGraphics(device, TransferCommandBuffer(device),
-                             renderingInfo, RecordConvertFromEquirectangular,
-                             nullptr, &textureInput, &eq2cubePipeline);
+        RHI::ExecuteGraphics(TransferCommandBuffer(device), renderingInfo,
+                             RecordConvertFromEquirectangular, nullptr,
+                             &textureInput, &eq2cubePipeline);
         if (generateMips)
         {
-            RHI::ExecuteTransfer(device, TransferCommandBuffer(device),
+            RHI::ExecuteTransfer(TransferCommandBuffer(device),
                                  RecordGenerateMipmaps, nullptr, &textureInput);
         }
     }
@@ -278,7 +278,7 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
 
-        RHI::ExecuteTransfer(device, TransferCommandBuffer(device),
+        RHI::ExecuteTransfer(TransferCommandBuffer(device),
                              RecordReadbackCubemap, &bufferInput, &textureInput,
                              nullptr);
     }

@@ -191,8 +191,8 @@ static void DrawScene(RHI::Device& device, Scene* scene)
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
-    RHI::ExecuteGraphics(device, renderingInfo, RecordDrawScene, &bufferInput,
-                         nullptr, scene);
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordDrawScene, &bufferInput, nullptr, scene);
 }
 
 int main(int argc, char* argv[])

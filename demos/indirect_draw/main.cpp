@@ -279,8 +279,8 @@ static void DrawScene(RHI::Device& device, Scene* scene)
 
         bufferInput.bufferAccesses = bufferAccesses;
 
-        RHI::ExecuteCompute(device, RecordFrustumCull, &bufferInput, nullptr,
-                            scene);
+        RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordFrustumCull,
+                            &bufferInput, nullptr, scene);
     }
 
     {
@@ -299,8 +299,8 @@ static void DrawScene(RHI::Device& device, Scene* scene)
         VkRenderingInfo renderingInfo = RHI::RenderingInfo(
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1, &depthAttachment);
-        RHI::ExecuteGraphics(device, renderingInfo, RecordDrawScene,
-                             &bufferInput, nullptr, scene);
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDrawScene, &bufferInput, nullptr, scene);
     }
     ArenaPopToMarker(arena, marker);
 }

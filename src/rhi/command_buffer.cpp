@@ -400,22 +400,7 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
     ArenaPopToMarker(arena, marker);
 }
 
-void ExecuteGraphics(RHI::Device& device, const VkRenderingInfo& renderingInfo,
-                     RecordCallback recordCallback,
-                     const RecordBufferInput* bufferInput,
-                     const RecordTextureInput* textureInput, void* userData)
-{
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, bufferInput,
-                   textureInput);
-
-    vkCmdBeginRendering(cmd.handle, &renderingInfo);
-    recordCallback(cmd, bufferInput, textureInput, userData);
-    vkCmdEndRendering(cmd.handle);
-}
-
-void ExecuteGraphics(RHI::Device& device, RHI::CommandBuffer& cmd,
+void ExecuteGraphics(RHI::CommandBuffer& cmd,
                      const VkRenderingInfo& renderingInfo,
                      RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput,
@@ -429,24 +414,21 @@ void ExecuteGraphics(RHI::Device& device, RHI::CommandBuffer& cmd,
     vkCmdEndRendering(cmd.handle);
 }
 
-void ExecuteCompute(RHI::Device& device, RecordCallback recordCallback,
+void ExecuteCompute(RHI::CommandBuffer& cmd, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput,
                     const RecordTextureInput* textureInput, void* userData)
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
     InsertBarriers(cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, bufferInput,
                    textureInput);
     recordCallback(cmd, bufferInput, textureInput, userData);
 }
 
-void ExecuteComputeIndirect(RHI::Device& device, RecordCallback recordCallback,
+void ExecuteComputeIndirect(RHI::CommandBuffer& cmd,
+                            RecordCallback recordCallback,
                             const RecordBufferInput* bufferInput,
                             const RecordTextureInput* textureInput,
                             void* userData)
 {
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
     InsertBarriers(cmd,
                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
                        VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
@@ -454,19 +436,7 @@ void ExecuteComputeIndirect(RHI::Device& device, RecordCallback recordCallback,
     recordCallback(cmd, bufferInput, textureInput, userData);
 }
 
-void ExecuteTransfer(RHI::Device& device, RecordCallback recordCallback,
-                     const RecordBufferInput* bufferInput,
-                     const RecordTextureInput* textureInput, void* userData)
-{
-    RHI::CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, bufferInput,
-                   textureInput);
-    recordCallback(cmd, bufferInput, textureInput, userData);
-}
-
-void ExecuteTransfer(RHI::Device& device, RHI::CommandBuffer& cmd,
-                     RecordCallback recordCallback,
+void ExecuteTransfer(RHI::CommandBuffer& cmd, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput,
                      const RecordTextureInput* textureInput, void* userData)
 {

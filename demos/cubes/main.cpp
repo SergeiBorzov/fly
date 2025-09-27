@@ -100,10 +100,10 @@ static void DestroyPipeline(RHI::Device& device)
 
 static bool CreateResources(RHI::Device& device)
 {
-    if (!Fly::LoadCompressedTexture2D(device, "CesiumLogoFlat.fbc1",
-                                      VK_FORMAT_BC1_RGB_SRGB_BLOCK,
-                                      RHI::Sampler::FilterMode::Nearest,
-                                      RHI::Sampler::WrapMode::Repeat, sCubeTexture))
+    if (!Fly::LoadCompressedTexture2D(
+            device, "CesiumLogoFlat.fbc1", VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
+            sCubeTexture))
     {
         return false;
     }
@@ -188,8 +188,8 @@ static void DrawCubes(RHI::Device& device)
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
-    RHI::ExecuteGraphics(device, renderingInfo, RecordDrawCubes, &bufferInput,
-                         &textureInput);
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordDrawCubes, &bufferInput, &textureInput);
 }
 
 int main(int argc, char* argv[])
