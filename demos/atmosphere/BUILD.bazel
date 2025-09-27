@@ -7,8 +7,24 @@ copy_vulkan_layers()
 copy_molten_vk()
 
 glsl_shader(
-    name = "atmosphere.frag.spv",
-    src = "atmosphere.frag",
+    name = "screen_quad.vert.spv",
+    src = "screen_quad.vert",
+)
+
+glsl_shader(
+    name = "screen_quad.frag.spv",
+    src = "screen_quad.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "transmittance_lut.comp.spv",
+    src = "transmittance_lut.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
 )
 
 cc_binary(
@@ -21,7 +37,9 @@ cc_binary(
         "//src/utils:utils",
     ],
     data = [
-        ":atmosphere.frag.spv",
+        ":screen_quad.vert.spv",
+        ":screen_quad.frag.spv",
+        ":transmittance_lut.comp.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [],
         "//conditions:default": [
