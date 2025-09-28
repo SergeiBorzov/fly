@@ -19,27 +19,29 @@ FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
     vec2 transmittanceMapDims;
     float rb;
     float rt;
+    vec2 multiscatteringMapDims;
 })
 
 FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RGBA16FTextures, image2D,
                                     rgba16f)
 
+float SafeSqrt(float x) { return sqrt(max(0.0f, x)); }
 // Note: Assuming ray direction d is normalized
 float RaySphereIntersect(vec3 o, vec3 d, vec3 p, float r)
 {
     float b = dot(o - p, d);
     float c = dot(o - p, o - p) - r * r;
 
-    float det = b * b - c;
-    if (det < 0.0f)
+    float disc = b * b - c;
+    if (disc < 0.0f)
     {
         return -1.0f;
     }
 
-    float t = (-b - sqrt(det));
+    float t = (-b - sqrt(disc));
     if (t < 0.0f)
     {
-        t = (-b + sqrt(det));
+        t = (-b + sqrt(disc));
     }
     return t;
 }
@@ -49,24 +51,6 @@ float DensityRayleigh(float h) { return exp(-h / 8.0f); }
 float DensityMie(float h) { return exp(-h / 1.2f); }
 
 float DensityOzone(float h) { return max(0.0f, 1.0f - abs(h - 25.0f) / 15.0f); }
-
-vec2 TexToRadiusCosZenith(vec2 uv, float rb, float rt)
-{
-    // max dist to horizon for point inside atmosphere bounds
-    float h = sqrt(rt * rt - rb * rb);
-    float rho = h * uv.y; // distance to horizon
-    float r = sqrt(rho * rho + rb * rb);
-
-    float dMin = rt - r;
-    float dMax = rho + h;
-    float d = mix(dMin, dMax, uv.x);
-
-    // According to cosine rule
-    float cosZ = (d < 1e-5) ? 1.0f : (rt * rt - r * r - d * d) / (2 * r * d);
-    cosZ = clamp(cosZ, -1.0f, 1.0f);
-
-    return vec2(r, cosZ);
-}
 
 vec3 SampleExtinction(float height)
 {
@@ -89,19 +73,38 @@ vec3 SampleExtinction(float height)
     return extinction;
 }
 
+vec2 TexToRadiusCosZenith(vec2 uv, float rb, float rt)
+{
+    // max dist to horizon for point inside atmosphere bounds
+    float h = sqrt(rt * rt - rb * rb);
+    float rho = h * uv.y; // distance to horizon
+    float r = sqrt(rho * rho + rb * rb);
+
+    float dMin = rt - r;
+    float dMax = rho + h;
+    float d = mix(dMin, dMax, uv.x);
+
+    // According to cosine rule
+    float cosZ = (d < 1e-5) ? 1.0f : (rt * rt - r * r - d * d) / (2 * r * d);
+    cosZ = clamp(cosZ, -1.0f, 1.0f);
+
+    return vec2(r, cosZ);
+}
+
 vec3 IntegrateOpticalDepth(vec3 worldPos, vec3 l, float rb, float rt,
                            uint sampleCount)
 {
     vec3 planetOrigin = vec3(0.0f);
     float integrationLength = RaySphereIntersect(worldPos, l, planetOrigin, rt);
-    float delta =
-        integrationLength / float(sampleCount);
+    integrationLength = max(integrationLength, 0.0f);
+    float delta = integrationLength / float(sampleCount);
 
     vec3 opticalDepth = vec3(0.0f);
     for (uint i = 0; i < sampleCount; i++)
     {
-        vec3 p = worldPos + i * delta * l;
-        float height = length(p) - rb;
+        float fi = float(i);
+        vec3 p = worldPos + fi * delta * l;
+        float height = max(length(p) - rb, 0.0f);
         opticalDepth += SampleExtinction(height) * delta;
     }
 
@@ -124,7 +127,7 @@ void main()
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(sqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
-    vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt, 500));
+    vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt, 400));
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    RGBA16FTextures, gPushConstants.transmittanceMapIndex),

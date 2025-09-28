@@ -17,8 +17,10 @@
 
 using namespace Fly;
 
-#define TRANSMITTANCE_LUT_WIDTH 1024
+#define TRANSMITTANCE_LUT_WIDTH 4096
 #define TRANSMITTANCE_LUT_HEIGHT 256
+#define MULTISCATTERING_LUT_WIDTH 1024
+#define MULTISCATTERING_LUT_HEIGHT 1024
 
 #define EARTH_RADIUS_BOTTOM 6360.0f
 #define EARTH_RADIUS_TOP 6460.0f
@@ -32,13 +34,18 @@ struct AtmosphereParams
     Math::Vec2 transmittanceMapDims;
     float radiusBottom;
     float radiusTop;
+    Math::Vec2 multiscatteringMapDims;
+    float pad[2];
 };
 static AtmosphereParams sAtmosphereParams;
 
 static RHI::GraphicsPipeline sScreenQuadPipeline;
 static RHI::ComputePipeline sTransmittancePipeline;
+static RHI::ComputePipeline sMultiscatteringPipeline;
+
 static RHI::Buffer sAtmosphereParamsBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTransmittanceLUT;
+static RHI::Texture sMultiscatteringLUT;
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -56,12 +63,12 @@ static void ErrorCallbackGLFW(int error, const char* description)
 
 static bool CreatePipelines(RHI::Device& device)
 {
-    RHI::ComputePipeline* computePipelines[] = {
-        &sTransmittancePipeline,
-    };
+    RHI::ComputePipeline* computePipelines[] = {&sTransmittancePipeline,
+                                                &sMultiscatteringPipeline};
 
     const char* computeShaderPaths[] = {
         "transmittance_lut.comp.spv",
+        "multiscattering_lut.comp.spv",
     };
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -83,7 +90,7 @@ static bool CreatePipelines(RHI::Device& device)
         device.surfaceFormat.format;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
-    // fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     RHI::ShaderProgram shaderProgram;
     if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
@@ -112,6 +119,7 @@ static bool CreatePipelines(RHI::Device& device)
 static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sScreenQuadPipeline);
+    RHI::DestroyComputePipeline(device, sMultiscatteringPipeline);
     RHI::DestroyComputePipeline(device, sTransmittancePipeline);
 }
 
@@ -130,8 +138,17 @@ static bool CreateResources(RHI::Device& device)
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
             nullptr, TRANSMITTANCE_LUT_WIDTH, TRANSMITTANCE_LUT_HEIGHT,
-            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
             RHI::Sampler::WrapMode::Clamp, 1, sTransmittanceLUT))
+    {
+        return false;
+    }
+
+    if (!RHI::CreateTexture2D(
+            device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            nullptr, MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Clamp, 1, sMultiscatteringLUT))
     {
         return false;
     }
@@ -146,6 +163,7 @@ static void DestroyResources(RHI::Device& device)
         RHI::DestroyBuffer(device, sAtmosphereParamsBuffers[i]);
     }
     RHI::DestroyTexture(device, sTransmittanceLUT);
+    RHI::DestroyTexture(device, sMultiscatteringLUT);
 }
 
 static void RecordComputeTransmittance(
@@ -157,13 +175,29 @@ static void RecordComputeTransmittance(
     RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
     RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
 
-    u32 pushConstants[] = {
-        atmosphereParams.bindlessHandle,
-        transmittanceLUT.bindlessStorageHandle,
-    };
+    u32 pushConstants[] = {atmosphereParams.bindlessHandle,
+                           transmittanceLUT.bindlessStorageHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, TRANSMITTANCE_LUT_WIDTH / 16,
                   TRANSMITTANCE_LUT_HEIGHT / 16, 1);
+}
+
+static void RecordComputeMultiscattering(
+    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
+    const RHI::RecordTextureInput* textureInput, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sMultiscatteringPipeline);
+
+    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
+    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
+    RHI::Texture& multiscatteringLUT = *(textureInput->textures[1]);
+
+    u32 pushConstants[] = {atmosphereParams.bindlessHandle,
+                           transmittanceLUT.bindlessHandle,
+                           multiscatteringLUT.bindlessStorageHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, MULTISCATTERING_LUT_WIDTH / 16,
+                  MULTISCATTERING_LUT_HEIGHT / 16, 1);
 }
 
 static void RecordDrawScreenQuad(RHI::CommandBuffer& cmd,
@@ -245,12 +279,15 @@ int main(int argc, char* argv[])
     sAtmosphereParams.rayleighScattering =
         Math::Vec3(0.005802f, 0.013558f, 0.0331f);
     sAtmosphereParams.mieScattering = 0.003996f;
-    sAtmosphereParams.ozoneAbsorption = Math::Vec3(0.00065f, 0.001881f, 0.000085f);
+    sAtmosphereParams.ozoneAbsorption =
+        Math::Vec3(0.00065f, 0.001881f, 0.000085f);
     sAtmosphereParams.mieAbsorption = 0.0044f;
     sAtmosphereParams.transmittanceMapDims =
         Math::Vec2(TRANSMITTANCE_LUT_WIDTH, TRANSMITTANCE_LUT_HEIGHT);
     sAtmosphereParams.radiusBottom = EARTH_RADIUS_BOTTOM;
     sAtmosphereParams.radiusTop = EARTH_RADIUS_TOP;
+    sAtmosphereParams.multiscatteringMapDims =
+        Math::Vec2(MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT);
 
     if (!CreateResources(device))
     {
@@ -260,6 +297,7 @@ int main(int argc, char* argv[])
 
     RHI::RecordBufferInput bufferInput;
     RHI::RecordTextureInput textureInput;
+    RHI::BeginTransfer(device);
     {
         RHI::Buffer* pAtmosphereParamsBuffer =
             &sAtmosphereParamsBuffers[device.frameIndex];
@@ -276,12 +314,39 @@ int main(int argc, char* argv[])
         textureInput.imageLayoutsAccesses = &imageLayoutAccess;
         textureInput.textureCount = 1;
 
-        RHI::BeginTransfer(device);
         RHI::ExecuteCompute(TransferCommandBuffer(device),
                             RecordComputeTransmittance, &bufferInput,
                             &textureInput);
-        RHI::EndTransfer(device);
     }
+    {
+        RHI::Buffer* pAtmosphereParamsBuffer =
+            &sAtmosphereParamsBuffers[device.frameIndex];
+        VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
+        bufferInput.buffers = &pAtmosphereParamsBuffer;
+        bufferInput.bufferAccesses = &bufferAccess;
+        bufferInput.bufferCount = 1;
+
+        RHI::Texture* textures[2];
+        RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+
+        textureInput.textureCount = 2;
+        textureInput.textures = textures;
+        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+        textures[0] = &sTransmittanceLUT;
+        imageLayoutsAccesses[0].imageLayout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+        textures[1] = &sMultiscatteringLUT;
+        imageLayoutsAccesses[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        RHI::ExecuteCompute(TransferCommandBuffer(device),
+                            RecordComputeMultiscattering, &bufferInput,
+                            &textureInput);
+    }
+    RHI::EndTransfer(device);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -289,7 +354,8 @@ int main(int argc, char* argv[])
 
         RHI::BeginRenderFrame(device);
         {
-            RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
+            RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
+            // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
             RHI::ImageLayoutAccess imageLayoutAccess;
             imageLayoutAccess.imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

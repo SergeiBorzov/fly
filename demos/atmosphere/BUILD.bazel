@@ -27,6 +27,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "multiscattering_lut.comp.spv",
+    src = "multiscattering_lut.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -40,6 +48,7 @@ cc_binary(
         ":screen_quad.vert.spv",
         ":screen_quad.frag.spv",
         ":transmittance_lut.comp.spv",
+        ":multiscattering_lut.comp.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [],
         "//conditions:default": [
