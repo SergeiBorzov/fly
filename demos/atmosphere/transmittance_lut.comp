@@ -127,7 +127,7 @@ void main()
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(sqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
-    vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt, 400));
+    vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt, 500));
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    RGBA16FTextures, gPushConstants.transmittanceMapIndex),
