@@ -27,6 +27,7 @@ FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
     float rb;
     float rt;
     vec2 multiscatteringMapDims;
+    vec2 skyviewMapDims;
 })
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
@@ -125,6 +126,7 @@ vec3 SampleTransmittance(float r, float cosZ, float rb, float rt)
 
 vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
 {
+    vec3 groundAlbedo = vec3(0.3);
     vec3 fms = vec3(0.0f);
     vec3 illum = vec3(0.0f);
     vec3 planetOrigin = vec3(0.0f);
@@ -160,9 +162,11 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
         {
             float fj = float(j) + 0.5f;
             vec3 p = worldPos + fj * dir * delta2;
+
             float r = length(p);
             float height = max(r - rb, 0.0f);
             float cosZ = dot(l, worldPos / r);
+            float vis = RaySphereIntersect(p, l, planetOrigin, rb);
 
             vec3 extinction = SampleExtinction(height);
             vec3 stepTransmittance = exp(-delta2 * extinction);
@@ -172,14 +176,26 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
             lumF += transmittance * (scatteringNoPhase *
                                      (1.0f - stepTransmittance) / extinction);
 
-            vec3 sunTransmittance = SampleTransmittance(r, cosZ, rb, rt);
+            vec3 s = SampleTransmittance(r, cosZ, rb, rt) * float(vis > 0.0f);
             vec3 scattering = scatteringNoPhase * PHASE_UNIFORM;
 
-            lum += transmittance * ((scattering * sunTransmittance) *
-                                    (1.0f - stepTransmittance) / extinction);
+            lum += transmittance *
+                   ((scattering * s) * (1.0f - stepTransmittance) / extinction);
 
             transmittance *= stepTransmittance;
         }
+
+        // if (groundDist > 0.0f)
+        // {
+        //     vec3 p = worldPos + groundDist * dir;
+        //     float r = length(p);
+        //     float height = max(r - rb, 0.0f);
+        //     float cosZ = dot(l, worldPos / r);
+
+        //     lum += SampleTransmittance(r, cosZ, rb, rt) * transmittance *
+        //            groundAlbedo * max(dot(normalize(p), l), 0.0f);
+        // }
+
         fms += lumF * delta1;
         illum += lum * delta1;
     }
@@ -197,14 +213,15 @@ vec2 TexToRadiusCosZenith(vec2 uv, float rb, float rt)
 
 void main()
 {
-    float rb = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rb);
-    float rt = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rt);
     vec2 dims = FLY_ACCESS_UNIFORM_BUFFER(AtmosphereParams,
                                           gPushConstants.atmosphereBufferIndex,
                                           multiscatteringMapDims);
     vec2 uv = (gl_GlobalInvocationID.xy + 0.5f) / dims;
+
+    float rb = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rb);
+    float rt = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rt);
 
     vec2 rcz = TexToRadiusCosZenith(uv, rb, rt);
     vec3 t = SampleTransmittance(rcz.x, rcz.y, rb, rt);
@@ -212,7 +229,7 @@ void main()
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(SafeSqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
-    vec3 psi = IntegratePsi(worldPos, l, rb, rt, 200, 30) * 50.0f;
+    vec3 psi = IntegratePsi(worldPos, l, rb, rt, 200, 30);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    RGBA16FTextures, gPushConstants.multiscatteringMapIndex),
