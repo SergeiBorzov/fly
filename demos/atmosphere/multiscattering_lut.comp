@@ -28,6 +28,8 @@ FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
     float rt;
     vec2 multiscatteringMapDims;
     vec2 skyviewMapDims;
+    float zenith;
+    float azimuth;
 })
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)

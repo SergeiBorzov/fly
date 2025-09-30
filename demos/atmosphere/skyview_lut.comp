@@ -1,0 +1,259 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+#define PI 3.14159265359f
+#define MIE_G 0.8f
+
+layout(push_constant) uniform PushConstants
+{
+    uint atmosphereBufferIndex;
+    uint cameraBufferIndex;
+    uint transmittanceMapIndex;
+    uint multiscatteringMapIndex;
+    uint skyviewMapIndex;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RGBA16FTextures, image2D,
+                                    rgba16f);
+
+FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
+    vec3 rayleighScattering;
+    float mieScattering;
+    vec3 ozoneAbsorption;
+    float mieAbsorption;
+    vec2 transmittanceMapDims;
+    float rb;
+    float rt;
+    vec2 multiscatteringMapDims;
+    vec2 skyviewMapDims;
+    float zenith;
+    float azimuth;
+})
+
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
+    mat4 projection;
+    mat4 view;
+})
+
+FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
+
+float SafeSqrt(float x) { return sqrt(max(0.0f, x)); }
+float RaySphereIntersect(vec3 o, vec3 d, vec3 p, float r)
+{
+    float b = dot(o - p, d);
+    float c = dot(o - p, o - p) - r * r;
+
+    float disc = b * b - c;
+    if (disc < 0.0f)
+    {
+        return -1.0f;
+    }
+
+    float t = (-b - sqrt(disc));
+    if (t < 0.0f)
+    {
+        t = (-b + sqrt(disc));
+    }
+    return t;
+}
+
+float DensityRayleigh(float h) { return exp(-h / 8.0f); }
+
+float DensityMie(float h) { return exp(-h / 1.2f); }
+
+float DensityOzone(float h) { return max(0.0f, 1.0f - abs(h - 25.0f) / 15.0f); }
+
+float PhaseMie(float cosTheta, float g)
+{
+    const float scale = 3.0 / (8.0 * PI);
+
+    float num = (1.0f - g * g) * (1.0f + cosTheta * cosTheta);
+    float denom =
+        (2.0f + g * g) * pow((1.0f + g * g - 2.0f * g * cosTheta), 1.5f);
+
+    return scale * num / denom;
+}
+
+float PhaseRayleigh(float cosTheta)
+{
+    const float scale = 3.0f / (16.0f * PI);
+    return scale * (1.0f + cosTheta * cosTheta);
+}
+
+vec3 RayleighScattering(float height)
+{
+    vec3 rayleighScattering = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        rayleighScattering);
+    return rayleighScattering * DensityRayleigh(height);
+}
+
+vec3 MieScattering(float height)
+{
+    float mieScattering = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, mieScattering);
+
+    return vec3(mieScattering * DensityMie(height));
+}
+
+vec3 SampleExtinction(float height)
+{
+    vec3 rayleighScattering = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        rayleighScattering);
+    float mieScattering = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, mieScattering);
+    vec3 ozoneAbsorption = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        ozoneAbsorption);
+    float mieAbsorption = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, mieAbsorption);
+
+    vec3 extinction = vec3(0.0f);
+    extinction += rayleighScattering * DensityRayleigh(height);
+    extinction += (mieScattering + mieAbsorption) * DensityMie(height);
+    extinction += ozoneAbsorption * DensityOzone(height);
+
+    return extinction;
+}
+
+vec2 TransmittanceParamsToUV(float r, float cosZ, float rb, float rt)
+{
+    float h = sqrt(rt * rt - rb * rb);
+    float rho = SafeSqrt(r * r - rb * rb);
+
+    float dMin = rt - r;
+    float dMax = rho + h;
+
+    float disc = r * r * (cosZ * cosZ - 1) + rt * rt;
+    // Note that d1 has no chance to be positive, so solution is only d2
+    // d1 = -r * cosZ - SafeSqrt(det);
+    // d2 = -r * cosZ + SafeSqrt(det);
+    float d = max(0.0f, -r * cosZ + SafeSqrt(disc));
+
+    float u = clamp(rho / h, 0.0f, 0.99f);
+    float v = clamp((d - dMin) / (dMax - dMin), 0.0f, 0.99f);
+
+    return vec2(u, v);
+}
+
+vec3 SampleTransmittance(float r, float cosZ, float rb, float rt)
+{
+    return texture(FLY_ACCESS_TEXTURE_BUFFER(
+                       Textures, gPushConstants.transmittanceMapIndex),
+                   TransmittanceParamsToUV(r, cosZ, rb, rt))
+        .rgb;
+}
+
+vec2 MultisamplingParamsToUV(float height, float cosZ, float rb, float rt)
+{
+    float u = (cosZ + 1.0f) * 0.5f;
+    float v = height / (rt - rb);
+    return vec2(u, v);
+}
+
+vec3 SampleMultiscattering(float height, float cosZ, float rb, float rt)
+{
+    return texture(FLY_ACCESS_TEXTURE_BUFFER(
+                       Textures, gPushConstants.multiscatteringMapIndex),
+                   MultisamplingParamsToUV(height, cosZ, rb, rt))
+        .rgb;
+}
+
+vec2 TexToLongitudeLatitude(vec2 uv)
+{
+    float lon = uv.x * 2.0f * PI;
+    float k = 2.0f * uv.y - 1.0f;
+    float lat = sign(k) * (k * k) * PI * 0.5f;
+    return vec2(lon, lat);
+}
+
+vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 v, float rb, float rt,
+                        uint sampleCount)
+{
+    vec3 planetOrigin = vec3(0.0f);
+    vec3 lum = vec3(0.0f);
+    vec3 transmittance = vec3(1.0f);
+
+    float integrationLength = RaySphereIntersect(camPos, v, planetOrigin, rt);
+    if (integrationLength < 0)
+    {
+        return vec3(0.0f);
+    }
+
+    float groundDist = RaySphereIntersect(camPos, v, planetOrigin, rb);
+    if (groundDist > 0.0f)
+    {
+        integrationLength = groundDist;
+    }
+
+    float delta = integrationLength / sampleCount;
+
+    for (uint i = 0; i < sampleCount; i++)
+    {
+        float fi = float(i) + 0.5f;
+        vec3 p = camPos - fi * v * delta; // v points to eye
+        float height = max(p.y, 0.0f);
+        float cosZ = l.y;
+        float cosTheta = -dot(v, l);
+        float vis = RaySphereIntersect(p, l, planetOrigin, rb);
+
+        vec3 extinction = SampleExtinction(height);
+        vec3 stepTransmittance = exp(-delta * extinction);
+        vec3 scatteringPhase =
+            RayleighScattering(height) * PhaseRayleigh(cosTheta) +
+            MieScattering(height) * PhaseMie(cosTheta, MIE_G);
+        vec3 scattering = RayleighScattering(height) + MieScattering(height);
+        vec3 s =
+            SampleTransmittance(rb + height, cosZ, rb, rt) * float(vis > 0.0f);
+
+        vec3 totalScattered =
+            s * scatteringPhase +
+            scattering * SampleMultiscattering(height, cosZ, rb, rt);
+        lum += transmittance * totalScattered * (1.0f - stepTransmittance) /
+               extinction;
+
+        transmittance *= stepTransmittance;
+    }
+
+    return lum;
+}
+
+void main()
+{
+    vec2 dims = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, skyviewMapDims);
+    vec2 uv = (gl_GlobalInvocationID.xy + 0.5f) / dims;
+
+    float rb = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rb);
+    float rt = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rt);
+    float zenith = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, zenith);
+    float azimuth = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, azimuth);
+
+    vec2 lonLat = TexToLongitudeLatitude(uv);
+    vec3 v = vec3(cos(lonLat.y) * cos(lonLat.x), sin(lonLat.y),
+                  cos(lonLat.y) * sin(lonLat.x));
+
+    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, view);
+    vec3 camPos = inverse(view)[3].xyz;
+
+    float cosZ = cos(radians(zenith));
+    float sinZ = sin(radians(zenith));
+    vec3 l = vec3(sinZ, cosZ, 0.0f);
+
+    vec3 e = vec3(1.0f, 1.0f, 1.0f);
+    vec3 lum = IntegrateLuminance(camPos, e, l, v, rb, rt, 100);
+
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                   RGBA16FTextures, gPushConstants.skyviewMapIndex),
+               ivec2(gl_GlobalInvocationID.xy), vec4(lum, 1.0f));
+}

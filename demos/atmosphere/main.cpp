@@ -1,8 +1,9 @@
 #include "core/assert.h"
+#include "core/clock.h"
 #include "core/log.h"
 #include "core/thread_context.h"
 
-#include "math/vec.h"
+#include "math/mat.h"
 
 #include "rhi/buffer.h"
 #include "rhi/command_buffer.h"
@@ -13,14 +14,18 @@
 
 #include "utils/utils.h"
 
+#include "demos/common/simple_camera_fps.h"
+
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
 
 #define TRANSMITTANCE_LUT_WIDTH 4096
 #define TRANSMITTANCE_LUT_HEIGHT 256
-#define MULTISCATTERING_LUT_WIDTH 1024
-#define MULTISCATTERING_LUT_HEIGHT 1024
+#define MULTISCATTERING_LUT_WIDTH 256
+#define MULTISCATTERING_LUT_HEIGHT 256
+#define SKYVIEW_LUT_WIDTH 2048
+#define SKYVIEW_LUT_HEIGHT 512
 
 #define EARTH_RADIUS_BOTTOM 6360.0f
 #define EARTH_RADIUS_TOP 6460.0f
@@ -35,17 +40,33 @@ struct AtmosphereParams
     float radiusBottom;
     float radiusTop;
     Math::Vec2 multiscatteringMapDims;
-    float pad[2];
+    Math::Vec2 skyviewMapDims;
+    float zenith;
+    float azimuth;
 };
+
+struct CameraParams
+{
+    Math::Mat4 projection;
+    Math::Mat4 view;
+};
+
+static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
+                                    Math::Vec3(0.0f, 200.0f, -5.0f));
+
 static AtmosphereParams sAtmosphereParams;
+static CameraParams sCameraParams;
 
 static RHI::GraphicsPipeline sScreenQuadPipeline;
 static RHI::ComputePipeline sTransmittancePipeline;
 static RHI::ComputePipeline sMultiscatteringPipeline;
+static RHI::ComputePipeline sSkyviewPipeline;
 
 static RHI::Buffer sAtmosphereParamsBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sTransmittanceLUT;
 static RHI::Texture sMultiscatteringLUT;
+static RHI::Texture sSkyviewLUT;
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -63,12 +84,13 @@ static void ErrorCallbackGLFW(int error, const char* description)
 
 static bool CreatePipelines(RHI::Device& device)
 {
-    RHI::ComputePipeline* computePipelines[] = {&sTransmittancePipeline,
-                                                &sMultiscatteringPipeline};
+    RHI::ComputePipeline* computePipelines[] = {
+        &sTransmittancePipeline, &sMultiscatteringPipeline, &sSkyviewPipeline};
 
     const char* computeShaderPaths[] = {
         "transmittance_lut.comp.spv",
         "multiscattering_lut.comp.spv",
+        "skyview_lut.comp.spv",
     };
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -121,6 +143,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyGraphicsPipeline(device, sScreenQuadPipeline);
     RHI::DestroyComputePipeline(device, sMultiscatteringPipeline);
     RHI::DestroyComputePipeline(device, sTransmittancePipeline);
+    RHI::DestroyComputePipeline(device, sSkyviewPipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -130,6 +153,13 @@ static bool CreateResources(RHI::Device& device)
         if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                &sAtmosphereParams, sizeof(AtmosphereParams),
                                sAtmosphereParamsBuffers[i]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                               nullptr, sizeof(CameraParams),
+                               sCameraBuffers[i]))
         {
             return false;
         }
@@ -153,6 +183,15 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    if (!RHI::CreateTexture2D(
+            device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            nullptr, SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
+            RHI::Sampler::WrapMode::Clamp, 1, sSkyviewLUT))
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -161,9 +200,11 @@ static void DestroyResources(RHI::Device& device)
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sAtmosphereParamsBuffers[i]);
+        RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
     RHI::DestroyTexture(device, sTransmittanceLUT);
     RHI::DestroyTexture(device, sMultiscatteringLUT);
+    RHI::DestroyTexture(device, sSkyviewLUT);
 }
 
 static void RecordComputeTransmittance(
@@ -198,6 +239,27 @@ static void RecordComputeMultiscattering(
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd, MULTISCATTERING_LUT_WIDTH / 16,
                   MULTISCATTERING_LUT_HEIGHT / 16, 1);
+}
+
+static void RecordComputeSkyview(RHI::CommandBuffer& cmd,
+                                 const RHI::RecordBufferInput* bufferInput,
+                                 const RHI::RecordTextureInput* textureInput,
+                                 void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sSkyviewPipeline);
+
+    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
+    RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
+    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
+    RHI::Texture& multiscatteringLUT = *(textureInput->textures[1]);
+    RHI::Texture& skyviewLUT = *(textureInput->textures[2]);
+
+    u32 pushConstants[] = {
+        atmosphereParams.bindlessHandle, cameraParams.bindlessHandle,
+        transmittanceLUT.bindlessHandle, multiscatteringLUT.bindlessHandle,
+        skyviewLUT.bindlessStorageHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, SKYVIEW_LUT_WIDTH / 16, SKYVIEW_LUT_HEIGHT / 16, 1);
 }
 
 static void RecordDrawScreenQuad(RHI::CommandBuffer& cmd,
@@ -288,6 +350,10 @@ int main(int argc, char* argv[])
     sAtmosphereParams.radiusTop = EARTH_RADIUS_TOP;
     sAtmosphereParams.multiscatteringMapDims =
         Math::Vec2(MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT);
+    sAtmosphereParams.skyviewMapDims =
+        Math::Vec2(SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT);
+    sAtmosphereParams.zenith = 45.0f;
+    sAtmosphereParams.azimuth = 0.0f;
 
     if (!CreateResources(device))
     {
@@ -346,16 +412,71 @@ int main(int argc, char* argv[])
                             RecordComputeMultiscattering, &bufferInput,
                             &textureInput);
     }
+    {
+        RHI::Buffer* buffers[2];
+        VkAccessFlagBits2 bufferAccesses[2];
+        bufferInput.bufferCount = 2;
+        bufferInput.buffers = buffers;
+        bufferInput.bufferAccesses = bufferAccesses;
+
+        buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
+        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+        buffers[1] = &sCameraBuffers[device.frameIndex];
+        bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+
+        RHI::Texture* textures[3];
+        RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+        textureInput.textureCount = 3;
+        textureInput.textures = textures;
+        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+        textures[0] = &sTransmittanceLUT;
+        imageLayoutsAccesses[0].imageLayout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+        textures[1] = &sMultiscatteringLUT;
+        imageLayoutsAccesses[1].imageLayout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+        textures[2] = &sSkyviewLUT;
+        imageLayoutsAccesses[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+        RHI::ExecuteCompute(TransferCommandBuffer(device), RecordComputeSkyview,
+                            &bufferInput, &textureInput);
+    }
     RHI::EndTransfer(device);
 
+    u64 previousFrameTime = 0;
+    u64 loopStartTime = Fly::ClockNow();
+    u64 currentFrameTime = loopStartTime;
     while (!glfwWindowShouldClose(window))
     {
+        previousFrameTime = currentFrameTime;
+        currentFrameTime = Fly::ClockNow();
+
+        f32 time =
+            static_cast<f32>(Fly::ToSeconds(currentFrameTime - loopStartTime));
+        f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
+
         glfwPollEvents();
+
+        {
+            sCamera.Update(window, deltaTime);
+            CameraParams cameraParams = {sCamera.GetProjection(),
+                                         sCamera.GetView()};
+            RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
+            RHI::CopyDataToBuffer(device, &cameraParams, sizeof(CameraParams),
+                                  0, cameraBuffer);
+        }
 
         RHI::BeginRenderFrame(device);
         {
-            RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
             // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
+            RHI::Texture* pTransmittanceLUT = &sSkyviewLUT;
+            // RHI::Texture* pTransmittanceLUT = &sSkyviewLUT;
             RHI::ImageLayoutAccess imageLayoutAccess;
             imageLayoutAccess.imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

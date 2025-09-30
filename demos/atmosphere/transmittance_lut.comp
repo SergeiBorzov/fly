@@ -21,6 +21,8 @@ FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
     float rt;
     vec2 multiscatteringMapDims;
     vec2 skyviewMapDims;
+    float zenith;
+    float azimuth;
 })
 
 FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RGBA16FTextures, image2D,

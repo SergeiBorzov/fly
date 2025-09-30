@@ -35,6 +35,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "skyview_lut.comp.spv",
+    src = "skyview_lut.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -43,12 +51,14 @@ cc_binary(
     deps = [
         "//src/rhi:context",
         "//src/utils:utils",
+        "//demos/common:simple_camera_fps",
     ],
     data = [
         ":screen_quad.vert.spv",
         ":screen_quad.frag.spv",
         ":transmittance_lut.comp.spv",
         ":multiscattering_lut.comp.spv",
+        ":skyview_lut.comp.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [],
         "//conditions:default": [
