@@ -52,6 +52,7 @@ cc_binary(
         "//src/rhi:context",
         "//src/utils:utils",
         "//demos/common:simple_camera_fps",
+        "@imgui//:imgui",
     ],
     data = [
         ":screen_quad.vert.spv",

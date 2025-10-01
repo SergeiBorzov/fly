@@ -24,5 +24,6 @@ void main()
                 inUV)
             .rgb;
 
+    //outFragColor = vec4(transmittance, 1.0f);
     outFragColor = vec4(Reinhard(transmittance, 1.0f), 1.0f);
 }

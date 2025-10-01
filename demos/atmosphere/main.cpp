@@ -5,6 +5,7 @@
 
 #include "math/mat.h"
 
+#include "rhi/allocation_callbacks.h"
 #include "rhi/buffer.h"
 #include "rhi/command_buffer.h"
 #include "rhi/context.h"
@@ -16,6 +17,10 @@
 
 #include "demos/common/simple_camera_fps.h"
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
@@ -24,8 +29,8 @@ using namespace Fly;
 #define TRANSMITTANCE_LUT_HEIGHT 256
 #define MULTISCATTERING_LUT_WIDTH 256
 #define MULTISCATTERING_LUT_HEIGHT 256
-#define SKYVIEW_LUT_WIDTH 2048
-#define SKYVIEW_LUT_HEIGHT 512
+#define SKYVIEW_LUT_WIDTH 1024
+#define SKYVIEW_LUT_HEIGHT 1024
 
 #define EARTH_RADIUS_BOTTOM 6360.0f
 #define EARTH_RADIUS_TOP 6460.0f
@@ -34,15 +39,21 @@ struct AtmosphereParams
 {
     Math::Vec3 rayleighScattering;
     float mieScattering;
+
     Math::Vec3 ozoneAbsorption;
     float mieAbsorption;
+
     Math::Vec2 transmittanceMapDims;
     float radiusBottom;
     float radiusTop;
+
     Math::Vec2 multiscatteringMapDims;
     Math::Vec2 skyviewMapDims;
+
     float zenith;
     float azimuth;
+    float rayleighDensityCoeff;
+    float mieDensityCoeff;
 };
 
 struct CameraParams
@@ -54,6 +65,7 @@ struct CameraParams
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
                                     Math::Vec3(0.0f, 200.0f, -5.0f));
 
+static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
 static CameraParams sCameraParams;
 
@@ -80,6 +92,117 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 static void ErrorCallbackGLFW(int error, const char* description)
 {
     FLY_ERROR("GLFW - error: %s", description);
+}
+
+static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
+                               GLFWwindow* window)
+{
+    VkDescriptorPoolSize poolSizes[] = {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE},
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolInfo.maxSets = 0;
+    for (VkDescriptorPoolSize& poolSize : poolSizes)
+        poolInfo.maxSets += poolSize.descriptorCount;
+    poolInfo.poolSizeCount = static_cast<u32>(STACK_ARRAY_COUNT(poolSizes));
+    poolInfo.pPoolSizes = poolSizes;
+    if (vkCreateDescriptorPool(device.logicalDevice, &poolInfo,
+                               RHI::GetVulkanAllocationCallbacks(),
+                               &sImGuiDescriptorPool) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.ApiVersion = VK_API_VERSION_1_3;
+    initInfo.Instance = context.instance;
+    initInfo.PhysicalDevice = device.physicalDevice;
+    initInfo.Device = device.logicalDevice;
+    initInfo.Queue = device.graphicsComputeQueue;
+    initInfo.DescriptorPool = sImGuiDescriptorPool;
+    initInfo.MinImageCount = device.swapchainTextureCount;
+    initInfo.ImageCount = device.swapchainTextureCount;
+    initInfo.UseDynamicRendering = true;
+
+    initInfo.PipelineRenderingCreateInfo = {};
+    initInfo.PipelineRenderingCreateInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    initInfo.PipelineRenderingCreateInfo.depthAttachmentFormat =
+        VK_FORMAT_D32_SFLOAT_S8_UINT;
+    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &device.surfaceFormat.format;
+
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    initInfo.Allocator = RHI::GetVulkanAllocationCallbacks();
+
+    if (!ImGui_ImplVulkan_Init(&initInfo))
+    {
+        return false;
+    }
+    if (!ImGui_ImplVulkan_CreateFontsTexture())
+    {
+        return false;
+    }
+    return true;
+}
+
+static void DestroyImGuiContext(RHI::Device& device)
+{
+    ImGui_ImplVulkan_Shutdown();
+    vkDestroyDescriptorPool(device.logicalDevice, sImGuiDescriptorPool,
+                            RHI::GetVulkanAllocationCallbacks());
+}
+
+static void ProcessImGuiFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    {
+        ImGui::Begin("Parameters");
+
+        if (ImGui::TreeNode("Atmosphere"))
+        {
+            ImGui::SliderFloat3("Rayleigh scattering",
+                                sAtmosphereParams.rayleighScattering.data, 0.0f,
+                                1.0f, ".%6f");
+            ImGui::SliderFloat("Rayleight density coefficient",
+                               &sAtmosphereParams.rayleighDensityCoeff, 1.0f,
+                               30.0f);
+
+            ImGui::SliderFloat("Mie scattering",
+                               &sAtmosphereParams.mieScattering, 0.0f, 1.0f);
+            ImGui::SliderFloat("Mie absorption",
+                               &sAtmosphereParams.mieAbsorption, 0.0f, 1.0f);
+            ImGui::SliderFloat("Mie density coefficient",
+                               &sAtmosphereParams.mieDensityCoeff, 1.0f, 30.0f);
+
+            ImGui::SliderFloat("Zenith", &sAtmosphereParams.zenith, -180.0f,
+                               180.0f, "%.1f");
+            ImGui::SliderFloat("Azimuth", &sAtmosphereParams.azimuth, -180.0f,
+                               180.0f, "%.1f");
+            ImGui::TreePop();
+        }
+        ImGui::End();
+    }
+
+    ImGui::Render();
 }
 
 static bool CreatePipelines(RHI::Device& device)
@@ -280,6 +403,19 @@ static void RecordDrawScreenQuad(RHI::CommandBuffer& cmd,
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
+static void RecordDrawGUI(RHI::CommandBuffer& cmd,
+                          const RHI::RecordBufferInput* bufferInput,
+                          const RHI::RecordTextureInput* textureInput,
+                          void* pUserData)
+{
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+}
+
 int main(int argc, char* argv[])
 {
     InitThreadContext();
@@ -303,7 +439,8 @@ int main(int argc, char* argv[])
     glfwSetErrorCallback(ErrorCallbackGLFW);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "Window", nullptr, nullptr);
+    GLFWwindow* window =
+        glfwCreateWindow(1920, 1080, "Window", nullptr, nullptr);
 
     if (!window)
     {
@@ -332,6 +469,12 @@ int main(int argc, char* argv[])
 
     RHI::Device& device = context.devices[0];
 
+    if (!CreateImGuiContext(context, device, window))
+    {
+        FLY_ERROR("Failed to create imgui context");
+        return -1;
+    }
+
     if (!CreatePipelines(device))
     {
         FLY_ERROR("Failed to create pipelines");
@@ -354,100 +497,14 @@ int main(int argc, char* argv[])
         Math::Vec2(SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT);
     sAtmosphereParams.zenith = 45.0f;
     sAtmosphereParams.azimuth = 0.0f;
+    sAtmosphereParams.rayleighDensityCoeff = 8.0f;
+    sAtmosphereParams.mieDensityCoeff = 1.2f;
 
     if (!CreateResources(device))
     {
         FLY_ERROR("Failed to create resources");
         return -1;
     }
-
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-    RHI::BeginTransfer(device);
-    {
-        RHI::Buffer* pAtmosphereParamsBuffer =
-            &sAtmosphereParamsBuffers[device.frameIndex];
-        VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-        bufferInput.buffers = &pAtmosphereParamsBuffer;
-        bufferInput.bufferAccesses = &bufferAccess;
-        bufferInput.bufferCount = 1;
-
-        RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
-        RHI::ImageLayoutAccess imageLayoutAccess;
-        imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-        textureInput.textures = &pTransmittanceLUT;
-        textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-        textureInput.textureCount = 1;
-
-        RHI::ExecuteCompute(TransferCommandBuffer(device),
-                            RecordComputeTransmittance, &bufferInput,
-                            &textureInput);
-    }
-    {
-        RHI::Buffer* pAtmosphereParamsBuffer =
-            &sAtmosphereParamsBuffers[device.frameIndex];
-        VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-        bufferInput.buffers = &pAtmosphereParamsBuffer;
-        bufferInput.bufferAccesses = &bufferAccess;
-        bufferInput.bufferCount = 1;
-
-        RHI::Texture* textures[2];
-        RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-
-        textureInput.textureCount = 2;
-        textureInput.textures = textures;
-        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-        textures[0] = &sTransmittanceLUT;
-        imageLayoutsAccesses[0].imageLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-        textures[1] = &sMultiscatteringLUT;
-        imageLayoutsAccesses[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-
-        RHI::ExecuteCompute(TransferCommandBuffer(device),
-                            RecordComputeMultiscattering, &bufferInput,
-                            &textureInput);
-    }
-    {
-        RHI::Buffer* buffers[2];
-        VkAccessFlagBits2 bufferAccesses[2];
-        bufferInput.bufferCount = 2;
-        bufferInput.buffers = buffers;
-        bufferInput.bufferAccesses = bufferAccesses;
-
-        buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[1] = &sCameraBuffers[device.frameIndex];
-        bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-
-        RHI::Texture* textures[3];
-        RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-        textureInput.textureCount = 3;
-        textureInput.textures = textures;
-        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-        textures[0] = &sTransmittanceLUT;
-        imageLayoutsAccesses[0].imageLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-        textures[1] = &sMultiscatteringLUT;
-        imageLayoutsAccesses[1].imageLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-        textures[2] = &sSkyviewLUT;
-        imageLayoutsAccesses[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-
-        RHI::ExecuteCompute(TransferCommandBuffer(device), RecordComputeSkyview,
-                            &bufferInput, &textureInput);
-    }
-    RHI::EndTransfer(device);
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -463,20 +520,120 @@ int main(int argc, char* argv[])
 
         glfwPollEvents();
 
+        ImGuiIO& io = ImGui::GetIO();
+        bool wantMouse = io.WantCaptureMouse;
+        bool wantKeyboard = io.WantCaptureKeyboard;
+        if (!wantMouse && !wantKeyboard)
         {
             sCamera.Update(window, deltaTime);
+        }
+
+        ProcessImGuiFrame();
+
+        {
             CameraParams cameraParams = {sCamera.GetProjection(),
                                          sCamera.GetView()};
             RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
             RHI::CopyDataToBuffer(device, &cameraParams, sizeof(CameraParams),
                                   0, cameraBuffer);
+            RHI::Buffer& atmosphereParams =
+                sAtmosphereParamsBuffers[device.frameIndex];
+            RHI::CopyDataToBuffer(device, &sAtmosphereParams,
+                                  sizeof(AtmosphereParams), 0,
+                                  atmosphereParams);
         }
 
+        RHI::RecordBufferInput bufferInput;
+        RHI::RecordTextureInput textureInput;
         RHI::BeginRenderFrame(device);
         {
+            RHI::Buffer* pAtmosphereParamsBuffer =
+                &sAtmosphereParamsBuffers[device.frameIndex];
+            VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
+            bufferInput.buffers = &pAtmosphereParamsBuffer;
+            bufferInput.bufferAccesses = &bufferAccess;
+            bufferInput.bufferCount = 1;
+
+            RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
+            RHI::ImageLayoutAccess imageLayoutAccess;
+            imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+            textureInput.textures = &pTransmittanceLUT;
+            textureInput.imageLayoutsAccesses = &imageLayoutAccess;
+            textureInput.textureCount = 1;
+
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                                RecordComputeTransmittance, &bufferInput,
+                                &textureInput);
+        }
+        {
+            RHI::Buffer* pAtmosphereParamsBuffer =
+                &sAtmosphereParamsBuffers[device.frameIndex];
+            VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
+            bufferInput.buffers = &pAtmosphereParamsBuffer;
+            bufferInput.bufferAccesses = &bufferAccess;
+            bufferInput.bufferCount = 1;
+
+            RHI::Texture* textures[2];
+            RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+
+            textureInput.textureCount = 2;
+            textureInput.textures = textures;
+            textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+            textures[0] = &sTransmittanceLUT;
+            imageLayoutsAccesses[0].imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+            textures[1] = &sMultiscatteringLUT;
+            imageLayoutsAccesses[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                                RecordComputeMultiscattering, &bufferInput,
+                                &textureInput);
+        }
+        {
+            RHI::Buffer* buffers[2];
+            VkAccessFlagBits2 bufferAccesses[2];
+            bufferInput.bufferCount = 2;
+            bufferInput.buffers = buffers;
+            bufferInput.bufferAccesses = bufferAccesses;
+
+            buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+            buffers[1] = &sCameraBuffers[device.frameIndex];
+            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+
+            RHI::Texture* textures[3];
+            RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+            textureInput.textureCount = 3;
+            textureInput.textures = textures;
+            textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+            textures[0] = &sTransmittanceLUT;
+            imageLayoutsAccesses[0].imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+            textures[1] = &sMultiscatteringLUT;
+            imageLayoutsAccesses[1].imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+            textures[2] = &sSkyviewLUT;
+            imageLayoutsAccesses[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                                RecordComputeSkyview, &bufferInput,
+                                &textureInput);
+        }
+        {
             // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
+            // RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
             RHI::Texture* pTransmittanceLUT = &sSkyviewLUT;
-            // RHI::Texture* pTransmittanceLUT = &sSkyviewLUT;
             RHI::ImageLayoutAccess imageLayoutAccess;
             imageLayoutAccess.imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -495,6 +652,18 @@ int main(int argc, char* argv[])
                                  renderingInfo, RecordDrawScreenQuad, nullptr,
                                  &textureInput);
         }
+
+        {
+            VkRenderingAttachmentInfo colorAttachment =
+                RHI::ColorAttachmentInfo(
+                    RenderFrameSwapchainTexture(device).imageView,
+                    VK_ATTACHMENT_LOAD_OP_LOAD);
+            VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+                {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+                &colorAttachment, 1, nullptr, nullptr, 1, 0);
+            RHI::ExecuteGraphics(RenderFrameCommandBuffer(device),
+                                 renderingInfo, RecordDrawGUI);
+        }
         RHI::EndRenderFrame(device);
     }
 
@@ -502,6 +671,7 @@ int main(int argc, char* argv[])
 
     DestroyResources(device);
     DestroyPipelines(device);
+    DestroyImGuiContext(device);
     RHI::DestroyContext(context);
 
     FLY_LOG("Shutdown successful");
