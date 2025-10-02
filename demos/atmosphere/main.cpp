@@ -63,7 +63,8 @@ struct CameraParams
 };
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 200.0f, -5.0f));
+                                    Math::Vec3(0.0f, EARTH_RADIUS_BOTTOM + 0.4f,
+                                               0.0f));
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
@@ -495,8 +496,8 @@ int main(int argc, char* argv[])
         Math::Vec2(MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT);
     sAtmosphereParams.skyviewMapDims =
         Math::Vec2(SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT);
-    sAtmosphereParams.zenith = 45.0f;
-    sAtmosphereParams.azimuth = 0.0f;
+    sAtmosphereParams.zenith = 90.0f;
+    sAtmosphereParams.azimuth = 90.0f;
     sAtmosphereParams.rayleighDensityCoeff = 8.0f;
     sAtmosphereParams.mieDensityCoeff = 1.2f;
 

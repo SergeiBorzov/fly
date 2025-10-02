@@ -126,8 +126,8 @@ vec2 TransmittanceParamsToUV(float r, float cosZ, float rb, float rt)
     // d2 = -r * cosZ + SafeSqrt(det);
     float d = max(0.0f, -r * cosZ + SafeSqrt(disc));
 
-    float u = clamp(rho / h, 0.0f, 0.99f);
-    float v = clamp((d - dMin) / (dMax - dMin), 0.0f, 0.99f);
+    float u = clamp(rho / h, 0.0f, 1.0f);
+    float v = clamp((d - dMin) / (dMax - dMin), 0.0f, 1.0f);
 
     return vec2(u, v);
 }
@@ -176,13 +176,12 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
 
         for (uint j = 0; j < it2; j++)
         {
-            float fj = float(j) + 0.3f;
+            float fj = float(j) + 0.5f;
             vec3 p = worldPos + fj * dir * delta2;
 
             float r = length(p);
             float height = max(r - rb, 0.0f);
             float cosZ = dot(l, p / r);
-            float vis = RaySphereIntersect(p, l, planetOrigin, rb);
 
             vec3 extinction = SampleExtinction(height);
             vec3 stepTransmittance = exp(-delta2 * extinction);
@@ -192,7 +191,7 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
             lumF += transmittance * (scatteringNoPhase *
                                      (1.0f - stepTransmittance) / extinction);
 
-            vec3 s = SampleTransmittance(r, cosZ, rb, rt) * float(vis > 0.0f);
+            vec3 s = SampleTransmittance(r, cosZ, rb, rt);
             vec3 scattering = scatteringNoPhase * PHASE_UNIFORM;
 
             lum += transmittance *
