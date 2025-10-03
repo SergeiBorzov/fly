@@ -2,6 +2,8 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "bindless.glsl"
 
+#include "common.glsl"
+
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(push_constant) uniform PushConstants
@@ -11,86 +13,7 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
-    vec3 rayleighScattering;
-    float mieScattering;
-    vec3 ozoneAbsorption;
-    float mieAbsorption;
-    vec2 transmittanceMapDims;
-    float rb;
-    float rt;
-    vec2 multiscatteringMapDims;
-    vec2 skyviewMapDims;
-    float zenith;
-    float azimuth;
-    float rayleighDensityCoeff;
-    float mieDensityCoeff;
-})
-
-FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, RGBA16FTextures, image2D,
-                                    rgba16f)
-
-float SafeSqrt(float x) { return sqrt(max(0.0f, x)); }
-// Note: Assuming ray direction d is normalized
-float RaySphereIntersect(vec3 o, vec3 d, vec3 p, float r)
-{
-    float b = dot(o - p, d);
-    float c = dot(o - p, o - p) - r * r;
-
-    float disc = b * b - c;
-    if (disc < 0.0f)
-    {
-        return -1.0f;
-    }
-
-    float t = (-b - sqrt(disc));
-    if (t < 0.0f)
-    {
-        t = (-b + sqrt(disc));
-    }
-    return t;
-}
-
-float DensityRayleigh(float h)
-{
-    float rayleighDensityCoeff = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-        rayleighDensityCoeff);
-    return exp(-h / rayleighDensityCoeff);
-}
-
-float DensityMie(float h)
-{
-    float mieDensityCoeff = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-        mieDensityCoeff);
-    return exp(-h / mieDensityCoeff);
-}
-
-float DensityOzone(float h) { return max(0.0f, 1.0f - abs(h - 25.0f) / 15.0f); }
-
-vec3 SampleExtinction(float height)
-{
-    vec3 rayleighScattering = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-        rayleighScattering);
-    float mieScattering = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, mieScattering);
-    vec3 ozoneAbsorption = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-        ozoneAbsorption);
-    float mieAbsorption = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, mieAbsorption);
-
-    vec3 extinction = vec3(0.0f);
-    extinction += rayleighScattering * DensityRayleigh(height);
-    extinction += (mieScattering + mieAbsorption) * DensityMie(height);
-    extinction += ozoneAbsorption * DensityOzone(height);
-
-    return extinction;
-}
-
-vec2 TexToRadiusCosZenith(vec2 uv, float rb, float rt)
+vec2 UVToTransmittanceRadiusCosZenith(vec2 uv, float rb, float rt)
 {
     // max dist to horizon for point inside atmosphere bounds
     float h = sqrt(rt * rt - rb * rb);
@@ -122,7 +45,9 @@ vec3 IntegrateOpticalDepth(vec3 worldPos, vec3 l, float rb, float rt,
         float fi = float(i);
         vec3 p = worldPos + fi * delta * l;
         float height = max(length(p) - rb, 0.0f);
-        opticalDepth += SampleExtinction(height) * delta;
+        opticalDepth +=
+            SampleExtinction(height, gPushConstants.atmosphereBufferIndex) *
+            delta;
     }
 
     return opticalDepth;
@@ -139,14 +64,15 @@ void main()
                                           gPushConstants.atmosphereBufferIndex,
                                           transmittanceMapDims);
     vec2 uv = (gl_GlobalInvocationID.xy + 0.5f) / dims;
-    vec2 rcz = TexToRadiusCosZenith(uv, rb, rt);
+    vec2 rcz = UVToTransmittanceRadiusCosZenith(uv, rb, rt);
 
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(sqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
     vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt, 500));
 
-    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
-                   RGBA16FTextures, gPushConstants.transmittanceMapIndex),
-               ivec2(gl_GlobalInvocationID.xy), vec4(transmittance, 1.0f));
+    imageStore(
+        FLY_ACCESS_STORAGE_TEXTURE_BUFFER(StorageTexturesRGBA16F,
+                                          gPushConstants.transmittanceMapIndex),
+        ivec2(gl_GlobalInvocationID.xy), vec4(transmittance, 1.0f));
 }

@@ -1,10 +1,18 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
-load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_library", "glsl_shader")
 load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 
 copy_vulkan_layers()
 copy_molten_vk()
+
+glsl_library(
+    name = "atmosphere_common",
+    hdrs = [
+        "common.glsl",
+    ],
+    visibility = ["//visibility:public"]
+)
 
 glsl_shader(
     name = "screen_quad.vert.spv",
@@ -23,6 +31,7 @@ glsl_shader(
     name = "transmittance_lut.comp.spv",
     src = "transmittance_lut.comp",
     deps = [
+        ":atmosphere_common",
         "//demos/common:glsl_bindless",
     ],
 )
@@ -31,6 +40,7 @@ glsl_shader(
     name = "multiscattering_lut.comp.spv",
     src = "multiscattering_lut.comp",
     deps = [
+        ":atmosphere_common",
         "//demos/common:glsl_bindless",
     ],
 )
@@ -39,6 +49,7 @@ glsl_shader(
     name = "skyview_lut.comp.spv",
     src = "skyview_lut.comp",
     deps = [
+        ":atmosphere_common",
         "//demos/common:glsl_bindless",
     ],
 )

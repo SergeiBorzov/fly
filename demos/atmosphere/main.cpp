@@ -143,8 +143,6 @@ static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
     initInfo.PipelineRenderingCreateInfo.sType =
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    initInfo.PipelineRenderingCreateInfo.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
     initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats =
         &device.surfaceFormat.format;
 
@@ -274,14 +272,18 @@ static bool CreateResources(RHI::Device& device)
 {
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        if (!RHI::CreateBuffer(device, true,
+                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                &sAtmosphereParams, sizeof(AtmosphereParams),
                                sAtmosphereParamsBuffers[i]))
         {
             return false;
         }
 
-        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        if (!RHI::CreateBuffer(device, true,
+                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                nullptr, sizeof(CameraParams),
                                sCameraBuffers[i]))
         {
@@ -496,7 +498,7 @@ int main(int argc, char* argv[])
         Math::Vec2(MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT);
     sAtmosphereParams.skyviewMapDims =
         Math::Vec2(SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT);
-    sAtmosphereParams.zenith = 90.0f;
+    sAtmosphereParams.zenith = 0.0f;
     sAtmosphereParams.azimuth = 90.0f;
     sAtmosphereParams.rayleighDensityCoeff = 8.0f;
     sAtmosphereParams.mieDensityCoeff = 1.2f;
@@ -539,6 +541,7 @@ int main(int argc, char* argv[])
                                   0, cameraBuffer);
             RHI::Buffer& atmosphereParams =
                 sAtmosphereParamsBuffers[device.frameIndex];
+            sAtmosphereParams.zenith = Math::Sin(time) * 90.0f;
             RHI::CopyDataToBuffer(device, &sAtmosphereParams,
                                   sizeof(AtmosphereParams), 0,
                                   atmosphereParams);
@@ -608,7 +611,7 @@ int main(int argc, char* argv[])
             bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
 
             RHI::Texture* textures[3];
-            RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+            RHI::ImageLayoutAccess imageLayoutsAccesses[3];
             textureInput.textureCount = 3;
             textureInput.textures = textures;
             textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
@@ -634,12 +637,12 @@ int main(int argc, char* argv[])
         {
             // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
             // RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
-            RHI::Texture* pTransmittanceLUT = &sSkyviewLUT;
+            RHI::Texture* pMapToShow = &sSkyviewLUT;
             RHI::ImageLayoutAccess imageLayoutAccess;
             imageLayoutAccess.imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-            textureInput.textures = &pTransmittanceLUT;
+            imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+            textureInput.textures = &pMapToShow;
             textureInput.imageLayoutsAccesses = &imageLayoutAccess;
             textureInput.textureCount = 1;
 
@@ -648,7 +651,7 @@ int main(int argc, char* argv[])
                     RenderFrameSwapchainTexture(device).imageView);
             VkRenderingInfo renderingInfo = RHI::RenderingInfo(
                 {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
-                &colorAttachment, 1, nullptr, nullptr, 1, 0);
+                &colorAttachment, 1);
             RHI::ExecuteGraphics(RenderFrameCommandBuffer(device),
                                  renderingInfo, RecordDrawScreenQuad, nullptr,
                                  &textureInput);
@@ -661,7 +664,7 @@ int main(int argc, char* argv[])
                     VK_ATTACHMENT_LOAD_OP_LOAD);
             VkRenderingInfo renderingInfo = RHI::RenderingInfo(
                 {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
-                &colorAttachment, 1, nullptr, nullptr, 1, 0);
+                &colorAttachment, 1);
             RHI::ExecuteGraphics(RenderFrameCommandBuffer(device),
                                  renderingInfo, RecordDrawGUI);
         }
