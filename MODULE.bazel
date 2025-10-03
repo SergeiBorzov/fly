@@ -48,21 +48,21 @@ external_archive = use_extension(
 external_git_repository.base(
     name = "vulkan_headers",
     build_file = "//scripts/bazel/target:BUILD.vulkan_headers.bazel",
-    commit = "39f924b810e561fd86b2558b6711ca68d4363f68",
+    commit = "a4f8ada9f4f97c45b8c89c57997be9cebaae65d2",
     remote = "https://github.com/KhronosGroup/Vulkan-Headers.git",
 )
 use_repo(external_git_repository, "vulkan_headers")
 
 external_git_repository.base(
     name = "spirv_headers",
-    commit = "3f17b2af6784bfa2c5aa5dbb8e0e74a607dd8b3b",
+    commit = "01e0577914a75a2569c846778c2f93aa8e6feddd",
     remote = "https://github.com/KhronosGroup/SPIRV-Headers.git",
 )
 use_repo(external_git_repository, "spirv_headers")
 
 external_git_repository.base(
     name = "spirv_tools",
-    commit = "4d2f0b40bfe290dea6c6904dafdf7fd8328ba346",
+    commit = "7f2d9ee926f98fc77a3ed1e1e0f113b8c9c49458",
     remote = "https://github.com/KhronosGroup/SPIRV-Tools.git"
 )
 use_repo(external_git_repository, "spirv_tools")
@@ -70,7 +70,7 @@ use_repo(external_git_repository, "spirv_tools")
 external_git_repository.base(
     name = "spirv_cross",
     build_file = "//scripts/bazel/target:BUILD.spirv_cross.bazel",
-    commit = "2c32b6bf86f3c4a5539aa1f0bacbd59fe61759cf",
+    commit = "7affe74d77f93a622bb5002789d5332d32e512ee",
     remote = "https://github.com/KhronosGroup/SPIRV-Cross.git",
 )
 use_repo(external_git_repository, "spirv_cross")
@@ -78,7 +78,7 @@ use_repo(external_git_repository, "spirv_cross")
 external_git_repository.base(
     name = "vulkan_utility_libraries",
     build_file = "//scripts/bazel/target:BUILD.vulkan_utility_libraries.bazel",
-    commit = "5a88b6042edb8f03eefc8de73bd73a899989373f",
+    commit = "4322db5906e67b57ec9c327e6afe3d98ed893df7",
     remote = "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git",
 )
 use_repo(external_git_repository, "vulkan_utility_libraries")
@@ -86,7 +86,7 @@ use_repo(external_git_repository, "vulkan_utility_libraries")
 external_git_repository.base(
     name = "vulkan_validation_layers",
     build_file = "//scripts/bazel/target:BUILD.vulkan_validation_layers.bazel",
-    commit = "90851ef5b77757556217122061672dc52e21629c",
+    commit = "a1ff2dbc7e50828def8098c5ebf0fee10b714f85",
     remote = "https://github.com/KhronosGroup/Vulkan-ValidationLayers.git",
 )
 use_repo(external_git_repository, "vulkan_validation_layers")
@@ -94,7 +94,7 @@ use_repo(external_git_repository, "vulkan_validation_layers")
 external_git_repository.base(
     name = "volk",
     build_file = "//scripts/bazel/target:BUILD.volk.bazel",
-    commit = "0b17a763ba5643e32da1b2152f8140461b3b7345",
+    commit = "f30088b3f4160810b53e19258dd2f7395e5f0ba3",
     remote = "https://github.com/zeux/volk.git",
 )
 use_repo(external_git_repository, "volk")
@@ -126,7 +126,7 @@ use_repo(external_git_repository, "molten_vk")
 external_git_repository.base(
     name = "glslang",
     build_file = "//scripts/bazel/target:BUILD.glslang.bazel",
-    commit = "1062752a891c95b2bfeed9e356562d88f9df84ac",
+    commit = "a57276bf558f5cf94d3a9854ebdf5a2236849a5a",
     remote = "https://github.com/KhronosGroup/glslang.git",
 )
 use_repo(external_git_repository, "glslang")

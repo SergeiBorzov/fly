@@ -85,7 +85,8 @@ cc_library(
         "glslang/Include/visibility.h",
         # spirv headers
         "SPIRV/bitutils.h",
-        "SPIRV/spirv.hpp",
+        "SPIRV/spvUtil.h",
+        "SPIRV/spirv.hpp11",
         "SPIRV/GLSL.std.450.h",
         "SPIRV/GLSL.ext.EXT.h",
         "SPIRV/GLSL.ext.KHR.h",
