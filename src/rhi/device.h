@@ -25,9 +25,7 @@ struct FrameData
 {
     CommandBuffer commandBuffer = {};
     VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkSemaphore swapchainSemaphore = VK_NULL_HANDLE;
-    VkSemaphore renderSemaphore = VK_NULL_HANDLE;
-    VkFence renderFence = VK_NULL_HANDLE;
+    VkSemaphore swapchainAcquireSemaphore = VK_NULL_HANDLE;
 };
 
 struct TransferData
@@ -66,6 +64,7 @@ struct Device
     char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] = {0};
     VmaAllocator allocator = {};
     SwapchainTexture swapchainTextures[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
+    VkSemaphore swapchainRenderSemaphores[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
     FrameData frameData[FLY_FRAME_IN_FLIGHT_COUNT];
     TransferData transferData = {};
     VkSurfaceFormatKHR surfaceFormat = {};
@@ -81,6 +80,9 @@ struct Device
     VkDescriptorSet bindlessDescriptorSet = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPresentModeKHR presentMode;
+    VkSemaphore swapchainTimelineSemaphore;
+    VkFence renderOffscreenFence;
+    u64 absoluteFrameIndex = 0;
     u32 bindlessUniformBufferHandleCount = 0;
     u32 bindlessStorageBufferHandleCount = 0;
     u32 bindlessTextureHandleCount = 0;

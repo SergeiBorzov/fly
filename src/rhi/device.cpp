@@ -16,6 +16,48 @@
 
 #define FLY_DESCRIPTOR_MAX_COUNT 100000
 
+static VkSemaphore CreateTimelineSemaphore(VkDevice device,
+                                           u64 initialValue = 0)
+{
+    VkSemaphore semaphore;
+
+    VkSemaphoreTypeCreateInfo typeInfo{};
+    typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    typeInfo.initialValue = initialValue;
+
+    VkSemaphoreCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    createInfo.pNext = &typeInfo;
+
+    if (vkCreateSemaphore(device, &createInfo,
+                          Fly::RHI::GetVulkanAllocationCallbacks(),
+                          &semaphore) != VK_SUCCESS)
+    {
+        return VK_NULL_HANDLE;
+    }
+    return semaphore;
+}
+
+static void WaitForTimelineSemaphores(VkDevice device,
+                                      const VkSemaphore* semaphores,
+                                      const uint64_t* values,
+                                      uint32_t semaphoreCount,
+                                      bool waitAny = false)
+{
+    VkSemaphoreWaitInfo waitInfo{};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.semaphoreCount = semaphoreCount;
+    waitInfo.pSemaphores = semaphores;
+    waitInfo.pValues = values;
+    if (waitAny)
+    {
+        waitInfo.flags = VK_SEMAPHORE_WAIT_ANY_BIT_KHR;
+    }
+
+    vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
+}
+
 static const char* PresentModeToString(VkPresentModeKHR presentMode)
 {
     switch (presentMode)
@@ -556,15 +598,8 @@ static bool CreateFrameData(Device& device)
     createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     createInfo.queueFamilyIndex = device.graphicsComputeQueueFamilyIndex;
 
-    VkFenceCreateInfo fenceCreateInfo{};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceCreateInfo.pNext = nullptr;
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
     VkSemaphoreCreateInfo semaphoreCreateInfo{};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreCreateInfo.pNext = nullptr;
-    semaphoreCreateInfo.flags = 0;
 
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -581,24 +616,9 @@ static bool CreateFrameData(Device& device)
             return false;
         }
 
-        if (vkCreateFence(device.logicalDevice, &fenceCreateInfo,
-                          GetVulkanAllocationCallbacks(),
-                          &device.frameData[i].renderFence) != VK_SUCCESS)
-        {
-            return false;
-        }
-
         if (vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
                               GetVulkanAllocationCallbacks(),
-                              &device.frameData[i].swapchainSemaphore) !=
-            VK_SUCCESS)
-        {
-            return false;
-        }
-
-        if (vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
-                              GetVulkanAllocationCallbacks(),
-                              &device.frameData[i].renderSemaphore) !=
+                              &device.frameData[i].swapchainAcquireSemaphore) !=
             VK_SUCCESS)
         {
             return false;
@@ -613,13 +633,8 @@ static void DestroyFrameData(Device& device)
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         vkDestroySemaphore(device.logicalDevice,
-                           device.frameData[i].renderSemaphore,
+                           device.frameData[i].swapchainAcquireSemaphore,
                            GetVulkanAllocationCallbacks());
-        vkDestroySemaphore(device.logicalDevice,
-                           device.frameData[i].swapchainSemaphore,
-                           GetVulkanAllocationCallbacks());
-        vkDestroyFence(device.logicalDevice, device.frameData[i].renderFence,
-                       GetVulkanAllocationCallbacks());
 
         vkDestroyCommandPool(device.logicalDevice,
                              device.frameData[i].commandPool,
@@ -827,6 +842,21 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     if (context.windowPtr)
     {
+        device.swapchainTimelineSemaphore =
+            CreateTimelineSemaphore(device.logicalDevice);
+
+        VkSemaphoreCreateInfo semaphoreCreateInfo{};
+        semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        for (u32 i = 0; i < FLY_SWAPCHAIN_IMAGE_MAX_COUNT; i++)
+        {
+            if (vkCreateSemaphore(device.logicalDevice, &semaphoreCreateInfo,
+                                  GetVulkanAllocationCallbacks(),
+                                  &device.swapchainRenderSemaphores[i]))
+            {
+                return false;
+            }
+        }
+
         if (!CreateSwapchain(device))
         {
             FLY_ERROR("Failed to create swapchain %s", device.name);
@@ -848,6 +878,15 @@ void DestroyLogicalDevice(Device& device)
     if (device.swapchain != VK_NULL_HANDLE)
     {
         DestroySwapchain(device);
+        for (u32 i = 0; i < FLY_SWAPCHAIN_IMAGE_MAX_COUNT; i++)
+        {
+            vkDestroySemaphore(device.logicalDevice,
+                               device.swapchainRenderSemaphores[i],
+                               RHI::GetVulkanAllocationCallbacks());
+        }
+        vkDestroySemaphore(device.logicalDevice,
+                           device.swapchainTimelineSemaphore,
+                           RHI::GetVulkanAllocationCallbacks());
     }
     vkDestroyPipelineLayout(device.logicalDevice, device.pipelineLayout,
                             GetVulkanAllocationCallbacks());
@@ -871,51 +910,34 @@ const SwapchainTexture& RenderFrameSwapchainTexture(const Device& device)
 
 bool BeginRenderFrame(Device& device)
 {
-    vkWaitForFences(device.logicalDevice, 1,
-                    &device.frameData[device.frameIndex].renderFence, VK_TRUE,
-                    UINT64_MAX);
-
-    if (device.swapchain != VK_NULL_HANDLE)
+    // Wait for rendering to finish
+    if (device.absoluteFrameIndex >= FLY_FRAME_IN_FLIGHT_COUNT - 1)
     {
-        VkResult res = VK_ERROR_UNKNOWN;
-        while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
-        {
-            res = vkAcquireNextImageKHR(
-                device.logicalDevice, device.swapchain, UINT64_MAX,
-                device.frameData[device.frameIndex].swapchainSemaphore,
-                VK_NULL_HANDLE, &device.swapchainTextureIndex);
-        }
-    }
-    else
-    {
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 0;
-        submitInfo.pCommandBuffers = nullptr;
-        submitInfo.waitSemaphoreCount = 0;
-        submitInfo.pWaitSemaphores = nullptr;
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores =
-            &device.frameData[device.frameIndex].swapchainSemaphore;
-        vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
-                      VK_NULL_HANDLE);
+        u64 value = device.absoluteFrameIndex - (FLY_FRAME_IN_FLIGHT_COUNT - 1);
+        WaitForTimelineSemaphores(device.logicalDevice,
+                                  &device.swapchainTimelineSemaphore, &value,
+                                  1);
     }
 
-    vkResetFences(device.logicalDevice, 1,
-                  &device.frameData[device.frameIndex].renderFence);
+    // Acquire next swapchain image index
+    VkResult res = VK_ERROR_UNKNOWN;
+    while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+    {
+        res = vkAcquireNextImageKHR(
+            device.logicalDevice, device.swapchain, UINT64_MAX,
+            device.frameData[device.frameIndex].swapchainAcquireSemaphore,
+            VK_NULL_HANDLE, &device.swapchainTextureIndex);
+    }
 
+    // Prepare command buffer
     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
     ResetCommandBuffer(cmd, false);
     BeginCommandBuffer(cmd, true);
 
-    if (device.swapchain != VK_NULL_HANDLE)
-    {
-        // Swapchain image transition to writeable
-        RecordTransitionImageLayout(
-            cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    }
+    // Change layout of swapchain image
+    RecordTransitionImageLayout(
+        cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     return true;
 }
@@ -924,30 +946,64 @@ bool EndRenderFrame(Device& device)
 {
     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
 
-    if (device.swapchain != VK_NULL_HANDLE)
-    {
-        // Image transition to presentable
-        RecordTransitionImageLayout(
-            cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-    }
+    // Change layout of swapchain image to presentable
+    RecordTransitionImageLayout(
+        cmd, device.swapchainTextures[device.swapchainTextureIndex].handle,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     EndCommandBuffer(cmd);
 
-    VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    SubmitCommandBuffer(
-        cmd, device.graphicsComputeQueue,
-        &device.frameData[device.frameIndex].swapchainSemaphore, 1,
-        &waitStageMask, &device.frameData[device.frameIndex].renderSemaphore, 1,
-        device.frameData[device.frameIndex].renderFence, nullptr);
+    // Submit work to graphics queue, start rendering
+    {
+        VkSemaphoreSubmitInfo waitSemaphoreInfos[1];
+        waitSemaphoreInfos[0] = {};
+        waitSemaphoreInfos[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitSemaphoreInfos[0].semaphore =
+            device.frameData[device.frameIndex].swapchainAcquireSemaphore;
+        waitSemaphoreInfos[0].value = 0;
+        waitSemaphoreInfos[0].stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 
-    if (device.swapchain != VK_NULL_HANDLE)
+        VkSemaphoreSubmitInfo signalSemaphoreInfos[2];
+        signalSemaphoreInfos[0] = {};
+        signalSemaphoreInfos[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreInfos[0].semaphore =
+            device.swapchainRenderSemaphores[device.swapchainTextureIndex];
+        signalSemaphoreInfos[0].value = 0;
+        signalSemaphoreInfos[0].stageMask =
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        signalSemaphoreInfos[1] = {};
+        signalSemaphoreInfos[1].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreInfos[1].semaphore = device.swapchainTimelineSemaphore;
+        signalSemaphoreInfos[1].value = device.absoluteFrameIndex + 1;
+        signalSemaphoreInfos[1].stageMask =
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        VkCommandBufferSubmitInfo commandBufferInfo{};
+        commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferInfo.commandBuffer = cmd.handle;
+        commandBufferInfo.deviceMask = 0;
+
+        VkSubmitInfo2 submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+        submitInfo.waitSemaphoreInfoCount = 1;
+        submitInfo.pWaitSemaphoreInfos = waitSemaphoreInfos;
+        submitInfo.pSignalSemaphoreInfos = signalSemaphoreInfos;
+        submitInfo.signalSemaphoreInfoCount = 2;
+        submitInfo.commandBufferInfoCount = 1;
+        submitInfo.pCommandBufferInfos = &commandBufferInfo;
+
+        vkQueueSubmit2(device.graphicsComputeQueue, 1, &submitInfo,
+                       VK_NULL_HANDLE);
+    }
+
+    // Submit work to present queue
     {
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores =
-            &device.frameData[device.frameIndex].renderSemaphore;
+            &device.swapchainRenderSemaphores[device.swapchainTextureIndex];
         presentInfo.pSwapchains = &device.swapchain;
         presentInfo.swapchainCount = 1;
         presentInfo.pImageIndices = &device.swapchainTextureIndex;
@@ -968,26 +1024,145 @@ bool EndRenderFrame(Device& device)
             return false;
         }
     }
-    else
-    {
-        VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_NONE;
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 0;
-        submitInfo.pCommandBuffers = nullptr;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores =
-            &device.frameData[device.frameIndex].renderSemaphore;
-        submitInfo.signalSemaphoreCount = 0;
-        submitInfo.pSignalSemaphores = nullptr;
-        submitInfo.pWaitDstStageMask = &waitMask;
-        vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
-                      VK_NULL_HANDLE);
-    }
 
+    device.absoluteFrameIndex++;
     device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
     return true;
 }
+
+bool BeginRenderOffscreen(Device& device)
+{
+    // Render fence?
+
+    // Prepare command buffer
+    CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+    ResetCommandBuffer(cmd, false);
+    BeginCommandBuffer(cmd, true);
+
+    return true;
+}
+
+// bool BeginRenderFrame(Device& device)
+// {
+//     vkWaitForFences(device.logicalDevice, 1,
+//                     &device.frameData[device.frameIndex].renderFence,
+//                     VK_TRUE, UINT64_MAX);
+
+//     if (device.swapchain != VK_NULL_HANDLE)
+//     {
+//         VkResult res = VK_ERROR_UNKNOWN;
+//         while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+//         {
+//             res = vkAcquireNextImageKHR(
+//                 device.logicalDevice, device.swapchain, UINT64_MAX,
+//                 device.frameData[device.frameIndex].swapchainSemaphore,
+//                 VK_NULL_HANDLE, &device.swapchainTextureIndex);
+//         }
+//     }
+//     else
+//     {
+//         VkSubmitInfo submitInfo{};
+//         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+//         submitInfo.commandBufferCount = 0;
+//         submitInfo.pCommandBuffers = nullptr;
+//         submitInfo.waitSemaphoreCount = 0;
+//         submitInfo.pWaitSemaphores = nullptr;
+//         submitInfo.signalSemaphoreCount = 1;
+//         submitInfo.pSignalSemaphores =
+//             &device.frameData[device.frameIndex].swapchainSemaphore;
+//         vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
+//                       VK_NULL_HANDLE);
+//     }
+
+//     vkResetFences(device.logicalDevice, 1,
+//                   &device.frameData[device.frameIndex].renderFence);
+
+//     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+//     ResetCommandBuffer(cmd, false);
+//     BeginCommandBuffer(cmd, true);
+
+//     if (device.swapchain != VK_NULL_HANDLE)
+//     {
+//         // Swapchain image transition to writeable
+//         RecordTransitionImageLayout(
+//             cmd,
+//             device.swapchainTextures[device.swapchainTextureIndex].handle,
+//             VK_IMAGE_LAYOUT_UNDEFINED,
+//             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+//     }
+
+//     return true;
+// }
+
+// bool EndRenderFrame(Device& device)
+// {
+//     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
+
+//     if (device.swapchain != VK_NULL_HANDLE)
+//     {
+//         // Image transition to presentable
+//         RecordTransitionImageLayout(
+//             cmd,
+//             device.swapchainTextures[device.swapchainTextureIndex].handle,
+//             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+//             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+//     }
+//     EndCommandBuffer(cmd);
+
+//     VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+//     SubmitCommandBuffer(
+//         cmd, device.graphicsComputeQueue,
+//         &device.frameData[device.frameIndex].swapchainSemaphore, 1,
+//         &waitStageMask, &device.frameData[device.frameIndex].renderSemaphore,
+//         1, device.frameData[device.frameIndex].renderFence, nullptr);
+
+//     if (device.swapchain != VK_NULL_HANDLE)
+//     {
+//         VkPresentInfoKHR presentInfo{};
+//         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+//         presentInfo.waitSemaphoreCount = 1;
+//         presentInfo.pWaitSemaphores =
+//             &device.frameData[device.frameIndex].renderSemaphore;
+//         presentInfo.pSwapchains = &device.swapchain;
+//         presentInfo.swapchainCount = 1;
+//         presentInfo.pImageIndices = &device.swapchainTextureIndex;
+//         presentInfo.pResults = nullptr;
+
+//         VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
+
+//         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR ||
+//             device.isFramebufferResized)
+//         {
+//             if (!RecreateSwapchain(device))
+//             {
+//                 return false;
+//             }
+//         }
+//         else if (res != VK_SUCCESS)
+//         {
+//             return false;
+//         }
+//     }
+//     else
+//     {
+//         VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_NONE;
+//         VkSubmitInfo submitInfo{};
+//         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+//         submitInfo.commandBufferCount = 0;
+//         submitInfo.pCommandBuffers = nullptr;
+//         submitInfo.waitSemaphoreCount = 1;
+//         submitInfo.pWaitSemaphores =
+//             &device.frameData[device.frameIndex].renderSemaphore;
+//         submitInfo.signalSemaphoreCount = 0;
+//         submitInfo.pSignalSemaphores = nullptr;
+//         submitInfo.pWaitDstStageMask = &waitMask;
+//         vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
+//                       VK_NULL_HANDLE);
+//     }
+
+//     device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
+//     return true;
+// }
 
 // bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
 //                     VkPipelineStageFlags* extraWaitStageMasks,
