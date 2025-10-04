@@ -62,9 +62,9 @@ struct CameraParams
     Math::Mat4 view;
 };
 
-static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, EARTH_RADIUS_BOTTOM + 0.4f,
-                                               0.0f));
+static Fly::SimpleCameraFPS
+    sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
+            Math::Vec3(0.0f, EARTH_RADIUS_BOTTOM + 0.25f, 0.0f));
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
@@ -400,8 +400,8 @@ static void RecordDrawScreenQuad(RHI::CommandBuffer& cmd,
                     cmd.device->swapchainHeight);
 
     RHI::BindGraphicsPipeline(cmd, sScreenQuadPipeline);
-    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
-    u32 pushConstants[] = {transmittanceLUT.bindlessHandle};
+    RHI::Texture& texture = *(textureInput->textures[0]);
+    u32 pushConstants[] = {texture.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
@@ -498,8 +498,8 @@ int main(int argc, char* argv[])
         Math::Vec2(MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT);
     sAtmosphereParams.skyviewMapDims =
         Math::Vec2(SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT);
-    sAtmosphereParams.zenith = 0.0f;
-    sAtmosphereParams.azimuth = 90.0f;
+    sAtmosphereParams.zenith = 90.0f;
+    sAtmosphereParams.azimuth = 0.0f;
     sAtmosphereParams.rayleighDensityCoeff = 8.0f;
     sAtmosphereParams.mieDensityCoeff = 1.2f;
 
@@ -541,15 +541,14 @@ int main(int argc, char* argv[])
                                   0, cameraBuffer);
             RHI::Buffer& atmosphereParams =
                 sAtmosphereParamsBuffers[device.frameIndex];
-            sAtmosphereParams.zenith = Math::Sin(time) * 90.0f;
             RHI::CopyDataToBuffer(device, &sAtmosphereParams,
                                   sizeof(AtmosphereParams), 0,
                                   atmosphereParams);
         }
 
+        RHI::BeginRenderFrame(device);
         RHI::RecordBufferInput bufferInput;
         RHI::RecordTextureInput textureInput;
-        RHI::BeginRenderFrame(device);
         {
             RHI::Buffer* pAtmosphereParamsBuffer =
                 &sAtmosphereParamsBuffers[device.frameIndex];
@@ -638,6 +637,8 @@ int main(int argc, char* argv[])
             // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
             // RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
             RHI::Texture* pMapToShow = &sSkyviewLUT;
+            // RHI::Texture* pMapToShow = &sTransmittanceLUT;
+            // RHI::Texture* pMapToShow = &sMultiscatteringLUT;
             RHI::ImageLayoutAccess imageLayoutAccess;
             imageLayoutAccess.imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

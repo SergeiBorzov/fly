@@ -21,27 +21,27 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
 
 vec2 UVToSkyviewLonLat(vec2 uv)
 {
-    float lon = PI * 0.5f - uv.x * 2.0f * PI;
-    float k = 1.0f - 2.0f * uv.y;
+    float lon = uv.x * 2.0f * PI;
+    float k = 2.0f * uv.y - 1.0f;
     float lat = sign(k) * (k * k) * PI * 0.5f;
     return vec2(lon, lat);
 }
 
-vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 v, float rb, float rt,
-                        uint sampleCount)
+vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 dir, float rb,
+                        float rt, uint sampleCount)
 {
     vec3 groundAlbedo = vec3(0.1f);
     vec3 planetOrigin = vec3(0.0f);
     vec3 lum = vec3(0.0f);
     vec3 transmittance = vec3(1.0f);
 
-    float integrationLength = RaySphereIntersect(camPos, v, planetOrigin, rt);
+    float integrationLength = RaySphereIntersect(camPos, dir, planetOrigin, rt);
     if (integrationLength < 0)
     {
         return vec3(0.0f);
     }
 
-    float groundDist = RaySphereIntersect(camPos, v, planetOrigin, rb);
+    float groundDist = RaySphereIntersect(camPos, dir, planetOrigin, rb);
     if (groundDist > 0.0f)
     {
         integrationLength = groundDist;
@@ -52,14 +52,16 @@ vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 v, float rb, float rt,
     for (uint i = 0; i < sampleCount; i++)
     {
         float fi = float(i) + 0.5f;
-        vec3 p = camPos + fi * v * delta; // v points to eye
-        float height = max(p.y - rb, 0.0f);
-        float cosZ = l.y;
-        float cosTheta = dot(v, l);
+        vec3 p = camPos + fi * dir * delta;
+        float r = length(p);
+        float height = max(r - rb, 0.0f);
+        float cosZ = dot(l, normalize(p));
+        float cosTheta = dot(dir, l);
         float vis = RaySphereIntersect(p, l, planetOrigin, rb);
 
         vec3 extinction =
-            SampleExtinction(height, gPushConstants.atmosphereBufferIndex);
+            max(SampleExtinction(height, gPushConstants.atmosphereBufferIndex),
+                1e-4);
         vec3 stepTransmittance = exp(-delta * extinction);
         vec3 scatteringPhase =
             SampleRayleighScattering(height,
@@ -69,30 +71,32 @@ vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 v, float rb, float rt,
                 PhaseMie(cosTheta, MIE_G);
         vec3 scattering =
             SampleScattering(height, gPushConstants.atmosphereBufferIndex);
-        vec3 s = SampleTransmittance(p.y, cosZ, rb, rt,
+        vec3 s = SampleTransmittance(max(r, rb), cosZ, rb, rt,
                                      gPushConstants.transmittanceMapIndex);
 
         vec3 totalScattered = vec3(0.0f);
-        totalScattered += s * scatteringPhase;
+        totalScattered += float(vis < 0.0f) * s * scatteringPhase;
         totalScattered +=
             scattering *
-            SampleMultiscattering(p.y, cosZ, rb, rt,
-                                  gPushConstants.transmittanceMapIndex);
-        lum += float(vis < 0.0f) * (transmittance * totalScattered * e *
-                                    (1.0f - stepTransmittance) / extinction);
+            SampleMultiscattering(r, cosZ, rb, rt,
+                                  gPushConstants.multiscatteringMapIndex);
+        lum += transmittance * totalScattered * e * (1.0f - stepTransmittance) /
+               extinction;
 
         transmittance *= stepTransmittance;
     }
 
     if (groundDist > 0.0f)
     {
-        vec3 p = camPos + v * groundDist;
-        float height = max(p.y - rb, 0.0f);
-        float cosZ = l.y;
+        vec3 p = camPos + dir * groundDist;
+        float r = length(p);
+        float height = max(r - rb, 0.0f);
+        float cosZ = dot(l, normalize(p));
 
-        lum += SampleTransmittance(p.y, cosZ, rb, rt,
+        lum += SampleTransmittance(max(r, rb), cosZ, rb, rt,
                                    gPushConstants.transmittanceMapIndex) *
-               transmittance * groundAlbedo * max(dot(normalize(p), l), 0.0f);
+               transmittance * (groundAlbedo / PI) *
+               max(dot(normalize(p), l), 0.0f);
     }
 
     return lum;
@@ -114,10 +118,8 @@ void main()
         AtmosphereParams, gPushConstants.atmosphereBufferIndex, azimuth);
 
     vec2 lonLat = UVToSkyviewLonLat(uv);
-    // pi/2 - angles?
-    vec3 dir = SphereCoordToRay(lonLat.y, lonLat.x);
-    // vec3 dir = vec3(cos(lonLat.y) * cos(lonLat.x), sin(lonLat.y),
-    //                 cos(lonLat.y) * sin(lonLat.x)); // -v
+    vec3 dir = normalize(vec3(cos(lonLat.y) * cos(lonLat.x), sin(lonLat.y),
+                              cos(lonLat.y) * sin(lonLat.x))); // -v
 
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
@@ -126,7 +128,7 @@ void main()
     vec3 l = SphereCoordToRay(radians(zenith), radians(azimuth));
 
     vec3 e = vec3(1.0, 1.0f, 1.0f) * 16.0f;
-    vec3 lum = IntegrateLuminance(camPos, e, l, dir, rb, rt, 300);
+    vec3 lum = IntegrateLuminance(camPos, e, l, dir, rb, rt, 128);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    StorageTexturesRGBA16F, gPushConstants.skyviewMapIndex),

@@ -55,7 +55,7 @@ static void WaitForTimelineSemaphores(VkDevice device,
         waitInfo.flags = VK_SEMAPHORE_WAIT_ANY_BIT_KHR;
     }
 
-    vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
+    VkResult res = vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
 }
 
 static const char* PresentModeToString(VkPresentModeKHR presentMode)
@@ -510,7 +510,6 @@ static bool CreateDescriptorPool(Device& device)
                                           &device.descriptorPool);
     if (res != VK_SUCCESS)
     {
-        FLY_LOG("FAiled with %d", res);
         return false;
     }
 
@@ -556,7 +555,6 @@ static bool CreateDescriptorPool(Device& device)
         GetVulkanAllocationCallbacks(), &device.bindlessDescriptorSetLayout);
     if (res != VK_SUCCESS)
     {
-        FLY_LOG("Failed here with %d", res);
         return false;
     }
 
@@ -571,7 +569,6 @@ static bool CreateDescriptorPool(Device& device)
                                    &device.bindlessDescriptorSet);
     if (res != VK_SUCCESS)
     {
-        FLY_LOG("Failed aaa with %d", res);
         return false;
     }
 
@@ -909,13 +906,28 @@ bool BeginRenderFrame(Device& device)
     }
 
     // Acquire next swapchain image index
-    VkResult res = VK_ERROR_UNKNOWN;
-    while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
     {
-        res = vkAcquireNextImageKHR(
-            device.logicalDevice, device.swapchain, UINT64_MAX,
-            device.frameData[device.frameIndex].swapchainAcquireSemaphore,
-            VK_NULL_HANDLE, &device.swapchainTextureIndex);
+        VkResult res = VK_ERROR_UNKNOWN;
+        do
+        {
+            res = vkAcquireNextImageKHR(
+                device.logicalDevice, device.swapchain, UINT64_MAX,
+                device.frameData[device.frameIndex].swapchainAcquireSemaphore,
+                VK_NULL_HANDLE, &device.swapchainTextureIndex);
+            if (res == VK_ERROR_OUT_OF_DATE_KHR)
+            {
+                if (!RecreateSwapchain(device))
+                {
+                    return false;
+                }
+                // Optionally retry acquire after recreate
+            }
+            else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+            {
+                // Handle other errors
+                return false;
+            }
+        } while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR);
     }
 
     // Prepare command buffer
@@ -944,13 +956,23 @@ bool EndRenderFrame(Device& device)
 
     // Submit work to graphics queue, start rendering
     {
-        VkSemaphoreSubmitInfo waitSemaphoreInfos[1];
+        VkSemaphoreSubmitInfo waitSemaphoreInfos[2];
         waitSemaphoreInfos[0] = {};
         waitSemaphoreInfos[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
         waitSemaphoreInfos[0].semaphore =
             device.frameData[device.frameIndex].swapchainAcquireSemaphore;
         waitSemaphoreInfos[0].value = 0;
-        waitSemaphoreInfos[0].stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+        waitSemaphoreInfos[0].stageMask =
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+
+        waitSemaphoreInfos[1] = {};
+        waitSemaphoreInfos[1].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitSemaphoreInfos[1].semaphore = device.swapchainTimelineSemaphore;
+        waitSemaphoreInfos[1].value =
+            device.absoluteFrameIndex < (FLY_FRAME_IN_FLIGHT_COUNT - 1)
+                ? 0
+                : device.absoluteFrameIndex - (FLY_FRAME_IN_FLIGHT_COUNT - 1);
+        waitSemaphoreInfos[1].stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 
         VkSemaphoreSubmitInfo signalSemaphoreInfos[2];
         signalSemaphoreInfos[0] = {};
@@ -975,7 +997,7 @@ bool EndRenderFrame(Device& device)
 
         VkSubmitInfo2 submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-        submitInfo.waitSemaphoreInfoCount = 1;
+        submitInfo.waitSemaphoreInfoCount = 2;
         submitInfo.pWaitSemaphoreInfos = waitSemaphoreInfos;
         submitInfo.pSignalSemaphoreInfos = signalSemaphoreInfos;
         submitInfo.signalSemaphoreInfoCount = 2;
@@ -1003,14 +1025,11 @@ bool EndRenderFrame(Device& device)
         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR ||
             device.isFramebufferResized)
         {
-            if (!RecreateSwapchain(device))
-            {
-                return false;
-            }
+            RecreateSwapchain(device);
         }
         else if (res != VK_SUCCESS)
         {
-            return false;
+            //     return false;
         }
     }
 

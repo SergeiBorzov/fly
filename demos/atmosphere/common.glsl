@@ -41,10 +41,10 @@ float RaySphereIntersect(vec3 o, vec3 d, vec3 p, float r)
         return -1.0f;
     }
 
-    float t = (-b - sqrt(disc));
+    float t = (-b - SafeSqrt(disc));
     if (t < 0.0f)
     {
-        t = (-b + sqrt(disc));
+        t = (-b + SafeSqrt(disc));
     }
     return t;
 }
@@ -127,12 +127,12 @@ vec3 SphereCoordToRay(float phi, float theta)
     float cosPhi = cos(phi);
     float sinTheta = sin(theta);
     float cosTheta = cos(theta);
-    return vec3(sinPhi * sinTheta, cosPhi, sinPhi * cosTheta);
+    return vec3(sinPhi * cosTheta, cosPhi, sinPhi * sinTheta);
 }
 
 vec2 TransmittanceRadiusCosZenithToUV(float r, float cosZ, float rb, float rt)
 {
-    float h = sqrt(rt * rt - rb * rb);
+    float h = SafeSqrt(rt * rt - rb * rb);
     float rho = SafeSqrt(r * r - rb * rb);
 
     float dMin = rt - r;
@@ -163,7 +163,7 @@ vec2 MultiscatteringHeightCosZenithToUV(float height, float cosZ, float rb,
 {
     float u = (cosZ + 1.0f) * 0.5f;
     float v = height / (rt - rb);
-    return vec2(u, v);
+    return vec2(clamp(u, 0.0f, 1.0f), clamp(v, 0.0f, 1.0f));
 }
 
 vec3 SampleMultiscattering(float height, float cosZ, float rb, float rt,
