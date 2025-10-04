@@ -545,12 +545,7 @@ static bool LoadNextScene(RHI::Device& device)
     static u32 sceneIndex = 0;
     if (!isFirstLoad)
     {
-        for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; ++i)
-        {
-            vkWaitForFences(device.logicalDevice, 1,
-                            &device.frameData[i].renderFence, VK_TRUE,
-                            UINT64_MAX);
-        }
+        vkQueueWaitIdle(device.graphicsComputeQueue);
         sceneIndex = (sceneIndex + 1) % STACK_ARRAY_COUNT(splatScenes);
         DestroyScene(device);
     }

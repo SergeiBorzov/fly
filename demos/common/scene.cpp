@@ -7,8 +7,8 @@
 #include "rhi/device.h"
 #include "rhi/shader_program.h"
 
-#include "utils/utils.h"
 #include "assets/import_gltf.h"
+#include "utils/utils.h"
 
 #include "scene.h"
 
@@ -77,8 +77,10 @@ static bool ProcessIndices(RHI::Device& device, cgltf_data* data, Scene& scene,
         }
     }
 
-    if (!RHI::CreateIndexBuffer(device, indices, indexCount * sizeof(u32),
-                                scene.indexBuffer))
+    if (!RHI::CreateBuffer(
+            device, false,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            indices, indexCount * sizeof(u32), scene.indexBuffer))
     {
         return false;
     }
@@ -174,10 +176,12 @@ static bool ProcessMaterials(RHI::Device& device, cgltf_data* data,
         }
     }
 
-    if (!RHI::CreateStorageBuffer(device, false, materialDataBuffer,
-                                  sizeof(PBRMaterialData) *
-                                      data->materials_count,
-                                  scene.materialBuffer))
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           materialDataBuffer,
+                           sizeof(PBRMaterialData) * data->materials_count,
+                           scene.materialBuffer))
     {
         ArenaPopToMarker(scratch, marker);
         return false;
@@ -319,8 +323,11 @@ static bool ProcessSubmesh(RHI::Device& device, cgltf_data* data,
     boundingSphereDraw.center = (min + max) * 0.5f;
     boundingSphereDraw.radius = Math::Length(max - boundingSphereDraw.center);
 
-    if (!RHI::CreateStorageBuffer(device, false, vertices,
-                                  sizeof(Vertex) * vertexCount, vertexBuffer))
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           vertices, sizeof(Vertex) * vertexCount,
+                           vertexBuffer))
     {
         ArenaPopToMarker(scratch, marker);
         return false;
@@ -502,19 +509,25 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         return false;
     }
 
-    if (!RHI::CreateStorageBuffer(
-            device, false, boundingSphereDraws,
-            sizeof(BoundingSphereDraw) * totalSubmeshCount,
-            flyScene.indirectDrawData.boundingSphereDrawBuffer))
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           boundingSphereDraws,
+                           sizeof(BoundingSphereDraw) * totalSubmeshCount,
+                           flyScene.indirectDrawData.boundingSphereDrawBuffer))
     {
         ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);
         return false;
     }
 
-    if (!RHI::CreateStorageBuffer(device, false, meshData,
-                                  sizeof(MeshData) * totalSubmeshCount,
-                                  flyScene.indirectDrawData.meshDataBuffer))
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           meshData, sizeof(MeshData) * totalSubmeshCount,
+                           flyScene.indirectDrawData.meshDataBuffer))
     {
         ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);
@@ -557,9 +570,13 @@ static bool ProcessScene(Arena& arena, RHI::Device& device, cgltf_data* data,
         }
     }
 
-    if (!RHI::CreateStorageBuffer(device, false, instanceData,
-                                  sizeof(InstanceData) * instanceDataCount,
-                                  flyScene.indirectDrawData.instanceDataBuffer))
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           instanceData,
+                           sizeof(InstanceData) * instanceDataCount,
+                           flyScene.indirectDrawData.instanceDataBuffer))
     {
         ArenaPopToMarker(arena, marker);
         ArenaPopToMarker(scratch, scratchMarker);

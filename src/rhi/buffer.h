@@ -36,14 +36,6 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
 void DestroyBuffer(Device& device, Buffer& buffer);
 bool CopyDataToBuffer(Device& device, const void* data, u64 size, u64 offset,
                       Buffer& buffer);
-bool CreateUniformBuffer(Device& device, const void* data, u64 size,
-                         Buffer& buffer);
-bool CreateStorageBuffer(Device& device, bool hostVisible, const void* data,
-                         u64 size, Buffer& buffer);
-bool CreateIndexBuffer(Device& device, const void* data, u64 size,
-                       Buffer& buffer);
-bool CreateIndirectBuffer(Device& device, bool hostVisible, const void* data,
-                          u64 size, Buffer& buffer);
 
 } // namespace RHI
 } // namespace Fly

@@ -11,63 +11,8 @@ namespace Fly
 namespace RHI
 {
 
-bool CopyDataToBuffer(Device& device, const void* data, u64 size, u64 offset,
-                      Buffer& buffer)
-{
-    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
-    FLY_ASSERT(data);
-    FLY_ASSERT(size > 0);
-
-    if (buffer.allocationInfo.pMappedData)
-    {
-        memcpy(static_cast<u8*>(buffer.allocationInfo.pMappedData) + offset,
-               data, size);
-        return true;
-    }
-
-    VkBufferCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    createInfo.size = size;
-    createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VmaAllocationCreateInfo allocCreateInfo{};
-    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-    allocCreateInfo.flags =
-        VMA_ALLOCATION_CREATE_MAPPED_BIT |
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-        VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT;
-    allocCreateInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-
-    VmaAllocationInfo allocationInfo;
-    VkBuffer stagingBuffer;
-    VmaAllocation allocation;
-    if (vmaCreateBuffer(device.allocator, &createInfo, &allocCreateInfo,
-                        &stagingBuffer, &allocation,
-                        &allocationInfo) != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    FLY_ASSERT(allocationInfo.pMappedData);
-    memcpy(static_cast<u8*>(allocationInfo.pMappedData), data, size);
-
-    BeginTransfer(device);
-    CommandBuffer& cmd = TransferCommandBuffer(device);
-    VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0;
-    copyRegion.dstOffset = offset;
-    copyRegion.size = size;
-    vkCmdCopyBuffer(cmd.handle, stagingBuffer, buffer.handle, 1, &copyRegion);
-    EndTransfer(device);
-    vmaDestroyBuffer(device.allocator, stagingBuffer, allocation);
-
-    return true;
-}
-
-bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
-                  const void* data, u64 size, Buffer& buffer)
+static bool CreateBufferImpl(Device& device, bool hostVisible,
+                             VkBufferUsageFlags usage, u64 size, Buffer& buffer)
 {
     VkBufferCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -93,6 +38,58 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
     if (vmaCreateBuffer(device.allocator, &createInfo, &allocCreateInfo,
                         &buffer.handle, &buffer.allocation,
                         &buffer.allocationInfo) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool CopyDataToBuffer(Device& device, const void* data, u64 size, u64 offset,
+                      Buffer& buffer)
+{
+    FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(data);
+    FLY_ASSERT(size > 0);
+
+    if (buffer.allocationInfo.pMappedData)
+    {
+        memcpy(static_cast<u8*>(buffer.allocationInfo.pMappedData) + offset,
+               data, size);
+        return true;
+    }
+
+    Buffer stagingBuffer;
+    if (!CreateBufferImpl(device, true, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size,
+                          stagingBuffer))
+    {
+        return false;
+    }
+    FLY_ASSERT(stagingBuffer.allocationInfo.pMappedData);
+    memcpy(static_cast<u8*>(stagingBuffer.allocationInfo.pMappedData), data,
+           size);
+
+    BeginOneTimeSubmit(device);
+    {
+        CommandBuffer& cmd = OneTimeSubmitCommandBuffer(device);
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = 0;
+        copyRegion.dstOffset = offset;
+        copyRegion.size = size;
+        vkCmdCopyBuffer(cmd.handle, stagingBuffer.handle, buffer.handle, 1,
+                        &copyRegion);
+    }
+    EndOneTimeSubmit(device);
+
+    DestroyBuffer(device, stagingBuffer);
+
+    return true;
+}
+
+bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
+                  const void* data, u64 size, Buffer& buffer)
+{
+    if (!CreateBufferImpl(device, hostVisible, usage, size, buffer))
     {
         return false;
     }
@@ -161,43 +158,6 @@ void DestroyBuffer(Device& device, Buffer& buffer)
     FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
     vmaDestroyBuffer(device.allocator, buffer.handle, buffer.allocation);
     buffer.handle = VK_NULL_HANDLE;
-}
-
-bool CreateUniformBuffer(Device& device, const void* data, u64 size,
-                         Buffer& buffer)
-{
-    return CreateBuffer(device, true,
-                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-                            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        data, size, buffer);
-}
-
-bool CreateStorageBuffer(Device& device, bool hostVisible, const void* data,
-                         u64 size, Buffer& buffer)
-{
-    return CreateBuffer(device, hostVisible,
-                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        data, size, buffer);
-}
-
-bool CreateIndexBuffer(Device& device, const void* data, u64 size,
-                       Buffer& buffer)
-{
-    return CreateBuffer(device, false,
-                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        data, size, buffer);
-}
-
-bool CreateIndirectBuffer(Device& device, bool hostVisible, const void* data,
-                          u64 size, Buffer& buffer)
-{
-    return CreateBuffer(device, hostVisible,
-                        VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        data, size, buffer);
 }
 
 } // namespace RHI

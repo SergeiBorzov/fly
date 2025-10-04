@@ -28,11 +28,11 @@ struct FrameData
     VkSemaphore swapchainAcquireSemaphore = VK_NULL_HANDLE;
 };
 
-struct TransferData
+struct OneTimeSubmitData
 {
     CommandBuffer commandBuffer = {};
     VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkFence transferFence = VK_NULL_HANDLE;
+    VkFence fence = VK_NULL_HANDLE;
 };
 
 struct SwapchainTexture
@@ -66,7 +66,7 @@ struct Device
     SwapchainTexture swapchainTextures[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
     VkSemaphore swapchainRenderSemaphores[FLY_SWAPCHAIN_IMAGE_MAX_COUNT] = {};
     FrameData frameData[FLY_FRAME_IN_FLIGHT_COUNT];
-    TransferData transferData = {};
+    OneTimeSubmitData oneTimeSubmitData = {};
     VkSurfaceFormatKHR surfaceFormat = {};
     SwapchainRecreatedCallback swapchainRecreatedCallback;
     Context* context = nullptr;
@@ -102,9 +102,9 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
                          Context& context, Device& device);
 void DestroyLogicalDevice(Device& device);
 
-CommandBuffer& TransferCommandBuffer(Device& device);
-void BeginTransfer(Device& device);
-void EndTransfer(Device& device);
+CommandBuffer& OneTimeSubmitCommandBuffer(Device& device);
+void BeginOneTimeSubmit(Device& device);
+void EndOneTimeSubmit(Device& device);
 
 const SwapchainTexture& RenderFrameSwapchainTexture(const Device& device);
 CommandBuffer& RenderFrameCommandBuffer(Device& device);

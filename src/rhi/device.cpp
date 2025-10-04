@@ -642,7 +642,7 @@ static void DestroyFrameData(Device& device)
     }
 }
 
-static bool CreateTransferData(Device& device)
+static bool CreateOneTimeSubmitData(Device& device)
 {
     VkCommandPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -654,22 +654,22 @@ static bool CreateTransferData(Device& device)
     fenceCreateInfo.pNext = nullptr;
     fenceCreateInfo.flags = 0;
 
-    if (vkCreateCommandPool(device.logicalDevice, &createInfo,
-                            GetVulkanAllocationCallbacks(),
-                            &device.transferData.commandPool) != VK_SUCCESS)
+    if (vkCreateCommandPool(
+            device.logicalDevice, &createInfo, GetVulkanAllocationCallbacks(),
+            &device.oneTimeSubmitData.commandPool) != VK_SUCCESS)
     {
         return false;
     }
 
-    if (!CreateCommandBuffers(device, device.transferData.commandPool,
-                              &device.transferData.commandBuffer, 1))
+    if (!CreateCommandBuffers(device, device.oneTimeSubmitData.commandPool,
+                              &device.oneTimeSubmitData.commandBuffer, 1))
     {
         return false;
     }
 
     if (vkCreateFence(device.logicalDevice, &fenceCreateInfo,
                       GetVulkanAllocationCallbacks(),
-                      &device.transferData.transferFence) != VK_SUCCESS)
+                      &device.oneTimeSubmitData.fence) != VK_SUCCESS)
     {
         return false;
     }
@@ -677,32 +677,14 @@ static bool CreateTransferData(Device& device)
     return true;
 }
 
-static void DestroyTransferData(Device& device)
+static void DestroyOneTimeSubmitData(Device& device)
 {
-    vkDestroyFence(device.logicalDevice, device.transferData.transferFence,
+    vkDestroyFence(device.logicalDevice, device.oneTimeSubmitData.fence,
                    GetVulkanAllocationCallbacks());
 
-    vkDestroyCommandPool(device.logicalDevice, device.transferData.commandPool,
+    vkDestroyCommandPool(device.logicalDevice,
+                         device.oneTimeSubmitData.commandPool,
                          GetVulkanAllocationCallbacks());
-}
-
-static bool CreateCommandPool(Device& device)
-{
-    if (!CreateFrameData(device))
-    {
-        return false;
-    }
-    if (!CreateTransferData(device))
-    {
-        return false;
-    }
-    return true;
-}
-
-static void DestroyCommandPool(Device& device)
-{
-    DestroyFrameData(device);
-    DestroyTransferData(device);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -828,9 +810,9 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
         return false;
     }
 
-    if (!CreateCommandPool(device))
+    if (!CreateOneTimeSubmitData(device))
     {
-        FLY_ERROR("Failed to create command pool %s", device.name);
+        FLY_ERROR("Failed to create one time submit data %s", device.name);
         return false;
     }
 
@@ -842,6 +824,11 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
 
     if (context.windowPtr)
     {
+        if (!CreateFrameData(device))
+        {
+            return false;
+        }
+
         device.swapchainTimelineSemaphore =
             CreateTimelineSemaphore(device.logicalDevice);
 
@@ -887,11 +874,13 @@ void DestroyLogicalDevice(Device& device)
         vkDestroySemaphore(device.logicalDevice,
                            device.swapchainTimelineSemaphore,
                            RHI::GetVulkanAllocationCallbacks());
+
+        DestroyFrameData(device);
     }
     vkDestroyPipelineLayout(device.logicalDevice, device.pipelineLayout,
                             GetVulkanAllocationCallbacks());
     DestroyDescriptorPool(device);
-    DestroyCommandPool(device);
+    DestroyOneTimeSubmitData(device);
     DestroyVmaAllocator(device);
 
     vkDestroyDevice(device.logicalDevice, GetVulkanAllocationCallbacks());
@@ -1030,250 +1019,40 @@ bool EndRenderFrame(Device& device)
     return true;
 }
 
-bool BeginRenderOffscreen(Device& device)
+CommandBuffer& OneTimeSubmitCommandBuffer(Device& device)
 {
-    // Render fence?
-
-    // Prepare command buffer
-    CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-    ResetCommandBuffer(cmd, false);
-    BeginCommandBuffer(cmd, true);
-
-    return true;
+    return device.oneTimeSubmitData.commandBuffer;
 }
 
-// bool BeginRenderFrame(Device& device)
-// {
-//     vkWaitForFences(device.logicalDevice, 1,
-//                     &device.frameData[device.frameIndex].renderFence,
-//                     VK_TRUE, UINT64_MAX);
-
-//     if (device.swapchain != VK_NULL_HANDLE)
-//     {
-//         VkResult res = VK_ERROR_UNKNOWN;
-//         while (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
-//         {
-//             res = vkAcquireNextImageKHR(
-//                 device.logicalDevice, device.swapchain, UINT64_MAX,
-//                 device.frameData[device.frameIndex].swapchainSemaphore,
-//                 VK_NULL_HANDLE, &device.swapchainTextureIndex);
-//         }
-//     }
-//     else
-//     {
-//         VkSubmitInfo submitInfo{};
-//         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-//         submitInfo.commandBufferCount = 0;
-//         submitInfo.pCommandBuffers = nullptr;
-//         submitInfo.waitSemaphoreCount = 0;
-//         submitInfo.pWaitSemaphores = nullptr;
-//         submitInfo.signalSemaphoreCount = 1;
-//         submitInfo.pSignalSemaphores =
-//             &device.frameData[device.frameIndex].swapchainSemaphore;
-//         vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
-//                       VK_NULL_HANDLE);
-//     }
-
-//     vkResetFences(device.logicalDevice, 1,
-//                   &device.frameData[device.frameIndex].renderFence);
-
-//     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-//     ResetCommandBuffer(cmd, false);
-//     BeginCommandBuffer(cmd, true);
-
-//     if (device.swapchain != VK_NULL_HANDLE)
-//     {
-//         // Swapchain image transition to writeable
-//         RecordTransitionImageLayout(
-//             cmd,
-//             device.swapchainTextures[device.swapchainTextureIndex].handle,
-//             VK_IMAGE_LAYOUT_UNDEFINED,
-//             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-//     }
-
-//     return true;
-// }
-
-// bool EndRenderFrame(Device& device)
-// {
-//     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-//     if (device.swapchain != VK_NULL_HANDLE)
-//     {
-//         // Image transition to presentable
-//         RecordTransitionImageLayout(
-//             cmd,
-//             device.swapchainTextures[device.swapchainTextureIndex].handle,
-//             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-//             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-//     }
-//     EndCommandBuffer(cmd);
-
-//     VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-//     SubmitCommandBuffer(
-//         cmd, device.graphicsComputeQueue,
-//         &device.frameData[device.frameIndex].swapchainSemaphore, 1,
-//         &waitStageMask, &device.frameData[device.frameIndex].renderSemaphore,
-//         1, device.frameData[device.frameIndex].renderFence, nullptr);
-
-//     if (device.swapchain != VK_NULL_HANDLE)
-//     {
-//         VkPresentInfoKHR presentInfo{};
-//         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-//         presentInfo.waitSemaphoreCount = 1;
-//         presentInfo.pWaitSemaphores =
-//             &device.frameData[device.frameIndex].renderSemaphore;
-//         presentInfo.pSwapchains = &device.swapchain;
-//         presentInfo.swapchainCount = 1;
-//         presentInfo.pImageIndices = &device.swapchainTextureIndex;
-//         presentInfo.pResults = nullptr;
-
-//         VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
-
-//         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR ||
-//             device.isFramebufferResized)
-//         {
-//             if (!RecreateSwapchain(device))
-//             {
-//                 return false;
-//             }
-//         }
-//         else if (res != VK_SUCCESS)
-//         {
-//             return false;
-//         }
-//     }
-//     else
-//     {
-//         VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_NONE;
-//         VkSubmitInfo submitInfo{};
-//         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-//         submitInfo.commandBufferCount = 0;
-//         submitInfo.pCommandBuffers = nullptr;
-//         submitInfo.waitSemaphoreCount = 1;
-//         submitInfo.pWaitSemaphores =
-//             &device.frameData[device.frameIndex].renderSemaphore;
-//         submitInfo.signalSemaphoreCount = 0;
-//         submitInfo.pSignalSemaphores = nullptr;
-//         submitInfo.pWaitDstStageMask = &waitMask;
-//         vkQueueSubmit(device.graphicsComputeQueue, 1, &submitInfo,
-//                       VK_NULL_HANDLE);
-//     }
-
-//     device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
-//     return true;
-// }
-
-// bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
-//                     VkPipelineStageFlags* extraWaitStageMasks,
-//                     u32 extraWaitSemaphoreCount,
-//                     VkSemaphore* extraSignalSemaphores,
-//                     u32 extraSignalSemaphoreCount, void* pNext)
-// {
-//     CommandBuffer& cmd = RenderFrameCommandBuffer(device);
-
-//     if (device.swapchain != VK_NULL_HANDLE)
-//     {
-//         // Image transition to presentable
-//         RecordTransitionImageLayout(
-//             cmd,
-//             device.swapchainTextures[device.swapchainTextureIndex].handle,
-//             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-//             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-//     }
-//     EndCommandBuffer(cmd);
-
-//     Arena& arena = GetScratchArena();
-//     ArenaMarker marker = ArenaGetMarker(arena);
-
-//     u32 waitSemaphoreCount = 1 + extraWaitSemaphoreCount;
-//     u32 waitStageMaskCount = 1 + extraWaitSemaphoreCount;
-//     u32 signalSemaphoreCount = 1 + extraSignalSemaphoreCount;
-//     VkSemaphore* waitSemaphores =
-//         FLY_PUSH_ARENA(arena, VkSemaphore, waitSemaphoreCount);
-//     VkPipelineStageFlags* waitStageMasks =
-//         FLY_PUSH_ARENA(arena, VkPipelineStageFlags, waitStageMaskCount);
-//     VkSemaphore* signalSemaphores =
-//         FLY_PUSH_ARENA(arena, VkSemaphore, signalSemaphoreCount);
-//     waitSemaphores[0] =
-//     device.frameData[device.frameIndex].swapchainSemaphore; waitStageMasks[0]
-//     = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; signalSemaphores[0] =
-//     device.frameData[device.frameIndex].renderSemaphore;
-
-//     if (waitSemaphoreCount > 1)
-//     {
-//         memcpy(waitSemaphores + 1, extraWaitSemaphores,
-//                sizeof(VkSemaphore) * extraWaitSemaphoreCount);
-//         memcpy(waitStageMasks + 1, extraWaitStageMasks,
-//                sizeof(VkPipelineStageFlagBits) * extraWaitSemaphoreCount);
-//     }
-//     if (signalSemaphoreCount > 1)
-//     {
-//         memcpy(signalSemaphores + 1, extraSignalSemaphores,
-//                sizeof(VkSemaphore) * extraSignalSemaphoreCount);
-//     }
-
-//     SubmitCommandBuffer(cmd, device.graphicsComputeQueue, waitSemaphores,
-//                         waitSemaphoreCount, waitStageMasks, signalSemaphores,
-//                         signalSemaphoreCount,
-//                         device.frameData[device.frameIndex].renderFence,
-//                         pNext);
-//     ArenaPopToMarker(arena, marker);
-
-//     if (device.swapchain != VK_NULL_HANDLE)
-//     {
-//         VkPresentInfoKHR presentInfo{};
-//         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-//         presentInfo.waitSemaphoreCount = 1;
-//         presentInfo.pWaitSemaphores =
-//             &device.frameData[device.frameIndex].renderSemaphore;
-//         presentInfo.pSwapchains = &device.swapchain;
-//         presentInfo.swapchainCount = 1;
-//         presentInfo.pImageIndices = &device.swapchainTextureIndex;
-//         presentInfo.pResults = nullptr;
-
-//         VkResult res = vkQueuePresentKHR(device.presentQueue, &presentInfo);
-
-//         if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
-//         {
-//             if (!RecreateSwapchain(device))
-//             {
-//                 return false;
-//             }
-//         }
-//         else if (res != VK_SUCCESS)
-//         {
-//             return false;
-//         }
-//     }
-//     device.frameIndex = (device.frameIndex + 1) % FLY_FRAME_IN_FLIGHT_COUNT;
-//     return true;
-// }
-
-CommandBuffer& TransferCommandBuffer(Device& device)
+void BeginOneTimeSubmit(Device& device)
 {
-    return device.transferData.commandBuffer;
-}
-
-void BeginTransfer(Device& device)
-{
-    CommandBuffer& cmd = device.transferData.commandBuffer;
-    vkResetFences(device.logicalDevice, 1, &device.transferData.transferFence);
+    CommandBuffer& cmd = device.oneTimeSubmitData.commandBuffer;
+    vkResetFences(device.logicalDevice, 1, &device.oneTimeSubmitData.fence);
 
     ResetCommandBuffer(cmd, false);
     BeginCommandBuffer(cmd, true);
 }
 
-void EndTransfer(Device& device)
+void EndOneTimeSubmit(Device& device)
 {
-    CommandBuffer& cmd = device.transferData.commandBuffer;
+    CommandBuffer& cmd = device.oneTimeSubmitData.commandBuffer;
     EndCommandBuffer(cmd);
 
-    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    SubmitCommandBuffer(cmd, device.graphicsComputeQueue, nullptr, 0,
-                        &waitStage, nullptr, 0,
-                        device.transferData.transferFence);
-    vkWaitForFences(device.logicalDevice, 1, &device.transferData.transferFence,
+    {
+        VkCommandBufferSubmitInfo commandBufferInfo{};
+        commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferInfo.commandBuffer = cmd.handle;
+        commandBufferInfo.deviceMask = 0;
+
+        VkSubmitInfo2 submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+        submitInfo.commandBufferInfoCount = 1;
+        submitInfo.pCommandBufferInfos = &commandBufferInfo;
+
+        vkQueueSubmit2(device.graphicsComputeQueue, 1, &submitInfo,
+                       device.oneTimeSubmitData.fence);
+    }
+    vkWaitForFences(device.logicalDevice, 1, &device.oneTimeSubmitData.fence,
                     VK_TRUE, UINT64_MAX);
 }
 

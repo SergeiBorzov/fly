@@ -304,8 +304,8 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
             return false;
         }
 
-        BeginTransfer(device);
-        Fly::RHI::CommandBuffer& cmd = TransferCommandBuffer(device);
+        BeginOneTimeSubmit(device);
+        Fly::RHI::CommandBuffer& cmd = OneTimeSubmitCommandBuffer(device);
         RHI::ChangeTextureAccessLayout(cmd, texture,
                                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                        VK_ACCESS_2_TRANSFER_WRITE_BIT);
@@ -337,7 +337,6 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
                 }
                 offset += mipSize;
             }
-            FLY_LOG("SSSSSSS is %lu", offset);
 
             for (u32 i = 0; i < texture.mipCount - 1; i++)
             {
@@ -349,7 +348,7 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
         RHI::ChangeTextureAccessLayout(cmd, texture,
                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                        VK_ACCESS_2_SHADER_READ_BIT);
-        EndTransfer(device);
+        EndOneTimeSubmit(device);
         DestroyBuffer(device, stagingBuffer);
 
         if (mipStagingBuffers)

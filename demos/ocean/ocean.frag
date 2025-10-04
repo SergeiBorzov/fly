@@ -155,7 +155,7 @@ void main()
     vec2 slope = SampleSlope(MIP_BIAS);
     vec3 n = normalize(vec3(-slope.x, 1.0f, -slope.y));
 
-    vec3 l = normalize(vec3(1.0f, 1.0f, 1.0f));
+    vec3 l = normalize(vec3(0.0f, 1.0f, 5.0f));
     vec3 v = normalize(inData.view);
     vec3 h = normalize(l + v);
     vec3 r = reflect(-v, n);

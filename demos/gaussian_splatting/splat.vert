@@ -83,8 +83,6 @@ void main()
     mat3 cov = rs * transpose(rs);
     // last column can be zeros, we don't care about z
     // since we just render back to front with blending enabled
-    float fy = 1164.6601287484507;
-    float fx = 1159.5880733038064;
 
     float f = -projection[1][1] * viewport.y * 0.5f;
     float z2 = viewPos.z * viewPos.z;

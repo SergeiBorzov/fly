@@ -105,8 +105,10 @@ static bool CreateResources(RHI::Device& device)
 {
     for (u32 i = 0; i < 2; i++)
     {
-        if (!RHI::CreateStorageBuffer(device, true, nullptr,
-                                      sizeof(u32) * sMaxKeyCount, sKeys[i]))
+        if (!RHI::CreateBuffer(device, true,
+                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                               nullptr, sizeof(u32) * sMaxKeyCount, sKeys[i]))
         {
             return false;
         }
@@ -231,7 +233,7 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
 
     RHI::CopyDataToBuffer(device, keys, sizeof(u32) * keyCount, 0, sKeys[0]);
 
-    RHI::BeginRenderFrame(device);
+    RHI::BeginOneTimeSubmit(device);
     RHI::RecordBufferInput bufferInput;
 
     RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 3);
@@ -255,7 +257,7 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
             bufferInput.bufferCount = 3;
 
-            RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+            RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device),
                                 RecordCountHistograms, &bufferInput, nullptr,
                                 &sortData);
         }
@@ -267,7 +269,7 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
             bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
             bufferInput.bufferCount = 2;
 
-            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordScan,
+            RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device), RecordScan,
                                 &bufferInput, nullptr, &sortData);
         }
 
@@ -278,11 +280,11 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
             bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
             buffers[2] = &sKeys[(i + 1) % 2];
             bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-            RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordSort,
+            RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device), RecordSort,
                                 &bufferInput, nullptr, &sortData);
         }
     }
-    RHI::EndRenderFrame(device);
+    RHI::EndOneTimeSubmit(device);
 
     ArenaPopToMarker(arena, marker);
     RHI::WaitDeviceIdle(device);

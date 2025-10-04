@@ -88,12 +88,12 @@ struct Cascade
 };
 
 static float sFetch = 334917.0f;
-static float sWindSpeed = 12.0f;
-static float sWindDirection = -2.4f;
+static float sWindSpeed = 6.0f;
+static float sWindDirection = FLY_MATH_PI;
 static float sSpread = 7.32f;
-static float sAmplitudeScale = 6.32f;
+static float sAmplitudeScale = 1.0f;
 static float sTime = 0.0f;
-static float sWaveChopiness = 2.8f;
+static float sWaveChopiness = 1.2f;
 
 static Math::Vec3 sLightColor = Math::Vec3(0.961f, 0.945f, 0.89f);
 static Math::Vec3 sWaterScatterColor = Math::Vec3(0.18f, 0.28f, 0.32f);

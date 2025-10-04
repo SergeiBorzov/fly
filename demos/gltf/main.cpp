@@ -111,9 +111,7 @@ static bool CreateResources(RHI::Device& device)
 
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
-        if (!RHI::CreateBuffer(device, true,
-                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                nullptr, sizeof(UniformData),
                                sUniformBuffers[i]))
         {
