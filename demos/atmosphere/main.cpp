@@ -62,15 +62,15 @@ struct CameraParams
     Math::Mat4 view;
 };
 
-static Fly::SimpleCameraFPS
-    sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-            Math::Vec3(0.0f, EARTH_RADIUS_BOTTOM + 0.25f, 0.0f));
+static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
+                                    Math::Vec3(0.0f, 20.0f, 0.0f));
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
 static CameraParams sCameraParams;
 
 static RHI::GraphicsPipeline sScreenQuadPipeline;
+static RHI::GraphicsPipeline sTerrainScenePipeline;
 static RHI::ComputePipeline sTransmittancePipeline;
 static RHI::ComputePipeline sMultiscatteringPipeline;
 static RHI::ComputePipeline sSkyviewPipeline;
@@ -254,6 +254,18 @@ static bool CreatePipelines(RHI::Device& device)
     {
         return false;
     }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    if (!Fly::LoadShaderFromSpv(device, "terrain_scene.frag.spv",
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sTerrainScenePipeline))
+    {
+        return false;
+    }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
@@ -262,6 +274,7 @@ static bool CreatePipelines(RHI::Device& device)
 
 static void DestroyPipelines(RHI::Device& device)
 {
+    RHI::DestroyGraphicsPipeline(device, sTerrainScenePipeline);
     RHI::DestroyGraphicsPipeline(device, sScreenQuadPipeline);
     RHI::DestroyComputePipeline(device, sMultiscatteringPipeline);
     RHI::DestroyComputePipeline(device, sTransmittancePipeline);
@@ -406,6 +419,34 @@ static void RecordDrawScreenQuad(RHI::CommandBuffer& cmd,
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
+static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
+                                   const RHI::RecordBufferInput* bufferInput,
+                                   const RHI::RecordTextureInput* textureInput,
+                                   void* pUserData)
+{
+    RHI::SetViewport(cmd, 0.0f, 0.0f,
+                     static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+
+    RHI::BindGraphicsPipeline(cmd, sTerrainScenePipeline);
+
+    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
+    RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
+    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
+    RHI::Texture& skyviewLUT = *(textureInput->textures[1]);
+
+    u32 pushConstants[] = {
+        atmosphereParams.bindlessHandle,
+        cameraParams.bindlessHandle,
+        transmittanceLUT.bindlessHandle,
+        skyviewLUT.bindlessHandle,
+    };
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Draw(cmd, 6, 1, 0, 0);
+}
+
 static void RecordDrawGUI(RHI::CommandBuffer& cmd,
                           const RHI::RecordBufferInput* bufferInput,
                           const RHI::RecordTextureInput* textureInput,
@@ -508,6 +549,8 @@ int main(int argc, char* argv[])
         FLY_ERROR("Failed to create resources");
         return -1;
     }
+
+    sCamera.speed = 100.0f;
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -633,19 +676,58 @@ int main(int argc, char* argv[])
                                 RecordComputeSkyview, &bufferInput,
                                 &textureInput);
         }
+        // {
+        //     // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
+        //     // RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
+        //     RHI::Texture* pMapToShow = &sSkyviewLUT;
+        //     // RHI::Texture* pMapToShow = &sTransmittanceLUT;
+        //     // RHI::Texture* pMapToShow = &sMultiscatteringLUT;
+        //     RHI::ImageLayoutAccess imageLayoutAccess;
+        //     imageLayoutAccess.imageLayout =
+        //         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        //     imageLayoutAccess.accessMask =
+        //     VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; textureInput.textures =
+        //     &pMapToShow; textureInput.imageLayoutsAccesses =
+        //     &imageLayoutAccess; textureInput.textureCount = 1;
+
+        //     VkRenderingAttachmentInfo colorAttachment =
+        //         RHI::ColorAttachmentInfo(
+        //             RenderFrameSwapchainTexture(device).imageView);
+        //     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+        //         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+        //         &colorAttachment, 1);
+        //     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device),
+        //                          renderingInfo, RecordDrawScreenQuad,
+        //                          nullptr, &textureInput);
+        // }
+
         {
-            // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
-            // RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
-            RHI::Texture* pMapToShow = &sSkyviewLUT;
-            // RHI::Texture* pMapToShow = &sTransmittanceLUT;
-            // RHI::Texture* pMapToShow = &sMultiscatteringLUT;
-            RHI::ImageLayoutAccess imageLayoutAccess;
-            imageLayoutAccess.imageLayout =
+            RHI::Buffer* buffers[2];
+            VkAccessFlagBits2 bufferAccesses[2];
+            bufferInput.bufferCount = 2;
+            bufferInput.buffers = buffers;
+            bufferInput.bufferAccesses = bufferAccesses;
+
+            buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
+            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+            buffers[1] = &sCameraBuffers[device.frameIndex];
+            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+
+            RHI::Texture* textures[2];
+            RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+            textureInput.textureCount = 2;
+            textureInput.textures = textures;
+            textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+            textures[0] = &sTransmittanceLUT;
+            imageLayoutsAccesses[0].imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-            textureInput.textures = &pMapToShow;
-            textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-            textureInput.textureCount = 1;
+            imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+            textures[1] = &sSkyviewLUT;
+            imageLayoutsAccesses[1].imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
 
             VkRenderingAttachmentInfo colorAttachment =
                 RHI::ColorAttachmentInfo(
@@ -653,9 +735,10 @@ int main(int argc, char* argv[])
             VkRenderingInfo renderingInfo = RHI::RenderingInfo(
                 {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
                 &colorAttachment, 1);
+
             RHI::ExecuteGraphics(RenderFrameCommandBuffer(device),
-                                 renderingInfo, RecordDrawScreenQuad, nullptr,
-                                 &textureInput);
+                                 renderingInfo, RecordDrawTerrainScene,
+                                 &bufferInput, &textureInput);
         }
 
         {

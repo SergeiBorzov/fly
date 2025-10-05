@@ -36,10 +36,10 @@ void main()
                 inUV)
             .rgb;
 
-    color *= ACESInputMat;
-    color = RRTAndODTFit(color);
-    color *= ACESOutputMat;
+    // color *= ACESInputMat;
+    // color = RRTAndODTFit(color);
+    // color *= ACESOutputMat;
     // outFragColor = vec4(transmittance, 1.0f);
-    outFragColor = vec4(color, 1.0f);
-    // outFragColor = vec4(Reinhard(color, 1.0f), 1.0f);
+    // outFragColor = vec4(color, 1.0f);
+    outFragColor = vec4(Reinhard(color, 1.0f), 1.0f);
 }

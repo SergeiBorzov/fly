@@ -53,9 +53,14 @@ vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 dir, float rb,
     {
         float fi = float(i) + 0.5f;
         vec3 p = camPos + fi * dir * delta;
-        float r = length(p);
-        float height = max(r - rb, 0.0f);
-        float cosZ = dot(l, normalize(p));
+
+        // float r = length(p);
+        // float height = max(r - rb, 0.0f);
+        // float cosZ = dot(l, normalize(p));
+
+        float height = max(p.y - rb, 0.0f);
+        float cosZ = l.y;
+
         float cosTheta = dot(dir, l);
         float vis = RaySphereIntersect(p, l, planetOrigin, rb);
 
@@ -71,14 +76,14 @@ vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 dir, float rb,
                 PhaseMie(cosTheta, MIE_G);
         vec3 scattering =
             SampleScattering(height, gPushConstants.atmosphereBufferIndex);
-        vec3 s = SampleTransmittance(max(r, rb), cosZ, rb, rt,
+        vec3 s = SampleTransmittance(max(p.y, rb), cosZ, rb, rt,
                                      gPushConstants.transmittanceMapIndex);
 
         vec3 totalScattered = vec3(0.0f);
         totalScattered += float(vis < 0.0f) * s * scatteringPhase;
         totalScattered +=
             scattering *
-            SampleMultiscattering(r, cosZ, rb, rt,
+            SampleMultiscattering(max(p.y, rb), cosZ, rb, rt,
                                   gPushConstants.multiscatteringMapIndex);
         lum += transmittance * totalScattered * e * (1.0f - stepTransmittance) /
                extinction;
@@ -89,11 +94,14 @@ vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 dir, float rb,
     if (groundDist > 0.0f)
     {
         vec3 p = camPos + dir * groundDist;
-        float r = length(p);
-        float height = max(r - rb, 0.0f);
-        float cosZ = dot(l, normalize(p));
+        // float r = length(p);
+        // float height = max(r - rb, 0.0f);
+        // float cosZ = dot(l, normalize(p));
 
-        lum += SampleTransmittance(max(r, rb), cosZ, rb, rt,
+        float height = max(p.y - rb, 0.0f);
+        float cosZ = l.y;
+
+        lum += SampleTransmittance(max(p.y, rb), cosZ, rb, rt,
                                    gPushConstants.transmittanceMapIndex) *
                transmittance * (groundAlbedo / PI) *
                max(dot(normalize(p), l), 0.0f);
@@ -125,10 +133,13 @@ void main()
         Camera, gPushConstants.cameraBufferIndex, view);
     vec3 camPos = inverse(view)[3].xyz;
 
+    vec3 worldPos = (camPos * 0.001f);
+    worldPos.y += rb;
+
     vec3 l = SphereCoordToRay(radians(zenith), radians(azimuth));
 
     vec3 e = vec3(1.0, 1.0f, 1.0f) * 16.0f;
-    vec3 lum = IntegrateLuminance(camPos, e, l, dir, rb, rt, 128);
+    vec3 lum = IntegrateLuminance(worldPos, e, l, dir, rb, rt, 128);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    StorageTexturesRGBA16F, gPushConstants.skyviewMapIndex),

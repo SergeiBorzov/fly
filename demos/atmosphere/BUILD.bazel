@@ -54,6 +54,15 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "terrain_scene.frag.spv",
+    src = "terrain_scene.frag",
+    deps = [
+        ":atmosphere_common",
+        "//demos/common:glsl_bindless",
+    ]
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -71,6 +80,7 @@ cc_binary(
         ":transmittance_lut.comp.spv",
         ":multiscattering_lut.comp.spv",
         ":skyview_lut.comp.spv",
+        ":terrain_scene.frag.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [],
         "//conditions:default": [
