@@ -949,21 +949,12 @@ int main(int argc, char* argv[])
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
     // Create graphics context
-    const char* requiredDeviceExtensions[] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_EXT_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_EXTENSION_NAME};
-
-    VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT
-        unusedAttachmentsFeature{};
-    unusedAttachmentsFeature.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT;
-    unusedAttachmentsFeature.dynamicRenderingUnusedAttachments = VK_TRUE;
+    const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
     settings.vulkan11Features.multiview = true;
     settings.features2.features.samplerAnisotropy = true;
     settings.features2.features.fillModeNonSolid = true;
-    settings.features2.pNext = &unusedAttachmentsFeature;
     settings.isPhysicalDeviceSuitableCallback = IsPhysicalDeviceSuitable;
     settings.instanceExtensions =
         glfwGetRequiredInstanceExtensions(&settings.instanceExtensionCount);
