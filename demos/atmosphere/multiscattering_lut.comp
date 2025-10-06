@@ -2,6 +2,8 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "common.glsl"
 
+#define MULTISCATTERING_STEP_COUNT 20
+
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(push_constant) uniform PushConstants
@@ -12,19 +14,19 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
+vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt)
 {
     vec3 groundAlbedo = vec3(0.3);
     vec3 fms = vec3(0.0f);
     vec3 l2 = vec3(0.0f);
     vec3 planetOrigin = vec3(0.0f);
 
-    float delta1 = 1.0f / float(it1);
+    float delta1 = 1.0f / float(MULTISCATTERING_STEP_COUNT);
 
-    for (uint i = 0; i < it1; i++)
+    for (uint i = 0; i < MULTISCATTERING_STEP_COUNT; i++)
     {
         float fi = float(i) + 0.5f;
-        float phi = acos(1.0f - 2.0f * fi / float(it1));
+        float phi = acos(1.0f - 2.0f * fi / float(MULTISCATTERING_STEP_COUNT));
         float theta = 2 * PI * GOLDEN_RATIO * fi;
 
         vec3 dir = vec3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta));
@@ -42,14 +44,14 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
             integrationLength = groundDist;
         }
 
-        float delta2 = integrationLength / float(it2);
+        float delta2 = integrationLength / float(MULTISCATTERING_STEP_COUNT);
         vec3 lum = vec3(0.0f);
         vec3 lumF = vec3(0.0f);
         vec3 transmittance = vec3(1.0f);
 
         float cosTheta = dot(-dir, l);
 
-        for (uint j = 0; j < it2; j++)
+        for (uint j = 0; j < MULTISCATTERING_STEP_COUNT; j++)
         {
             float fj = float(j) + 0.5f;
             vec3 p = worldPos + fj * dir * delta2;
@@ -60,7 +62,7 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
 
             vec3 extinction = max(
                 SampleExtinction(height, gPushConstants.atmosphereBufferIndex),
-                1e-6);
+                1e-7);
             vec3 stepTransmittance = exp(-delta2 * extinction);
 
             vec3 scatteringNoPhase =
@@ -123,7 +125,7 @@ void main()
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(SafeSqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
-    vec3 psi = IntegratePsi(worldPos, l, rb, rt, 40, 40);
+    vec3 psi = IntegratePsi(worldPos, l, rb, rt);
 
     imageStore(
         FLY_ACCESS_STORAGE_TEXTURE_BUFFER(

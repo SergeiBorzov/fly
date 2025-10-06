@@ -25,12 +25,12 @@
 
 using namespace Fly;
 
-#define TRANSMITTANCE_LUT_WIDTH 4096
-#define TRANSMITTANCE_LUT_HEIGHT 256
-#define MULTISCATTERING_LUT_WIDTH 64
-#define MULTISCATTERING_LUT_HEIGHT 64
-#define SKYVIEW_LUT_WIDTH 1024
-#define SKYVIEW_LUT_HEIGHT 1024
+#define TRANSMITTANCE_LUT_WIDTH 256
+#define TRANSMITTANCE_LUT_HEIGHT 64
+#define MULTISCATTERING_LUT_WIDTH 32
+#define MULTISCATTERING_LUT_HEIGHT 32
+#define SKYVIEW_LUT_WIDTH 256
+#define SKYVIEW_LUT_HEIGHT 128
 
 #define EARTH_RADIUS_BOTTOM 6360.0f
 #define EARTH_RADIUS_TOP 6460.0f
@@ -751,6 +751,8 @@ int main(int argc, char* argv[])
                                  renderingInfo, RecordDrawGUI);
         }
         RHI::EndRenderFrame(device);
+
+        // FLY_LOG("fps %f", 1.0f / deltaTime);
     }
 
     RHI::WaitDeviceIdle(device);

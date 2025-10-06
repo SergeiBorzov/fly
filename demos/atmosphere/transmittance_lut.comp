@@ -1,8 +1,8 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
-#include "bindless.glsl"
-
 #include "common.glsl"
+
+#define TRANSMITTANCE_STEP_COUNT 40
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
@@ -31,16 +31,15 @@ vec2 UVToTransmittanceRadiusCosZenith(vec2 uv, float rb, float rt)
     return vec2(r, cosZ);
 }
 
-vec3 IntegrateOpticalDepth(vec3 worldPos, vec3 l, float rb, float rt,
-                           uint sampleCount)
+vec3 IntegrateOpticalDepth(vec3 worldPos, vec3 l, float rb, float rt)
 {
     vec3 planetOrigin = vec3(0.0f);
     float integrationLength = RaySphereIntersect(worldPos, l, planetOrigin, rt);
     integrationLength = max(integrationLength, 0.0f);
-    float delta = integrationLength / float(sampleCount);
+    float delta = integrationLength / float(TRANSMITTANCE_STEP_COUNT);
 
     vec3 opticalDepth = vec3(0.0f);
-    for (uint i = 0; i < sampleCount; i++)
+    for (uint i = 0; i < TRANSMITTANCE_STEP_COUNT; i++)
     {
         float fi = float(i);
         vec3 p = worldPos + fi * delta * l;
@@ -69,7 +68,7 @@ void main()
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(sqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
-    vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt, 500));
+    vec3 transmittance = exp(-IntegrateOpticalDepth(worldPos, l, rb, rt));
 
     imageStore(
         FLY_ACCESS_STORAGE_TEXTURE_BUFFER(StorageTexturesRGBA16F,
