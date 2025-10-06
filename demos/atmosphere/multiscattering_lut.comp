@@ -25,8 +25,9 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
     {
         float fi = float(i) + 0.5f;
         float phi = acos(1.0f - 2.0f * fi / float(it1));
-        float theta = PI * GOLDEN_RATIO * fi;
-        vec3 dir = vec3(sin(phi) * cos(theta), cos(phi), sin(phi) * sin(theta));
+        float theta = 2 * PI * GOLDEN_RATIO * fi;
+
+        vec3 dir = vec3(sin(phi) * sin(theta), cos(phi), sin(phi) * cos(theta));
 
         float integrationLength =
             RaySphereIntersect(worldPos, dir, planetOrigin, rt);
@@ -46,6 +47,8 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
         vec3 lumF = vec3(0.0f);
         vec3 transmittance = vec3(1.0f);
 
+        float cosTheta = dot(-dir, l);
+
         for (uint j = 0; j < it2; j++)
         {
             float fj = float(j) + 0.5f;
@@ -55,9 +58,11 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
             float height = max(r - rb, 0.0f);
             float cosZ = dot(l, normalize(p));
 
-            vec3 extinction =
-                SampleExtinction(height, gPushConstants.atmosphereBufferIndex);
+            vec3 extinction = max(
+                SampleExtinction(height, gPushConstants.atmosphereBufferIndex),
+                1e-6);
             vec3 stepTransmittance = exp(-delta2 * extinction);
+
             vec3 scatteringNoPhase =
                 SampleScattering(height, gPushConstants.atmosphereBufferIndex);
             // Assuming extinction is constant on step segment
@@ -75,24 +80,23 @@ vec3 IntegratePsi(vec3 worldPos, vec3 l, float rb, float rt, uint it1, uint it2)
             transmittance *= stepTransmittance;
         }
 
-        if (groundDist > 0.0f)
-        {
-            vec3 p = worldPos + groundDist * dir;
-            float r = length(p);
-            float cosZ = dot(l, normalize(p));
+        // if (groundDist > 0.0f)
+        // {
+        //     vec3 p = worldPos + groundDist * dir;
+        //     float r = length(p);
+        //     float cosZ = dot(l, normalize(p));
 
-            lum += SampleTransmittance(max(r, rb), cosZ, rb, rt,
-                                       gPushConstants.transmittanceMapIndex) *
-                   transmittance * (groundAlbedo / PI) * cosZ;
-        }
+        //     lum += SampleTransmittance(max(r, rb), cosZ, rb, rt,
+        //                                gPushConstants.transmittanceMapIndex)
+        //                                *
+        //            transmittance * (groundAlbedo / PI) * cosZ;
+        // }
 
-        fms += lumF * delta1;
-        l2 += lum * delta1;
+        fms += lumF * delta1 * PHASE_UNIFORM;
+        l2 += lum * delta1 * PHASE_UNIFORM;
     }
-    l2 *= PHASE_UNIFORM;
-    fms *= PHASE_UNIFORM;
 
-    return l2 / max((1.0f - fms), 1e-4);
+    return l2 / (1.0f - fms);
 }
 
 vec2 UVToMultiscatteringRadiusCosZenith(vec2 uv, float rb, float rt)
@@ -119,7 +123,7 @@ void main()
     vec3 worldPos = vec3(0.0f, rcz.x, 0.0f);
     vec3 l = vec3(SafeSqrt(1.0f - rcz.y * rcz.y), rcz.y, 0.0f);
 
-    vec3 psi = IntegratePsi(worldPos, l, rb, rt, 30, 30);
+    vec3 psi = IntegratePsi(worldPos, l, rb, rt, 40, 40);
 
     imageStore(
         FLY_ACCESS_STORAGE_TEXTURE_BUFFER(

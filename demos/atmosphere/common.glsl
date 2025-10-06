@@ -127,7 +127,7 @@ vec3 SphereCoordToRay(float phi, float theta)
     float cosPhi = cos(phi);
     float sinTheta = sin(theta);
     float cosTheta = cos(theta);
-    return vec3(sinPhi * cosTheta, cosPhi, sinPhi * sinTheta);
+    return vec3(cosPhi * cosTheta, sinPhi, cosPhi * sinTheta);
 }
 
 vec2 TransmittanceRadiusCosZenithToUV(float r, float cosZ, float rb, float rt)
@@ -144,8 +144,8 @@ vec2 TransmittanceRadiusCosZenithToUV(float r, float cosZ, float rb, float rt)
     // d2 = -r * cosZ + SafeSqrt(det);
     float d = max(0.0f, -r * cosZ + SafeSqrt(disc));
 
-    float u = clamp(rho / h, 0.0f, 1.0f);
-    float v = clamp((d - dMin) / (dMax - dMin), 0.0f, 1.0f);
+    float u = clamp((d - dMin) / (dMax - dMin), 0.0f, 1.0f);
+    float v = clamp(rho / h, 0.0f, 1.0f);
 
     return vec2(u, v);
 }
@@ -171,5 +171,19 @@ vec3 SampleMultiscattering(float height, float cosZ, float rb, float rt,
 {
     return texture(FLY_ACCESS_TEXTURE_BUFFER(Textures, multiscatteringMapIndex),
                    MultiscatteringHeightCosZenithToUV(height, cosZ, rb, rt))
+        .rgb;
+}
+
+vec2 SkyviewLonLatToUV(float lon, float lat)
+{
+    float u = (lon + PI) / (2.0f * PI);
+    float v = 0.5f * (1 + sign(lat) * sqrt(2.0f * abs(lat) / PI));
+    return vec2(u, v);
+}
+
+vec3 SampleSkyview(float lon, float lat, uint skyviewMapIndex)
+{
+    return texture(FLY_ACCESS_TEXTURE_BUFFER(Textures, skyviewMapIndex),
+                   SkyviewLonLatToUV(lon, lat))
         .rgb;
 }

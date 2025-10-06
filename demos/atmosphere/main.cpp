@@ -27,8 +27,8 @@ using namespace Fly;
 
 #define TRANSMITTANCE_LUT_WIDTH 4096
 #define TRANSMITTANCE_LUT_HEIGHT 256
-#define MULTISCATTERING_LUT_WIDTH 256
-#define MULTISCATTERING_LUT_HEIGHT 256
+#define MULTISCATTERING_LUT_WIDTH 64
+#define MULTISCATTERING_LUT_HEIGHT 64
 #define SKYVIEW_LUT_WIDTH 1024
 #define SKYVIEW_LUT_HEIGHT 1024
 
@@ -63,7 +63,7 @@ struct CameraParams
 };
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 20.0f, 0.0f));
+                                    Math::Vec3(0.0f, 250.0f, 0.0f));
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
@@ -178,15 +178,15 @@ static void ProcessImGuiFrame()
 
         if (ImGui::TreeNode("Atmosphere"))
         {
-            ImGui::SliderFloat3("Rayleigh scattering",
-                                sAtmosphereParams.rayleighScattering.data, 0.0f,
-                                1.0f, ".%6f");
+            // ImGui::SliderFloat3("Rayleigh scattering",
+            //                     sAtmosphereParams.rayleighScattering.data,
+            //                     0.0f, 1.0f, ".%6f");
             ImGui::SliderFloat("Rayleight density coefficient",
                                &sAtmosphereParams.rayleighDensityCoeff, 1.0f,
                                30.0f);
 
-            ImGui::SliderFloat("Mie scattering",
-                               &sAtmosphereParams.mieScattering, 0.0f, 1.0f);
+            // ImGui::SliderFloat("Mie scattering",
+            //                    &sAtmosphereParams.mieScattering, 0.0f, 1.0f);
             ImGui::SliderFloat("Mie absorption",
                                &sAtmosphereParams.mieAbsorption, 0.0f, 1.0f);
             ImGui::SliderFloat("Mie density coefficient",
@@ -307,7 +307,7 @@ static bool CreateResources(RHI::Device& device)
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
             nullptr, TRANSMITTANCE_LUT_WIDTH, TRANSMITTANCE_LUT_HEIGHT,
-            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
             RHI::Sampler::WrapMode::Clamp, 1, sTransmittanceLUT))
     {
         return false;
@@ -316,7 +316,7 @@ static bool CreateResources(RHI::Device& device)
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
             nullptr, MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT,
-            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
             RHI::Sampler::WrapMode::Clamp, 1, sMultiscatteringLUT))
     {
         return false;
@@ -550,7 +550,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    sCamera.speed = 100.0f;
+    sCamera.speed = 1000.0f;
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
@@ -677,11 +677,9 @@ int main(int argc, char* argv[])
                                 &textureInput);
         }
         // {
-        //     // RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
-        //     // RHI::Texture* pTransmittanceLUT = &sMultiscatteringLUT;
-        //     RHI::Texture* pMapToShow = &sSkyviewLUT;
+        //     // RHI::Texture* pMapToShow = &sSkyviewLUT;
         //     // RHI::Texture* pMapToShow = &sTransmittanceLUT;
-        //     // RHI::Texture* pMapToShow = &sMultiscatteringLUT;
+        //     RHI::Texture* pMapToShow = &sMultiscatteringLUT;
         //     RHI::ImageLayoutAccess imageLayoutAccess;
         //     imageLayoutAccess.imageLayout =
         //         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
