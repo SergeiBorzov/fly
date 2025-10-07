@@ -35,6 +35,15 @@ using namespace Fly;
 #define EARTH_RADIUS_BOTTOM 6360.0f
 #define EARTH_RADIUS_TOP 6460.0f
 
+struct SunParams
+{
+    Math::Vec3 transmittanceSunZenith;
+    float illuminanceZenith;
+    float angularDiameterDegrees;
+    float zenithDegrees;
+    float azimuthDegrees;
+};
+
 struct AtmosphereParams
 {
     Math::Vec3 rayleighScattering;
@@ -50,10 +59,17 @@ struct AtmosphereParams
     Math::Vec2 multiscatteringMapDims;
     Math::Vec2 skyviewMapDims;
 
-    float zenith;
-    float azimuth;
+    Math::Vec3 sunAlbedo;
+    float sunAngularDiameterRadians;
+
+    Math::Vec3 sunLuminanceOuterSpace;
+    float sunZenithRadians;
+
+    float sunAzimuthRadians;
     float rayleighDensityCoeff;
     float mieDensityCoeff;
+
+    float pad;
 };
 
 struct CameraParams
@@ -68,6 +84,7 @@ static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
 static CameraParams sCameraParams;
+static SunParams sSunParams;
 
 static RHI::GraphicsPipeline sScreenQuadPipeline;
 static RHI::GraphicsPipeline sTerrainScenePipeline;
@@ -192,10 +209,22 @@ static void ProcessImGuiFrame()
             ImGui::SliderFloat("Mie density coefficient",
                                &sAtmosphereParams.mieDensityCoeff, 1.0f, 30.0f);
 
-            ImGui::SliderFloat("Zenith", &sAtmosphereParams.zenith, -180.0f,
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Sun"))
+        {
+            ImGui::ColorEdit3("Sun albedo", sAtmosphereParams.sunAlbedo.data);
+            ImGui::SliderFloat("Illuminance zenith",
+                               &sSunParams.illuminanceZenith, 5000.0f,
+                               120000.0f);
+            ImGui::SliderFloat("Zenith", &sSunParams.zenithDegrees, -180.0f,
                                180.0f, "%.3f");
-            ImGui::SliderFloat("Azimuth", &sAtmosphereParams.azimuth, -180.0f,
+            ImGui::SliderFloat("Azimuth", &sSunParams.azimuthDegrees, -180.0f,
                                180.0f, "%.3f");
+            ImGui::SliderFloat("Angular diameter",
+                               &sSunParams.angularDiameterDegrees, 0.5f, 20.0f,
+                               "%.5f");
             ImGui::TreePop();
         }
         ImGui::End();
@@ -632,6 +661,66 @@ static void DrawGUI(RHI::Device& device)
                          RecordDrawGUI);
 }
 
+static Math::Vec3 TransmittanceSunZenith(u32 sampleCount)
+{
+    Math::Vec3 transmittance = Math::Vec3(1.0f);
+
+    float integrationLength =
+        sAtmosphereParams.radiusTop - sAtmosphereParams.radiusBottom;
+    float delta = integrationLength / sampleCount;
+    for (u32 i = 0; i < sampleCount; i++)
+    {
+        float height = (i + 0.5f) * delta;
+        Math::Vec3 extinctionRayleigh =
+            sAtmosphereParams.rayleighScattering *
+            Math::Exp(-height / sAtmosphereParams.rayleighDensityCoeff);
+        Math::Vec3 extinctionMie =
+            Math::Vec3((sAtmosphereParams.mieScattering +
+                        sAtmosphereParams.mieAbsorption) *
+                       Math::Exp(-height / sAtmosphereParams.mieDensityCoeff));
+        Math::Vec3 extinctionOzone =
+            sAtmosphereParams.ozoneAbsorption *
+            Math::Max(0.0f, 1.0f - Math::Abs((height - 25.0f) / 15.0f));
+
+        transmittance *= Math::Exp(
+            -(extinctionRayleigh + extinctionMie + extinctionOzone) * delta);
+    }
+
+    return transmittance;
+}
+
+static void CopyAtmosphereParamsToDevice(RHI::Device& device)
+{
+    RHI::Buffer& atmosphereParams = sAtmosphereParamsBuffers[device.frameIndex];
+
+    sAtmosphereParams.sunZenithRadians =
+        Math::Radians(sSunParams.zenithDegrees);
+    sAtmosphereParams.sunAzimuthRadians =
+        Math::Radians(sSunParams.azimuthDegrees);
+    sAtmosphereParams.sunAngularDiameterRadians =
+        Math::Radians(sSunParams.angularDiameterDegrees);
+
+    float solidAngle =
+        FLY_MATH_TWO_PI *
+        (1.0f -
+         Math::Cos(Math::Radians(sSunParams.angularDiameterDegrees) * 0.5f));
+
+    FLY_LOG("Transmittance %f %f %f", sSunParams.transmittanceSunZenith.x,
+            sSunParams.transmittanceSunZenith.y,
+            sSunParams.transmittanceSunZenith.z);
+    sAtmosphereParams.sunLuminanceOuterSpace =
+        Math::Vec3(sSunParams.illuminanceZenith) /
+        sSunParams.transmittanceSunZenith;
+
+    FLY_LOG("Sun luminance in outer space %f %f %f",
+            sAtmosphereParams.sunLuminanceOuterSpace.x,
+            sAtmosphereParams.sunLuminanceOuterSpace.y,
+            sAtmosphereParams.sunLuminanceOuterSpace.z);
+
+    RHI::CopyDataToBuffer(device, &sAtmosphereParams, sizeof(AtmosphereParams),
+                          0, atmosphereParams);
+}
+
 int main(int argc, char* argv[])
 {
     InitThreadContext();
@@ -711,10 +800,15 @@ int main(int argc, char* argv[])
         Math::Vec2(MULTISCATTERING_LUT_WIDTH, MULTISCATTERING_LUT_HEIGHT);
     sAtmosphereParams.skyviewMapDims =
         Math::Vec2(SKYVIEW_LUT_WIDTH, SKYVIEW_LUT_HEIGHT);
-    sAtmosphereParams.zenith = 90.0f;
-    sAtmosphereParams.azimuth = 0.0f;
     sAtmosphereParams.rayleighDensityCoeff = 8.0f;
     sAtmosphereParams.mieDensityCoeff = 1.2f;
+    sAtmosphereParams.sunAlbedo = Math::Vec3(1.0f, 1.0f, 1.0f);
+
+    sSunParams.zenithDegrees = 90.0f;
+    sSunParams.azimuthDegrees = 0.0f;
+    sSunParams.illuminanceZenith = 100000.0f;
+    sSunParams.angularDiameterDegrees = 0.545;
+    sSunParams.transmittanceSunZenith = TransmittanceSunZenith(50);
 
     if (!CreateResources(device))
     {
@@ -754,11 +848,7 @@ int main(int argc, char* argv[])
             RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
             RHI::CopyDataToBuffer(device, &cameraParams, sizeof(CameraParams),
                                   0, cameraBuffer);
-            RHI::Buffer& atmosphereParams =
-                sAtmosphereParamsBuffers[device.frameIndex];
-            RHI::CopyDataToBuffer(device, &sAtmosphereParams,
-                                  sizeof(AtmosphereParams), 0,
-                                  atmosphereParams);
+            CopyAtmosphereParamsToDevice(device);
         }
 
         RHI::BeginRenderFrame(device);

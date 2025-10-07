@@ -126,9 +126,11 @@ void main()
     float rt = FLY_ACCESS_UNIFORM_BUFFER(
         AtmosphereParams, gPushConstants.atmosphereBufferIndex, rt);
     float zenith = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, zenith);
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunZenithRadians);
     float azimuth = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, azimuth);
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunAzimuthRadians);
 
     vec2 lonLat = UVToSkyviewLonLat(uv);
     vec3 dir = SphereCoordToRay(lonLat.y, lonLat.x); // -v
@@ -140,7 +142,7 @@ void main()
     vec3 worldPos = (camPos * 0.001f);
     worldPos.y += rb;
 
-    vec3 l = SphereCoordToRay(radians(90.0f - zenith), radians(azimuth));
+    vec3 l = SphereCoordToRay(PI / 2 - zenith, azimuth);
 
     vec3 e = vec3(1.0, 1.0f, 1.0f) * 16.0f;
     vec3 lum = IntegrateLuminance(worldPos, e, l, dir, rb, rt);

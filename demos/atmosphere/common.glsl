@@ -17,10 +17,14 @@ FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
     float rt;
     vec2 multiscatteringMapDims;
     vec2 skyviewMapDims;
-    float zenith;
-    float azimuth;
+    vec3 sunAlbedo;
+    float sunAngularDiameterRadians;
+    vec3 sunLuminanceOuterSpace;
+    float sunZenithRadians;
+    float sunAzimuthRadians;
     float rayleighDensityCoeff;
     float mieDensityCoeff;
+    float pad;
 })
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)

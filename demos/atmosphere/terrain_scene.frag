@@ -76,9 +76,25 @@ vec3 Reinhard(vec3 hdr, float exposure)
 
 vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 {
+    // Sky
     float lat = asin(dir.y);
     float lon = atan(dir.z, dir.x);
     vec3 lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex);
+
+    float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunAngularDiameterRadians);
+
+    float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
+    float sinSunR = sin(sunAngularRadius);
+
+    // Sun
+    if (dot(l, dir) >= cos(sunAngularRadius))
+    {
+        float t = RaySphereIntersect(origin, dir, vec3(0.0f), rb);
+        lum += float(t < 0.0f) * vec3(1.0f, 1.0f, 1.0f) * 16.0f;
+    }
+
     return lum;
 }
 
@@ -113,11 +129,13 @@ void main()
     float rt = FLY_ACCESS_UNIFORM_BUFFER(
         AtmosphereParams, gPushConstants.atmosphereBufferIndex, rt);
     float zenith = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, zenith);
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunZenithRadians);
     float azimuth = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, azimuth);
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunAzimuthRadians);
 
-    vec3 l = SphereCoordToRay(radians(90.0f - zenith), radians(azimuth));
+    vec3 l = SphereCoordToRay(PI / 2 - zenith, azimuth);
 
     mat4 inverseProjection = inverse(FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, projection));
