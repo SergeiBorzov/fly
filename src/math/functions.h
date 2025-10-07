@@ -44,6 +44,7 @@ f32 Abs(f32 value);
 f32 Sqrt(f32 value);
 f32 InvSqrt(f32 value);
 
+f32 Exp(f32 value);
 f32 Sin(f32 radians);
 f32 Cos(f32 radians);
 f32 Tan(f32 radians);

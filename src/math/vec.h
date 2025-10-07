@@ -81,6 +81,9 @@ struct Vec2
     }
 };
 
+inline Vec2 operator+(Vec2 a) { return a; }
+inline Vec2 operator-(Vec2 a) { return Vec2(-a.x, -a.y); }
+
 inline Vec2 operator+(Vec2 a, Vec2 b) { return Vec2(a.x + b.x, a.y + b.y); }
 inline Vec2 operator-(Vec2 a, Vec2 b) { return Vec2(a.x - b.x, a.y - b.y); }
 inline Vec2 operator*(Vec2 a, Vec2 b) { return Vec2(a.x * b.x, a.y * b.y); }
@@ -164,6 +167,9 @@ struct Vec3
         return data[i];
     }
 };
+
+inline Vec3 operator+(Vec3 a) { return Vec3(a.x, a.y, a.z); }
+inline Vec3 operator-(Vec3 a) { return Vec3(-a.x, -a.y, -a.z); }
 
 inline Vec3 operator+(Vec3 a, Vec3 b)
 {
@@ -273,6 +279,9 @@ struct Vec4
         return data[i];
     }
 };
+
+inline Vec4 operator+(Vec4 a) { return Vec4(a.x, a.y, a.z, a.w); }
+inline Vec4 operator-(Vec4 a) { return Vec4(-a.x, -a.y, -a.z, -a.w); }
 
 inline Vec4 operator+(Vec4 a, Vec4 b)
 {
@@ -388,6 +397,10 @@ inline Vec4 Max(Vec4 a, Vec4 b)
 {
     return Vec4(Max(a.x, b.x), Max(a.y, b.y), Max(a.z, b.z), Max(a.w, b.w));
 }
+
+inline Vec2 Exp(Vec2 a) { return Vec2(Exp(a.x), Exp(a.y)); }
+inline Vec3 Exp(Vec3 a) { return Vec3(Exp(a.x), Exp(a.y), Exp(a.z)); }
+inline Vec4 Exp(Vec4 a) { return Vec4(Exp(a.x), Exp(a.y), Exp(a.z), Exp(a.w)); }
 
 } // namespace Math
 } // namespace Fly
