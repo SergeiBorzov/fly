@@ -131,7 +131,7 @@ vec3 SphereCoordToRay(float phi, float theta)
     float cosPhi = cos(phi);
     float sinTheta = sin(theta);
     float cosTheta = cos(theta);
-    return vec3(cosPhi * cosTheta, sinPhi, cosPhi * sinTheta);
+    return vec3(cosPhi * sinTheta, sinPhi, cosPhi * cosTheta);
 }
 
 vec2 TransmittanceRadiusCosZenithToUV(float r, float cosZ, float rb, float rt)

@@ -78,7 +78,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 {
     // Sky
     float lat = asin(dir.y);
-    float lon = atan(dir.z, dir.x);
+    float lon = atan(dir.x, dir.z);
     vec3 lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex);
 
     float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
@@ -86,14 +86,18 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
         sunAngularDiameterRadians);
 
     float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
-    float sinSunR = sin(sunAngularRadius);
+    float r = length(origin);
+    float cosZ = dot(l, normalize(origin));
 
-    // Sun
-    if (dot(l, dir) >= cos(sunAngularRadius))
-    {
-        float t = RaySphereIntersect(origin, dir, vec3(0.0f), rb);
-        lum += float(t < 0.0f) * vec3(1.0f, 1.0f, 1.0f) * 16.0f;
-    }
+    float k = smoothstep(cos(sunAngularRadius * 1.05f), cos(sunAngularRadius),
+                         dot(l, dir));
+    float vis = float(RaySphereIntersect(origin, dir, vec3(0.0f), rb) < 0.0f);
+
+    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
+    lum += vis * k * sunAlbedo * 16.0f *
+           SampleTransmittance(r, cosZ, rb, rt,
+                               gPushConstants.transmittanceMapIndex);
 
     return lum;
 }
