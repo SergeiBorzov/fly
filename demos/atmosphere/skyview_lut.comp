@@ -146,7 +146,11 @@ void main()
 
     vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
         AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
-    vec3 e = sunAlbedo * 6.0f;
+    vec3 sunIlluminance = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunIlluminanceOuterSpace);
+
+    vec3 e = sunAlbedo * sunIlluminance * 1e-5;
     vec3 lum = IntegrateLuminance(worldPos, e, l, dir, rb, rt);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(

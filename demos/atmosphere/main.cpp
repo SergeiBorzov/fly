@@ -65,11 +65,12 @@ struct AtmosphereParams
     Math::Vec3 sunLuminanceOuterSpace;
     float sunZenithRadians;
 
+    Math::Vec3 sunIlluminanceOuterSpace;
     float sunAzimuthRadians;
+
     float rayleighDensityCoeff;
     float mieDensityCoeff;
-
-    float pad;
+    float pad[2];
 };
 
 struct CameraParams
@@ -705,17 +706,11 @@ static void CopyAtmosphereParamsToDevice(RHI::Device& device)
         (1.0f -
          Math::Cos(Math::Radians(sSunParams.angularDiameterDegrees) * 0.5f));
 
-    FLY_LOG("Transmittance %f %f %f", sSunParams.transmittanceSunZenith.x,
-            sSunParams.transmittanceSunZenith.y,
-            sSunParams.transmittanceSunZenith.z);
-    sAtmosphereParams.sunLuminanceOuterSpace =
+    sAtmosphereParams.sunIlluminanceOuterSpace =
         Math::Vec3(sSunParams.illuminanceZenith) /
         sSunParams.transmittanceSunZenith;
-
-    FLY_LOG("Sun luminance in outer space %f %f %f",
-            sAtmosphereParams.sunLuminanceOuterSpace.x,
-            sAtmosphereParams.sunLuminanceOuterSpace.y,
-            sAtmosphereParams.sunLuminanceOuterSpace.z);
+    sAtmosphereParams.sunLuminanceOuterSpace =
+        sAtmosphereParams.sunIlluminanceOuterSpace / solidAngle;
 
     RHI::CopyDataToBuffer(device, &sAtmosphereParams, sizeof(AtmosphereParams),
                           0, atmosphereParams);
@@ -804,7 +799,7 @@ int main(int argc, char* argv[])
     sAtmosphereParams.mieDensityCoeff = 1.2f;
     sAtmosphereParams.sunAlbedo = Math::Vec3(1.0f, 1.0f, 1.0f);
 
-    sSunParams.zenithDegrees = 90.0f;
+    sSunParams.zenithDegrees = 72.0f;
     sSunParams.azimuthDegrees = 0.0f;
     sSunParams.illuminanceZenith = 100000.0f;
     sSunParams.angularDiameterDegrees = 2.545f;

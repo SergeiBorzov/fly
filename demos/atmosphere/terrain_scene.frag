@@ -96,7 +96,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
     // Sky
     float lat = asin(dir.y);
     float lon = atan(dir.x, dir.z);
-    vec3 lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex);
+    vec3 lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex) * 1e5;
 
     // Sun
     float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
@@ -142,6 +142,19 @@ vec3 ACES(vec3 color)
     return color;
 }
 
+float EvFromCosZenith(float cosZenith)
+{
+    // Clamp range to roughly -0.309..1.0 (corresponding to -18°..0° below
+    // horizon) cos(108°) ≈ -0.309 — below that we stay at night EV
+    float t = clamp((cosZenith + 0.309) / (1.0 + 0.309), 0.0, 1.0);
+
+    // Apply a perceptual gamma to slow transition near horizon/twilight
+    t = pow(t, 0.05);
+
+    // Interpolate between night EV (-2) and bright daylight (16)
+    return mix(-2.0, 12.0, t);
+}
+
 void main()
 {
     vec2 uv = inUV;
@@ -180,9 +193,13 @@ void main()
 
     vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
         AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
-    vec3 e = sunAlbedo * 6.0f;
+    vec3 sunLuminance = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunLuminanceOuterSpace);
+    vec3 e = sunAlbedo * sunLuminance;
 
     lum = ShadeScene(worldPos, rayWS, e, l, rb, rt);
+    lum *= exp2(-EvFromCosZenith(dot(l, normalize(worldPos))));
     lum = ACES(lum);
 
     outFragColor = vec4(lum, 1.0f);
