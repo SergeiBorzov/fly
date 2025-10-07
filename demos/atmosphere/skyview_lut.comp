@@ -144,7 +144,9 @@ void main()
 
     vec3 l = SphereCoordToRay(PI / 2 - zenith, azimuth);
 
-    vec3 e = vec3(1.0, 1.0f, 1.0f) * 16.0f;
+    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
+    vec3 e = sunAlbedo * 6.0f;
     vec3 lum = IntegrateLuminance(worldPos, e, l, dir, rb, rt);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(

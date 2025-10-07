@@ -807,7 +807,7 @@ int main(int argc, char* argv[])
     sSunParams.zenithDegrees = 90.0f;
     sSunParams.azimuthDegrees = 0.0f;
     sSunParams.illuminanceZenith = 100000.0f;
-    sSunParams.angularDiameterDegrees = 0.545;
+    sSunParams.angularDiameterDegrees = 2.545f;
     sSunParams.transmittanceSunZenith = TransmittanceSunZenith(50);
 
     if (!CreateResources(device))

@@ -74,30 +74,49 @@ vec3 Reinhard(vec3 hdr, float exposure)
 //     return -1;
 // }
 
-vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
+// Appendix B:
+// https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
+vec3 LimbDarkening(vec3 luminance, float centerToEdge)
+{
+    const vec3 a0 = vec3(0.34685f, 0.26073f, 0.15248f);
+    const vec3 a1 = vec3(1.37539f, 1.27428f, 1.38517f);
+    const vec3 a2 = vec3(-2.04425f, -1.30352f, -1.49615f);
+    const vec3 a3 = vec3(2.70493f, 1.47085f, 1.99886f);
+    const vec3 a4 = vec3(-1.94290f, -0.96618f, -1.48155f);
+    const vec3 a5 = vec3(0.55999f, 0.26384f, 0.44119f);
+
+    vec3 mu = vec3(sqrt(1.0f - centerToEdge * centerToEdge));
+    vec3 factor = a0 + mu * (a1 + mu * (a2 + mu * (a3 + mu * (a4 + mu * a5))));
+
+    return luminance * factor;
+}
+
+vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
 {
     // Sky
     float lat = asin(dir.y);
     float lon = atan(dir.x, dir.z);
     vec3 lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex);
 
+    // Sun
     float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
         AtmosphereParams, gPushConstants.atmosphereBufferIndex,
         sunAngularDiameterRadians);
-
     float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
     float r = length(origin);
     float cosZ = dot(l, normalize(origin));
-
-    float k = smoothstep(cos(sunAngularRadius * 1.05f), cos(sunAngularRadius),
-                         dot(l, dir));
+    float dotDirL = dot(dir, l);
+    float k = smoothstep(cos(sunAngularRadius * 1.01f), cos(sunAngularRadius),
+                         dotDirL);
     float vis = float(RaySphereIntersect(origin, dir, vec3(0.0f), rb) < 0.0f);
 
-    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
-    lum += vis * k * sunAlbedo * 16.0f *
-           SampleTransmittance(r, cosZ, rb, rt,
-                               gPushConstants.transmittanceMapIndex);
+    vec3 sunLum = k * e *
+                  SampleTransmittance(r, cosZ, rb, rt,
+                                      gPushConstants.transmittanceMapIndex);
+    float centerToEdge = clamp(acos(dotDirL) / sunAngularRadius, 0.0f, 1.0f);
+    sunLum = LimbDarkening(sunLum, centerToEdge);
+
+    lum += vis * sunLum;
 
     return lum;
 }
@@ -158,9 +177,12 @@ void main()
     worldPos.y += rb;
 
     vec3 lum = vec3(0.0f);
-    vec3 e = vec3(1.0, 1.0f, 1.0f) * 16.0f;
-    lum = ShadeScene(worldPos, rayWS, l, rb, rt);
 
+    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
+    vec3 e = sunAlbedo * 6.0f;
+
+    lum = ShadeScene(worldPos, rayWS, e, l, rb, rt);
     lum = ACES(lum);
 
     outFragColor = vec4(lum, 1.0f);
