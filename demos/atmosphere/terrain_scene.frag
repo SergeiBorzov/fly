@@ -53,7 +53,22 @@ float GradientNoise(vec2 p)
         u.y);
 }
 
-float TerrainSdf(vec3 p) { return p.y - 100.0f * GradientNoise(p.xz / 1000).x; }
+float FBM(vec2 p)
+{
+    float g = 0.5f;
+    float f = 0.0005;
+    float a = 1.0;
+    float t = 0.0;
+    for (int i = 0; i < 8; i++)
+    {
+        t += a * GradientNoise(f * p);
+        f *= 2.0;
+        a *= g;
+    }
+    return t;
+}
+
+float TerrainSdf(vec3 p) { return p.y - 500.0f * FBM(p.xz); }
 
 float SceneSdf(vec3 p) { return TerrainSdf(p); }
 
@@ -235,7 +250,8 @@ void main()
     lum = ShadeScene(camPos, rayWS, e, l, rb, rt);
     vec3 worldPos = camPos * 0.001f;
     camPos.y += rb;
-    lum *= exp2(-EvFromCosZenith(dot(l, normalize(worldPos))));
+    // lum *= exp2(-EvFromCosZenith(dot(l, normalize(worldPos))));
+    lum *= exp2(-12.0f);
     lum = ACES(lum);
 
     outFragColor = vec4(lum, 1.0f);
