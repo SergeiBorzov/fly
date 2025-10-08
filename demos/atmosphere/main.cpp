@@ -832,8 +832,11 @@ int main(int argc, char* argv[])
         bool wantKeyboard = io.WantCaptureKeyboard;
         if (!wantMouse && !wantKeyboard)
         {
-            sCamera.Update(window, deltaTime);
+
+            // sCamera.Update(window, deltaTime);
         }
+        sCamera.SetPosition(sCamera.GetPosition() +
+                            Math::Vec3(0.0f, 0.0f, 2000.0f) * deltaTime);
 
         ProcessImGuiFrame();
 

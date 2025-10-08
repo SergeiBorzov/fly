@@ -2,9 +2,9 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "common.glsl"
 
-#define MAX_MARCHING_STEPS 300
-#define MAX_DIST 10000.0f
-#define EPSILON 0.001f
+#define MAX_MARCHING_STEPS 600
+#define MAX_MARCHING_DIST 50000.0f
+#define EPSILON 0.002f
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outFragColor;
@@ -29,50 +29,63 @@ vec3 Reinhard(vec3 hdr, float exposure)
     return l / (l + 1.0f);
 }
 
-// // https://iquilezles.org/articles/filterableprocedurals/
-// float FilteredXor(vec2 p, vec2 dpdx, vec2 dpdy)
-// {
-//     float xor = 0.0f;
-//     for (int i = 0; i < 8; i++)
-//     {
-//         vec2 w = max(abs(dpdx), abs(dpdy)) + 0.01f;
-//         vec2 f = 2.0f *
-//                  (abs(fract((p - 0.5f * w) / 2.0f) - 0.5f) -
-//                   abs(fract((p + 0.5f * w) / 2.0f) - 0.5f)) /
-//                  w;
-//         xor+= 0.5f - 0.5f * f.x* f.y;
+vec2 RandomGradient(vec2 x)
+{
+    x = fract(x * 0.3183099f + 0.1f) * 17.0f;
+    float a = fract(x.x * x.y * (x.x + x.y));
+    a *= 2.0 * PI;
+    return vec2(sin(a), cos(a));
+}
 
-//         dpdx *= 0.5f;
-//         dpdy *= 0.5f;
-//         p *= 0.5f;
-//         xor*= 0.5f;
-//     }
-//     return xor;
-// }
+float GradientNoise(vec2 p)
+{
+    vec2 i = floor(p);
+    vec2 f = fract(p);
 
-// float PlaneSdf(vec3 p, vec3 n, float h) { return dot(p, n) - 1; }
+    // quintic smoothstep
+    vec2 u = f * f * f * (f * (f * 6.0f - 15.0f) + 10.0f);
 
-// float SceneSdf(vec3 p) { return PlaneSdf(p, vec3(0, 1, 0), 0.0f); }
+    return mix(
+        mix(dot(RandomGradient(i + vec2(0, 0)), f - vec2(0.0, 0.0)),
+            dot(RandomGradient(i + vec2(1, 0)), f - vec2(1.0, 0.0)), u.x),
+        mix(dot(RandomGradient(i + vec2(0, 1)), f - vec2(0.0, 1.0)),
+            dot(RandomGradient(i + vec2(1, 1)), f - vec2(1.0, 1.0)), u.x),
+        u.y);
+}
 
-// int RayMarch(vec3 origin, vec3 dir, float start, float end, out float depth)
-// {
-//     depth = start;
-//     int res = -1;
-//     for (int i = 0; i < MAX_MARCHING_STEPS; i++)
-//     {
-//         float dist = SceneSdf(origin + depth * dir);
-//         depth += dist;
-//         if (dist < EPSILON * depth)
-//         {
-//             return 0;
-//         }
-//         if (depth >= end)
-//         {
-//             return -1;
-//         }
-//     }
-//     return -1;
-// }
+float TerrainSdf(vec3 p) { return p.y - 100.0f * GradientNoise(p.xz / 1000).x; }
+
+float SceneSdf(vec3 p) { return TerrainSdf(p); }
+
+vec3 Normal(vec3 p)
+{
+    return normalize(vec3(SceneSdf(p + vec3(EPSILON, 0.0f, 0.0f)) -
+                              SceneSdf(p - vec3(EPSILON, 0.0f, 0.0f)),
+                          SceneSdf(p + vec3(0.0f, EPSILON, 0.0f)) -
+                              SceneSdf(p - vec3(0.0f, EPSILON, 0.0f)),
+                          SceneSdf(p + vec3(0.0f, 0.0f, EPSILON)) -
+                              SceneSdf(p - vec3(0.0f, 0.0f, EPSILON))));
+}
+
+int RayMarch(vec3 origin, vec3 dir, float start, float end, out float depth)
+{
+    depth = start;
+    int res = -1;
+    for (int i = 0; i < MAX_MARCHING_STEPS; i++)
+    {
+        float dist = SceneSdf(origin + depth * dir);
+        depth += dist;
+        if (dist < EPSILON * depth)
+        {
+            return 0;
+        }
+        if (depth >= end)
+        {
+            return -1;
+        }
+    }
+    return -1;
+}
 
 // Appendix B:
 // https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
@@ -93,30 +106,54 @@ vec3 LimbDarkening(vec3 luminance, float centerToEdge)
 
 vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
 {
-    // Sky
-    float lat = asin(dir.y);
-    float lon = atan(dir.x, dir.z);
-    vec3 lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex) * 1e5;
+    vec3 lum = vec3(0.0f);
 
-    // Sun
-    float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-        sunAngularDiameterRadians);
-    float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
-    float r = length(origin);
-    float cosZ = dot(l, normalize(origin));
-    float dotDirL = dot(dir, l);
-    float k = smoothstep(cos(sunAngularRadius * 1.01f), cos(sunAngularRadius),
-                         dotDirL);
-    float vis = float(RaySphereIntersect(origin, dir, vec3(0.0f), rb) < 0.0f);
+    float t = 0.0f;
+    int id = RayMarch(origin, dir, 0.0, MAX_MARCHING_DIST, t);
 
-    vec3 sunLum = k * e *
-                  SampleTransmittance(r, cosZ, rb, rt,
-                                      gPushConstants.transmittanceMapIndex);
-    float centerToEdge = clamp(acos(dotDirL) / sunAngularRadius, 0.0f, 1.0f);
-    sunLum = LimbDarkening(sunLum, centerToEdge);
+    if (id >= 0)
+    {
+        vec3 hitPoint = origin + dir * t;
+        vec3 n = Normal(hitPoint);
+        lum = vec3(10000.0f, 0.0f, 0.0f) * max(dot(n, l), 0.0f);
+    }
+    else
+    {
+        if (dir.y > 0.0f)
+        {
+            vec3 worldPos = origin * 0.001f;
+            worldPos.y += rb;
 
-    lum += vis * sunLum;
+            // Sky
+            float lat = asin(dir.y);
+            float lon = atan(dir.x, dir.z);
+            lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex) * 1e5;
+
+            // Sun
+            float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
+                AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+                sunAngularDiameterRadians);
+            float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
+            float r = length(worldPos);
+            float cosZ = dot(dir, normalize(worldPos));
+            float dotDirL = dot(dir, l);
+            float k = smoothstep(cos(sunAngularRadius * 1.01f),
+                                 cos(sunAngularRadius), dotDirL);
+            float vis =
+                float(RaySphereIntersect(worldPos, dir, vec3(0.0f), rb) < 0.0f);
+
+            vec3 sunLum =
+                k * e *
+                SampleTransmittance(r, cosZ, rb, rt,
+                                    gPushConstants.transmittanceMapIndex);
+            float centerToEdge =
+                clamp(acos(dotDirL) / sunAngularRadius, 0.0f, 1.0f);
+            sunLum = LimbDarkening(sunLum, centerToEdge);
+
+            lum += vis * sunLum *
+                   5e-3; // physically accurate value still too bright
+        }
+    }
 
     return lum;
 }
@@ -186,9 +223,6 @@ void main()
 
     vec3 camPos = inverseView[3].xyz;
 
-    vec3 worldPos = camPos * 0.001f;
-    worldPos.y += rb;
-
     vec3 lum = vec3(0.0f);
 
     vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
@@ -198,7 +232,9 @@ void main()
         sunLuminanceOuterSpace);
     vec3 e = sunAlbedo * sunLuminance;
 
-    lum = ShadeScene(worldPos, rayWS, e, l, rb, rt);
+    lum = ShadeScene(camPos, rayWS, e, l, rb, rt);
+    vec3 worldPos = camPos * 0.001f;
+    camPos.y += rb;
     lum *= exp2(-EvFromCosZenith(dot(l, normalize(worldPos))));
     lum = ACES(lum);
 
