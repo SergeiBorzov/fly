@@ -126,11 +126,20 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
     float t = 0.0f;
     int id = RayMarch(origin, dir, 0.0, MAX_MARCHING_DIST, t);
 
+    vec3 worldPos = origin * 0.001f;
+    worldPos.y += rb;
+    float r = length(worldPos);
+
     if (id >= 0)
     {
+        float cosZ = dot(l, normalize(worldPos));
+        vec3 sunLum =
+            e * SampleTransmittance(r, cosZ, rb, rt,
+                                    gPushConstants.transmittanceMapIndex);
+
         vec3 hitPoint = origin + dir * t;
         vec3 n = Normal(hitPoint);
-        lum = vec3(10000.0f, 0.0f, 0.0f) * max(dot(n, l), 0.0f);
+        lum = vec3(0.1f, 0.1f, 0.1f) * sunLum * max(dot(n, l), 0.0f) * 5e-4;
     }
     else
     {
@@ -149,7 +158,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
                 AtmosphereParams, gPushConstants.atmosphereBufferIndex,
                 sunAngularDiameterRadians);
             float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
-            float r = length(worldPos);
+
             float cosZ = dot(dir, normalize(worldPos));
             float dotDirL = dot(dir, l);
             float k = smoothstep(cos(sunAngularRadius * 1.01f),
