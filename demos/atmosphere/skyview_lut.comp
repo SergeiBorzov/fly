@@ -59,12 +59,13 @@ vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 dir, float rb,
         float fi = float(i) + 0.5f;
         vec3 p = camPos + fi * dir * delta;
 
-        float r = length(p);
-        float height = max(r - rb, 0.0f);
-        float cosZ = dot(l, normalize(p));
+        // float r = length(p);
+        // float height = max(r - rb, 0.0f);
+        // float cosZ = dot(l, normalize(p));
 
-        // float height = max(p.y - rb, 0.0f);
-        // float cosZ = l.y;
+        float r = p.y;
+        float height = max(p.y - rb, 0.0f);
+        float cosZ = l.y;
 
         vec3 extinction =
             max(SampleExtinction(height, gPushConstants.atmosphereBufferIndex),

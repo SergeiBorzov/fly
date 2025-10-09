@@ -80,7 +80,7 @@ struct CameraParams
 };
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 250.0f, 0.0f));
+                                    Math::Vec3(0.0f, 1250.0f, 0.0f));
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
