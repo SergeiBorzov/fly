@@ -104,6 +104,7 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
+        ":cook_skybox",
         ":sky.vert.spv",
         ":sky.frag.spv",
         ":foam.frag.spv",
@@ -118,7 +119,6 @@ cc_binary(
         ],
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
-            ":cook_skybox",
         ],
     }),
 )
