@@ -13,6 +13,7 @@ cc_library(
     deps = [
         "//src/core:core",
         "@stb//:stb_image",
+        "@tinyexr//:tinyexr",
     ],
     visibility = ["//visibility:public"],
 )

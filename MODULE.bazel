@@ -177,6 +177,14 @@ external_git_repository.base(
 use_repo(external_git_repository, "stb")
 
 external_git_repository.base(
+    name = "tinyexr",
+    build_file = "//scripts/bazel/target:BUILD.tinyexr.bazel",
+    commit = "cba4843738ff580723bee12e70740204b9560c21",
+    remote = "https://github.com/syoyo/tinyexr.git",
+)
+use_repo(external_git_repository, "tinyexr")
+
+external_git_repository.base(
     name = "imgui",
     build_file = "//scripts/bazel/target:BUILD.imgui.bazel",
     commit = "f5befd2d29e66809cd1110a152e375a7f1981f06",
