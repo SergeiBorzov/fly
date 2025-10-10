@@ -1,4 +1,6 @@
 exports_files([
     "DaySkyHDRI051B_4K-TONEMAPPED.jpg",
     "DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
+    "IndoorEnvironmentHDRI016_4K-TONEMAPPED.jpg",
+    "DayEnvironmentHDRI078_4K-TONEMAPPED.jpg",
 ])

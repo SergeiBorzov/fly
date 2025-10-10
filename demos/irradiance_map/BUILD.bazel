@@ -1,0 +1,75 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_images")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
+load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
+
+copy_vulkan_layers()
+copy_molten_vk()
+
+cook_images(
+    name = "cook_skyboxes",
+    inputs = [
+        "@ambientcg//:DaySkyHDRI051B_4K-TONEMAPPED.jpg",
+        "@ambientcg//:DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
+        "@ambientcg//:IndoorEnvironmentHDRI016_4K-TONEMAPPED.jpg",
+        "@ambientcg//:DayEnvironmentHDRI078_4K-TONEMAPPED.jpg",
+    ],
+    outputs = [
+        "Sky.fbc1",
+        "Street.fbc1",
+        "Indoor.fbc1",
+        "Forest.fbc1",
+    ],
+    generate_mips = True,
+    eq2cube = True,
+)
+
+glsl_shader(
+    name = "sample_cubemap.vert.spv",
+    src = "sample_cubemap.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "sample_cubemap.frag.spv",
+    src = "sample_cubemap.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "irradiance_slow.frag.spv",
+    src = "irradiance_slow.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        "//src/rhi:context",
+        "//src/utils:utils",
+        "//demos/common:simple_camera_fps",
+    ],
+    data = [
+        ":sample_cubemap.vert.spv",
+        ":sample_cubemap.frag.spv",
+        ":irradiance_slow.frag.spv",
+        ":cook_skyboxes",
+    ] + select({
+        "@fly//scripts/bazel/build_type:release": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    }),
+)
+

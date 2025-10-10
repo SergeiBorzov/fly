@@ -37,10 +37,14 @@ external_assets.base(
     urls = [
         "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/DaySkyHDRI051B_somO930g/DaySkyHDRI051B_4K-TONEMAPPED.jpg",
         "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/DayEnvironmentHDRI052_lZgBC49u/DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
+        "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/IndoorEnvironmentHDRI016_BjdZMfsq/IndoorEnvironmentHDRI016_4K-TONEMAPPED.jpg",
+        "https://acg-download.struffelproductions.com/file/ambientCG-Web/download/DayEnvironmentHDRI078_WoEcP6az/DayEnvironmentHDRI078_4K-TONEMAPPED.jpg",
     ],
     sha256 = [
         "3c809dd5d2a5ec97a4cd3b6fa9d9667472e866e99eb0b140dadb0758a0fd19b3",
         "e67cd622ee9efd17d26658cbfe096a21a1d471e3a487f226b0c50c3764a3e941",
+        "bc794c96c855dd5b4a3ac2b0853f3efaec6cb76fa49de565c30b0e4bf6d3b83a",
+        "c81652e3e43ff14e048c9a73f043c9b686a118af2bbcc6150b19e1131a3a2073"
     ],
     build_file = "//scripts/bazel/target:BUILD.ambientcg.bazel",
 )
