@@ -16,6 +16,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define TINYEXR_USE_MINIZ 1
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr.h"
+
 namespace Fly
 {
 
@@ -42,6 +46,107 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     return true;
 }
 
+bool LoadExrImageFromFile(String8 path, Image& image)
+{
+    FLY_ASSERT(path);
+
+    EXRVersion exrVersion;
+
+    int ret = ParseEXRVersionFromFile(&exrVersion, path.Data());
+    if (ret != 0)
+    {
+        return false;
+    }
+
+    FLY_ASSERT(exrVersion.multipart == 0);
+
+    EXRHeader exrHeader;
+    InitEXRHeader(&exrHeader);
+
+    const char* err = nullptr;
+    ret = ParseEXRHeaderFromFile(&exrHeader, &exrVersion, path.Data(), &err);
+    if (ret != 0)
+    {
+        FreeEXRErrorMessage(err); // free's buffer for an error message
+        return false;
+    }
+
+    // Channels can be in any order in exr
+    i32 channelMap[] = {-1, -1, -1, -1};
+    for (i32 i = 0; i < exrHeader.num_channels; i++)
+    {
+        if (strcmp(exrHeader.channels[i].name, "R") == 0)
+        {
+            channelMap[0] = i;
+        }
+        else if (strcmp(exrHeader.channels[i].name, "G") == 0)
+        {
+            channelMap[1] = i;
+        }
+        else if (strcmp(exrHeader.channels[i].name, "B") == 0)
+        {
+            channelMap[2] = i;
+        }
+        else if (strcmp(exrHeader.channels[i].name, "A") == 0)
+        {
+            channelMap[3] = i;
+        }
+    }
+
+    for (int i = 0; i < exrHeader.num_channels; i++)
+    {
+        if (exrHeader.pixel_types[i] != TINYEXR_PIXELTYPE_HALF)
+        {
+            exrHeader.requested_pixel_types[i] = TINYEXR_PIXELTYPE_HALF;
+        }
+    }
+
+    EXRImage exrImage;
+    InitEXRImage(&exrImage);
+    ret = LoadEXRImageFromFile(&exrImage, &exrHeader, path.Data(), &err);
+    if (ret != 0)
+    {
+        FreeEXRHeader(&exrHeader);
+        FreeEXRErrorMessage(err);
+        return false;
+    }
+
+    FLY_ASSERT(exrImage.images);
+
+    u16* data =
+        static_cast<u16*>(Fly::Alloc(sizeof(u16) * exrImage.width *
+                                     exrImage.height * exrImage.num_channels));
+    image.mem = reinterpret_cast<u8*>(data);
+    image.data = reinterpret_cast<u8*>(data);
+    image.channelCount = exrImage.num_channels;
+    image.width = exrImage.width;
+    image.height = exrImage.height;
+    image.mipCount = 1;
+    image.layerCount = 1;
+    image.storageType = ImageStorageType::Half;
+
+    // Change channel layout
+    image.mem = reinterpret_cast<u8*>(data);
+    for (u32 j = 0; j < image.height; j++)
+    {
+        for (u32 i = 0; i < image.width; i++)
+        {
+            for (u32 k = 0; k < image.channelCount; k++)
+            {
+                data[j * image.width * image.channelCount +
+                     i * image.channelCount + k] =
+                    reinterpret_cast<u16*>(
+                        exrImage.images[channelMap[k]])[j * exrImage.width + i];
+            }
+        }
+    }
+
+    FreeEXRImage(&exrImage);
+    FreeEXRHeader(&exrHeader);
+
+    return true;
+}
+
 bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
 {
     FLY_ASSERT(path);
@@ -51,6 +156,11 @@ bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
     if (String8::FindLast(pathStr, '.').StartsWith(FLY_STRING8_LITERAL(".fbc")))
     {
         return LoadCompressedImageFromFile(pathStr, image);
+    }
+    else if (String8::FindLast(pathStr, '.')
+                 .StartsWith(FLY_STRING8_LITERAL(".exr")))
+    {
+        return LoadExrImageFromFile(pathStr, image);
     }
 
     int x = 0, y = 0, n = 0;
@@ -105,6 +215,10 @@ u32 GetImageStorageTypeSize(ImageStorageType type)
         case ImageStorageType::Half:
         {
             return sizeof(u16);
+        }
+        case ImageStorageType::Float:
+        {
+            return sizeof(f32);
         }
         case ImageStorageType::Block8:
         {

@@ -10,6 +10,7 @@ enum class ImageStorageType : u8
 {
     Byte,
     Half,
+    Float,
     Block8,
     Block16
 };

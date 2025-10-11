@@ -73,6 +73,28 @@ u64 GetCompressedSize(u32 width, u32 height, VkFormat format)
     }
 }
 
+bool LoadCubemap(RHI::Device& device, const char* path, VkFormat format,
+                 RHI::Sampler::FilterMode filterMode, u32 mipCount,
+                 RHI::Texture& texture)
+{
+    Image image;
+    if (!Fly::LoadImageFromFile(path, image))
+    {
+        return false;
+    }
+
+    VkImageUsageFlags usage =
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    if (!RHI::CreateCubemap(device, usage, image.data, image.width, format,
+                            filterMode, mipCount, texture))
+    {
+        return false;
+    }
+
+    FreeImage(image);
+    return true;
+}
+
 bool LoadCompressedCubemap(RHI::Device& device, const char* path,
                            VkFormat format, RHI::Sampler::FilterMode filterMode,
                            RHI::Texture& texture)
