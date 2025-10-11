@@ -454,6 +454,7 @@ cc_library(
             "VK_USE_PLATFORM_WIN32_KHR",
             "NOMINMAX",
             "WIN32_LEAN_AND_MEAN",
+            "WIN32",
         ],
         "@fly//scripts/bazel/platform:linux_wayland": [
             "VK_ENABLE_BETA_EXTENSIONS",

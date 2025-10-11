@@ -472,8 +472,28 @@ String8 ReadFileToString(Arena& arena, const Path& path, u32 align)
 
 static bool CreateDirectories(const char* path)
 {
-    // TODO
-    return false;
+    char tmp[1024];
+    strncpy(tmp, path, sizeof(tmp));
+    tmp[sizeof(tmp) - 1] = '\0';
+
+    for (char* p = tmp + 1; *p; p++)
+    {
+        if (*p == '/' || *p == '\\')
+        {
+            *p = '\0';
+            if (!CreateDirectoryA(tmp, nullptr))
+            {
+                DWORD err = GetLastError();
+                if (err != ERROR_ALREADY_EXISTS)
+                {
+                    return false;
+                }
+            }
+            *p = '\\';
+        }
+    }
+
+    return true;
 }
 
 bool WriteStringToFile(const String8& str, const char* path, bool append)
@@ -502,8 +522,54 @@ bool WriteStringToFile(const String8& str, const char* path, bool append)
 
 char* ReplaceExtension(const char* filepath, const char* extension)
 {
-    // TODO;
-    return nullptr;
+    if (!filepath || !extension)
+    {
+        return nullptr;
+    }
+
+    const char* lastBackslash = strrchr(filepath, '\\');
+    const char* lastSlash = strrchr(filepath, '/');
+    const char* lastDot = strrchr(filepath, '.');
+
+    const char* lastDelimeter = nullptr;
+    if (lastBackslash && lastSlash)
+    {
+        ptrdiff_t diff = lastBackslash - lastSlash;
+        if (diff > 0)
+        {
+            lastDelimeter = lastBackslash;
+        }
+        else
+        {
+            lastDelimeter = lastSlash;
+        }
+    }
+    else if (lastBackslash)
+    {
+        lastDelimeter = lastBackslash;
+    }
+    else if (lastSlash)
+    {
+        lastDelimeter = lastSlash;
+    }
+
+    char* result = nullptr;
+    if (lastDot && (!lastDelimeter || lastDot > lastDelimeter))
+    {
+        size_t len = (lastDot - filepath) + strlen(extension) + 1;
+        result = static_cast<char*>(malloc(len * sizeof(char)));
+        strncpy(result, filepath, lastDot - filepath);
+        result[lastDot - filepath] = '\0';
+        strcat(result, extension);
+    }
+    else
+    {
+        size_t len = strlen(filepath) + strlen(extension) + 1;
+        result = static_cast<char*>(malloc(len * sizeof(char)));
+        strcpy(result, filepath);
+        strcat(result, extension);
+    }
+    return result;
 }
 
 } // namespace Fly
