@@ -749,12 +749,14 @@ void ProcessInput(Input& input)
     {
         if (!CreateContext(context))
         {
+            fprintf(stderr, "Failed to create context\n");
             exit(-32);
         }
 
         device = &(context.devices[0]);
         if (!CreateEq2CubePipeline(*device, eq2cubePipeline))
         {
+            fprintf(stderr, "Failed to create eq2cube pipeline \n");
             exit(-32);
         }
     }
@@ -798,6 +800,8 @@ void ProcessInput(Input& input)
             if (!Eq2Cube(*device, eq2cubePipeline, image, transformedImage,
                          input.generateMips))
             {
+                fprintf(stderr, "Export error: failed to transform "
+                                "equirectangular to cube");
                 exit(-32);
             }
             FreeImage(image);

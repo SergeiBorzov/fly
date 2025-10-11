@@ -11,15 +11,10 @@ cook_images(
     name = "cook_skyboxes",
     inputs = [
         "@ambientcg//:NightEnvironmentHDRI009_4K-HDR.exr",
-        "@ambientcg//:DaySkyHDRI051B_4K-TONEMAPPED.jpg",
-        "@ambientcg//:DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
-        "@ambientcg//:IndoorEnvironmentHDRI016_4K-TONEMAPPED.jpg",
-        "@ambientcg//:DayEnvironmentHDRI078_4K-TONEMAPPED.jpg",
     ],
     outputs = [
         "Night.png",
     ],
-    generate_mips = True,
     eq2cube = True,
 )
 
