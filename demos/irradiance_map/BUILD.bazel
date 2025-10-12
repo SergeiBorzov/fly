@@ -48,6 +48,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "irradiance_sh.frag.spv",
+    src = "irradiance_sh.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -62,6 +70,7 @@ cc_binary(
         ":sample_cubemap.vert.spv",
         ":sample_cubemap.frag.spv",
         ":irradiance_slow.frag.spv",
+        ":irradiance_sh.frag.spv",
         ":cook_skyboxes",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [

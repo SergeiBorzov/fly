@@ -99,7 +99,7 @@ static bool CreatePipeline(RHI::Device& device)
     }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    if (!Fly::LoadShaderFromSpv(device, "irradiance_slow.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, "irradiance_sh.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
