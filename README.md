@@ -14,7 +14,7 @@ You can build any target specified in `BUILD.bazel` files
 
 Example: `bazel build src/core:types`
 
-To run demos: `bazel run demos/{demo}:app
+To run demos: `bazel run demos/{demo}:app`
 
 # Gallery
 

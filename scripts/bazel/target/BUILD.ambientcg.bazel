@@ -4,4 +4,7 @@ exports_files([
     "IndoorEnvironmentHDRI016_4K-TONEMAPPED.jpg",
     "DayEnvironmentHDRI078_4K-TONEMAPPED.jpg",
     "NightEnvironmentHDRI009_4K-HDR.exr",
+    "DayEnvironmentHDRI020_4K-HDR.exr",
+    "DayEnvironmentHDRI014_4K-HDR.exr",
+    "NightEnvironmentHDRI008_4K-HDR.exr",
 ])

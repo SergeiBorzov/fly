@@ -20,15 +20,17 @@
 using namespace Fly;
 
 #define IRRADIANCE_MAP_SIZE 256
+#define RADIANCE_MAP_COUNT 4
 
 static RHI::GraphicsPipeline sDrawCubemapPipeline;
 static RHI::GraphicsPipeline sConvoluteIrradianceSlowPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 
-static RHI::Texture sCubemap;
-static RHI::Texture sIrradianceMap;
+static RHI::Texture sRadianceMaps[RADIANCE_MAP_COUNT];
+static RHI::Texture sIrradianceMaps[RADIANCE_MAP_COUNT];
 
-static RHI::Texture* sCurrentCubemap = &sCubemap;
+static u32 sCurrentCubemapIndex = 0;
+static RHI::Texture* sCurrentCubemap = &sRadianceMaps[sCurrentCubemapIndex];
 
 struct CameraData
 {
@@ -50,11 +52,17 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 
     if (key == GLFW_KEY_1 && action == GLFW_PRESS)
     {
-        sCurrentCubemap = &sCubemap;
+        sCurrentCubemap = &sRadianceMaps[sCurrentCubemapIndex];
     }
     else if (key == GLFW_KEY_2 && action == GLFW_PRESS)
     {
-        sCurrentCubemap = &sIrradianceMap;
+        sCurrentCubemap = &sIrradianceMaps[sCurrentCubemapIndex];
+    }
+
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS)
+    {
+        sCurrentCubemapIndex = (sCurrentCubemapIndex + 1) % RADIANCE_MAP_COUNT;
+        sCurrentCubemap = &sRadianceMaps[sCurrentCubemapIndex];
     }
 }
 
@@ -130,19 +138,27 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!LoadCompressedCubemap(device, "Sky.fbc1", VK_FORMAT_BC1_RGB_SRGB_BLOCK,
-                               RHI::Sampler::FilterMode::Trilinear, sCubemap))
-    {
-        return false;
-    }
+    const char* radianceMapPaths[RADIANCE_MAP_COUNT] = {
+        "Night.exr", "Tunnel.exr", "Forest.exr", "Night2.exr"};
 
-    if (!RHI::CreateCubemap(
-            device,
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            nullptr, IRRADIANCE_MAP_SIZE, VK_FORMAT_R16G16B16A16_SFLOAT,
-            RHI::Sampler::FilterMode::Bilinear, 1, sIrradianceMap))
+    for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
     {
-        return false;
+        if (!LoadCubemap(
+                device, radianceMapPaths[i], VK_FORMAT_R16G16B16A16_SFLOAT,
+                RHI::Sampler::FilterMode::Bilinear, 1, sRadianceMaps[i]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateCubemap(
+                device,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                    VK_IMAGE_USAGE_SAMPLED_BIT,
+                nullptr, IRRADIANCE_MAP_SIZE, VK_FORMAT_R16G16B16A16_SFLOAT,
+                RHI::Sampler::FilterMode::Bilinear, 1, sIrradianceMaps[i]))
+        {
+            return false;
+        }
     }
 
     return true;
@@ -155,8 +171,11 @@ static void DestroyResources(RHI::Device& device)
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
 
-    RHI::DestroyTexture(device, sCubemap);
-    RHI::DestroyTexture(device, sIrradianceMap);
+    for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
+    {
+        RHI::DestroyTexture(device, sRadianceMaps[i]);
+        RHI::DestroyTexture(device, sIrradianceMaps[i]);
+    }
 }
 
 static void RecordConvoluteIrradianceSlow(
@@ -179,39 +198,43 @@ static void RecordConvoluteIrradianceSlow(
 
 static void ConvoluteIrradianceSlow(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pCameraBuffer = &sCameraBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pCameraBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
+    {
+        RHI::RecordBufferInput bufferInput;
+        RHI::Buffer* pCameraBuffer = &sCameraBuffers[device.frameIndex];
+        VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
+        bufferInput.buffers = &pCameraBuffer;
+        bufferInput.bufferAccesses = &bufferAccess;
+        bufferInput.bufferCount = 1;
 
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* textures[2];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-    textureInput.textureCount = 2;
+        RHI::RecordTextureInput textureInput;
+        RHI::Texture* textures[2];
+        RHI::ImageLayoutAccess imageLayoutsAccesses[2];
+        textureInput.textures = textures;
+        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+        textureInput.textureCount = 2;
 
-    textures[0] = &sCubemap;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+        textures[0] = &sRadianceMaps[i];
+        imageLayoutsAccesses[0].imageLayout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
 
-    textures[1] = &sIrradianceMap;
-    imageLayoutsAccesses[1].imageLayout =
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        textures[1] = &sIrradianceMaps[i];
+        imageLayoutsAccesses[1].imageLayout =
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        imageLayoutsAccesses[1].accessMask =
+            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 
-    VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(sIrradianceMap.arrayImageView);
-    VkRenderingInfo renderingInfo =
-        RHI::RenderingInfo({{0, 0}, {IRRADIANCE_MAP_SIZE, IRRADIANCE_MAP_SIZE}},
-                           &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
+        VkRenderingAttachmentInfo colorAttachment =
+            RHI::ColorAttachmentInfo(sIrradianceMaps[i].arrayImageView);
+        VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+            {{0, 0}, {IRRADIANCE_MAP_SIZE, IRRADIANCE_MAP_SIZE}},
+            &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
 
-    RHI::ExecuteGraphics(OneTimeSubmitCommandBuffer(device), renderingInfo,
-                         RecordConvoluteIrradianceSlow, &bufferInput,
-                         &textureInput);
+        RHI::ExecuteGraphics(OneTimeSubmitCommandBuffer(device), renderingInfo,
+                             RecordConvoluteIrradianceSlow, &bufferInput,
+                             &textureInput);
+    }
 }
 
 static void RecordDrawCubemap(RHI::CommandBuffer& cmd,

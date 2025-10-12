@@ -15,6 +15,12 @@ gPushConstants;
 
 FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
 
+vec3 Reinhard(vec3 hdr, float exposure)
+{
+    vec3 l = hdr * exposure;
+    return l / (l + 1.0f);
+}
+
 void main()
 {
     vec3 dir = normalize(inDirection);
@@ -22,5 +28,5 @@ void main()
                                    Cubemaps, gPushConstants.skyBoxTextureIndex),
                                dir)
                            .rgb;
-    outFragColor = vec4(skyBoxColor, 1.0f);
+    outFragColor = vec4(Reinhard(skyBoxColor, 1.0f), 1.0f);
 }

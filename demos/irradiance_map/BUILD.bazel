@@ -11,9 +11,15 @@ cook_images(
     name = "cook_skyboxes",
     inputs = [
         "@ambientcg//:NightEnvironmentHDRI009_4K-HDR.exr",
+        "@ambientcg//:DayEnvironmentHDRI020_4K-HDR.exr",
+        "@ambientcg//:DayEnvironmentHDRI014_4K-HDR.exr",
+        "@ambientcg//:NightEnvironmentHDRI008_4K-HDR.exr",
     ],
     outputs = [
-        "Night.png",
+        "Night.exr",
+        "Forest.exr",
+        "Tunnel.exr",
+        "Night2.exr",
     ],
     eq2cube = True,
 )
