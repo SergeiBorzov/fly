@@ -818,8 +818,7 @@ void ProcessInput(Input& input)
 
         if (!ExportImage(input.outputs[i], image))
         {
-            fprintf(stderr,
-                    "Export error: failed to write compressed image %s\n",
+            fprintf(stderr, "Export error: failed to write image %s\n",
                     input.outputs[i]);
             exit(-8);
         }

@@ -14,11 +14,9 @@
 #define STBI_REALLOC(p, newSize) (Fly::Realloc(p, newSize))
 #define STBI_FREE(p) (Fly::Free(p))
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include <stb_image.h>
 
-#define TINYEXR_USE_MINIZ 1
-#define TINYEXR_IMPLEMENTATION
-#include "tinyexr.h"
+#include <tinyexr.h>
 
 namespace Fly
 {

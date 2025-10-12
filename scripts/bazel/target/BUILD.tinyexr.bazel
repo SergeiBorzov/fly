@@ -16,7 +16,11 @@ cc_library(
     hdrs = [
         "tinyexr.h",
     ],
+    srcs = [
+        "tinyexr.cc",
+    ],
     includes = [
+        ".",
         "deps/miniz",
     ],
     deps = [

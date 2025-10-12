@@ -38,6 +38,7 @@ cc_library(
         "@stb//:stb_image_write",
         "@stb//:stb_dxt",
         "@stb//:stb_image_resize2",
+        "@tinyexr//:tinyexr",
     ],
     visibility = ["//visibility:public"],
 )

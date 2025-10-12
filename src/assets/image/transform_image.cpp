@@ -236,6 +236,10 @@ VkFormat ImageVulkanFormat(const Image& image)
             }
             break;
         }
+        default:
+        {
+            break;
+        }
     }
 
     return VK_FORMAT_UNDEFINED;
