@@ -17,8 +17,9 @@
 namespace Fly
 {
 
-bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
-                           VkFormat format, RHI::Sampler::FilterMode filterMode,
+bool LoadTexture2DFromFile(RHI::Device& device, VkImageUsageFlags usage,
+                           const char* path, VkFormat format,
+                           RHI::Sampler::FilterMode filterMode,
                            RHI::Sampler::WrapMode wrapMode,
                            RHI::Texture& texture)
 {
@@ -30,11 +31,9 @@ bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
         return false;
     }
 
-    if (!RHI::CreateTexture2D(device,
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                  VK_IMAGE_USAGE_SAMPLED_BIT,
-                              image.data, image.width, image.height, format,
-                              filterMode, wrapMode, 0, texture))
+    if (!RHI::CreateTexture2D(device, usage, image.data, image.width,
+                              image.height, format, filterMode, wrapMode, 0,
+                              texture))
     {
         return false;
     }
@@ -73,9 +72,9 @@ u64 GetCompressedSize(u32 width, u32 height, VkFormat format)
     }
 }
 
-bool LoadCubemap(RHI::Device& device, const char* path, VkFormat format,
-                 RHI::Sampler::FilterMode filterMode, u32 mipCount,
-                 RHI::Texture& texture)
+bool LoadCubemap(RHI::Device& device, VkImageUsageFlags usage, const char* path,
+                 VkFormat format, RHI::Sampler::FilterMode filterMode,
+                 u32 mipCount, RHI::Texture& texture)
 {
     Image image;
     if (!Fly::LoadImageFromFile(path, image))
@@ -83,8 +82,6 @@ bool LoadCubemap(RHI::Device& device, const char* path, VkFormat format,
         return false;
     }
 
-    VkImageUsageFlags usage =
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     if (!RHI::CreateCubemap(device, usage, image.data, image.width, format,
                             filterMode, mipCount, texture))
     {
@@ -95,8 +92,9 @@ bool LoadCubemap(RHI::Device& device, const char* path, VkFormat format,
     return true;
 }
 
-bool LoadCompressedCubemap(RHI::Device& device, const char* path,
-                           VkFormat format, RHI::Sampler::FilterMode filterMode,
+bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
+                           const char* path, VkFormat format,
+                           RHI::Sampler::FilterMode filterMode,
                            RHI::Texture& texture)
 {
     FLY_ASSERT(format == VK_FORMAT_BC1_RGB_UNORM_BLOCK ||
@@ -129,8 +127,8 @@ bool LoadCompressedCubemap(RHI::Device& device, const char* path,
     return true;
 }
 
-bool LoadCompressedTexture2D(RHI::Device& device, const char* path,
-                             VkFormat format,
+bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
+                             const char* path, VkFormat format,
                              RHI::Sampler::FilterMode filterMode,
                              RHI::Sampler::WrapMode wrapMode,
                              RHI::Texture& texture)
@@ -152,11 +150,9 @@ bool LoadCompressedTexture2D(RHI::Device& device, const char* path,
         return false;
     }
 
-    if (!RHI::CreateTexture2D(device,
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                  VK_IMAGE_USAGE_SAMPLED_BIT,
-                              image.data, image.width, image.height, format,
-                              filterMode, wrapMode, image.mipCount, texture))
+    if (!RHI::CreateTexture2D(device, usage, image.data, image.width,
+                              image.height, format, filterMode, wrapMode,
+                              image.mipCount, texture))
     {
         return false;
     }

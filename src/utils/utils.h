@@ -5,20 +5,22 @@
 namespace Fly
 {
 
-bool LoadTexture2DFromFile(RHI::Device& device, const char* path,
-                           VkFormat format, RHI::Sampler::FilterMode filterMode,
+bool LoadTexture2DFromFile(RHI::Device& device, VkImageUsageFlags flags,
+                           const char* path, VkFormat format,
+                           RHI::Sampler::FilterMode filterMode,
                            RHI::Sampler::WrapMode wrapMode,
                            RHI::Texture& texture);
-bool LoadCompressedTexture2D(RHI::Device& device, const char* path,
-                             VkFormat format,
+bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags,
+                             const char* path, VkFormat format,
                              RHI::Sampler::FilterMode filterMode,
                              RHI::Sampler::WrapMode wrapMode,
                              RHI::Texture& texture);
-bool LoadCubemap(RHI::Device& device, const char* path, VkFormat format,
-                 RHI::Sampler::FilterMode filterMode, u32 mipCount,
-                 RHI::Texture& texture);
-bool LoadCompressedCubemap(RHI::Device& device, const char* path,
-                           VkFormat format, RHI::Sampler::FilterMode filterMode,
+bool LoadCubemap(RHI::Device& device, VkImageUsageFlags usage, const char* path,
+                 VkFormat format, RHI::Sampler::FilterMode filterMode,
+                 u32 mipCount, RHI::Texture& texture);
+bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
+                           const char* path, VkFormat format,
+                           RHI::Sampler::FilterMode filterMode,
                            RHI::Texture& texture);
 bool LoadShaderFromSpv(RHI::Device& device, const char* path,
                        RHI::Shader& shader);

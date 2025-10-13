@@ -101,7 +101,9 @@ static void DestroyPipeline(RHI::Device& device)
 static bool CreateResources(RHI::Device& device)
 {
     if (!Fly::LoadCompressedTexture2D(
-            device, "CesiumLogoFlat.fbc1", VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+            device,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            "CesiumLogoFlat.fbc1", VK_FORMAT_BC1_RGB_SRGB_BLOCK,
             RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
             sCubeTexture))
     {

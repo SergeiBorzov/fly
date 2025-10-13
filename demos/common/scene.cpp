@@ -115,10 +115,13 @@ static bool ProcessTextures(Arena& arena, RHI::Device& device, cgltf_data* data,
             return false;
         }
 
-        if (!LoadTexture2DFromFile(
-                device, texture.image->uri, VK_FORMAT_R8G8B8A8_SRGB,
-                RHI::Sampler::FilterMode::Anisotropy8x,
-                RHI::Sampler::WrapMode::Repeat, scene.textures[i]))
+        if (!LoadTexture2DFromFile(device,
+                                   VK_IMAGE_USAGE_SAMPLED_BIT |
+                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   texture.image->uri, VK_FORMAT_R8G8B8A8_SRGB,
+                                   RHI::Sampler::FilterMode::Anisotropy8x,
+                                   RHI::Sampler::WrapMode::Repeat,
+                                   scene.textures[i]))
         {
             FLY_ERROR("Failed to load texture %s", texture.image->uri);
             ArenaPopToMarker(arena, marker);
