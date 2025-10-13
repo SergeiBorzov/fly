@@ -1,0 +1,133 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_atomic_float : require
+#include "bindless.glsl"
+
+#define PI 3.14159265359f
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint radianceMapIndex;
+    uint radianceProjectionBufferIndex;
+    uint radianceMapSize;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(, RadianceProjectionSH, {
+    vec3 coefficient;
+    float pad;
+})
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(readonly, RGBA16FCubemaps, imageCube,
+                                    rgba16f)
+
+void SH9(vec3 n, out float sh[9])
+{
+    const float c0 = sqrt(1.0f / (4.0f * PI));
+    const float c1 = sqrt(3.0f / (4.0f * PI));
+    const float c2 = sqrt(15.0f / (4.0f * PI));
+    const float c3 = sqrt(5.0f / (16.0f * PI));
+    const float c4 = sqrt(15.0f / (16.0f * PI));
+
+    sh[0] = c0;
+    sh[1] = c1 * n.y;
+    sh[2] = c1 * n.z;
+    sh[3] = c1 * n.x;
+    sh[4] = c2 * n.x * n.y;
+    sh[5] = c2 * n.y * n.z;
+    sh[6] = c3 * (3.0f * n.z * n.z - 1.0f);
+    sh[7] = c2 * n.x * n.z;
+    sh[8] = c4 * (n.x * n.x - n.y * n.y);
+}
+
+vec3 GetViewDirection(vec2 coord, uint faceIndex)
+{
+    if (faceIndex == 0)
+    {
+        return normalize(vec3(1.0f, -coord.y, -coord.x));
+    }
+    else if (faceIndex == 1)
+    {
+        return normalize(vec3(-1.0f, -coord.y, coord.x));
+    }
+    else if (faceIndex == 2)
+    {
+        return normalize(vec3(coord.x, -1.0f, coord.y));
+    }
+    else if (faceIndex == 3)
+    {
+        return normalize(vec3(coord.x, 1.0f, -coord.y));
+    }
+    else if (faceIndex == 4)
+    {
+        return normalize(vec3(coord.x, -coord.y, 1.0f));
+    }
+    else
+    {
+        return normalize(vec3(-coord.x, -coord.y, -1.0f));
+    }
+}
+
+shared float localRadianceProjectionR[9];
+shared float localRadianceProjectionG[9];
+shared float localRadianceProjectionB[9];
+void main()
+{
+    uvec3 gid = gl_GlobalInvocationID;
+    vec2 uv = (vec2(gid.xy) + 0.5f) / gPushConstants.radianceMapSize;
+    vec2 coord = uv * 2.0f - 1.0f;
+    vec3 normal = GetViewDirection(coord, gid.z);
+
+    if (gl_LocalInvocationIndex < 9)
+    {
+        localRadianceProjectionR[gl_LocalInvocationIndex] = 0.0f;
+        localRadianceProjectionG[gl_LocalInvocationIndex] = 0.0f;
+        localRadianceProjectionB[gl_LocalInvocationIndex] = 0.0f;
+    }
+    barrier();
+
+    float dx = (2.0f / float(gPushConstants.radianceMapSize));
+    float dSolidAngle =
+        (dx * dx) / pow((coord.x * coord.x + coord.y * coord.y + 1.0f), 1.5f);
+    vec3 radiance =
+        imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                      RGBA16FCubemaps, gPushConstants.radianceMapIndex),
+                  ivec3(gid))
+            .rgb;
+
+    float sh[9];
+    SH9(normal, sh);
+
+    vec3 radianceSolidAngle = radiance * dSolidAngle;
+    for (uint i = 0; i < 9; i++)
+    {
+        vec3 contribution = radianceSolidAngle * sh[i];
+        atomicAdd(localRadianceProjectionR[i], contribution.r);
+        atomicAdd(localRadianceProjectionG[i], contribution.g);
+        atomicAdd(localRadianceProjectionB[i], contribution.b);
+    }
+    barrier();
+
+    if (gl_LocalInvocationIndex == 0)
+    {
+        for (int i = 0; i < 9; i++)
+        {
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.radianceProjectionBufferIndex)[i]
+                          .coefficient.r,
+                      localRadianceProjectionR[i]);
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.radianceProjectionBufferIndex)[i]
+                          .coefficient.g,
+                      localRadianceProjectionG[i]);
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.radianceProjectionBufferIndex)[i]
+                          .coefficient.b,
+                      localRadianceProjectionB[i]);
+        }
+    }
+}

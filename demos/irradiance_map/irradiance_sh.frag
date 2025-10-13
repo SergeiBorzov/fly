@@ -14,11 +14,16 @@ layout(location = 0) out vec4 outFragColor;
 layout(push_constant) uniform PushConstants
 {
     uint cameraBufferIndex;
+    uint radianceProjectionBufferIndex;
     uint radianceMapIndex;
 }
 gPushConstants;
 
 FLY_REGISTER_TEXTURE_BUFFER(Cubemap, samplerCube)
+FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
+    vec3 coefficient;
+    float pad;
+})
 
 void SH9(vec3 n, out float sh[9])
 {
@@ -107,12 +112,17 @@ void main()
     mat3 r = FaceRotation(gl_ViewIndex);
     vec3 n = normalize(r * inDirection);
 
-    // Hardcoded values of Grace Cathedral for now
-    vec3 l[9] = {vec3(0.79f, 0.44f, 0.54f),    vec3(0.39f, 0.35f, 0.6f),
-                 vec3(-0.34f, -0.18f, -0.27f), vec3(-0.29f, -0.06f, 0.01f),
-                 vec3(-0.11f, -0.05f, -0.12f), vec3(-0.26f, -0.22f, -0.47f),
-                 vec3(-0.16f, -0.09f, -0.15f), vec3(0.56f, 0.21f, 0.14f),
-                 vec3(0.21f, -0.05f, -0.3f)};
+    FLY_ACCESS_STORAGE_BUFFER(RadianceProjectionSH,
+                              gPushConstants.radianceProjectionBufferIndex);
+
+    vec3 l[9];
+    for (uint i = 0; i < 9; i++)
+    {
+        l[i] = FLY_ACCESS_STORAGE_BUFFER(
+                   RadianceProjectionSH,
+                   gPushConstants.radianceProjectionBufferIndex)[i]
+                   .coefficient;
+    }
     vec3 irradiance = IrradianceSH9(n, l);
 
     outFragColor = vec4(irradiance, 1.0f);
