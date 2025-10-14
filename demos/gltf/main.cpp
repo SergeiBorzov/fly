@@ -27,7 +27,7 @@ struct UniformData
 };
 
 static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
-                                    Fly::Math::Vec3(0.0f, 0.0f, -5.0f));
+                                    Fly::Math::Vec3(0.0f, 2.5f, 0.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)

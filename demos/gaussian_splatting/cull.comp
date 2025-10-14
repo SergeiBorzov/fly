@@ -81,12 +81,12 @@ void main()
     vec4 splatPositionVS = view * vec4(splat.position, 1.0);
     float radius = max(max(splat.scale.x, splat.scale.y), splat.scale.z);
 
-    bool visible = splatPositionVS.z + radius > cameraParameters.z &&
-                   splatPositionVS.z - radius < cameraParameters.w;
-    visible = visible && splatPositionVS.z * cameraParameters.x + radius -
+    bool visible = -splatPositionVS.z + radius > cameraParameters.z &&
+                   -splatPositionVS.z - radius < cameraParameters.w;
+    visible = visible && -splatPositionVS.z * cameraParameters.x + radius -
                                  abs(splatPositionVS.x) >
                              0;
-    visible = visible && splatPositionVS.z * cameraParameters.y + radius -
+    visible = visible && -splatPositionVS.z * cameraParameters.y + radius -
                                  abs(splatPositionVS.y) >
                              0;
     if (visible)
@@ -96,6 +96,6 @@ void main()
                 .count,
             1);
         FLY_ACCESS_STORAGE_BUFFER(Keys, gPushConstants.pingPongBufferIndex)
-        [drawIndex] = Keys(floatKey(-splatPositionVS.z), gtid);
+        [drawIndex] = Keys(floatKey(splatPositionVS.z), gtid);
     }
 }

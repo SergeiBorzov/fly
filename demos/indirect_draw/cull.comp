@@ -97,12 +97,12 @@ void main()
 
     vec4 centerVS = cullView * instance.model * vec4(sphereDraw.center, 1.0f);
 
-    bool visible = centerVS.z + sphereDraw.radius > near &&
-                   centerVS.z - sphereDraw.radius < far;
-    visible =
-        visible && centerVS.z * hTanX + sphereDraw.radius - abs(centerVS.x) > 0;
-    visible =
-        visible && centerVS.z * hTanY + sphereDraw.radius - abs(centerVS.y) > 0;
+    bool visible = -centerVS.z + sphereDraw.radius > near &&
+                   -centerVS.z - sphereDraw.radius < far;
+    visible = visible &&
+              -centerVS.z * hTanX + sphereDraw.radius - abs(centerVS.x) > 0;
+    visible = visible &&
+              -centerVS.z * hTanY + sphereDraw.radius - abs(centerVS.y) > 0;
 
     if (visible)
     {

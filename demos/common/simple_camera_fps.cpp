@@ -28,7 +28,7 @@ Math::Vec3 SimpleCameraFPS::GetUpVector()
 
 Math::Vec3 SimpleCameraFPS::GetForwardVector()
 {
-    return Math::Vec3(view_.data[2], view_.data[6], view_.data[10]);
+    return -Math::Vec3(view_.data[2], view_.data[6], view_.data[10]);
 }
 
 void SimpleCameraFPS::SetPosition(Math::Vec3 position)
@@ -64,9 +64,9 @@ void SimpleCameraFPS::SetPitch(f32 pitch)
     pitch_ = Math::Clamp(pitch, -89.0f, 89.0f);
 
     Math::Vec3 front(
-        Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
+        Math::Sin(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
         Math::Sin(Math::Radians(pitch_)),
-        Math::Sin(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)));
+        Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)));
     front = Normalize(front);
 
     view_ = Math::LookAt(position_, position_ + front,
@@ -98,9 +98,9 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
     pitch_ = Math::Clamp(pitch_, -89.0f, 89.0f);
 
     Math::Vec3 front(
-        Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
+        Math::Sin(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)),
         Math::Sin(Math::Radians(pitch_)),
-        Math::Sin(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)));
+        Math::Cos(Math::Radians(yaw_)) * Math::Cos(Math::Radians(pitch_)));
     front = Normalize(front);
 
     view_ = Math::LookAt(position_, position_ + front,
