@@ -172,25 +172,25 @@ bool GenerateMips(const Image& srcImage, Image& dstImage)
     return true;
 }
 
-VkFormat ImageVulkanFormat(const Image& image)
+VkFormat ImageVulkanFormat(ImageStorageType storageType, u8 channelCount)
 {
-    switch (image.storageType)
+    switch (storageType)
     {
         case ImageStorageType::Byte:
         {
-            if (image.channelCount == 1)
+            if (channelCount == 1)
             {
                 return VK_FORMAT_R8_SRGB;
             }
-            else if (image.channelCount == 2)
+            else if (channelCount == 2)
             {
                 return VK_FORMAT_R8G8_SRGB;
             }
-            else if (image.channelCount == 3)
+            else if (channelCount == 3)
             {
                 return VK_FORMAT_R8G8B8_SRGB;
             }
-            else if (image.channelCount == 4)
+            else if (channelCount == 4)
             {
                 return VK_FORMAT_R8G8B8A8_SRGB;
             }
@@ -198,19 +198,19 @@ VkFormat ImageVulkanFormat(const Image& image)
         }
         case ImageStorageType::Half:
         {
-            if (image.channelCount == 1)
+            if (channelCount == 1)
             {
                 return VK_FORMAT_R16_SFLOAT;
             }
-            else if (image.channelCount == 2)
+            else if (channelCount == 2)
             {
                 return VK_FORMAT_R16G16_SFLOAT;
             }
-            else if (image.channelCount == 3)
+            else if (channelCount == 3)
             {
                 return VK_FORMAT_R16G16B16_SFLOAT;
             }
-            else if (image.channelCount == 4)
+            else if (channelCount == 4)
             {
                 return VK_FORMAT_R16G16B16A16_SFLOAT;
             }
@@ -218,19 +218,19 @@ VkFormat ImageVulkanFormat(const Image& image)
         }
         case ImageStorageType::Float:
         {
-            if (image.channelCount == 1)
+            if (channelCount == 1)
             {
                 return VK_FORMAT_R32_SFLOAT;
             }
-            else if (image.channelCount == 2)
+            else if (channelCount == 2)
             {
                 return VK_FORMAT_R32G32_SFLOAT;
             }
-            else if (image.channelCount == 3)
+            else if (channelCount == 3)
             {
                 return VK_FORMAT_R32G32B32_SFLOAT;
             }
-            else if (image.channelCount == 4)
+            else if (channelCount == 4)
             {
                 return VK_FORMAT_R32G32B32A32_SFLOAT;
             }
@@ -249,22 +249,26 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
              const Image& srcImage, Image& dstImage, bool generateMips)
 {
     FLY_ASSERT(srcImage.storageType == ImageStorageType::Byte);
-    FLY_ASSERT(srcImage.channelCount == 4);
 
     u32 side = srcImage.width / 4;
     u32 mipCount = generateMips ? 0 : 1;
+    u32 channelCount = (srcImage.channelCount == 3) ? 4 : srcImage.channelCount;
 
     RHI::Texture texture2D;
     RHI::Texture cubemap;
 
-    VkFormat format = ImageVulkanFormat(srcImage);
+    VkFormat inputImageFormat =
+        ImageVulkanFormat(srcImage.storageType, srcImage.channelCount);
 
-    if (!RHI::CreateTexture2D(device,
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                  VK_IMAGE_USAGE_SAMPLED_BIT,
-                              srcImage.data, srcImage.width, srcImage.height,
-                              format, RHI::Sampler::FilterMode::Nearest,
-                              RHI::Sampler::WrapMode::Clamp, 1, texture2D))
+    VkFormat cubemapFormat =
+        ImageVulkanFormat(srcImage.storageType, channelCount);
+
+    if (!RHI::CreateTexture2D(
+            device,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            srcImage.data, srcImage.width, srcImage.height, inputImageFormat,
+            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Clamp, 1,
+            texture2D))
     {
         return false;
     }
@@ -273,7 +277,7 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                            nullptr, side, format,
+                            nullptr, side, cubemapFormat,
                             RHI::Sampler::FilterMode::Nearest, mipCount,
                             cubemap))
     {
@@ -309,8 +313,7 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
     for (u32 i = 0; i < cubemap.mipCount; i++)
     {
         u32 mipSide = MAX(side >> i, 1);
-        u64 size = mipSide * mipSide * srcImage.channelCount *
-                   cubemap.layerCount *
+        u64 size = mipSide * mipSide * channelCount * cubemap.layerCount *
                    GetImageStorageTypeSize(srcImage.storageType);
         if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                nullptr, size, stagingBuffers[i]))
@@ -365,15 +368,14 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
     dstImage.data = dstImage.mem;
     dstImage.width = side;
     dstImage.height = side;
-    dstImage.channelCount = srcImage.channelCount;
+    dstImage.channelCount = channelCount;
     dstImage.mipCount = cubemap.mipCount;
     dstImage.layerCount = cubemap.layerCount;
     dstImage.storageType = srcImage.storageType;
     for (u32 i = 0; i < cubemap.mipCount; i++)
     {
         u32 mipSide = MAX(side >> i, 1);
-        u64 size = mipSide * mipSide * srcImage.channelCount *
-                   cubemap.layerCount *
+        u64 size = mipSide * mipSide * channelCount * cubemap.layerCount *
                    GetImageStorageTypeSize(srcImage.storageType);
         memcpy(dstImage.mem + offset, RHI::BufferMappedPtr(stagingBuffers[i]),
                size);

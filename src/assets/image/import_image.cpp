@@ -151,21 +151,31 @@ bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
 
     String8 pathStr = Fly::String8(path, strlen(path));
 
-    if (String8::FindLast(pathStr, '.').StartsWith(FLY_STRING8_LITERAL(".fbc")))
+    String8 extension = String8::FindLast(pathStr, '.');
+
+    if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc")))
     {
         return LoadCompressedImageFromFile(pathStr, image);
     }
-    else if (String8::FindLast(pathStr, '.')
-                 .StartsWith(FLY_STRING8_LITERAL(".exr")))
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".exr")))
     {
         return LoadExrImageFromFile(pathStr, image);
     }
 
     int x = 0, y = 0, n = 0;
-    image.mem = stbi_load(path, &x, &y, &n, desiredChannelCount);
+    if (stbi_is_hdr(path))
+    {
+        image.mem = reinterpret_cast<u8*>(
+            stbi_loadf(path, &x, &y, &n, desiredChannelCount));
+        image.storageType = ImageStorageType::Float;
+    }
+    else
+    {
+        image.mem = stbi_load(path, &x, &y, &n, desiredChannelCount);
+        image.storageType = ImageStorageType::Byte;
+    }
     image.data = image.mem;
 
-    image.storageType = ImageStorageType::Byte;
     image.mipCount = 1;
     image.layerCount = 1;
     image.width = static_cast<u32>(x);
