@@ -57,3 +57,23 @@ external_assets.base(
     build_file = "//scripts/bazel/target:BUILD.ambientcg.bazel",
 )
 use_repo(external_assets, "ambientcg")
+
+################################################################
+# PAUL DEBEVEC PROBE GALLERY
+################################################################
+
+external_assets.base(
+    name = "debevec",
+    urls = [
+        "https://pauldebevec.com/Probes/new/grace_probe_latlong.hdr",
+        "https://pauldebevec.com/Probes/new/rnl_probe_latlong.hdr",
+        "https://pauldebevec.com/Probes/new/uffizi_probe_latlong.hdr",
+    ],
+    sha256 = [
+        "64aaf9eb96bb4aa597cf52849fbb6724e51250d7fa03e4deebe941d66bae9643",
+        "f73c80a429cc549278bc03e87456a42ff21747ff5ef232a91d5cf6346608b9d0",
+        "fcaebaca7ec26a6eeb5631e65f9e43a469b2be0529ec760b6d8fad7277a31fd7",
+    ],
+    build_file = "//scripts/bazel/target:BUILD.debevec.bazel",
+)
+use_repo(external_assets, "debevec")

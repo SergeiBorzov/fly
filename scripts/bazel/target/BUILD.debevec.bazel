@@ -1,0 +1,5 @@
+exports_files([
+    "grace_probe_latlong.hdr",
+    "uffizi_probe_latlong.hdr",
+    "rnl_probe_latlong.hdr",
+])
