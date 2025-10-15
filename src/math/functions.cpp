@@ -48,7 +48,7 @@ f32 Cos(f32 radians) { return cosf(radians); }
 
 f32 Tan(f32 radians) { return tanf(radians); }
 
-f32 ATan2(f32 y, f32 x) { return atan2f(y, x); }
+f32 Atan2(f32 y, f32 x) { return atan2f(y, x); }
 
 void SetRandomSeed(u32 seed) { stSeed = seed; }
 

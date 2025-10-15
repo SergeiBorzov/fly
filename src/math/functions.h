@@ -48,7 +48,7 @@ f32 Exp(f32 value);
 f32 Sin(f32 radians);
 f32 Cos(f32 radians);
 f32 Tan(f32 radians);
-f32 ATan2(f32 y, f32 x);
+f32 Atan2(f32 y, f32 x);
 
 void SetRandomSeed(u32 seed);
 u32 Rand();

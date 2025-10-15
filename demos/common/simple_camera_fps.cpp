@@ -13,7 +13,7 @@ SimpleCameraFPS::SimpleCameraFPS(f32 hFov, f32 aspect, f32 near, f32 far,
       position_(position), hFov_(hFov), aspect_(aspect), near_(near), far_(far)
 {
     f32 hTanV = Math::Tan(Math::Radians(hFov) * 0.5f) / aspect;
-    vFov_ = Math::Degrees(Math::ATan2(hTanV, 1.0f) * 2.0f);
+    vFov_ = Math::Degrees(Math::Atan2(hTanV, 1.0f) * 2.0f);
 }
 
 Math::Vec3 SimpleCameraFPS::GetRightVector()
