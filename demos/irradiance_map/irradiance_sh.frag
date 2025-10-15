@@ -4,9 +4,7 @@
 #include "bindless.glsl"
 
 #define PI 3.14159265359f
-#define GOLDEN_RATIO 1.6180339f
-
-#define SH_00_SCALE sqrt(1 / (4 * PI))
+#define SCALE 10000000
 
 layout(location = 0) in vec3 inDirection;
 layout(location = 0) out vec4 outFragColor;
@@ -21,11 +19,11 @@ gPushConstants;
 
 FLY_REGISTER_TEXTURE_BUFFER(Cubemap, samplerCube)
 FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
-    vec3 coefficient;
+    ivec3 coefficient;
     float pad;
 })
 
-void SH9(vec3 n, out float sh[9])
+void EvalSH9(vec3 n, out float sh[9])
 {
     const float c0 = sqrt(1.0f / (4.0f * PI));
     const float c1 = sqrt(3.0f / (4.0f * PI));
@@ -53,13 +51,13 @@ vec3 IrradianceSH9(vec3 n, vec3 l[9])
     const float c5 = 0.247708f;
 
     float sh[9];
-    SH9(n, sh);
+    EvalSH9(n, sh);
 
     vec3 m00 = c1 * l[8];
     vec3 m01 = c1 * l[4];
     vec3 m02 = c1 * l[7];
     vec3 m03 = c2 * l[3];
-    vec3 m11 = -c1 * l[4];
+    vec3 m11 = -c1 * l[8];
     vec3 m12 = c1 * l[5];
     vec3 m13 = c2 * l[1];
     vec3 m22 = c3 * l[6];
@@ -82,8 +80,8 @@ vec3 IrradianceSH9(vec3 n, vec3 l[9])
 
 mat3 FaceRotation(uint faceIndex)
 {
-    const vec3 faceTargets[6] = vec3[](vec3(1, 0, 0),  // +X
-                                       vec3(-1, 0, 0), // -X
+    const vec3 faceTargets[6] = vec3[](vec3(-1, 0, 0), // +X
+                                       vec3(1, 0, 0),  // -X
                                        vec3(0, 1, 0),  // +Y
                                        vec3(0, -1, 0), // -Y
                                        vec3(0, 0, 1),  // +Z
@@ -118,12 +116,14 @@ void main()
     vec3 l[9];
     for (uint i = 0; i < 9; i++)
     {
-        l[i] = FLY_ACCESS_STORAGE_BUFFER(
-                   RadianceProjectionSH,
-                   gPushConstants.radianceProjectionBufferIndex)[i]
-                   .coefficient;
+        l[i] = vec3(FLY_ACCESS_STORAGE_BUFFER(
+                        RadianceProjectionSH,
+                        gPushConstants.radianceProjectionBufferIndex)[i]
+                        .coefficient) /
+               SCALE;
     }
-    vec3 irradiance = IrradianceSH9(n, l);
+    vec3 irradiance = IrradianceSH9(n.zyx, l);
 
     outFragColor = vec4(irradiance, 1.0f);
 }
+// Getting values 2pi times bigger than in paper, normalization?

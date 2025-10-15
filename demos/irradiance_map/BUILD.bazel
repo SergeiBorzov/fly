@@ -10,16 +10,14 @@ copy_molten_vk()
 cook_images(
     name = "cook_skyboxes",
     inputs = [
-        "@ambientcg//:NightEnvironmentHDRI009_4K-HDR.exr",
-        "@ambientcg//:DayEnvironmentHDRI020_4K-HDR.exr",
-        "@ambientcg//:DayEnvironmentHDRI014_4K-HDR.exr",
-        "@ambientcg//:NightEnvironmentHDRI008_4K-HDR.exr",
+        "@debevec//:grace_probe_latlong.hdr",
+        "@debevec//:rnl_probe_latlong.hdr",
+        "@debevec//:uffizi_probe_latlong.hdr",
     ],
     outputs = [
-        "Night.exr",
-        "Forest.exr",
-        "Tunnel.exr",
-        "Night2.exr",
+        "grace_cathedral.hdr",
+        "eucalyptus_grove.hdr",
+        "uffizi_gallery.hdr",
     ],
     eq2cube = True,
 )

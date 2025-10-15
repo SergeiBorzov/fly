@@ -22,10 +22,10 @@
 using namespace Fly;
 
 #define IRRADIANCE_MAP_SIZE 64
-#define RADIANCE_MAP_COUNT 4
+#define RADIANCE_MAP_COUNT 3
+#define SCALE 1e8f
 
 static RHI::GraphicsPipeline sDrawCubemapPipeline;
-static RHI::GraphicsPipeline sConvoluteIrradianceSlowPipeline;
 static RHI::GraphicsPipeline sConvoluteIrradianceSHPipeline;
 static RHI::ComputePipeline sProjectRadiancePipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
@@ -104,22 +104,10 @@ static bool CreatePipeline(RHI::Device& device)
     }
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    if (!Fly::LoadShaderFromSpv(device, "irradiance_slow.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
     fixedState.pipelineRendering.colorAttachments[0] =
         VK_FORMAT_R16G16B16A16_SFLOAT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.pipelineRendering.viewMask = 0x3F;
-
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sConvoluteIrradianceSlowPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     if (!Fly::LoadShaderFromSpv(device, "irradiance_sh.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
@@ -151,7 +139,6 @@ static bool CreatePipeline(RHI::Device& device)
 static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyComputePipeline(device, sProjectRadiancePipeline);
-    RHI::DestroyGraphicsPipeline(device, sConvoluteIrradianceSlowPipeline);
     RHI::DestroyGraphicsPipeline(device, sConvoluteIrradianceSHPipeline);
     RHI::DestroyGraphicsPipeline(device, sDrawCubemapPipeline);
 }
@@ -169,7 +156,10 @@ static bool CreateResources(RHI::Device& device)
     }
 
     const char* radianceMapPaths[RADIANCE_MAP_COUNT] = {
-        "Night.exr", "Tunnel.exr", "Forest.exr", "Night2.exr"};
+        "grace_cathedral.hdr",
+        "eucalyptus_grove.hdr",
+        "uffizi_gallery.hdr",
+    };
 
     for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
     {
@@ -177,7 +167,7 @@ static bool CreateResources(RHI::Device& device)
                 device,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                     VK_IMAGE_USAGE_STORAGE_BIT,
-                radianceMapPaths[i], VK_FORMAT_R16G16B16A16_SFLOAT,
+                radianceMapPaths[i], VK_FORMAT_R32G32B32A32_SFLOAT,
                 RHI::Sampler::FilterMode::Bilinear, 1, sRadianceMaps[i]))
         {
             return false;
@@ -193,9 +183,10 @@ static bool CreateResources(RHI::Device& device)
             return false;
         }
 
-        if (!RHI::CreateBuffer(
-                device, false, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, nullptr,
-                sizeof(Math::Vec4) * 9, sRadianceProjectionBuffers[i]))
+        i32 data[9 * 4] = {0};
+        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                               data, sizeof(i32) * 9 * 4,
+                               sRadianceProjectionBuffers[i]))
         {
             return false;
         }
@@ -248,15 +239,18 @@ static void ProjectRadiance(RHI::Device& device)
         bufferInput.bufferAccesses = &bufferAccess;
         bufferInput.bufferCount = 1;
 
-        RHI::RecordTextureInput textureInput;
-        RHI::Texture* pRadianceTexture = &sRadianceMaps[i];
-        RHI::ImageLayoutAccess imageLayoutAccess;
-        imageLayoutAccess.imageLayout =
+        RHI::Texture* textures[1];
+        textures[0] = &sRadianceMaps[i];
+
+        RHI::ImageLayoutAccess imageLayoutsAccesses[1];
+        imageLayoutsAccesses[0].imageLayout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-        textureInput.textures = &pRadianceTexture;
-        textureInput.imageLayoutsAccesses = &imageLayoutAccess;
+        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+        RHI::RecordTextureInput textureInput;
         textureInput.textureCount = 1;
+        textureInput.textures = textures;
+        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
 
         RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device),
                             RecordProjectRadiance, &bufferInput, &textureInput);
@@ -325,65 +319,6 @@ static void ConvoluteIrradianceSH(RHI::Device& device)
 
         RHI::ExecuteGraphics(OneTimeSubmitCommandBuffer(device), renderingInfo,
                              RecordConvoluteIrradianceSH, &bufferInput,
-                             &textureInput);
-    }
-}
-
-static void RecordConvoluteIrradianceSlow(
-    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
-{
-    RHI::SetViewport(cmd, 0, 0, IRRADIANCE_MAP_SIZE, IRRADIANCE_MAP_SIZE, 0.0f,
-                     1.0f);
-    RHI::SetScissor(cmd, 0, 0, IRRADIANCE_MAP_SIZE, IRRADIANCE_MAP_SIZE);
-    RHI::BindGraphicsPipeline(cmd, sConvoluteIrradianceSlowPipeline);
-
-    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
-    RHI::Texture& radianceMap = *(textureInput->textures[0]);
-
-    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           radianceMap.bindlessHandle};
-    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::Draw(cmd, 6, 1, 0, 0);
-}
-
-static void ConvoluteIrradianceSlow(RHI::Device& device)
-{
-    for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
-    {
-        RHI::RecordBufferInput bufferInput;
-        RHI::Buffer* pCameraBuffer = &sCameraBuffers[device.frameIndex];
-        VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-        bufferInput.buffers = &pCameraBuffer;
-        bufferInput.bufferAccesses = &bufferAccess;
-        bufferInput.bufferCount = 1;
-
-        RHI::RecordTextureInput textureInput;
-        RHI::Texture* textures[2];
-        RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-        textureInput.textures = textures;
-        textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-        textureInput.textureCount = 2;
-
-        textures[0] = &sRadianceMaps[i];
-        imageLayoutsAccesses[0].imageLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-        textures[1] = &sIrradianceMaps[i];
-        imageLayoutsAccesses[1].imageLayout =
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        imageLayoutsAccesses[1].accessMask =
-            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-
-        VkRenderingAttachmentInfo colorAttachment =
-            RHI::ColorAttachmentInfo(sIrradianceMaps[i].arrayImageView);
-        VkRenderingInfo renderingInfo = RHI::RenderingInfo(
-            {{0, 0}, {IRRADIANCE_MAP_SIZE, IRRADIANCE_MAP_SIZE}},
-            &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
-
-        RHI::ExecuteGraphics(OneTimeSubmitCommandBuffer(device), renderingInfo,
-                             RecordConvoluteIrradianceSlow, &bufferInput,
                              &textureInput);
     }
 }
@@ -519,6 +454,18 @@ int main(int argc, char* argv[])
     ProjectRadiance(device);
     ConvoluteIrradianceSH(device);
     RHI::EndOneTimeSubmit(device);
+
+    for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
+    {
+        RHI::Buffer& projection = sRadianceProjectionBuffers[i];
+        i32* values = static_cast<i32*>(BufferMappedPtr(projection));
+        for (u32 i = 0; i < 9; i++)
+        {
+            FLY_LOG("y%u: %f %f %f", i, values[4 * i] / SCALE,
+                    values[4 * i + 1] / SCALE, values[4 * i + 2] / SCALE);
+        }
+        FLY_LOG("");
+    }
 
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
