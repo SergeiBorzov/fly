@@ -12,12 +12,14 @@ cook_images(
     inputs = [
         "@debevec//:grace_probe_latlong.hdr",
         "@debevec//:rnl_probe_latlong.hdr",
+        "@debevec//:stpeters_probe_latlong.hdr",
         "@debevec//:uffizi_probe_latlong.hdr",
     ],
     outputs = [
-        "grace_cathedral.hdr",
-        "eucalyptus_grove.hdr",
-        "uffizi_gallery.hdr",
+        "grace_cathedral.png",
+        "eucalyptus_grove.png",
+        "stpeters_basilica.png",
+        "uffizi_gallery.png",
     ],
     eq2cube = True,
 )

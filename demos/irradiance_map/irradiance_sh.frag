@@ -4,7 +4,7 @@
 #include "bindless.glsl"
 
 #define PI 3.14159265359f
-#define SCALE 10000000
+#define SCALE 100000000
 
 layout(location = 0) in vec3 inDirection;
 layout(location = 0) out vec4 outFragColor;

@@ -22,7 +22,7 @@
 using namespace Fly;
 
 #define IRRADIANCE_MAP_SIZE 64
-#define RADIANCE_MAP_COUNT 3
+#define RADIANCE_MAP_COUNT 4
 #define SCALE 1e8f
 
 static RHI::GraphicsPipeline sDrawCubemapPipeline;
@@ -158,6 +158,7 @@ static bool CreateResources(RHI::Device& device)
     const char* radianceMapPaths[RADIANCE_MAP_COUNT] = {
         "grace_cathedral.hdr",
         "eucalyptus_grove.hdr",
+        "stpeters_basilica.hdr",
         "uffizi_gallery.hdr",
     };
 
@@ -228,7 +229,7 @@ static void RecordProjectRadiance(RHI::CommandBuffer& cmd,
     RHI::Dispatch(cmd, radianceMapSize / 16, radianceMapSize / 16, 6);
 }
 
-static void ProjectRadiance(RHI::Device& device)
+static void ProjectRadiance(RHI::Device& device, RHI::CommandBuffer& cmd)
 {
     for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)
     {
@@ -252,8 +253,8 @@ static void ProjectRadiance(RHI::Device& device)
         textureInput.textures = textures;
         textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
 
-        RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device),
-                            RecordProjectRadiance, &bufferInput, &textureInput);
+        RHI::ExecuteCompute(cmd, RecordProjectRadiance, &bufferInput,
+                            &textureInput);
     }
 }
 
@@ -402,15 +403,7 @@ int main(int argc, char* argv[])
     }
     glfwSetKeyCallback(window, OnKeyboardPressed);
 
-    const char* requiredDeviceExtensions[] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME};
-
-    VkPhysicalDeviceShaderAtomicFloatFeaturesEXT shaderAtomicFloatFeatures{};
-    shaderAtomicFloatFeatures.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-    shaderAtomicFloatFeatures.shaderBufferFloat32AtomicAdd = true;
-    shaderAtomicFloatFeatures.shaderSharedFloat32AtomicAdd = true;
+    const char* requiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     RHI::ContextSettings settings{};
     settings.instanceExtensions =
@@ -419,8 +412,6 @@ int main(int argc, char* argv[])
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
     settings.vulkan11Features.multiview = true;
-
-    settings.vulkan13Features.pNext = &shaderAtomicFloatFeatures;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
@@ -451,7 +442,7 @@ int main(int argc, char* argv[])
     RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
                           cameraBuffer);
     RHI::BeginOneTimeSubmit(device);
-    ProjectRadiance(device);
+    ProjectRadiance(device, RHI::OneTimeSubmitCommandBuffer(device));
     ConvoluteIrradianceSH(device);
     RHI::EndOneTimeSubmit(device);
 
