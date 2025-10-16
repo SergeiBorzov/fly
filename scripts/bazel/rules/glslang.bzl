@@ -138,6 +138,8 @@ def _glsl_shader_impl(ctx):
         executable = ctx.executable._command,
         arguments = [
             "-V",
+            "--target-env",
+            "vulkan1.3",
             ctx.file.src.path,
             "-o",
             spirv.path

@@ -1,5 +1,6 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
 #include "bindless.glsl"
 
 #define PI 3.14159265359f
@@ -114,14 +115,19 @@ void main()
 
     float y[9];
     EvalSH9(normal.zyx, y);
-
     vec3 radianceSolidAngle = radiance * TexelCoordSolidAngle(coord);
+
     for (uint i = 0; i < 9; i++)
     {
         vec3 contribution = radianceSolidAngle * y[i];
-        atomicAdd(localRadianceProjectionR[i], int(contribution.r * SCALE));
-        atomicAdd(localRadianceProjectionG[i], int(contribution.g * SCALE));
-        atomicAdd(localRadianceProjectionB[i], int(contribution.b * SCALE));
+        ivec3 scaledContribution = ivec3(contribution * SCALE);
+        ivec3 subgroupContribution = subgroupAdd(scaledContribution);
+        if (subgroupElect())
+        {
+            atomicAdd(localRadianceProjectionR[i], subgroupContribution.r);
+            atomicAdd(localRadianceProjectionG[i], subgroupContribution.g);
+            atomicAdd(localRadianceProjectionB[i], subgroupContribution.b);
+        }
     }
     barrier();
 

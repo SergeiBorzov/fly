@@ -28,11 +28,11 @@ using namespace Fly;
 static RHI::GraphicsPipeline sDrawCubemapPipeline;
 static RHI::GraphicsPipeline sConvoluteIrradianceSHPipeline;
 static RHI::ComputePipeline sProjectRadiancePipeline;
-static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 
 static RHI::Texture sRadianceMaps[RADIANCE_MAP_COUNT];
 static RHI::Texture sIrradianceMaps[RADIANCE_MAP_COUNT];
 static RHI::Buffer sRadianceProjectionBuffers[RADIANCE_MAP_COUNT];
+static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 
 static u32 sCurrentCubemapIndex = 0;
 static RHI::Texture* sCurrentCubemap = &sRadianceMaps[sCurrentCubemapIndex];
