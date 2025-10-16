@@ -20,14 +20,6 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 view;
 })
 
-vec2 UVToSkyviewLonLat(vec2 uv)
-{
-    float lon = uv.x * 2.0f * PI - PI;
-    float k = 2.0f * uv.y - 1.0f;
-    float lat = sign(k) * (k * k) * PI * 0.5f;
-    return vec2(lon, lat);
-}
-
 vec3 IntegrateLuminance(vec3 camPos, vec3 e, vec3 l, vec3 dir, float rb,
                         float rt)
 {

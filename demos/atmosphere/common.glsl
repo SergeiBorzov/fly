@@ -179,6 +179,14 @@ vec3 SampleMultiscattering(float height, float cosZ, float rb, float rt,
         .rgb;
 }
 
+vec2 UVToSkyviewLonLat(vec2 uv)
+{
+    float lon = uv.x * 2.0f * PI - PI;
+    float k = 2.0f * uv.y - 1.0f;
+    float lat = sign(k) * (k * k) * PI * 0.5f;
+    return vec2(lon, lat);
+}
+
 vec2 SkyviewLonLatToUV(float lon, float lat)
 {
     float u = (lon + PI) / (2.0f * PI);

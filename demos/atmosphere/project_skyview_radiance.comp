@@ -1,0 +1,168 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#include "common.glsl"
+
+#define PI 3.14159265359f
+#define SCALE 100000000
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint skyviewMapIndex;
+    uint projectionBufferIndex;
+    uint skyviewMapWidth;
+    uint skyviewMapHeight;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(, RadianceProjectionSH, {
+    ivec3 coefficient;
+    int pad;
+})
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(readonly, RGBA16FTextures, image2D, rgba16f)
+
+void EvalSH9(vec3 n, out float sh[9])
+{
+    const float c0 = sqrt(1.0f / (4.0f * PI));
+    const float c1 = sqrt(3.0f / (4.0f * PI));
+    const float c2 = sqrt(15.0f / (4.0f * PI));
+    const float c3 = sqrt(5.0f / (16.0f * PI));
+    const float c4 = sqrt(15.0f / (16.0f * PI));
+
+    sh[0] = c0;
+    sh[1] = c1 * n.y;
+    sh[2] = c1 * n.z;
+    sh[3] = c1 * n.x;
+    sh[4] = c2 * n.x * n.y;
+    sh[5] = c2 * n.y * n.z;
+    sh[6] = c3 * (3.0f * n.z * n.z - 1.0f);
+    sh[7] = c2 * n.x * n.z;
+    sh[8] = c4 * (n.x * n.x - n.y * n.y);
+}
+
+// float AreaElement(float x, float y)
+// {
+//     return atan(x * y / sqrt(x * x + y * y + 1));
+// }
+
+// float TexelCoordSolidAngle(vec2 coord)
+// {
+//     float invSize = 1.0f / float(gPushConstants.radianceMapSize);
+
+//     float x0 = coord.x - invSize;
+//     float y0 = coord.y - invSize;
+//     float x1 = coord.x + invSize;
+//     float y1 = coord.y + invSize;
+//     float SolidAngle = AreaElement(x0, y0) - AreaElement(x0, y1) -
+//                        AreaElement(x1, y0) + AreaElement(x1, y1);
+
+//     return SolidAngle;
+// }
+
+// vec3 GetViewDirection(vec2 coord, uint faceIndex)
+// {
+//     if (faceIndex == 0)
+//     {
+//         return normalize(vec3(1.0f, -coord.y, -coord.x));
+//     }
+//     else if (faceIndex == 1)
+//     {
+//         return normalize(vec3(-1.0f, -coord.y, coord.x));
+//     }
+//     else if (faceIndex == 2)
+//     {
+//         return normalize(vec3(coord.x, 1.0f, coord.y));
+//     }
+//     else if (faceIndex == 3)
+//     {
+//         return normalize(vec3(coord.x, -1.0f, -coord.y));
+//     }
+//     else if (faceIndex == 4)
+//     {
+//         return normalize(vec3(coord.x, -coord.y, 1.0f));
+//     }
+//     else
+//     {
+//         return normalize(vec3(-coord.x, -coord.y, -1.0f));
+//     }
+// }
+
+shared int localRadianceProjectionR[9];
+shared int localRadianceProjectionG[9];
+shared int localRadianceProjectionB[9];
+void main()
+{
+    uvec3 gid = gl_GlobalInvocationID;
+    vec2 uv = (vec2(gid.xy) + 0.5f) / vec2(gPushConstants.skyviewMapWidth,
+                                           gPushConstants.skyviewMapHeight);
+
+    if (gid.y == 0 && gid.x < 9)
+    {
+        FLY_ACCESS_STORAGE_BUFFER(RadianceProjectionSH,
+                                  gPushConstants.projectionBufferIndex)
+        [gid.x].coefficient = ivec3(0);
+    }
+    barrier();
+
+    if (gl_LocalInvocationIndex < 9)
+    {
+        localRadianceProjectionR[gl_LocalInvocationIndex] = 0;
+        localRadianceProjectionG[gl_LocalInvocationIndex] = 0;
+        localRadianceProjectionB[gl_LocalInvocationIndex] = 0;
+    }
+    barrier();
+
+    vec2 lonLat = UVToSkyviewLonLat(uv);
+    float sinTheta = sin(lonLat.y);
+    float cosTheta = cos(lonLat.y);
+    float sinPhi = sin(lonLat.x);
+    float cosPhi = cos(lonLat.x);
+    vec3 normal = vec3(sinTheta * cosPhi, sinTheta * sinPhi, cosTheta);
+
+    float y[9];
+    EvalSH9(normal, y);
+
+    vec3 radiance =
+        imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                      RGBA16FTextures, gPushConstants.skyviewMapIndex),
+                  ivec2(gid))
+            .rgb;
+
+    vec3 radianceSinAngle = radiance * sinTheta;
+    for (uint i = 0; i < 9; i++)
+    {
+        ivec3 contribution = ivec3(radianceSinAngle * y[i] * SCALE);
+        ivec3 subgroupContribution = subgroupAdd(contribution);
+        if (subgroupElect())
+        {
+            atomicAdd(localRadianceProjectionR[i], subgroupContribution.r);
+            atomicAdd(localRadianceProjectionG[i], subgroupContribution.g);
+            atomicAdd(localRadianceProjectionB[i], subgroupContribution.b);
+        }
+    }
+    barrier();
+
+    if (gl_LocalInvocationIndex == 0)
+    {
+        for (int i = 0; i < 9; i++)
+        {
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.projectionBufferIndex)[i]
+                          .coefficient.r,
+                      localRadianceProjectionR[i]);
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.projectionBufferIndex)[i]
+                          .coefficient.g,
+                      localRadianceProjectionG[i]);
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.projectionBufferIndex)[i]
+                          .coefficient.b,
+                      localRadianceProjectionB[i]);
+        }
+    }
+}
