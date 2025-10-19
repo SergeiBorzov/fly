@@ -133,7 +133,7 @@ void main()
     vec3 camPos = inverse(view)[3].xyz;
 
     vec3 worldPos = (camPos * 0.001f);
-    worldPos.y += rb;
+    worldPos.y = rb + 0.025f;
 
     vec3 l = SphereCoordToRay(PI / 2 - zenith, azimuth);
 
@@ -143,7 +143,7 @@ void main()
         AtmosphereParams, gPushConstants.atmosphereBufferIndex,
         sunIlluminanceOuterSpace);
 
-    vec3 e = sunAlbedo * sunIlluminance * 1e-5;
+    vec3 e = sunAlbedo * sunIlluminance;
     vec3 lum = IntegrateLuminance(worldPos, e, l, dir, rb, rt);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(

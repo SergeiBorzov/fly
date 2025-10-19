@@ -170,6 +170,19 @@ vec3 LimbDarkening(vec3 luminance, float centerToEdge)
     return luminance * factor;
 }
 
+float ExponentialHeightFog(vec3 worldPos, vec3 camPos, vec3 camDir, float L)
+{
+    const float baseFogDensity = 0.012;
+    const float baseTransmittance = 0.045;
+    const float k = 0.0035;
+
+    float opticalDepth = baseFogDensity * exp(-k * camPos.y) *
+                         (1.0f - exp(-k * camDir.y * L)) /
+                         (k * sign(camDir.y) * max(abs(camDir.y), 0.00001f));
+
+    return exp(-baseTransmittance * opticalDepth);
+}
+
 vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 {
     vec3 skyRadianceProjection[9];
@@ -207,7 +220,10 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
     vec3 worldPos = vec3(0.0f, r, 0.0f);
     float cosZ = l.y;
 
-    vec3 fogColor = vec3(0.7f, 0.75f, 0.8f) * 1e4;
+    float lat = asin(dir.y);
+    float lon = atan(dir.x, dir.z);
+    vec3 horizonColor =
+        SampleSkyview(lon, 0.0f, gPushConstants.skyviewMapIndex);
 
     if (id >= 0)
     {
@@ -232,20 +248,18 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
         // sky contribution
         vec3 skyIrradiance =
             IrradianceSH9(vec3(-n.z, -n.x, n.y), skyRadianceProjection);
-        lum += f * skyIrradiance * sunIlluminanceOuterSpace;
+        lum += f * skyIrradiance;
 
-        float fogFactor = smoothstep(6500.0f, 25000.0f, d.x);
-        lum = mix(lum, fogColor, fogFactor);
+        // exponential height fog
+        float fogFactor = ExponentialHeightFog(hitPoint, origin, dir, d.x);
+        lum = mix(horizonColor, lum, fogFactor);
     }
     else
     {
         if (dir.y > 0.0f)
         {
             // Sky
-            float lat = asin(dir.y);
-            float lon = atan(dir.x, dir.z);
-            lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex) *
-                  sunIlluminanceOuterSpace;
+            lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex);
 
             // Sun
             float cosZFromView = dir.y;
@@ -264,6 +278,10 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
             sunLum = LimbDarkening(sunLum, centerToEdge);
 
             lum += vis * sunLum;
+        }
+        else
+        {
+            lum = horizonColor;
         }
     }
 
