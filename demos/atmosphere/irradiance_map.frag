@@ -22,25 +22,6 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
     float pad;
 })
 
-void EvalSH9(vec3 n, out float sh[9])
-{
-    const float c0 = sqrt(1.0f / (4.0f * PI));
-    const float c1 = sqrt(3.0f / (4.0f * PI));
-    const float c2 = sqrt(15.0f / (4.0f * PI));
-    const float c3 = sqrt(5.0f / (16.0f * PI));
-    const float c4 = sqrt(15.0f / (16.0f * PI));
-
-    sh[0] = c0;
-    sh[1] = c1 * n.y;
-    sh[2] = c1 * n.z;
-    sh[3] = c1 * n.x;
-    sh[4] = c2 * n.x * n.y;
-    sh[5] = c2 * n.y * n.z;
-    sh[6] = c3 * (3.0f * n.z * n.z - 1.0f);
-    sh[7] = c2 * n.x * n.z;
-    sh[8] = c4 * (n.x * n.x - n.y * n.y);
-}
-
 vec3 IrradianceSH9(vec3 n, vec3 l[9])
 {
     const float c1 = 0.429043f;

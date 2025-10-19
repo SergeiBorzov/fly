@@ -55,10 +55,10 @@ float TexelCoordSolidAngle(vec2 coord)
     float y0 = coord.y - invSize;
     float x1 = coord.x + invSize;
     float y1 = coord.y + invSize;
-    float SolidAngle = AreaElement(x0, y0) - AreaElement(x0, y1) -
+    float solidAngle = AreaElement(x0, y0) - AreaElement(x0, y1) -
                        AreaElement(x1, y0) + AreaElement(x1, y1);
 
-    return SolidAngle;
+    return solidAngle;
 }
 
 vec3 GetViewDirection(vec2 coord, uint faceIndex)

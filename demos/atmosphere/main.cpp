@@ -793,12 +793,14 @@ static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
 
     RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
     RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
+    RHI::Buffer& skyRadianceProjectionBuffer = *(bufferInput->buffers[2]);
     RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
     RHI::Texture& skyviewLUT = *(textureInput->textures[1]);
 
     u32 pushConstants[] = {
         atmosphereParams.bindlessHandle,
         cameraParams.bindlessHandle,
+        skyRadianceProjectionBuffer.bindlessHandle,
         transmittanceLUT.bindlessHandle,
         skyviewLUT.bindlessHandle,
     };
@@ -811,9 +813,9 @@ static void DrawTerrainScene(RHI::Device& device)
     RHI::RecordBufferInput bufferInput;
     RHI::RecordTextureInput textureInput;
 
-    RHI::Buffer* buffers[2];
-    VkAccessFlagBits2 bufferAccesses[2];
-    bufferInput.bufferCount = 2;
+    RHI::Buffer* buffers[3];
+    VkAccessFlagBits2 bufferAccesses[3];
+    bufferInput.bufferCount = 3;
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
 
@@ -821,6 +823,8 @@ static void DrawTerrainScene(RHI::Device& device)
     bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
     buffers[1] = &sCameraBuffers[device.frameIndex];
     bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[2] = &sSkyviewRadianceProjectionBuffer;
+    bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
 
     RHI::Texture* textures[2];
     RHI::ImageLayoutAccess imageLayoutsAccesses[2];
@@ -1011,7 +1015,7 @@ int main(int argc, char* argv[])
     sAtmosphereParams.mieDensityCoeff = 1.2f;
     sAtmosphereParams.sunAlbedo = Math::Vec3(1.0f, 1.0f, 1.0f);
 
-    sSunParams.zenithDegrees = 72.0f;
+    sSunParams.zenithDegrees = 85.0f;
     sSunParams.azimuthDegrees = 0.0f;
     sSunParams.illuminanceZenith = 100000.0f;
     sSunParams.angularDiameterDegrees = 2.545f;
@@ -1066,23 +1070,12 @@ int main(int argc, char* argv[])
         DrawSkyviewLUT(device);
         ProjectSkyviewRadiance(device);
         ConvoluteIrradiance(device);
-        DrawCubemap(device, &sSkyviewIrradianceMap);
+        // DrawCubemap(device, &sSkyviewIrradianceMap);
         // DrawScreenQuad(device, sMultiscatteringLUT);
-        // DrawTerrainScene(device);
+        DrawTerrainScene(device);
         DrawGUI(device);
 
         RHI::EndRenderFrame(device);
-
-        i32* values = static_cast<i32*>(
-            RHI::BufferMappedPtr(sSkyviewRadianceProjectionBuffer));
-        for (u32 i = 0; i < 9; i++)
-        {
-            FLY_LOG("%u: %f %f %f", i, values[4 * i + 0] / SCALE,
-                    values[4 * i + 1] / SCALE, values[4 * i + 2] / SCALE);
-        }
-        FLY_LOG("");
-
-        // FLY_LOG("fps %f", 1.0f / deltaTime);
     }
 
     RHI::WaitDeviceIdle(device);

@@ -5,6 +5,7 @@
 #define MAX_MARCHING_STEPS 600
 #define MAX_MARCHING_DIST 50000.0f
 #define EPSILON 0.002f
+#define SCALE 100000000
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outFragColor;
@@ -13,6 +14,7 @@ layout(push_constant) uniform PushConstants
 {
     uint atmosphereBufferIndex;
     uint cameraBufferIndex;
+    uint skyRadianceProjectionBufferIndex;
     uint transmittanceMapIndex;
     uint skyviewMapIndex;
 }
@@ -21,6 +23,11 @@ gPushConstants;
 FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
+    ivec3 coefficient;
+    float pad;
 })
 
 vec3 Reinhard(vec3 hdr, float exposure)
@@ -79,8 +86,6 @@ vec3 FBM(vec2 p)
         vec3 n = GradientNoise(f * p);
         d.x += a * n.x;
         d.yz += a * f * n.yz;
-        // d.x += a * n.x;
-        // d.yz += a * n.yz;
         f *= 2.0;
         a *= g;
     }
@@ -95,16 +100,6 @@ vec3 TerrainSdf(vec3 p)
 
 vec3 SceneSdf(vec3 p) { return TerrainSdf(p); }
 
-// vec3 Normal(vec3 p)
-// {
-//     return normalize(vec3(SceneSdf(p + vec3(EPSILON, 0.0f, 0.0f)) -
-//                               SceneSdf(p - vec3(EPSILON, 0.0f, 0.0f)),
-//                           SceneSdf(p + vec3(0.0f, EPSILON, 0.0f)) -
-//                               SceneSdf(p - vec3(0.0f, EPSILON, 0.0f)),
-//                           SceneSdf(p + vec3(0.0f, 0.0f, EPSILON)) -
-//                               SceneSdf(p - vec3(0.0f, 0.0f, EPSILON))));
-// }
-
 int RayMarch(vec3 origin, vec3 dir, float start, float end, out vec3 d)
 {
     float depth = start;
@@ -115,6 +110,7 @@ int RayMarch(vec3 origin, vec3 dir, float start, float end, out vec3 d)
         depth += d.x;
         if (d.x < EPSILON * depth)
         {
+            d.x = depth;
             return 0;
         }
         if (depth >= end)
@@ -125,7 +121,39 @@ int RayMarch(vec3 origin, vec3 dir, float start, float end, out vec3 d)
     return -1;
 }
 
-// Appendix B:
+vec3 IrradianceSH9(vec3 n, vec3 l[9])
+{
+    const float c1 = 0.429043f;
+    const float c2 = 0.511664f;
+    const float c3 = 0.743125f;
+    const float c4 = 0.886227f;
+    const float c5 = 0.247708f;
+
+    vec3 m00 = c1 * l[8];
+    vec3 m01 = c1 * l[4];
+    vec3 m02 = c1 * l[7];
+    vec3 m03 = c2 * l[3];
+    vec3 m11 = -c1 * l[8];
+    vec3 m12 = c1 * l[5];
+    vec3 m13 = c2 * l[1];
+    vec3 m22 = c3 * l[6];
+    vec3 m23 = c2 * l[2];
+    vec3 m33 = c4 * l[0] - c5 * l[6];
+
+    mat4 Mr = mat4(
+        vec4(m00.r, m01.r, m02.r, m03.r), vec4(m01.r, m11.r, m12.r, m13.r),
+        vec4(m02.r, m12.r, m22.r, m23.r), vec4(m03.r, m13.r, m23.r, m33.r));
+    mat4 Mg = mat4(
+        vec4(m00.g, m01.g, m02.g, m03.g), vec4(m01.g, m11.g, m12.g, m13.g),
+        vec4(m02.g, m12.g, m22.g, m23.g), vec4(m03.g, m13.g, m23.g, m33.g));
+    mat4 Mb = mat4(
+        vec4(m00.b, m01.b, m02.b, m03.b), vec4(m01.b, m11.b, m12.b, m13.b),
+        vec4(m02.b, m12.b, m22.b, m23.b), vec4(m03.b, m13.b, m23.b, m33.b));
+
+    vec4 n4 = vec4(vec3(-n.x, n.z, -n.y), 1.0f);
+    return vec3(dot(n4, Mr * n4), dot(n4, Mg * n4), dot(n4, Mb * n4));
+}
+
 // https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
 vec3 LimbDarkening(vec3 luminance, float centerToEdge)
 {
@@ -142,8 +170,34 @@ vec3 LimbDarkening(vec3 luminance, float centerToEdge)
     return luminance * factor;
 }
 
-vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
+vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 {
+    vec3 skyRadianceProjection[9];
+    for (uint i = 0; i < 9; i++)
+    {
+        skyRadianceProjection[i] =
+            vec3(FLY_ACCESS_STORAGE_BUFFER(
+                     RadianceProjectionSH,
+                     gPushConstants.skyRadianceProjectionBufferIndex)[i]
+                     .coefficient) /
+            SCALE;
+    }
+    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
+    float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunAngularDiameterRadians);
+    float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
+    vec3 luminance = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunLuminanceOuterSpace);
+    vec3 illuminance = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunIlluminanceOuterSpace);
+
+    vec3 sunLuminanceOuterSpace = sunAlbedo * luminance;
+    vec3 sunIlluminanceOuterSpace = sunAlbedo * illuminance;
+
     vec3 lum = vec3(0.0f);
 
     vec3 d = vec3(0.0f);
@@ -153,35 +207,47 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
     vec3 worldPos = vec3(0.0f, r, 0.0f);
     float cosZ = l.y;
 
+    vec3 fogColor = vec3(0.7f, 0.75f, 0.8f) * 1e4;
+
     if (id >= 0)
     {
-        vec3 sunLum =
-            e * SampleTransmittance(r, cosZ, rb, rt,
-                                    gPushConstants.transmittanceMapIndex);
+        vec3 sunLuminance =
+            sunLuminanceOuterSpace *
+            SampleTransmittance(r, cosZ, rb, rt,
+                                gPushConstants.transmittanceMapIndex);
 
         vec3 hitPoint = origin + dir * d.x;
         vec3 n = normalize(vec3(-d.y, 1.0f, -d.z));
-        // vec3 n = Normal(hitPoint);
-        lum = vec3(0.1f, 0.1f, 0.1f) * sunLum * max(dot(n, l), 0.0f) * 5e-4;
+
+        vec3 shadowD;
+        int id =
+            RayMarch(hitPoint + n * 0.02f, l, 0.0f, MAX_MARCHING_DIST, shadowD);
+        float vis = float(id == -1);
+
+        vec3 f = vec3(0.2f, 0.2f, 0.2f) / PI; // Terrain BRDF
+        // sun contribution
+        lum += vis * f * sunLuminance * max(dot(n, l), 0.0f) * PI * 0.5f *
+               (1 - cos(sunAngularDiameterRadians));
+
+        // sky contribution
+        vec3 skyIrradiance =
+            IrradianceSH9(vec3(-n.z, -n.x, n.y), skyRadianceProjection);
+        lum += f * skyIrradiance * sunIlluminanceOuterSpace;
+
+        float fogFactor = smoothstep(6500.0f, 25000.0f, d.x);
+        lum = mix(lum, fogColor, fogFactor);
     }
     else
     {
         if (dir.y > 0.0f)
         {
-            // vec3 worldPos = origin * 0.001f;
-            // worldPos.y += rb;
-
             // Sky
             float lat = asin(dir.y);
             float lon = atan(dir.x, dir.z);
-            lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex) * 1e5;
+            lum = SampleSkyview(lon, lat, gPushConstants.skyviewMapIndex) *
+                  sunIlluminanceOuterSpace;
 
             // Sun
-            float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
-                AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-                sunAngularDiameterRadians);
-            float sunAngularRadius = sunAngularDiameterRadians * 0.5f;
-
             float cosZFromView = dir.y;
             float dotDirL = dot(dir, l);
             float k = smoothstep(cos(sunAngularRadius * 1.01f),
@@ -190,15 +256,14 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 e, vec3 l, float rb, float rt)
                 float(RaySphereIntersect(worldPos, dir, vec3(0.0f), rb) < 0.0f);
 
             vec3 sunLum =
-                k * e *
+                k * sunLuminanceOuterSpace *
                 SampleTransmittance(r, cosZFromView, rb, rt,
                                     gPushConstants.transmittanceMapIndex);
             float centerToEdge =
                 clamp(acos(dotDirL) / sunAngularRadius, 0.0f, 1.0f);
             sunLum = LimbDarkening(sunLum, centerToEdge);
 
-            lum += vis * sunLum *
-                   5e-3; // physically accurate value still too bright
+            lum += vis * sunLum;
         }
     }
 
@@ -270,16 +335,7 @@ void main()
 
     vec3 camPos = inverseView[3].xyz;
 
-    vec3 lum = vec3(0.0f);
-
-    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
-    vec3 sunLuminance = FLY_ACCESS_UNIFORM_BUFFER(
-        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
-        sunLuminanceOuterSpace);
-    vec3 e = sunAlbedo * sunLuminance;
-
-    lum = ShadeScene(camPos, rayWS, e, l, rb, rt);
+    vec3 lum = ShadeScene(camPos, rayWS, l, rb, rt);
     lum *= exp2(-EvFromCosZenith(l.y));
     // lum *= exp2(-12.0f);
     lum = ACES(lum);
