@@ -323,12 +323,19 @@ static bool CreatePipelines(RHI::Device& device)
     {
         return false;
     }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     fixedState.pipelineRendering.colorAttachments[0] =
         VK_FORMAT_R16G16B16A16_SFLOAT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.pipelineRendering.viewMask = 0x3F;
+
+    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
 
     if (!Fly::LoadShaderFromSpv(device, "irradiance_map.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
@@ -1059,9 +1066,9 @@ int main(int argc, char* argv[])
         DrawSkyviewLUT(device);
         ProjectSkyviewRadiance(device);
         ConvoluteIrradiance(device);
-        // DrawCubemap(device, &sSkyviewIrradianceMap);
+        DrawCubemap(device, &sSkyviewIrradianceMap);
         // DrawScreenQuad(device, sMultiscatteringLUT);
-        DrawTerrainScene(device);
+        // DrawTerrainScene(device);
         DrawGUI(device);
 
         RHI::EndRenderFrame(device);

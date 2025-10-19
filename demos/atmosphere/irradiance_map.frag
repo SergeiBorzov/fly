@@ -6,7 +6,7 @@
 #define PI 3.14159265359f
 #define SCALE 100000000
 
-layout(location = 0) in vec3 inDirection;
+layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outFragColor;
 
 layout(push_constant) uniform PushConstants
@@ -49,9 +49,6 @@ vec3 IrradianceSH9(vec3 n, vec3 l[9])
     const float c4 = 0.886227f;
     const float c5 = 0.247708f;
 
-    float sh[9];
-    EvalSH9(n, sh);
-
     vec3 m00 = c1 * l[8];
     vec3 m01 = c1 * l[4];
     vec3 m02 = c1 * l[7];
@@ -77,31 +74,37 @@ vec3 IrradianceSH9(vec3 n, vec3 l[9])
     return vec3(dot(n4, Mr * n4), dot(n4, Mg * n4), dot(n4, Mb * n4));
 }
 
-mat3 FaceRotation(uint faceIndex)
+vec3 GetViewDirection(vec2 coord, uint faceIndex)
 {
-    const vec3 faceTargets[6] = vec3[](vec3(-1, 0, 0), // +X
-                                       vec3(1, 0, 0),  // -X
-                                       vec3(0, 1, 0),  // +Y
-                                       vec3(0, -1, 0), // -Y
-                                       vec3(0, 0, 1),  // +Z
-                                       vec3(0, 0, -1)  // -Z
-    );
-
-    const vec3 upVectors[6] =
-        vec3[](vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 0, -1), vec3(0, 0, 1),
-               vec3(0, 1, 0), vec3(0, 1, 0));
-
-    vec3 f = faceTargets[faceIndex];
-    vec3 u = upVectors[faceIndex];
-    vec3 r = normalize(cross(u, f)); // ensures right-handed basis
-    u = normalize(cross(f, r));
-    return mat3(r, u, f);
+    if (faceIndex == 0)
+    {
+        return normalize(vec3(1.0f, -coord.y, -coord.x));
+    }
+    else if (faceIndex == 1)
+    {
+        return normalize(vec3(-1.0f, -coord.y, coord.x));
+    }
+    else if (faceIndex == 2)
+    {
+        return normalize(vec3(coord.x, -1.0f, -coord.y));
+    }
+    else if (faceIndex == 3)
+    {
+        return normalize(vec3(coord.x, 1.0f, coord.y));
+    }
+    else if (faceIndex == 4)
+    {
+        return normalize(vec3(coord.x, -coord.y, 1.0f));
+    }
+    else
+    {
+        return normalize(vec3(-coord.x, -coord.y, -1.0f));
+    }
 }
 
 void main()
 {
-    mat3 r = FaceRotation(gl_ViewIndex);
-    vec3 n = normalize(r * inDirection);
+    vec3 n = GetViewDirection(inUV * 2.0f - 1.0f, gl_ViewIndex);
 
     FLY_ACCESS_STORAGE_BUFFER(RadianceProjectionSH,
                               gPushConstants.radianceProjectionBufferIndex);
@@ -115,8 +118,8 @@ void main()
                         .coefficient) /
                SCALE;
     }
-    vec3 irradiance = IrradianceSH9(n.zyx, l);
+    n = vec3(-n.x, n.z, -n.y);
+    vec3 irradiance = IrradianceSH9(n, l);
 
     outFragColor = vec4(irradiance, 1.0f);
 }
-// Getting values 2pi times bigger than in paper, normalization?

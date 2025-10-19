@@ -42,53 +42,6 @@ void EvalSH9(vec3 n, out float sh[9])
     sh[8] = c4 * (n.x * n.x - n.y * n.y);
 }
 
-// float AreaElement(float x, float y)
-// {
-//     return atan(x * y / sqrt(x * x + y * y + 1));
-// }
-
-// float TexelCoordSolidAngle(vec2 coord)
-// {
-//     float invSize = 1.0f / float(gPushConstants.radianceMapSize);
-
-//     float x0 = coord.x - invSize;
-//     float y0 = coord.y - invSize;
-//     float x1 = coord.x + invSize;
-//     float y1 = coord.y + invSize;
-//     float SolidAngle = AreaElement(x0, y0) - AreaElement(x0, y1) -
-//                        AreaElement(x1, y0) + AreaElement(x1, y1);
-
-//     return SolidAngle;
-// }
-
-// vec3 GetViewDirection(vec2 coord, uint faceIndex)
-// {
-//     if (faceIndex == 0)
-//     {
-//         return normalize(vec3(1.0f, -coord.y, -coord.x));
-//     }
-//     else if (faceIndex == 1)
-//     {
-//         return normalize(vec3(-1.0f, -coord.y, coord.x));
-//     }
-//     else if (faceIndex == 2)
-//     {
-//         return normalize(vec3(coord.x, 1.0f, coord.y));
-//     }
-//     else if (faceIndex == 3)
-//     {
-//         return normalize(vec3(coord.x, -1.0f, -coord.y));
-//     }
-//     else if (faceIndex == 4)
-//     {
-//         return normalize(vec3(coord.x, -coord.y, 1.0f));
-//     }
-//     else
-//     {
-//         return normalize(vec3(-coord.x, -coord.y, -1.0f));
-//     }
-// }
-
 shared int localRadianceProjectionR[9];
 shared int localRadianceProjectionG[9];
 shared int localRadianceProjectionB[9];
@@ -97,6 +50,7 @@ void main()
     uvec3 gid = gl_GlobalInvocationID;
     vec2 uv = (vec2(gid.xy) + 0.5f) / vec2(gPushConstants.skyviewMapWidth,
                                            gPushConstants.skyviewMapHeight);
+    uv.y += 0.5f; // Sampling the only sky part of lut
 
     if (gid.y == 0 && gid.x < 9)
     {
@@ -119,6 +73,9 @@ void main()
     float cosTheta = cos(lonLat.y);
     float sinPhi = sin(lonLat.x);
     float cosPhi = cos(lonLat.x);
+    float deltaPhi = 2.0f * PI / float(gPushConstants.skyviewMapWidth);
+    float deltaTheta = 2.0f * PI * (2.0f * uv.y - 1.0f) /
+                       float(gPushConstants.skyviewMapHeight);
     vec3 normal = vec3(sinTheta * cosPhi, sinTheta * sinPhi, cosTheta);
 
     float y[9];
@@ -130,7 +87,7 @@ void main()
                   ivec2(gid))
             .rgb;
 
-    vec3 radianceSinAngle = radiance * sinTheta;
+    vec3 radianceSinAngle = vec3(radiance * sinTheta * deltaPhi * deltaTheta);
     for (uint i = 0; i < 9; i++)
     {
         ivec3 contribution = ivec3(radianceSinAngle * y[i] * SCALE);
