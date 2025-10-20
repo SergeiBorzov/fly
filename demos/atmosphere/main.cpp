@@ -72,7 +72,8 @@ struct AtmosphereParams
 
     float rayleighDensityCoeff;
     float mieDensityCoeff;
-    float pad[2];
+    float exponentialFogDensity;
+    float exponentialFogHeightFalloff;
 };
 
 struct CameraParams
@@ -235,6 +236,17 @@ static void ProcessImGuiFrame()
             ImGui::SliderFloat("Angular diameter",
                                &sSunParams.angularDiameterDegrees, 0.5f, 20.0f,
                                "%.5f");
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Fog"))
+        {
+            ImGui::SliderFloat("Fog density",
+                               &sAtmosphereParams.exponentialFogDensity, 0.0f,
+                               0.15f, "%.7f");
+            ImGui::SliderFloat("Fog height falloff",
+                               &sAtmosphereParams.exponentialFogHeightFalloff,
+                               5.0f, 2000.0f, "%.2f");
             ImGui::TreePop();
         }
         ImGui::End();
@@ -1071,6 +1083,8 @@ int main(int argc, char* argv[])
     sAtmosphereParams.rayleighDensityCoeff = 8.0f;
     sAtmosphereParams.mieDensityCoeff = 1.2f;
     sAtmosphereParams.sunAlbedo = Math::Vec3(1.0f, 1.0f, 1.0f);
+    sAtmosphereParams.exponentialFogDensity = 0.003f;
+    sAtmosphereParams.exponentialFogHeightFalloff = 700.0f;
 
     sSunParams.zenithDegrees = 85.0f;
     sSunParams.azimuthDegrees = 0.0f;
@@ -1134,10 +1148,6 @@ int main(int argc, char* argv[])
         DrawGUI(device);
 
         RHI::EndRenderFrame(device);
-
-        i32* values = static_cast<i32*>(
-            RHI::BufferMappedPtr(sAverageHorizonLuminanceBuffer));
-        FLY_LOG("%i %i %i", values[0], values[1], values[2]);
     }
 
     RHI::WaitDeviceIdle(device);

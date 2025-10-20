@@ -189,15 +189,20 @@ vec3 LimbDarkening(vec3 luminance, float centerToEdge)
 
 float ExponentialHeightFog(vec3 worldPos, vec3 camPos, vec3 camDir, float L)
 {
-    const float baseFogDensity = 0.012;
-    const float baseTransmittance = 0.045;
-    const float k = 0.0035;
+    const float fogAbsorption = 0.01f;
+    float fogDensity = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        exponentialFogDensity);
+    float fogFalloff = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        exponentialFogFalloff);
 
-    float opticalDepth = baseFogDensity * exp(-k * camPos.y) *
-                         (1.0f - exp(-k * camDir.y * L)) /
-                         (k * sign(camDir.y) * max(abs(camDir.y), 0.00001f));
+    float opticalDepth =
+        fogDensity * exp(-camPos.y / fogFalloff) *
+        (1.0f - exp(-camDir.y * L / fogFalloff)) /
+        (sign(camDir.y) * max(abs(camDir.y), 0.00001f) / fogFalloff);
 
-    return exp(-baseTransmittance * opticalDepth);
+    return exp(-fogAbsorption * opticalDepth);
 }
 
 vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
@@ -251,7 +256,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 
     float cosTheta = dot(dir, l);
     float phase = mix(PhaseMie(cosTheta, MIE_G), PhaseRayleigh(cosTheta), 0.5);
-    phase = mix(phase, 1.0f, 0.5f);
+    phase = mix(phase, 1.0f, 0.75f);
     vec3 fogColor = averageHorizonLuminance * phase;
 
     if (id >= 0)

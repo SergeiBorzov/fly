@@ -25,7 +25,8 @@ FLY_REGISTER_UNIFORM_BUFFER(AtmosphereParams, {
     float sunAzimuthRadians;
     float rayleighDensityCoeff;
     float mieDensityCoeff;
-    float pad[2];
+    float exponentialFogDensity;
+    float exponentialFogFalloff;
 })
 
 FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
