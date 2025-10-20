@@ -97,10 +97,12 @@ static RHI::ComputePipeline sTransmittancePipeline;
 static RHI::ComputePipeline sMultiscatteringPipeline;
 static RHI::ComputePipeline sSkyviewPipeline;
 static RHI::ComputePipeline sProjectSkyviewRadiancePipeline;
+static RHI::ComputePipeline sAverageHorizonLuminancePipeline;
 
 static RHI::Buffer sAtmosphereParamsBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sSkyviewRadianceProjectionBuffer;
+static RHI::Buffer sAverageHorizonLuminanceBuffer;
 static RHI::Texture sTransmittanceLUT;
 static RHI::Texture sMultiscatteringLUT;
 static RHI::Texture sSkyviewLUT;
@@ -245,13 +247,14 @@ static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
         &sTransmittancePipeline, &sMultiscatteringPipeline, &sSkyviewPipeline,
-        &sProjectSkyviewRadiancePipeline};
+        &sProjectSkyviewRadiancePipeline, &sAverageHorizonLuminancePipeline};
 
     const char* computeShaderPaths[] = {
         "transmittance_lut.comp.spv",
         "multiscattering_lut.comp.spv",
         "skyview_lut.comp.spv",
         "project_skyview_radiance.comp.spv",
+        "average_horizon_luminance.comp.spv",
     };
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -362,6 +365,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sTransmittancePipeline);
     RHI::DestroyComputePipeline(device, sSkyviewPipeline);
     RHI::DestroyComputePipeline(device, sProjectSkyviewRadiancePipeline);
+    RHI::DestroyComputePipeline(device, sAverageHorizonLuminancePipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -387,9 +391,16 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    if (!RHI::CreateBuffer(device, false, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                            nullptr, sizeof(i32) * 4 * 9,
                            sSkyviewRadianceProjectionBuffer))
+    {
+        return false;
+    }
+
+    if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                           nullptr, sizeof(i32) * 4,
+                           sAverageHorizonLuminanceBuffer))
     {
         return false;
     }
@@ -441,6 +452,7 @@ static void DestroyResources(RHI::Device& device)
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
     RHI::DestroyBuffer(device, sSkyviewRadianceProjectionBuffer);
+    RHI::DestroyBuffer(device, sAverageHorizonLuminanceBuffer);
     RHI::DestroyTexture(device, sTransmittanceLUT);
     RHI::DestroyTexture(device, sMultiscatteringLUT);
     RHI::DestroyTexture(device, sSkyviewLUT);
@@ -621,7 +633,8 @@ static void ProjectSkyviewRadiance(RHI::Device& device)
     RHI::RecordBufferInput bufferInput;
     RHI::Buffer* pSkyviewRadianceProjectionBuffer =
         &sSkyviewRadianceProjectionBuffer;
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_WRITE_BIT;
+    VkAccessFlagBits2 bufferAccess =
+        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
     bufferInput.buffers = &pSkyviewRadianceProjectionBuffer;
     bufferInput.bufferAccesses = &bufferAccess;
     bufferInput.bufferCount = 1;
@@ -637,6 +650,46 @@ static void ProjectSkyviewRadiance(RHI::Device& device)
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
                         RecordProjectSkyviewRadiance, &bufferInput,
+                        &textureInput);
+}
+
+static void RecordAverageHorizonLuminance(
+    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
+    const RHI::RecordTextureInput* textureInput, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sAverageHorizonLuminancePipeline);
+
+    RHI::Texture& skyviewLUT = *(textureInput->textures[0]);
+    RHI::Buffer& averageLuminanceBuffer = *(bufferInput->buffers[0]);
+    u32 pushConstants[] = {skyviewLUT.bindlessStorageHandle,
+                           averageLuminanceBuffer.bindlessHandle,
+                           skyviewLUT.width, skyviewLUT.height};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, SKYVIEW_LUT_WIDTH / 256, 1, 1);
+}
+
+static void AverageHorizonLuminance(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput;
+    RHI::Buffer* pAverageHorizonLuminanceBuffer =
+        &sAverageHorizonLuminanceBuffer;
+    VkAccessFlagBits2 bufferAccess =
+        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+    bufferInput.buffers = &pAverageHorizonLuminanceBuffer;
+    bufferInput.bufferAccesses = &bufferAccess;
+    bufferInput.bufferCount = 1;
+
+    RHI::RecordTextureInput textureInput;
+    RHI::Texture* pSkyviewLUT = &sSkyviewLUT;
+    RHI::ImageLayoutAccess imageLayoutAccess;
+    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+    textureInput.textures = &pSkyviewLUT;
+    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
+    textureInput.textureCount = 1;
+
+    RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                        RecordAverageHorizonLuminance, &bufferInput,
                         &textureInput);
 }
 
@@ -794,6 +847,7 @@ static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
     RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
     RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
     RHI::Buffer& skyRadianceProjectionBuffer = *(bufferInput->buffers[2]);
+    RHI::Buffer& averageHorizonLuminance = *(bufferInput->buffers[3]);
     RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
     RHI::Texture& skyviewLUT = *(textureInput->textures[1]);
 
@@ -801,6 +855,7 @@ static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
         atmosphereParams.bindlessHandle,
         cameraParams.bindlessHandle,
         skyRadianceProjectionBuffer.bindlessHandle,
+        averageHorizonLuminance.bindlessHandle,
         transmittanceLUT.bindlessHandle,
         skyviewLUT.bindlessHandle,
     };
@@ -813,9 +868,9 @@ static void DrawTerrainScene(RHI::Device& device)
     RHI::RecordBufferInput bufferInput;
     RHI::RecordTextureInput textureInput;
 
-    RHI::Buffer* buffers[3];
-    VkAccessFlagBits2 bufferAccesses[3];
-    bufferInput.bufferCount = 3;
+    RHI::Buffer* buffers[4];
+    VkAccessFlagBits2 bufferAccesses[4];
+    bufferInput.bufferCount = 4;
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
 
@@ -825,6 +880,8 @@ static void DrawTerrainScene(RHI::Device& device)
     bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
     buffers[2] = &sSkyviewRadianceProjectionBuffer;
     bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[3] = &sAverageHorizonLuminanceBuffer;
+    bufferAccesses[3] = VK_ACCESS_2_SHADER_READ_BIT;
 
     RHI::Texture* textures[2];
     RHI::ImageLayoutAccess imageLayoutsAccesses[2];
@@ -1070,12 +1127,17 @@ int main(int argc, char* argv[])
         DrawSkyviewLUT(device);
         ProjectSkyviewRadiance(device);
         ConvoluteIrradiance(device);
+        AverageHorizonLuminance(device);
         // DrawCubemap(device, &sSkyviewIrradianceMap);
         // DrawScreenQuad(device, sMultiscatteringLUT);
         DrawTerrainScene(device);
         DrawGUI(device);
 
         RHI::EndRenderFrame(device);
+
+        i32* values = static_cast<i32*>(
+            RHI::BufferMappedPtr(sAverageHorizonLuminanceBuffer));
+        FLY_LOG("%i %i %i", values[0], values[1], values[2]);
     }
 
     RHI::WaitDeviceIdle(device);

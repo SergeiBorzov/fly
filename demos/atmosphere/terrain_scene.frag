@@ -6,6 +6,7 @@
 #define MAX_MARCHING_DIST 50000.0f
 #define EPSILON 0.002f
 #define SCALE 100000000
+#define LUMINANCE_SCALE 100
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outFragColor;
@@ -15,6 +16,7 @@ layout(push_constant) uniform PushConstants
     uint atmosphereBufferIndex;
     uint cameraBufferIndex;
     uint skyRadianceProjectionBufferIndex;
+    uint averageHorizonLuminanceBufferIndex;
     uint transmittanceMapIndex;
     uint skyviewMapIndex;
 }
@@ -27,6 +29,11 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
     ivec3 coefficient;
+    float pad;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, AverageLuminance, {
+    ivec3 luminance;
     float pad;
 })
 
@@ -195,6 +202,13 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
                      .coefficient) /
             SCALE;
     }
+    vec3 averageHorizonLuminance =
+        vec3(FLY_ACCESS_STORAGE_BUFFER(
+                 AverageLuminance,
+                 gPushConstants.averageHorizonLuminanceBufferIndex)[0]
+                 .luminance) /
+        LUMINANCE_SCALE;
+
     vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
         AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
     float sunAngularDiameterRadians = FLY_ACCESS_UNIFORM_BUFFER(
@@ -225,6 +239,9 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
     vec3 horizonColor =
         SampleSkyview(lon, 0.0f, gPushConstants.skyviewMapIndex);
 
+    float cosTheta = dot(dir, l);
+    float phase = mix(PhaseMie(cosTheta, MIE_G), PhaseRayleigh(cosTheta), 0.4);
+
     if (id >= 0)
     {
         vec3 sunLuminance =
@@ -252,7 +269,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 
         // exponential height fog
         float fogFactor = ExponentialHeightFog(hitPoint, origin, dir, d.x);
-        lum = mix(horizonColor, lum, fogFactor);
+        lum = mix(averageHorizonLuminance * phase, lum, fogFactor);
     }
     else
     {
@@ -263,9 +280,8 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 
             // Sun
             float cosZFromView = dir.y;
-            float dotDirL = dot(dir, l);
             float k = smoothstep(cos(sunAngularRadius * 1.01f),
-                                 cos(sunAngularRadius), dotDirL);
+                                 cos(sunAngularRadius), cosTheta);
             float vis =
                 float(RaySphereIntersect(worldPos, dir, vec3(0.0f), rb) < 0.0f);
 
@@ -274,7 +290,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
                 SampleTransmittance(r, cosZFromView, rb, rt,
                                     gPushConstants.transmittanceMapIndex);
             float centerToEdge =
-                clamp(acos(dotDirL) / sunAngularRadius, 0.0f, 1.0f);
+                clamp(acos(cosTheta) / sunAngularRadius, 0.0f, 1.0f);
             sunLum = LimbDarkening(sunLum, centerToEdge);
 
             lum += vis * sunLum;
