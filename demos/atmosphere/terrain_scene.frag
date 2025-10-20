@@ -88,12 +88,22 @@ vec3 FBM(vec2 p)
     float a = 1.0;
 
     float t = 0.0;
-    for (int i = 0; i < 12; i++)
+    for (int i = 0; i < 8; i++)
     {
         vec3 n = GradientNoise(f * p);
         d.x += a * n.x;
         d.yz += a * f * n.yz;
         f *= 2.0;
+        a *= g;
+    }
+    // Doing more octaves for normals to get details
+    // Yet less octaves for point itself to avoid shadow artifacts with
+    // precision
+    for (int i = 0; i < 4; i++)
+    {
+        vec3 n = GradientNoise(f * p);
+        d.yz += a * f * n.yz;
+        f *= 2.0f;
         a *= g;
     }
     return d;
@@ -240,7 +250,9 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
         SampleSkyview(lon, 0.0f, gPushConstants.skyviewMapIndex);
 
     float cosTheta = dot(dir, l);
-    float phase = mix(PhaseMie(cosTheta, MIE_G), PhaseRayleigh(cosTheta), 0.4);
+    float phase = mix(PhaseMie(cosTheta, MIE_G), PhaseRayleigh(cosTheta), 0.5);
+    phase = mix(phase, 1.0f, 0.5f);
+    vec3 fogColor = averageHorizonLuminance * phase;
 
     if (id >= 0)
     {
@@ -267,12 +279,16 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
             IrradianceSH9(vec3(-n.z, -n.x, n.y), skyRadianceProjection);
         lum += f * skyIrradiance;
 
-        // exponential height fog
         float fogFactor = ExponentialHeightFog(hitPoint, origin, dir, d.x);
-        lum = mix(averageHorizonLuminance * phase, lum, fogFactor);
+        lum = mix(fogColor, lum, fogFactor);
     }
     else
     {
+        float dist =
+            RaySphereIntersect(worldPos, dir, vec3(0.0f), rt) * 1000.0f;
+        vec3 hitPoint = origin + dir * dist;
+        float fogFactor = ExponentialHeightFog(hitPoint, origin, dir, dist);
+
         if (dir.y > 0.0f)
         {
             // Sky
@@ -299,6 +315,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
         {
             lum = horizonColor;
         }
+        lum = mix(fogColor, lum, fogFactor);
     }
 
     return lum;
