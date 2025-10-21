@@ -111,7 +111,7 @@ vec3 FBM(vec2 p)
 
 vec3 TerrainSdf(vec3 p)
 {
-    vec3 value = 2500.0f * FBM(p.xz);
+    vec3 value = 4500.0f * FBM(p.xz);
     return vec3(p.y - value.x, value.yz);
 }
 
@@ -303,8 +303,7 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
             float cosZFromView = dir.y;
             float k = smoothstep(cos(sunAngularRadius * 1.01f),
                                  cos(sunAngularRadius), cosTheta);
-            float vis =
-                float(RaySphereIntersect(worldPos, dir, vec3(0.0f), rb) < 0.0f);
+            float vis = float(cosZFromView < cos(sunAngularRadius));
 
             vec3 sunLum =
                 k * sunLuminanceOuterSpace *
