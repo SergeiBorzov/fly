@@ -37,7 +37,7 @@ VkImageAspectFlags GetImageAspectMask(VkFormat format)
     }
 }
 
-u32 GetImageSize(u32 width, u32 height, VkFormat format)
+u32 GetImageSize(u32 width, u32 height, u32 depth, VkFormat format)
 {
     switch (format)
     {
@@ -48,7 +48,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_S8_UINT:
         {
-            return width * height;
+            return width * height * depth;
         }
         case VK_FORMAT_BC2_UNORM_BLOCK:
         case VK_FORMAT_BC2_SRGB_BLOCK:
@@ -57,7 +57,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_BC5_UNORM_BLOCK:
         case VK_FORMAT_BC5_SNORM_BLOCK:
         {
-            return ((width + 3) / 4) * ((height + 3) / 4) * 16;
+            return (((width + 3) / 4) * ((height + 3) / 4) * 16) * depth;
         }
 
         case VK_FORMAT_R8G8_UNORM:
@@ -72,7 +72,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_R16_SFLOAT:
         case VK_FORMAT_D16_UNORM:
         {
-            return 2 * width * height;
+            return 2 * width * height * depth;
         }
 
         case VK_FORMAT_R8G8B8_UNORM:
@@ -86,7 +86,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_B8G8R8_SINT:
         case VK_FORMAT_B8G8R8_SRGB:
         {
-            return 3 * width * height;
+            return 3 * width * height * depth;
         }
 
         case VK_FORMAT_R8G8B8A8_UNORM:
@@ -111,12 +111,12 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_D24_UNORM_S8_UINT:
         case VK_FORMAT_D32_SFLOAT:
         {
-            return 4 * width * height;
+            return 4 * width * height * depth;
         }
 
         case VK_FORMAT_D32_SFLOAT_S8_UINT:
         {
-            return 5 * width * height;
+            return 5 * width * height * depth;
         }
 
         case VK_FORMAT_R16G16B16_UNORM:
@@ -125,7 +125,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_R16G16B16_SINT:
         case VK_FORMAT_R16G16B16_SFLOAT:
         {
-            return 6 * width * height;
+            return 6 * width * height * depth;
         }
 
         case VK_FORMAT_R16G16B16A16_UNORM:
@@ -137,21 +137,21 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_R32G32_SINT:
         case VK_FORMAT_R32G32_SFLOAT:
         {
-            return 8 * width * height;
+            return 8 * width * height * depth;
         }
 
         case VK_FORMAT_R32G32B32_UINT:
         case VK_FORMAT_R32G32B32_SINT:
         case VK_FORMAT_R32G32B32_SFLOAT:
         {
-            return 12 * width * height;
+            return 12 * width * height * depth;
         }
 
         case VK_FORMAT_R32G32B32A32_UINT:
         case VK_FORMAT_R32G32B32A32_SINT:
         case VK_FORMAT_R32G32B32A32_SFLOAT:
         {
-            return 16 * width * height;
+            return 16 * width * height * depth;
         }
 
         case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
@@ -161,7 +161,7 @@ u32 GetImageSize(u32 width, u32 height, VkFormat format)
         case VK_FORMAT_BC4_UNORM_BLOCK:
         case VK_FORMAT_BC4_SNORM_BLOCK:
         {
-            return ((width + 3) / 4) * ((height + 3) / 4) * 8;
+            return ((width + 3) / 4) * ((height + 3) / 4) * 8 * depth;
         }
 
         default:
@@ -291,9 +291,9 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
 {
     if (data)
     {
-        u64 dataSize =
-            GetImageSize(texture.width, texture.height, texture.format) *
-            texture.layerCount;
+        u64 dataSize = GetImageSize(texture.width, texture.height,
+                                    texture.depth, texture.format) *
+                       texture.layerCount;
         Arena& arena = GetScratchArena();
         ArenaMarker marker = ArenaGetMarker(arena);
 
@@ -325,9 +325,10 @@ static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
             {
                 u32 mipWidth = MAX(texture.width >> i, 1);
                 u32 mipHeight = MAX(texture.height >> i, 1);
-                u64 mipSize =
-                    GetImageSize(mipWidth, mipHeight, texture.format) *
-                    texture.layerCount;
+                u32 mipDepth = MAX(texture.depth >> i, 1);
+                u64 mipSize = GetImageSize(mipWidth, mipHeight, mipDepth,
+                                           texture.format) *
+                              texture.layerCount;
                 const u8* mipData = data + offset;
                 if (!CreateBuffer(device, true,
                                   VK_BUFFER_USAGE_TRANSFER_SRC_BIT, mipData,
@@ -576,7 +577,7 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
     }
 
     FLY_DEBUG_LOG(
-        "Texture2D [%llu] created with size %f MB: bindless %u storage "
+        "Texture2D [%llu] created with size %f MB: bindless handle %u storage "
         "bindless handle %u",
         texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
         texture.bindlessHandle, texture.bindlessStorageHandle);
@@ -668,6 +669,85 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
                   "bindless handle %u",
                   texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
                   texture.bindlessHandle, texture.bindlessStorageHandle);
+    return true;
+}
+
+bool CreateTexture3D(Device& device, VkImageUsageFlags usage, const void* data,
+                     u32 width, u32 height, u32 depth, VkFormat format,
+                     Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
+                     u32 mipCount, Texture& texture)
+{
+    FLY_ASSERT(width > 0);
+    FLY_ASSERT(height > 0);
+    FLY_ASSERT(depth > 0);
+
+    bool generateMips = mipCount == 0;
+    if (generateMips)
+    {
+        mipCount = Log2(MAX(width, height)) + 1;
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+
+    texture.arrayImageView = VK_NULL_HANDLE;
+    texture.sampler.handle = VK_NULL_HANDLE;
+    texture.bindlessHandle = FLY_MAX_U32;
+    texture.bindlessStorageHandle = FLY_MAX_U32;
+    texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    texture.format = format;
+    texture.layerCount = 1;
+    texture.width = width;
+    texture.height = height;
+    texture.depth = depth;
+    texture.accessMask = VK_ACCESS_2_NONE;
+    texture.pipelineStageMask = VK_PIPELINE_STAGE_2_NONE;
+    texture.mipCount = mipCount;
+    texture.usage = usage;
+
+    texture.image = CreateVulkanImage(
+        device, texture.allocationInfo, texture.allocation, 0, VK_IMAGE_TYPE_3D,
+        usage, format, VK_IMAGE_TILING_OPTIMAL, width, height, depth,
+        texture.layerCount, mipCount);
+    if (texture.image == VK_NULL_HANDLE)
+    {
+        return false;
+    }
+
+    texture.imageView = CreateVulkanImageView(
+        device, texture.image, format, mipCount, VK_IMAGE_VIEW_TYPE_3D,
+        GetImageAspectMask(format), texture.layerCount);
+    if (texture.imageView == VK_NULL_HANDLE)
+    {
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    if (usage & VK_IMAGE_USAGE_SAMPLED_BIT)
+    {
+        if (!CreateSampler(device, filterMode, wrapMode, mipCount,
+                           texture.sampler))
+        {
+            vkDestroyImageView(device.logicalDevice, texture.imageView,
+                               GetVulkanAllocationCallbacks());
+            vmaDestroyImage(device.allocator, texture.image,
+                            texture.allocation);
+        }
+    }
+
+    if (!CopyDataToTexture(device, static_cast<const u8*>(data), generateMips,
+                           texture))
+    {
+        DestroySampler(device, texture.sampler);
+        vkDestroyImageView(device.logicalDevice, texture.imageView,
+                           GetVulkanAllocationCallbacks());
+        vmaDestroyImage(device.allocator, texture.image, texture.allocation);
+        return false;
+    }
+
+    FLY_DEBUG_LOG(
+        "Texture2D [%llu] created with size %f MB: bindless handle %u storage "
+        "bindless handle %u",
+        texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
+        texture.bindlessHandle, texture.bindlessStorageHandle);
     return true;
 }
 

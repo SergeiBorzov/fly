@@ -72,6 +72,10 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
                      u32 width, u32 height, VkFormat format,
                      Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
                      u32 mipCount, Texture& texture);
+bool CreateTexture3D(Device& device, VkImageUsageFlags usage, const void* data,
+                     u32 width, u32 height, u32 depth, VkFormat format,
+                     Sampler::FilterMode filterMode, Sampler::WrapMode wrapMode,
+                     u32 mipCount, Texture& texture);
 void DestroyTexture(Device& device, Texture& texture);
 
 bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,

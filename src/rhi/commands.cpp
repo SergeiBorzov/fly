@@ -17,6 +17,7 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
 {
     i32 mipWidth = static_cast<i32>(texture.width);
     i32 mipHeight = static_cast<i32>(texture.height);
+    i32 mipDepth = static_cast<i32>(texture.depth);
 
     RHI::ChangeTextureAccessLayout(cmd, texture,
                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -67,15 +68,15 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
 
         VkImageBlit blit{};
         blit.srcOffsets[0] = {0, 0, 0};
-        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+        blit.srcOffsets[1] = {mipWidth, mipHeight, mipDepth};
         blit.srcSubresource.aspectMask = GetImageAspectMask(texture.format);
         blit.srcSubresource.mipLevel = i - 1;
         blit.srcSubresource.baseArrayLayer = 0;
         blit.srcSubresource.layerCount = texture.layerCount;
 
         blit.dstOffsets[0] = {0, 0, 0};
-        blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
-                              mipHeight > 1 ? mipHeight / 2 : 1, 1};
+        blit.dstOffsets[1] = {MAX(mipWidth >> 1, 1), MAX(mipHeight >> 1, 1),
+                              MAX(mipDepth >> 1, 1)};
         blit.dstSubresource.aspectMask = GetImageAspectMask(texture.format);
         blit.dstSubresource.mipLevel = i;
         blit.dstSubresource.baseArrayLayer = 0;
@@ -86,14 +87,9 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
                        VK_FILTER_LINEAR);
 
-        if (mipWidth > 1)
-        {
-            mipWidth /= 2;
-        }
-        if (mipHeight > 1)
-        {
-            mipHeight /= 2;
-        }
+        mipWidth = MAX(mipWidth >> 1, 1);
+        mipHeight = MAX(mipHeight >> 1, 1);
+        mipDepth = MAX(mipDepth >> 1, 1);
     }
 
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
