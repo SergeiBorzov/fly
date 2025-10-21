@@ -79,6 +79,15 @@ glsl_shader(
 )
 
 glsl_shader(
+    name = "aerial_perspective_lut.comp.spv",
+    src = "aerial_perspective_lut.comp",
+    deps = [
+        ":atmosphere_common",
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
     name = "average_horizon_luminance.comp.spv",
     src = "average_horizon_luminance.comp",
     deps = [
@@ -125,6 +134,7 @@ cc_binary(
         ":transmittance_lut.comp.spv",
         ":multiscattering_lut.comp.spv",
         ":skyview_lut.comp.spv",
+        ":aerial_perspective_lut.comp.spv",
         ":project_skyview_radiance.comp.spv",
         ":average_horizon_luminance.comp.spv",
         ":terrain_scene.frag.spv",

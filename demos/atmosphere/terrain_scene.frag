@@ -19,6 +19,7 @@ layout(push_constant) uniform PushConstants
     uint averageHorizonLuminanceBufferIndex;
     uint transmittanceMapIndex;
     uint skyviewMapIndex;
+    uint aerialPerspectiveMapIndex;
 }
 gPushConstants;
 
@@ -36,6 +37,8 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, AverageLuminance, {
     ivec3 luminance;
     float pad;
 })
+
+FLY_REGISTER_TEXTURE_BUFFER(Textures3D, sampler3D)
 
 vec3 Reinhard(vec3 hdr, float exposure)
 {
@@ -270,8 +273,8 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
         vec3 n = normalize(vec3(-d.y, 1.0f, -d.z));
 
         vec3 shadowD;
-        int id =
-            RayMarch(hitPoint + n * 0.02f, l, 0.0f, MAX_MARCHING_DIST, shadowD);
+        int id = RayMarch(hitPoint + l * EPSILON * d.x, l, 0.0f,
+                          MAX_MARCHING_DIST, shadowD);
         float vis = float(id == -1);
 
         vec3 f = vec3(0.2f, 0.2f, 0.2f) / PI; // Terrain BRDF

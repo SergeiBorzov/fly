@@ -33,6 +33,9 @@ using namespace Fly;
 #define MULTISCATTERING_LUT_HEIGHT 32
 #define SKYVIEW_LUT_WIDTH 256
 #define SKYVIEW_LUT_HEIGHT 128
+#define AERIAL_PERSPECTIVE_LUT_WIDTH 32
+#define AERIAL_PERSPECTIVE_LUT_HEIGHT 32
+#define AERIAL_PERSPECTIVE_LUT_DEPTH 16
 
 #define EARTH_RADIUS_BOTTOM 6360.0f
 #define EARTH_RADIUS_TOP 6460.0f
@@ -97,6 +100,7 @@ static RHI::GraphicsPipeline sIrradianceMapPipeline;
 static RHI::ComputePipeline sTransmittancePipeline;
 static RHI::ComputePipeline sMultiscatteringPipeline;
 static RHI::ComputePipeline sSkyviewPipeline;
+static RHI::ComputePipeline sAerialPerspectivePipeline;
 static RHI::ComputePipeline sProjectSkyviewRadiancePipeline;
 static RHI::ComputePipeline sAverageHorizonLuminancePipeline;
 
@@ -107,6 +111,7 @@ static RHI::Buffer sAverageHorizonLuminanceBuffer;
 static RHI::Texture sTransmittanceLUT;
 static RHI::Texture sMultiscatteringLUT;
 static RHI::Texture sSkyviewLUT;
+static RHI::Texture sAerialPerspectiveLUT;
 static RHI::Texture sSkyviewIrradianceMap;
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
@@ -258,13 +263,18 @@ static void ProcessImGuiFrame()
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sTransmittancePipeline, &sMultiscatteringPipeline, &sSkyviewPipeline,
-        &sProjectSkyviewRadiancePipeline, &sAverageHorizonLuminancePipeline};
+        &sTransmittancePipeline,
+        &sMultiscatteringPipeline,
+        &sSkyviewPipeline,
+        &sAerialPerspectivePipeline,
+        &sProjectSkyviewRadiancePipeline,
+        &sAverageHorizonLuminancePipeline};
 
     const char* computeShaderPaths[] = {
         "transmittance_lut.comp.spv",
         "multiscattering_lut.comp.spv",
         "skyview_lut.comp.spv",
+        "aerial_perspective_lut.comp.spv",
         "project_skyview_radiance.comp.spv",
         "average_horizon_luminance.comp.spv",
     };
@@ -376,6 +386,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sMultiscatteringPipeline);
     RHI::DestroyComputePipeline(device, sTransmittancePipeline);
     RHI::DestroyComputePipeline(device, sSkyviewPipeline);
+    RHI::DestroyComputePipeline(device, sAerialPerspectivePipeline);
     RHI::DestroyComputePipeline(device, sProjectSkyviewRadiancePipeline);
     RHI::DestroyComputePipeline(device, sAverageHorizonLuminancePipeline);
 }
@@ -444,6 +455,16 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    if (!RHI::CreateTexture3D(
+            device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            nullptr, AERIAL_PERSPECTIVE_LUT_WIDTH,
+            AERIAL_PERSPECTIVE_LUT_HEIGHT, AERIAL_PERSPECTIVE_LUT_DEPTH,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
+            RHI::Sampler::WrapMode::Clamp, 1, sAerialPerspectiveLUT))
+    {
+        return false;
+    }
+
     if (!RHI::CreateCubemap(
             device,
             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -468,6 +489,7 @@ static void DestroyResources(RHI::Device& device)
     RHI::DestroyTexture(device, sTransmittanceLUT);
     RHI::DestroyTexture(device, sMultiscatteringLUT);
     RHI::DestroyTexture(device, sSkyviewLUT);
+    RHI::DestroyTexture(device, sAerialPerspectiveLUT);
     RHI::DestroyTexture(device, sSkyviewIrradianceMap);
 }
 
@@ -617,11 +639,79 @@ static void DrawSkyviewLUT(RHI::Device& device)
     imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
 
     textures[2] = &sSkyviewLUT;
+
     imageLayoutsAccesses[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordComputeSkyview,
                         &bufferInput, &textureInput);
+}
+
+static void RecordComputeAerialPerspective(
+    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
+    const RHI::RecordTextureInput* textureInput, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sAerialPerspectivePipeline);
+
+    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
+    RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
+    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
+    RHI::Texture& multiscatteringLUT = *(textureInput->textures[1]);
+    RHI::Texture& aerialPerspectiveLUT = *(textureInput->textures[2]);
+
+    u32 pushConstants[] = {atmosphereParams.bindlessHandle,
+                           cameraParams.bindlessHandle,
+                           transmittanceLUT.bindlessHandle,
+                           multiscatteringLUT.bindlessHandle,
+                           aerialPerspectiveLUT.bindlessStorageHandle,
+                           aerialPerspectiveLUT.width,
+                           aerialPerspectiveLUT.height,
+                           aerialPerspectiveLUT.depth};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, AERIAL_PERSPECTIVE_LUT_WIDTH / 16,
+                  AERIAL_PERSPECTIVE_LUT_HEIGHT / 16,
+                  AERIAL_PERSPECTIVE_LUT_DEPTH);
+}
+
+static void DrawAerialPerspectiveLUT(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput;
+    RHI::RecordTextureInput textureInput;
+
+    RHI::Buffer* buffers[2];
+    VkAccessFlagBits2 bufferAccesses[2];
+    bufferInput.bufferCount = 2;
+    bufferInput.buffers = buffers;
+    bufferInput.bufferAccesses = bufferAccesses;
+
+    buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
+    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[1] = &sCameraBuffers[device.frameIndex];
+    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+
+    RHI::Texture* textures[3];
+    RHI::ImageLayoutAccess imageLayoutsAccesses[3];
+    textureInput.textureCount = 3;
+    textureInput.textures = textures;
+    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+    textures[0] = &sTransmittanceLUT;
+    imageLayoutsAccesses[0].imageLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+    textures[1] = &sMultiscatteringLUT;
+    imageLayoutsAccesses[1].imageLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+    textures[2] = &sAerialPerspectiveLUT;
+    imageLayoutsAccesses[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+    RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                        RecordComputeAerialPerspective, &bufferInput,
+                        &textureInput);
 }
 
 static void RecordProjectSkyviewRadiance(
@@ -862,15 +952,15 @@ static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
     RHI::Buffer& averageHorizonLuminance = *(bufferInput->buffers[3]);
     RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
     RHI::Texture& skyviewLUT = *(textureInput->textures[1]);
+    RHI::Texture& aerialPerspectiveLUT = *(textureInput->textures[2]);
 
-    u32 pushConstants[] = {
-        atmosphereParams.bindlessHandle,
-        cameraParams.bindlessHandle,
-        skyRadianceProjectionBuffer.bindlessHandle,
-        averageHorizonLuminance.bindlessHandle,
-        transmittanceLUT.bindlessHandle,
-        skyviewLUT.bindlessHandle,
-    };
+    u32 pushConstants[] = {atmosphereParams.bindlessHandle,
+                           cameraParams.bindlessHandle,
+                           skyRadianceProjectionBuffer.bindlessHandle,
+                           averageHorizonLuminance.bindlessHandle,
+                           transmittanceLUT.bindlessHandle,
+                           skyviewLUT.bindlessHandle,
+                           aerialPerspectiveLUT.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
@@ -895,9 +985,9 @@ static void DrawTerrainScene(RHI::Device& device)
     buffers[3] = &sAverageHorizonLuminanceBuffer;
     bufferAccesses[3] = VK_ACCESS_2_SHADER_READ_BIT;
 
-    RHI::Texture* textures[2];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-    textureInput.textureCount = 2;
+    RHI::Texture* textures[3];
+    RHI::ImageLayoutAccess imageLayoutsAccesses[3];
+    textureInput.textureCount = 3;
     textureInput.textures = textures;
     textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
 
@@ -910,6 +1000,11 @@ static void DrawTerrainScene(RHI::Device& device)
     imageLayoutsAccesses[1].imageLayout =
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+    textures[2] = &sAerialPerspectiveLUT;
+    imageLayoutsAccesses[2].imageLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
@@ -1139,14 +1234,16 @@ int main(int argc, char* argv[])
         DrawTransmittanceLUT(device);
         DrawMultiscatteringLUT(device);
         DrawSkyviewLUT(device);
+        DrawAerialPerspectiveLUT(device);
         ProjectSkyviewRadiance(device);
-        ConvoluteIrradiance(device);
         AverageHorizonLuminance(device);
+
+        // ConvoluteIrradiance(device);
         // DrawCubemap(device, &sSkyviewIrradianceMap);
         // DrawScreenQuad(device, sMultiscatteringLUT);
+
         DrawTerrainScene(device);
         DrawGUI(device);
-
         RHI::EndRenderFrame(device);
     }
 

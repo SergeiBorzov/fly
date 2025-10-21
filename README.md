@@ -35,6 +35,7 @@ To run demos: `bazel run demos/{demo}:app`
 - https://sebh.github.io/publications/egsr2020.pdf
 - https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
 - https://inria.hal.science/inria-00288758/en
+- https://developer.download.nvidia.com/presentations/2007/D3DTutorial_Crytek.pdf
 - https://iquilezles.org/articles/fbm/
 - https://iquilezles.org/articles/gradientnoise/
 

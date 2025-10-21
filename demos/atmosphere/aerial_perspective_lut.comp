@@ -1,0 +1,78 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "common.glsl"
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint atmosphereBufferIndex;
+    uint cameraBufferIndex;
+    uint transmittanceMapIndex;
+    uint multiscatteringMapIndex;
+    uint aerialPerspectiveMapIndex;
+    uint aerialPerspectiveWidth;
+    uint aerialPerspectiveHeight;
+    uint aerialPerspectiveDepth;
+}
+gPushConstants;
+
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
+    mat4 projection;
+    mat4 view;
+})
+
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTextures3D, image3D,
+                                    rgba16f)
+
+vec4 IntegrateLuminanceTransmittance(vec3 camPos, float dist, vec3 e, vec3 l,
+                                     vec3 dir, float rb, float rt)
+{
+    vec4 res = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    return res;
+}
+
+void main()
+{
+    vec3 uvw = (gl_GlobalInvocationID.xyz + 0.5f) /
+               vec3(gPushConstants.aerialPerspectiveWidth,
+                    gPushConstants.aerialPerspectiveHeight,
+                    gPushConstants.aerialPerspectiveDepth);
+    mat4 inverseProjection = inverse(FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, projection));
+    mat4 inverseView = inverse(FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, view));
+
+    vec4 clipPos = vec4(2.0f * uvw.xy - 1.0f, 0.0f, 1.0f);
+    vec4 viewPos = inverseProjection * clipPos;
+    viewPos /= viewPos.w;
+    vec3 rayVS = normalize(viewPos.xyz);
+    vec3 rayWS = normalize(inverseView * vec4(rayVS, 0.0f)).xyz;
+    vec3 camPos = inverseView[3].xyz;
+
+    float rb = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rb);
+    float rt = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, rt);
+    float zenith = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunZenithRadians);
+    float azimuth = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunAzimuthRadians);
+    vec3 sunAlbedo = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex, sunAlbedo);
+    vec3 sunIlluminance = FLY_ACCESS_UNIFORM_BUFFER(
+        AtmosphereParams, gPushConstants.atmosphereBufferIndex,
+        sunIlluminanceOuterSpace);
+
+    vec3 l = SphereCoordToRay(PI / 2 - zenith, azimuth);
+
+    vec3 e = sunAlbedo * sunIlluminance;
+    vec4 lumTransmittance = IntegrateLuminanceTransmittance(
+        camPos, float(gl_GlobalInvocationID.z), e, l, rayWS, rb, rt);
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                   StorageTextures3D, gPushConstants.aerialPerspectiveMapIndex),
+               ivec3(gl_GlobalInvocationID.xyz), lumTransmittance);
+}
