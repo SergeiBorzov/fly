@@ -731,6 +731,7 @@ bool CreateTexture3D(Device& device, VkImageUsageFlags usage, const void* data,
             vmaDestroyImage(device.allocator, texture.image,
                             texture.allocation);
         }
+        CreateDescriptors(device, texture);
     }
 
     if (!CopyDataToTexture(device, static_cast<const u8*>(data), generateMips,
@@ -744,7 +745,7 @@ bool CreateTexture3D(Device& device, VkImageUsageFlags usage, const void* data,
     }
 
     FLY_DEBUG_LOG(
-        "Texture2D [%llu] created with size %f MB: bindless handle %u storage "
+        "Texture3D [%llu] created with size %f MB: bindless handle %u storage "
         "bindless handle %u",
         texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
         texture.bindlessHandle, texture.bindlessStorageHandle);
