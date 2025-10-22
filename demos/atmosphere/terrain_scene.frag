@@ -208,7 +208,7 @@ float ExponentialHeightFog(vec3 worldPos, vec3 camPos, vec3 camDir, float L)
     return exp(-fogAbsorption * opticalDepth);
 }
 
-vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
+vec3 ShadeScene(vec2 uv, vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 {
     vec3 skyRadianceProjection[9];
     for (uint i = 0; i < 9; i++)
@@ -289,12 +289,19 @@ vec3 ShadeScene(vec3 origin, vec3 dir, vec3 l, float rb, float rt)
 
         float fogFactor = ExponentialHeightFog(hitPoint, origin, dir, d.x);
         lum = mix(fogColor, lum, fogFactor);
+        float dist = d.x / 1000.0f;
+
+        vec4 aerial =
+            texture(FLY_ACCESS_TEXTURE_BUFFER(
+                        Textures3D, gPushConstants.aerialPerspectiveMapIndex),
+                    vec3(uv, dist / 16.0f));
+        lum = lum * aerial.a + aerial.rgb;
     }
     else
     {
-        float dist =
-            RaySphereIntersect(worldPos, dir, vec3(0.0f), rt) * 1000.0f;
-        vec3 hitPoint = origin + dir * dist;
+        float dist = RaySphereIntersect(worldPos, dir, vec3(0.0f), rt);
+
+        vec3 hitPoint = origin + dir * dist * 1000.0f;
         float fogFactor = ExponentialHeightFog(hitPoint, origin, dir, dist);
 
         if (dir.y > 0.0f)
@@ -393,7 +400,7 @@ void main()
 
     vec3 camPos = inverseView[3].xyz;
 
-    vec3 lum = ShadeScene(camPos, rayWS, l, rb, rt);
+    vec3 lum = ShadeScene(uv, camPos, rayWS, l, rb, rt);
     lum *= exp2(-EvFromCosZenith(l.y));
     // lum *= exp2(-12.0f);
     lum = ACES(lum);

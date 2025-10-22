@@ -25,12 +25,89 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
 FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTextures3D, image3D,
                                     rgba16f)
 
-vec4 IntegrateLuminanceTransmittance(vec3 camPos, float dist, vec3 e, vec3 l,
-                                     vec3 dir, float rb, float rt)
+struct IntegrationResult
 {
-    vec4 res = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    vec3 luminance;
+    vec3 transmittance;
+};
 
-    return res;
+IntegrationResult IntegrateLuminanceTransmittance(vec3 camPos, float maxDist,
+                                                  vec3 e, vec3 l, vec3 dir,
+                                                  float rb, float rt,
+                                                  uint sampleCount)
+{
+    const vec3 planetOrigin = vec3(0.0f);
+
+    IntegrationResult integrationResult;
+    integrationResult.luminance = vec3(0.0f, 0.0f, 0.0f);
+    integrationResult.transmittance = vec3(1.0f, 1.0f, 1.0f);
+
+    vec3 worldPos = vec3(0.0f, rb + camPos.y * 0.001f, 0.0f);
+
+    float integrationLength = maxDist;
+    float atmosphereT = RaySphereIntersect(worldPos, dir, planetOrigin, rt);
+    if (atmosphereT < 0.0f)
+    {
+        return integrationResult;
+    }
+
+    integrationLength = min(atmosphereT, integrationLength);
+
+    float groundT = RaySphereIntersect(worldPos, dir, planetOrigin, rb);
+    if (groundT > 0.0f)
+    {
+        integrationLength = min(groundT, integrationLength);
+    }
+
+    float delta = integrationLength / sampleCount;
+    float cosTheta = dot(dir, l);
+    float phaseR = PhaseRayleigh(cosTheta);
+    float phaseM = PhaseMie(cosTheta, MIE_G);
+
+    for (uint i = 0; i < sampleCount; i++)
+    {
+        float fi = float(i) + 0.5f;
+        vec3 p = worldPos + fi * dir * delta;
+        float r = p.y;
+        float height = max(r - rb, 0.0f);
+        float cosZ = l.y;
+
+        vec3 extinction =
+            max(SampleExtinction(height, gPushConstants.atmosphereBufferIndex),
+                1e-7);
+        vec3 stepTransmittance = exp(-delta * extinction);
+
+        vec3 scatteringR = SampleRayleighScattering(
+            height, gPushConstants.atmosphereBufferIndex);
+        vec3 scatteringM =
+            SampleMieScattering(height, gPushConstants.atmosphereBufferIndex);
+
+        float groundT = RaySphereIntersect(p, l, planetOrigin, rb);
+        vec3 s = float(groundT < 0.0f) *
+                 SampleTransmittance(r, cosZ, rb, rt,
+                                     gPushConstants.transmittanceMapIndex);
+
+        vec3 transmittanceDelta = integrationResult.transmittance *
+                                  (1.0f - stepTransmittance) / extinction;
+
+        // single scattering
+        integrationResult.luminance +=
+            (scatteringR * phaseR + scatteringM * phaseM) * s *
+            integrationResult.transmittance * (1.0f - stepTransmittance) /
+            extinction;
+
+        // multi scattering
+        integrationResult.luminance +=
+            (scatteringR + scatteringM) *
+            SampleMultiscattering(height, cosZ, rb, rt,
+                                  gPushConstants.multiscatteringMapIndex);
+
+        integrationResult.transmittance *= stepTransmittance;
+    }
+
+    integrationResult.luminance.rgb *= e;
+
+    return integrationResult;
 }
 
 void main()
@@ -70,9 +147,13 @@ void main()
     vec3 l = SphereCoordToRay(PI / 2 - zenith, azimuth);
 
     vec3 e = sunAlbedo * sunIlluminance;
-    vec4 lumTransmittance = IntegrateLuminanceTransmittance(
-        camPos, float(gl_GlobalInvocationID.z), e, l, rayWS, rb, rt);
+    IntegrationResult res = IntegrateLuminanceTransmittance(
+        camPos, gl_GlobalInvocationID.z + 0.5f, e, l, rayWS, rb, rt,
+        uint((gl_GlobalInvocationID.z + 1.0f) * 2.0f));
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    StorageTextures3D, gPushConstants.aerialPerspectiveMapIndex),
-               ivec3(gl_GlobalInvocationID.xyz), lumTransmittance);
+               ivec3(gl_GlobalInvocationID.xyz),
+               vec4(res.luminance, (res.transmittance.r + res.transmittance.g +
+                                    res.transmittance.b) /
+                                       3.0f));
 }
