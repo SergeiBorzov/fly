@@ -17,6 +17,10 @@ Example: `bazel build src/core:types`
 To run demos: `bazel run demos/{demo}:app`
 
 # Gallery
+## Atmosphere
+![Atmosphere1](https://github.com/SergeiBorzov/fly/blob/master/gallery/atmosphere_1.png)
+![Atmosphere2](https://github.com/SergeiBorzov/fly/blob/master/gallery/atmosphere_2.png)
+![Atmosphere3](https://github.com/SergeiBorzov/fly/blob/master/gallery/atmosphere_3.png)
 
 ## Gaussian splatting
 ![GaussianSplatting](https://github.com/SergeiBorzov/fly/blob/master/gallery/gaussian_splatting.png)
