@@ -20,38 +20,6 @@ glsl_shader(
 )
 
 glsl_shader(
-    name = "screen_quad.frag.spv",
-    src = "screen_quad.frag",
-    deps = [
-        "//demos/common:glsl_bindless",
-    ],
-)
-
-glsl_shader(
-    name = "sample_cubemap.vert.spv",
-    src = "sample_cubemap.vert",
-    deps = [
-        "//demos/common:glsl_bindless",
-    ],
-)
-
-glsl_shader(
-    name = "sample_cubemap.frag.spv",
-    src = "sample_cubemap.frag",
-    deps = [
-        "//demos/common:glsl_bindless",
-    ],
-)
-
-glsl_shader(
-    name = "irradiance_map.frag.spv",
-    src = "irradiance_map.frag",
-    deps = [
-        "//demos/common:glsl_bindless",
-    ],
-)
-
-glsl_shader(
     name = "transmittance_lut.comp.spv",
     src = "transmittance_lut.comp",
     deps = [
@@ -127,10 +95,6 @@ cc_binary(
     ],
     data = [
         ":screen_quad.vert.spv",
-        ":screen_quad.frag.spv",
-        ":sample_cubemap.vert.spv",
-        ":sample_cubemap.frag.spv",
-        ":irradiance_map.frag.spv",
         ":transmittance_lut.comp.spv",
         ":multiscattering_lut.comp.spv",
         ":skyview_lut.comp.spv",

@@ -86,17 +86,14 @@ struct CameraParams
 };
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 1250.0f, 0.0f));
+                                    Math::Vec3(0.0f, 2300.0f, 0.0f));
 
 static VkDescriptorPool sImGuiDescriptorPool;
 static AtmosphereParams sAtmosphereParams;
 static CameraParams sCameraParams;
 static SunParams sSunParams;
 
-static RHI::GraphicsPipeline sScreenQuadPipeline;
 static RHI::GraphicsPipeline sTerrainScenePipeline;
-static RHI::GraphicsPipeline sDrawCubemapPipeline;
-static RHI::GraphicsPipeline sIrradianceMapPipeline;
 static RHI::ComputePipeline sTransmittancePipeline;
 static RHI::ComputePipeline sMultiscatteringPipeline;
 static RHI::ComputePipeline sSkyviewPipeline;
@@ -307,19 +304,6 @@ static bool CreatePipelines(RHI::Device& device)
         return false;
     }
 
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sScreenQuadPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
     if (!Fly::LoadShaderFromSpv(device, "terrain_scene.frag.spv",
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
@@ -333,56 +317,12 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    if (!Fly::LoadShaderFromSpv(device, "sample_cubemap.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-    if (!Fly::LoadShaderFromSpv(device, "sample_cubemap.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sDrawCubemapPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
-    fixedState.pipelineRendering.colorAttachments[0] =
-        VK_FORMAT_R16G16B16A16_SFLOAT;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.pipelineRendering.viewMask = 0x3F;
-
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-
-    if (!Fly::LoadShaderFromSpv(device, "irradiance_map.frag.spv",
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sIrradianceMapPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
     return true;
 }
 
 static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sTerrainScenePipeline);
-    RHI::DestroyGraphicsPipeline(device, sScreenQuadPipeline);
-    RHI::DestroyGraphicsPipeline(device, sDrawCubemapPipeline);
-    RHI::DestroyGraphicsPipeline(device, sIrradianceMapPipeline);
     RHI::DestroyComputePipeline(device, sMultiscatteringPipeline);
     RHI::DestroyComputePipeline(device, sTransmittancePipeline);
     RHI::DestroyComputePipeline(device, sSkyviewPipeline);
@@ -795,144 +735,6 @@ static void AverageHorizonLuminance(RHI::Device& device)
                         &textureInput);
 }
 
-static void RecordDrawScreenQuad(RHI::CommandBuffer& cmd,
-                                 const RHI::RecordBufferInput* bufferInput,
-                                 const RHI::RecordTextureInput* textureInput,
-                                 void* pUserData)
-{
-    RHI::SetViewport(cmd, 0.0f, 0.0f,
-                     static_cast<f32>(cmd.device->swapchainWidth),
-                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
-                    cmd.device->swapchainHeight);
-
-    RHI::BindGraphicsPipeline(cmd, sScreenQuadPipeline);
-    RHI::Texture& texture = *(textureInput->textures[0]);
-    u32 pushConstants[] = {texture.bindlessHandle};
-    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::Draw(cmd, 6, 1, 0, 0);
-}
-
-static void DrawScreenQuad(RHI::Device& device, RHI::Texture* pMapToShow)
-{
-    RHI::RecordTextureInput textureInput;
-
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-    textureInput.textures = &pMapToShow;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
-
-    VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
-    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
-        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
-        &colorAttachment, 1);
-    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawScreenQuad, nullptr, &textureInput);
-}
-
-static void RecordDrawCubemap(RHI::CommandBuffer& cmd,
-                              const RHI::RecordBufferInput* bufferInput,
-                              const RHI::RecordTextureInput* textureInput,
-                              void* pUserData)
-{
-    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
-                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
-                    cmd.device->swapchainHeight);
-
-    RHI::BindGraphicsPipeline(cmd, sDrawCubemapPipeline);
-
-    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
-    RHI::Texture& cubemap = *(textureInput->textures[0]);
-
-    u32 pushConstants[] = {cameraBuffer.bindlessHandle, cubemap.bindlessHandle};
-    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::Draw(cmd, 6, 1, 0, 0);
-}
-
-static void DrawCubemap(RHI::Device& device, RHI::Texture* cubemap)
-{
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pCameraBuffer = &sCameraBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pCameraBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
-
-    RHI::RecordTextureInput textureInput;
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-    textureInput.textures = &cubemap;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
-
-    VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
-    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
-        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
-        &colorAttachment, 1);
-    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawCubemap, &bufferInput, &textureInput);
-}
-
-static void RecordConvoluteIrradiance(
-    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
-{
-    RHI::SetViewport(cmd, 0, 0, 256, 256, 0.0f, 1.0f);
-    RHI::SetScissor(cmd, 0, 0, 256, 256);
-    RHI::BindGraphicsPipeline(cmd, sIrradianceMapPipeline);
-
-    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& radianceProjectionBuffer = *(bufferInput->buffers[1]);
-
-    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           radianceProjectionBuffer.bindlessHandle};
-    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::Draw(cmd, 6, 1, 0, 0);
-}
-
-static void ConvoluteIrradiance(RHI::Device& device)
-{
-    RHI::Buffer* buffers[2];
-    VkAccessFlagBits2 bufferAccesses[2];
-    buffers[0] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sSkyviewRadianceProjectionBuffer;
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-
-    RHI::RecordBufferInput bufferInput;
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 2;
-
-    RHI::Texture* textures[1];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[1];
-
-    textures[0] = &sSkyviewIrradianceMap;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-
-    RHI::RecordTextureInput textureInput;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-    textureInput.textureCount = 1;
-
-    VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(sSkyviewIrradianceMap.arrayImageView);
-    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
-        {{0, 0}, {256, 256}}, &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
-
-    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordConvoluteIrradiance, &bufferInput,
-                         &textureInput);
-}
-
 static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
                                    const RHI::RecordBufferInput* bufferInput,
                                    const RHI::RecordTextureInput* textureInput,
@@ -1214,10 +1016,10 @@ int main(int argc, char* argv[])
         bool wantKeyboard = io.WantCaptureKeyboard;
         if (!wantMouse && !wantKeyboard)
         {
-            sCamera.Update(window, deltaTime);
+            // sCamera.Update(window, deltaTime);
         }
-        // sCamera.SetPosition(sCamera.GetPosition() +
-        //                     Math::Vec3(0.0f, 0.0f, 2000.0f) * deltaTime);
+        sCamera.SetPosition(sCamera.GetPosition() +
+                            Math::Vec3(0.0f, 0.0f, 3000.0f) * deltaTime);
 
         ProcessImGuiFrame();
 
@@ -1237,10 +1039,6 @@ int main(int argc, char* argv[])
         DrawAerialPerspectiveLUT(device);
         ProjectSkyviewRadiance(device);
         AverageHorizonLuminance(device);
-
-        // ConvoluteIrradiance(device);
-        // DrawCubemap(device, &sSkyviewIrradianceMap);
-        // DrawScreenQuad(device, sMultiscatteringLUT);
 
         DrawTerrainScene(device);
         DrawGUI(device);
