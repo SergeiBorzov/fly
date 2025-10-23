@@ -96,6 +96,7 @@ void InitThreadContext()
     FLY_ASSERT(binaryDirectoryPath);
 
     bool res = SetEnv("VK_LAYER_PATH", binaryDirectoryPath);
+    (void)(res);
     FLY_ASSERT(res);
 
 #if defined(FLY_PLATFORM_OS_MAC_OSX)

@@ -8,6 +8,12 @@ cc_library(
     srcs = [
         "deps/miniz/miniz.c",
     ],
+    copts = select({
+        "@platforms//os:linux": [
+            "-Wno-pragmas",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
     

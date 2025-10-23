@@ -126,7 +126,7 @@ use_repo(external_git_repository, "molten_vk")
 external_git_repository.base(
     name = "glslang",
     build_file = "//scripts/bazel/target:BUILD.glslang.bazel",
-    commit = "a57276bf558f5cf94d3a9854ebdf5a2236849a5a",
+    commit = "8e1494f9d742a27b54193ecd9475dcb2ef23b8b7",
     remote = "https://github.com/KhronosGroup/glslang.git",
 )
 use_repo(external_git_repository, "glslang")

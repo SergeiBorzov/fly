@@ -55,7 +55,7 @@ static void WaitForTimelineSemaphores(VkDevice device,
         waitInfo.flags = VK_SEMAPHORE_WAIT_ANY_BIT_KHR;
     }
 
-    VkResult res = vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
+    vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
 }
 
 static const char* PresentModeToString(VkPresentModeKHR presentMode)

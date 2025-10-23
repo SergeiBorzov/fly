@@ -48,6 +48,12 @@ cc_library(
 	],
         "//conditions:default": [],
     }),
+    copts = select({
+        "@platforms//os:linux": [
+            "-Wno-unused-function",
+        ],
+        "//conditions:default": [],
+    }),
     linkopts = select({
         "@platforms//os:windows": [
             "-DEFAULTLIB:advapi32.lib",
