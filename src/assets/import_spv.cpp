@@ -4,15 +4,9 @@
 namespace Fly
 {
 
-String8 LoadSpvFromFile(Arena& arena, const char* path)
+String8 LoadSpvFromFile(Arena& arena, String8 path)
 {
-    FLY_ASSERT(path);
     return ReadFileToString(arena, path, sizeof(u32));
-}
-
-String8 LoadSpvFromFile(Arena& arena, const Path& path)
-{
-    return LoadSpvFromFile(arena, path.ToCStr());
 }
 
 } // namespace Fly

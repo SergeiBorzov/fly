@@ -7,10 +7,9 @@
 namespace Fly
 {
 struct Arena;
-struct Path;
+struct String8;
 
-String8 LoadSpvFromFile(Arena& arena, const char* path);
-String8 LoadSpvFromFile(Arena& arena, const Path& path);
+String8 LoadSpvFromFile(Arena& arena, String8 path);
 
 } // namespace Fly
 

@@ -208,39 +208,43 @@ static Image TonemapFloat(const Image& image)
     return output;
 }
 
-bool ExportPNG(const char* path, const Image& image)
+static bool ExportPNG(String8 path, const Image& image)
 {
-    return stbi_write_png(path, image.width, image.height * image.layerCount,
-                          image.channelCount, image.data,
+    return stbi_write_png(path.Data(), image.width,
+                          image.height * image.layerCount, image.channelCount,
+                          image.data,
                           image.width * image.channelCount * sizeof(u8));
 }
 
-bool ExportBMP(const char* path, const Image& image)
+static bool ExportBMP(String8 path, const Image& image)
 {
-    return stbi_write_bmp(path, image.width, image.height * image.layerCount,
-                          image.channelCount, image.data);
+    return stbi_write_bmp(path.Data(), image.width,
+                          image.height * image.layerCount, image.channelCount,
+                          image.data);
 }
 
-bool ExportTGA(const char* path, const Image& image)
+static bool ExportTGA(String8 path, const Image& image)
 {
-    return stbi_write_tga(path, image.width, image.height * image.layerCount,
-                          image.channelCount, image.data);
+    return stbi_write_tga(path.Data(), image.width,
+                          image.height * image.layerCount, image.channelCount,
+                          image.data);
 }
 
-bool ExportJPG(const char* path, const Image& image)
+static bool ExportJPG(String8 path, const Image& image)
 {
-    return stbi_write_jpg(path, image.width, image.height * image.layerCount,
-                          image.channelCount, image.data, 90);
+    return stbi_write_jpg(path.Data(), image.width,
+                          image.height * image.layerCount, image.channelCount,
+                          image.data, 90);
 }
 
-bool ExportHDR(const char* path, const Image& image)
+static bool ExportHDR(String8 path, const Image& image)
 {
-    return stbi_write_hdr(path, image.width, image.height * image.layerCount,
-                          image.channelCount,
+    return stbi_write_hdr(path.Data(), image.width,
+                          image.height * image.layerCount, image.channelCount,
                           reinterpret_cast<const float*>(image.data));
 }
 
-bool ExportFBC1(const char* path, const Image& image)
+static bool ExportFBC1(String8 path, const Image& image)
 {
     u64 size = 0;
     u8* data = CompressImage(image, CodecType::BC1, size);
@@ -258,7 +262,7 @@ bool ExportFBC1(const char* path, const Image& image)
     return true;
 }
 
-bool ExportFBC3(const char* path, const Image& image)
+static bool ExportFBC3(String8 path, const Image& image)
 {
     u64 size = 0;
     u8* data = CompressImage(image, CodecType::BC3, size);
@@ -276,7 +280,7 @@ bool ExportFBC3(const char* path, const Image& image)
     return true;
 }
 
-bool ExportFBC4(const char* path, const Image& image)
+static bool ExportFBC4(String8 path, const Image& image)
 {
     u64 size = 0;
     u8* data = CompressImage(image, CodecType::BC4, size);
@@ -294,7 +298,7 @@ bool ExportFBC4(const char* path, const Image& image)
     return true;
 }
 
-bool ExportFBC5(const char* path, const Image& image)
+static bool ExportFBC5(String8 path, const Image& image)
 {
     u64 size = 0;
     u8* data = CompressImage(image, CodecType::BC5, size);
@@ -312,7 +316,7 @@ bool ExportFBC5(const char* path, const Image& image)
     return true;
 }
 
-bool ExportEXR(const char* path, const Image& image)
+static bool ExportEXR(String8 path, const Image& image)
 {
     FLY_ASSERT(image.storageType == ImageStorageType::Half);
 
@@ -391,7 +395,7 @@ bool ExportEXR(const char* path, const Image& image)
     }
 
     const char* err = nullptr;
-    int ret = SaveEXRImageToFile(&exrImage, &exrHeader, path, &err);
+    int ret = SaveEXRImageToFile(&exrImage, &exrHeader, path.Data(), &err);
 
     Fly::Free(exrHeader.channels);
     Fly::Free(exrHeader.pixel_types);
@@ -412,14 +416,12 @@ bool ExportEXR(const char* path, const Image& image)
     return ret == TINYEXR_SUCCESS;
 }
 
-bool ExportImage(const char* path, const Image& image)
+bool ExportImage(String8 path, const Image& image)
 {
-    String8 pathStr = Fly::String8(path, strlen(path));
-
     Image exportImage = image;
     if (image.storageType == ImageStorageType::Half)
     {
-        if (pathStr.EndsWith(FLY_STRING8_LITERAL(".exr")))
+        if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
         {
             return ExportEXR(path, image);
         }
@@ -427,47 +429,47 @@ bool ExportImage(const char* path, const Image& image)
     }
     else if (image.storageType == ImageStorageType::Float)
     {
-        if (pathStr.EndsWith(FLY_STRING8_LITERAL(".hdr")))
+        if (path.EndsWith(FLY_STRING8_LITERAL(".hdr")))
         {
             return ExportHDR(path, image);
         }
-        else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".exr")))
+        else if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
         {
             return ExportEXR(path, image);
         }
         exportImage = TonemapFloat(image);
     }
 
-    if (pathStr.EndsWith(FLY_STRING8_LITERAL(".png")))
+    if (path.EndsWith(FLY_STRING8_LITERAL(".png")))
     {
         return ExportPNG(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".jpg")) ||
-             pathStr.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".jpg")) ||
+             path.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
     {
         return ExportJPG(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".bmp")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".bmp")))
     {
         return ExportBMP(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".tga")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".tga")))
     {
         return ExportTGA(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
     {
         return ExportFBC1(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
     {
         return ExportFBC3(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
     {
         return ExportFBC4(path, exportImage);
     }
-    else if (pathStr.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
     {
         return ExportFBC5(path, exportImage);
     }

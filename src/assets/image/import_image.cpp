@@ -26,7 +26,7 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     FLY_ASSERT(path);
 
     u64 size = 0;
-    u8* bytes = ReadFileToByteArray(path.Data(), size);
+    u8* bytes = ReadFileToByteArray(path, size);
     image.mem = bytes;
 
     ImageHeader* header = reinterpret_cast<ImageHeader*>(bytes);
@@ -145,33 +145,31 @@ bool LoadExrImageFromFile(String8 path, Image& image)
     return true;
 }
 
-bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
+bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
 {
     FLY_ASSERT(path);
 
-    String8 pathStr = Fly::String8(path, strlen(path));
-
-    String8 extension = String8::FindLast(pathStr, '.');
+    String8 extension = String8::FindLast(path, '.');
 
     if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc")))
     {
-        return LoadCompressedImageFromFile(pathStr, image);
+        return LoadCompressedImageFromFile(path, image);
     }
     else if (extension.StartsWith(FLY_STRING8_LITERAL(".exr")))
     {
-        return LoadExrImageFromFile(pathStr, image);
+        return LoadExrImageFromFile(path, image);
     }
 
     int x = 0, y = 0, n = 0;
-    if (stbi_is_hdr(path))
+    if (stbi_is_hdr(path.Data()))
     {
         image.mem = reinterpret_cast<u8*>(
-            stbi_loadf(path, &x, &y, &n, desiredChannelCount));
+            stbi_loadf(path.Data(), &x, &y, &n, desiredChannelCount));
         image.storageType = ImageStorageType::Float;
     }
     else
     {
-        image.mem = stbi_load(path, &x, &y, &n, desiredChannelCount);
+        image.mem = stbi_load(path.Data(), &x, &y, &n, desiredChannelCount);
         image.storageType = ImageStorageType::Byte;
     }
     image.data = image.mem;
@@ -191,11 +189,6 @@ bool LoadImageFromFile(const char* path, Image& image, u8 desiredChannelCount)
     }
 
     return image.data;
-}
-
-bool LoadImageFromFile(const Path& path, Image& image, u8 desiredChannelCount)
-{
-    return Fly::LoadImageFromFile(path.ToCStr(), image, desiredChannelCount);
 }
 
 void FreeImage(Image& image)

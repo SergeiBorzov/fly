@@ -773,7 +773,9 @@ void ProcessInput(Input& input)
             exit(-11);
         }
 
-        if (!LoadImageFromFile(input.inputs[i], image, channelCount))
+        if (!LoadImageFromFile(
+                String8(input.inputs[i], strlen(input.inputs[i])), image,
+                channelCount))
         {
             fprintf(stderr, "Import error: failed to load image %s\n",
                     input.inputs[i]);
@@ -816,7 +818,8 @@ void ProcessInput(Input& input)
             image = transformedImage;
         }
 
-        if (!ExportImage(input.outputs[i], image))
+        if (!ExportImage(String8(input.outputs[i], strlen(input.outputs[i])),
+                         image))
         {
             fprintf(stderr, "Export error: failed to write image %s\n",
                     input.outputs[i]);

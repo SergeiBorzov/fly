@@ -61,12 +61,12 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 static bool CreatePipeline(RHI::Device& device)
 {
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "cubes.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("cubes.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "cubes.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("cubes.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -103,9 +103,9 @@ static bool CreateResources(RHI::Device& device)
     if (!Fly::LoadCompressedTexture2D(
             device,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            "CesiumLogoFlat.fbc1", VK_FORMAT_BC1_RGB_SRGB_BLOCK,
-            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
-            sCubeTexture))
+            FLY_STRING8_LITERAL("CesiumLogoFlat.fbc1"),
+            VK_FORMAT_BC1_RGB_SRGB_BLOCK, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Repeat, sCubeTexture))
     {
         return false;
     }

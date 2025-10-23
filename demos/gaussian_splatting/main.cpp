@@ -123,10 +123,13 @@ static bool CreatePipelines(RHI::Device& device)
         &sCopyPipeline, &sCountPipeline,
         &sScanPipeline, &sSortPipeline,
     };
-    const char* computeShaderPaths[] = {
-        "cull.comp.spv",       "write_indirect_dispatch.comp.spv",
-        "copy.comp.spv",       "radix_count_histogram.comp.spv",
-        "radix_scan.comp.spv", "radix_sort.comp.spv",
+    String8 computeShaderPaths[] = {
+        FLY_STRING8_LITERAL("cull.comp.spv"),
+        FLY_STRING8_LITERAL("write_indirect_dispatch.comp.spv"),
+        FLY_STRING8_LITERAL("copy.comp.spv"),
+        FLY_STRING8_LITERAL("radix_count_histogram.comp.spv"),
+        FLY_STRING8_LITERAL("radix_scan.comp.spv"),
+        FLY_STRING8_LITERAL("radix_sort.comp.spv"),
     };
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -164,12 +167,12 @@ static bool CreatePipelines(RHI::Device& device)
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "splat.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("splat.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "splat.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("splat.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -534,10 +537,12 @@ static void DrawSplats(RHI::Device& device)
     ArenaPopToMarker(arena, marker);
 }
 
-static const char* splatScenes[] = {
-    "garden.splat", "stump.splat", "bicycle.splat",
-    "truck.splat",  "nike.splat",  "plush.splat",
-    "room.splat",   "train.splat", "treehill.splat"};
+static String8 splatScenes[] = {
+    FLY_STRING8_LITERAL("garden.splat"),  FLY_STRING8_LITERAL("stump.splat"),
+    FLY_STRING8_LITERAL("bicycle.splat"), FLY_STRING8_LITERAL("truck.splat"),
+    FLY_STRING8_LITERAL("nike.splat"),    FLY_STRING8_LITERAL("plush.splat"),
+    FLY_STRING8_LITERAL("room.splat"),    FLY_STRING8_LITERAL("train.splat"),
+    FLY_STRING8_LITERAL("treehill.splat")};
 
 static bool LoadNextScene(RHI::Device& device)
 {

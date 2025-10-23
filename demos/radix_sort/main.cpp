@@ -44,8 +44,9 @@ struct RadixSortData
 static bool CreateComputePipelines(RHI::Device& device)
 {
     RHI::Shader countShader;
-    if (!Fly::LoadShaderFromSpv(device, "radix_count_histogram.comp.spv",
-                                countShader))
+    if (!Fly::LoadShaderFromSpv(
+            device, FLY_STRING8_LITERAL("radix_count_histogram.comp.spv"),
+            countShader))
     {
         return false;
     }
@@ -56,7 +57,8 @@ static bool CreateComputePipelines(RHI::Device& device)
     RHI::DestroyShader(device, countShader);
 
     RHI::Shader scanShader;
-    if (!Fly::LoadShaderFromSpv(device, "radix_scan.comp.spv", scanShader))
+    if (!Fly::LoadShaderFromSpv(
+            device, FLY_STRING8_LITERAL("radix_scan.comp.spv"), scanShader))
     {
         return false;
     }
@@ -67,7 +69,8 @@ static bool CreateComputePipelines(RHI::Device& device)
     RHI::DestroyShader(device, scanShader);
 
     RHI::Shader sortShader;
-    if (!Fly::LoadShaderFromSpv(device, "radix_sort.comp.spv", sortShader))
+    if (!Fly::LoadShaderFromSpv(
+            device, FLY_STRING8_LITERAL("radix_sort.comp.spv"), sortShader))
     {
         return false;
     }

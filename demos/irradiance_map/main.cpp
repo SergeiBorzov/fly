@@ -79,12 +79,14 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 static bool CreatePipeline(RHI::Device& device)
 {
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "sample_cubemap.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("sample_cubemap.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "sample_cubemap.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("sample_cubemap.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -109,7 +111,8 @@ static bool CreatePipeline(RHI::Device& device)
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.pipelineRendering.viewMask = 0x3F;
 
-    if (!Fly::LoadShaderFromSpv(device, "irradiance_sh.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("irradiance_sh.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -123,7 +126,9 @@ static bool CreatePipeline(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
 
     RHI::Shader shader;
-    if (!LoadShaderFromSpv(device, "project_radiance_sh.comp.spv", shader))
+    if (!LoadShaderFromSpv(device,
+                           FLY_STRING8_LITERAL("project_radiance_sh.comp.spv"),
+                           shader))
     {
         return false;
     }
@@ -155,11 +160,11 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    const char* radianceMapPaths[RADIANCE_MAP_COUNT] = {
-        "grace_cathedral.hdr",
-        "eucalyptus_grove.hdr",
-        "stpeters_basilica.hdr",
-        "uffizi_gallery.hdr",
+    String8 radianceMapPaths[RADIANCE_MAP_COUNT] = {
+        FLY_STRING8_LITERAL("grace_cathedral.hdr"),
+        FLY_STRING8_LITERAL("eucalyptus_grove.hdr"),
+        FLY_STRING8_LITERAL("stpeters_basilica.hdr"),
+        FLY_STRING8_LITERAL("uffizi_gallery.hdr"),
     };
 
     for (u32 i = 0; i < RADIANCE_MAP_COUNT; i++)

@@ -18,7 +18,7 @@ namespace Fly
 {
 
 bool LoadTexture2DFromFile(RHI::Device& device, VkImageUsageFlags usage,
-                           const char* path, VkFormat format,
+                           String8 path, VkFormat format,
                            RHI::Sampler::FilterMode filterMode,
                            RHI::Sampler::WrapMode wrapMode,
                            RHI::Texture& texture)
@@ -72,7 +72,7 @@ u64 GetCompressedSize(u32 width, u32 height, VkFormat format)
     }
 }
 
-bool LoadCubemap(RHI::Device& device, VkImageUsageFlags usage, const char* path,
+bool LoadCubemap(RHI::Device& device, VkImageUsageFlags usage, String8 path,
                  VkFormat format, RHI::Sampler::FilterMode filterMode,
                  u32 mipCount, RHI::Texture& texture)
 {
@@ -93,7 +93,7 @@ bool LoadCubemap(RHI::Device& device, VkImageUsageFlags usage, const char* path,
 }
 
 bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
-                           const char* path, VkFormat format,
+                           String8 path, VkFormat format,
                            RHI::Sampler::FilterMode filterMode,
                            RHI::Texture& texture)
 {
@@ -128,7 +128,7 @@ bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
 }
 
 bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
-                             const char* path, VkFormat format,
+                             String8 path, VkFormat format,
                              RHI::Sampler::FilterMode filterMode,
                              RHI::Sampler::WrapMode wrapMode,
                              RHI::Texture& texture)
@@ -161,8 +161,7 @@ bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
     return true;
 }
 
-bool LoadShaderFromSpv(RHI::Device& device, const char* path,
-                       RHI::Shader& shader)
+bool LoadShaderFromSpv(RHI::Device& device, String8 path, RHI::Shader& shader)
 {
     FLY_ASSERT(path);
 

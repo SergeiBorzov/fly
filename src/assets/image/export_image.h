@@ -1,6 +1,7 @@
 #ifndef FLY_ASSETS_EXPORT_IMAGE_H
 #define FLY_ASSETS_EXPORT_IMAGE_H
 
+#include "core/string8.h"
 #include "core/types.h"
 
 namespace Fly
@@ -8,7 +9,7 @@ namespace Fly
 
 struct Image;
 
-bool ExportImage(const char* path, const Image& image);
+bool ExportImage(String8 path, const Image& image);
 
 } // namespace Fly
 

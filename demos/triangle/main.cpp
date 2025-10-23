@@ -1,5 +1,4 @@
 #include "core/assert.h"
-#include "core/filesystem.h"
 #include "core/log.h"
 #include "core/platform.h"
 #include "core/thread_context.h"
@@ -34,12 +33,12 @@ static void ErrorCallbackGLFW(int error, const char* description)
 static bool CreatePipeline(RHI::Device& device)
 {
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "triangle.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("triangle.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "triangle.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("triangle.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;

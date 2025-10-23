@@ -89,7 +89,8 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::Shader cullShader;
-    if (!Fly::LoadShaderFromSpv(device, "cull.comp.spv", cullShader))
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("cull.comp.spv"),
+                                cullShader))
     {
         return false;
     }
@@ -101,12 +102,12 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, cullShader);
 
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "unlit.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("unlit.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "unlit.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("unlit.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;

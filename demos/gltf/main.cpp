@@ -56,13 +56,13 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 static bool CreatePipeline(RHI::Device& device)
 {
     RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, "unlit.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("unlit.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         FLY_ERROR("Failed to load vertex shader");
         return false;
     }
-    if (!Fly::LoadShaderFromSpv(device, "unlit.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("unlit.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         FLY_ERROR("Failed to load fragment shader");

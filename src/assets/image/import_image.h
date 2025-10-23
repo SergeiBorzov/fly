@@ -1,6 +1,7 @@
 #ifndef FLY_ASSETS_IMPORT_IMAGE_H
 #define FLY_ASSETS_IMPORT_IMAGE_H
 
+#include "core/string8.h"
 #include "core/types.h"
 
 namespace Fly
@@ -9,10 +10,7 @@ namespace Fly
 struct Path;
 struct Image;
 
-bool LoadImageFromFile(const Fly::Path& path, Image& image,
-                       u8 desiredChannelCount = 4);
-bool LoadImageFromFile(const char* path, Image& image,
-                       u8 desiredChannelCount = 4);
+bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount = 4);
 
 void FreeImage(Image& image);
 

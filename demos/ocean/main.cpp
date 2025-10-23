@@ -288,8 +288,10 @@ static bool CreatePipelines(RHI::Device& device)
         &sCopyPipeline,
     };
 
-    const char* computeShaderPaths[] = {"jonswap.comp.spv", "ifft.comp.spv",
-                                        "transpose.comp.spv", "copy.comp.spv"};
+    String8 computeShaderPaths[] = {FLY_STRING8_LITERAL("jonswap.comp.spv"),
+                                    FLY_STRING8_LITERAL("ifft.comp.spv"),
+                                    FLY_STRING8_LITERAL("transpose.comp.spv"),
+                                    FLY_STRING8_LITERAL("copy.comp.spv")};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -318,12 +320,12 @@ static bool CreatePipelines(RHI::Device& device)
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     RHI::ShaderProgram shaderProgram{};
-    if (!LoadShaderFromSpv(device, "sky.vert.spv",
+    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("sky.vert.spv"),
                            shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!LoadShaderFromSpv(device, "sky.frag.spv",
+    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("sky.frag.spv"),
                            shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -337,12 +339,12 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    if (!LoadShaderFromSpv(device, "ocean.vert.spv",
+    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("ocean.vert.spv"),
                            shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!LoadShaderFromSpv(device, "ocean.frag.spv",
+    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("ocean.frag.spv"),
                            shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;
@@ -405,7 +407,7 @@ static bool CreateResources(RHI::Device& device)
     if (!LoadCompressedCubemap(
             device,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            "DaySkyHDRI051B_4K-TONEMAPPED.fbc1", VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+            FLY_STRING8_LITERAL("DaySkyHDRI051B_4K-TONEMAPPED.fbc1"), VK_FORMAT_BC1_RGB_SRGB_BLOCK,
             RHI::Sampler::FilterMode::Trilinear, sSkyboxTexture))
     {
         return false;

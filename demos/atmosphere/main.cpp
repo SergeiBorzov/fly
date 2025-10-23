@@ -267,13 +267,13 @@ static bool CreatePipelines(RHI::Device& device)
         &sProjectSkyviewRadiancePipeline,
         &sAverageHorizonLuminancePipeline};
 
-    const char* computeShaderPaths[] = {
-        "transmittance_lut.comp.spv",
-        "multiscattering_lut.comp.spv",
-        "skyview_lut.comp.spv",
-        "aerial_perspective_lut.comp.spv",
-        "project_skyview_radiance.comp.spv",
-        "average_horizon_luminance.comp.spv",
+    String8 computeShaderPaths[] = {
+        FLY_STRING8_LITERAL("transmittance_lut.comp.spv"),
+        FLY_STRING8_LITERAL("multiscattering_lut.comp.spv"),
+        FLY_STRING8_LITERAL("skyview_lut.comp.spv"),
+        FLY_STRING8_LITERAL("aerial_perspective_lut.comp.spv"),
+        FLY_STRING8_LITERAL("project_skyview_radiance.comp.spv"),
+        FLY_STRING8_LITERAL("average_horizon_luminance.comp.spv"),
     };
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
@@ -298,13 +298,15 @@ static bool CreatePipelines(RHI::Device& device)
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     RHI::ShaderProgram shaderProgram;
-    if (!Fly::LoadShaderFromSpv(device, "screen_quad.vert.spv",
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("screen_quad.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
 
-    if (!Fly::LoadShaderFromSpv(device, "terrain_scene.frag.spv",
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("terrain_scene.frag.spv"),
                                 shaderProgram[RHI::Shader::Type::Fragment]))
     {
         return false;

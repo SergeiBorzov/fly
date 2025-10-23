@@ -16,22 +16,6 @@ cc_library(
 )
 
 cc_library(
-    name = "import_obj",
-    hdrs = [
-        "import_obj.h",
-    ],
-    srcs = [
-        "import_obj.cpp",
-    ],
-    includes = [".."],
-    deps = [
-        "//src/core:core",
-        "//src/math:math",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
     name = "import_gltf",
     hdrs = [
         "import_gltf.h",
@@ -46,14 +30,4 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
 )
-
-# cc_library(
-#     name = "import",
-#     deps = [
-#         ":import_obj",
-#         ":import_gltf",
-#         "//src/assets/image:import_image",
-#     ],
-#     visibility = ["//visibility:public"],
-# )
 

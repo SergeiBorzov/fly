@@ -16,10 +16,10 @@ cook_images(
         "@debevec//:uffizi_probe_latlong.hdr",
     ],
     outputs = [
-        "grace_cathedral.png",
-        "eucalyptus_grove.png",
-        "stpeters_basilica.png",
-        "uffizi_gallery.png",
+        "grace_cathedral.hdr",
+        "eucalyptus_grove.hdr",
+        "stpeters_basilica.hdr",
+        "uffizi_gallery.hdr",
     ],
     eq2cube = True,
 )
