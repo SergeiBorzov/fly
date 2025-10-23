@@ -200,6 +200,14 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "meshoptimizer")
 
+external_git_repository.base(
+    name = "fast_obj",
+    build_file = "//scripts/bazel/target:BUILD.fast_obj.bazel",
+    commit = "d620667f10a548dee94dbc8c144bb22f79162176",
+    remote = "https://github.com/thisistherk/fast_obj.git",
+)
+use_repo(external_git_repository, "fast_obj")
+
 ################################################################
 # MISC
 ################################################################
