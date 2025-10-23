@@ -192,6 +192,14 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "imgui")
 
+external_git_repository.base(
+    name = "meshoptimizer",
+    build_file = "//scripts/bazel/target:BUILD.meshoptimizer.bazel",
+    commit = "f3d334664a89c707002748cb2507a3419e25a6c6",
+    remote = "https://github.com/zeux/meshoptimizer.git",
+)
+use_repo(external_git_repository, "meshoptimizer")
+
 ################################################################
 # MISC
 ################################################################
