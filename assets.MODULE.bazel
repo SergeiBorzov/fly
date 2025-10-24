@@ -59,6 +59,21 @@ external_assets.base(
 use_repo(external_assets, "ambientcg")
 
 ################################################################
+# MORGAN MCGUIRE ARCHIVE
+################################################################
+external_assets.base(
+    name = "casual_effects",
+    urls = [
+        "https://casual-effects.com/g3d/data10/research/model/dragon/dragon.zip",
+    ],
+    sha256 = [
+        "111124359a31e4d6b2eeb5398e5bc96a5d9e2d2a130afb10bb4cfbc011bdb797",
+    ],
+    build_file = "//scripts/bazel/target:BUILD.casual_effects.bazel",
+)
+use_repo(external_assets, "casual_effects")
+
+################################################################
 # PAUL DEBEVEC PROBE GALLERY
 ################################################################
 
