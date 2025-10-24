@@ -22,5 +22,9 @@ cc_library(
         "src/vertexfilter.cpp",
         "src/vfetchoptimizer.cpp",
     ],
+    includes = [
+        "src",
+    ],
+    visibility = ["//visibility:public"],
 )
     
