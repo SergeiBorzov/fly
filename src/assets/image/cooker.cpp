@@ -10,10 +10,10 @@
 #include "rhi/pipeline.h"
 #include "rhi/shader_program.h"
 
-#include "image/export_image.h"
-#include "image/image.h"
-#include "image/import_image.h"
-#include "image/transform_image.h"
+#include "export_image.h"
+#include "image.h"
+#include "import_image.h"
+#include "transform_image.h"
 
 using namespace Fly;
 

@@ -44,7 +44,8 @@ cook_images = rule(
         "_command": attr.label(
             cfg = "exec",
             executable = True,
-            default = Label("//src/assets/cooker:cooker"),
+            default = Label("//src/assets/image:cooker"),
         ),
     },
 )
+
