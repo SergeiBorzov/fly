@@ -20,44 +20,44 @@ FLY_REGISTER_UNIFORM_BUFFER(SceneData, {
 })
 
 const vec3 cubePositions[] = vec3[](
-    vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, -0.5f),
-    vec3(0.5f, 0.5f, -0.5f), vec3(-0.5f, -0.5f, -0.5f), vec3(0.5f, 0.5f, -0.5f),
+    vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, -0.5f),
+    vec3(0.5f, 0.5f, -0.5f), vec3(0.5f, 0.5f, -0.5f), vec3(-0.5f, -0.5f, -0.5f),
     vec3(-0.5f, 0.5f, -0.5f),
 
-    vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(0.5f, 0.5f, 0.5f),
-    vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, 0.5f, 0.5f), vec3(0.5f, 0.5f, -0.5f),
+    vec3(0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, 0.5f, 0.5f),
+    vec3(0.5f, 0.5f, 0.5f), vec3(0.5f, -0.5f, -0.5f), vec3(0.5f, 0.5f, -0.5f),
 
-    vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f),
-    vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f), vec3(0.5f, 0.5f, 0.5f),
+    vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f),
+    vec3(-0.5f, 0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(0.5f, 0.5f, 0.5f),
 
-    vec3(-0.5f, -0.5f, 0.5f), vec3(-0.5f, -0.5f, -0.5f),
-    vec3(-0.5f, 0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f),
-    vec3(-0.5f, 0.5f, -0.5f), vec3(-0.5f, 0.5f, 0.5f),
+    vec3(-0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f),
+    vec3(-0.5f, 0.5f, -0.5f), vec3(-0.5f, 0.5f, -0.5f),
+    vec3(-0.5f, -0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f),
 
-    vec3(-0.5f, 0.5f, -0.5f), vec3(0.5f, 0.5f, -0.5f), vec3(0.5f, 0.5f, 0.5f),
-    vec3(-0.5f, 0.5f, -0.5f), vec3(0.5f, 0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f),
+    vec3(0.5f, 0.5f, -0.5f), vec3(-0.5f, 0.5f, -0.5f), vec3(0.5f, 0.5f, 0.5f),
+    vec3(0.5f, 0.5f, 0.5f), vec3(-0.5f, 0.5f, -0.5f), vec3(-0.5f, 0.5f, 0.5f),
 
-    vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, -0.5f),
-    vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, -0.5f),
+    vec3(0.5f, -0.5f, 0.5f), vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, -0.5f),
+    vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f),
     vec3(-0.5f, -0.5f, -0.5f));
 
-const vec2 uvs[] = vec2[](vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f),
-                          vec2(0.0f, 0.0f), vec2(1.0f, 1.0f), vec2(0.0f, 1.0f),
+const vec2 uvs[] = vec2[](vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f),
+                          vec2(1.0f, 1.0f), vec2(0.0f, 0.0f), vec2(0.0f, 1.0f),
 
-                          vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f),
-                          vec2(0.0f, 0.0f), vec2(1.0f, 1.0f), vec2(0.0f, 1.0f),
+                          vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f),
+                          vec2(1.0f, 1.0f), vec2(0.0f, 0.0f), vec2(0.0f, 1.0f),
 
-                          vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f),
-                          vec2(0.0f, 0.0f), vec2(1.0f, 1.0f), vec2(0.0f, 1.0f),
+                          vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f),
+                          vec2(1.0f, 1.0f), vec2(0.0f, 0.0f), vec2(0.0f, 1.0f),
 
-                          vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f),
-                          vec2(0.0f, 0.0f), vec2(1.0f, 1.0f), vec2(0.0f, 1.0f),
+                          vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f),
+                          vec2(1.0f, 1.0f), vec2(0.0f, 0.0f), vec2(0.0f, 1.0f),
 
-                          vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f),
-                          vec2(0.0f, 0.0f), vec2(1.0f, 1.0f), vec2(0.0f, 1.0f),
+                          vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f),
+                          vec2(1.0f, 1.0f), vec2(0.0f, 0.0f), vec2(0.0f, 1.0f),
 
-                          vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f),
-                          vec2(0.0f, 0.0f), vec2(1.0f, 1.0f), vec2(0.0f, 1.0f));
+                          vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(1.0f, 1.0f),
+                          vec2(1.0f, 1.0f), vec2(0.0f, 0.0f), vec2(0.0f, 1.0f));
 
 const vec3 faceColors[] = vec3[](
     vec3(1.0f, 1.0f, 1.0f), vec3(1.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
@@ -108,7 +108,8 @@ void main()
                     origin + translate;
 
     gl_Position =
-        FLY_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, projection) *
+        FLY_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex,
+                                  projection) *
         FLY_ACCESS_UNIFORM_BUFFER(SceneData, gIndices.sceneDataIndex, view) *
-            vec4(worldPos, 1.0f);
+        vec4(worldPos, 1.0f);
 }
