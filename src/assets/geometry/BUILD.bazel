@@ -1,0 +1,48 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "geometry",
+    hdrs = [
+        "geometry.h",
+    ],
+    srcs = [
+        "geometry.cpp",
+    ],
+    deps = [
+        "//src/core:core",
+        "//src/math:math",
+        "@fast_obj//:fast_obj",
+    ],
+    includes = [
+        "../..",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "mesh",
+    hdrs = [
+        "mesh.h",
+    ],
+    srcs = [
+        "mesh.cpp",
+    ],
+    deps = [
+        "//src/core:core",
+        "//src/math:math",
+        "//src/rhi:context",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "cooker",
+    srcs = [
+        "cooker.cpp",
+    ],
+    includes = ["../.."],
+    deps = [
+        ":geometry",
+    ],
+    visibility = ["//visibility:public"],
+)

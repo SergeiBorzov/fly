@@ -26,6 +26,27 @@ def _cook_images_impl(ctx):
 
     return [DefaultInfo(files = depset(outs))]
 
+def _cook_meshes_impl(ctx):
+    outs = []
+    for f in ctx.files.outputs:
+        out = ctx.actions.declare_file(f.basename)
+        outs.append(out)
+
+    extra_options = []
+
+    ctx.actions.run(
+        inputs = ctx.files.inputs,
+        outputs = outs,
+        executable = ctx.executable._command,
+        arguments = [
+            "-i"
+        ] +
+        [f.path for f in ctx.files.inputs] +
+        extra_options + ["-o"] + [f.path for f in outs],
+    )
+
+    return [DefaultInfo(files = depset(outs))]
+
 cook_images = rule(
     implementation = _cook_images_impl,
     attrs = {
@@ -45,6 +66,27 @@ cook_images = rule(
             cfg = "exec",
             executable = True,
             default = Label("//src/assets/image:cooker"),
+        ),
+    },
+)
+
+cook_meshes = rule(
+    implementation = _cook_meshes_impl,
+    attrs = {
+        "inputs": attr.label_list(
+            mandatory = True,
+            allow_empty = False,
+            allow_files = True,
+        ),
+        "outputs": attr.label_list(
+            mandatory = True,
+            allow_empty = False,
+            allow_files = True,
+        ),
+        "_command": attr.label(
+            cfg = "exec",
+            executable = True,
+            default = Label("//src/assets/geometry:cooker"),
         ),
     },
 )

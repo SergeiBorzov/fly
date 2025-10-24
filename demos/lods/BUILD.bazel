@@ -1,0 +1,63 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_meshes")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
+
+copy_vulkan_layers()
+copy_molten_vk()
+
+cook_meshes(
+    name = "cook_dragon_mesh",
+    inputs = [
+        "@casual_effects//:dragon/dragon.obj",
+    ],
+    outputs = [
+        "dragon.fmesh",
+    ],
+)
+
+glsl_shader(
+    name = "lit.vert.spv",
+    src = "lit.vert",
+    deps = [
+        "//demos/common:glsl_bindless"
+    ],
+)
+
+glsl_shader(
+    name = "lit.frag.spv",
+    src = "lit.frag",
+    deps = [
+        "//demos/common:glsl_bindless"
+    ],
+)
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        "//src/rhi:context",
+        "//src/utils:utils",
+        "//src/assets/geometry:mesh",
+        "//demos/common:simple_camera_fps",
+    ],
+    data = [
+        ":cook_dragon_mesh",
+        ":lit.vert.spv",
+        ":lit.frag.spv",
+    ] + select({
+        "@fly//scripts/bazel/build_type:release": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    }) + select({
+        "@platforms//os:osx": [
+            ":copy_molten_vk",
+	],
+        "//conditions:default": [],
+    }),
+)
+

@@ -139,6 +139,12 @@ bool WriteStringToFile(String8 str, String8 path, bool append)
         return false;
     }
 
+    if (!str)
+    {
+        fclose(f);
+        return true;
+    }
+
     if (fwrite(str.Data(), 1, str.Size(), f) != str.Size())
     {
         fclose(f);
