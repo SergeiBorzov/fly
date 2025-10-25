@@ -328,6 +328,35 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
     }
 }
 
+void FlipGeometryWindingOrder(Geometry& geometry)
+{
+    for (u32 i = 0; i < geometry.vertexCount; i += 3)
+    {
+        if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
+        {
+            VertexTexCoord& v0 = *reinterpret_cast<VertexTexCoord*>(
+                geometry.vertices + 3 * i * geometry.vertexSize);
+            VertexTexCoord& v1 = *reinterpret_cast<VertexTexCoord*>(
+                geometry.vertices + (3 * i + 1) * geometry.vertexSize);
+
+            VertexTexCoord tmp = v0;
+            v0 = v1;
+            v1 = tmp;
+        }
+        else
+        {
+            Vertex& v0 = *reinterpret_cast<Vertex*>(geometry.vertices +
+                                                    i * geometry.vertexSize);
+            Vertex& v1 = *reinterpret_cast<Vertex*>(
+                geometry.vertices + (i + 1) * geometry.vertexSize);
+
+            Vertex tmp = v0;
+            v0 = v1;
+            v1 = tmp;
+        }
+    }
+}
+
 bool ExportGeometry(String8 path, Geometry& geometry)
 {
     u64 totalSize = sizeof(MeshHeader) +

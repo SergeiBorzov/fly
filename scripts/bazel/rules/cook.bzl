@@ -39,6 +39,8 @@ def _cook_meshes_impl(ctx):
     extra_options.append(ctx.attr.coord_system)
     if ctx.attr.flip_forward:
         extra_options.append("-ff")
+    if ctx.attr.flip_winding_order:
+        extra_options.append("-fw")
 
     ctx.actions.run(
         inputs = ctx.files.inputs,
@@ -102,6 +104,9 @@ cook_meshes = rule(
             values = ["xyz", "xzy", "yxz", "yzx", "zxy", "zyx"],
         ),
         "flip_forward": attr.bool(
+            default = False,
+        ),
+        "flip_winding_order": attr.bool(
             default = False,
         ),
     },

@@ -37,13 +37,13 @@ struct Geometry
 };
 
 bool ImportGeometry(String8 path, Geometry& geometry);
-void TransformGeometry(f32 scale, CoordSystem coordSystem,
-                       bool flipForward, Geometry& geometry);
 bool ExportGeometry(String8 path, Geometry& geometry);
 void DestroyGeometry(Geometry& geometry);
+void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
+                       Geometry& geometry);
+void FlipGeometryWindingOrder(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
-void SetGeometryWindingOrder(Geometry& geometry, bool ccw = 1);
 void GenerateGeometryIndices(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);
 void GenerateGeometryTangents(Geometry& geometry);

@@ -16,6 +16,7 @@ cook_meshes(
     ],
     scale = "5.0",
     flip_forward = True,
+    flip_winding_order = True,
 )
 
 glsl_shader(

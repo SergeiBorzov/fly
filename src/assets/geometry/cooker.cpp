@@ -15,6 +15,7 @@ struct Input
     u32 outputCount = 0;
     f32 scale = 1.0f;
     bool flipForward = false;
+    bool flipWindingOrder = false;
     CoordSystem coordSystem = CoordSystem::XYZ;
 };
 
@@ -119,6 +120,10 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
         {
             data.flipForward = true;
         }
+        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-fw")))
+        {
+            data.flipWindingOrder = true;
+        }
     }
 }
 
@@ -186,6 +191,11 @@ static void ProcessInput(Input& input)
         {
             TransformGeometry(input.scale, input.coordSystem, input.flipForward,
                               geometry);
+        }
+
+        if (input.flipWindingOrder)
+        {
+            FlipGeometryWindingOrder(geometry);
         }
 
         if (!ExportGeometry(input.outputs[i], geometry))

@@ -80,7 +80,7 @@ static bool CreatePipelines(RHI::Device& device)
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
-    // fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      sGraphicsPipeline))
