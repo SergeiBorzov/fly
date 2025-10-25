@@ -46,11 +46,11 @@ void ReindexGeometry(Geometry& geometry);
 void OptimizeGeometryVertexCache(Geometry& geometry);
 void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold);
 void OptimizeGeometryVertexFetch(Geometry& geometry);
+void QuantizeGeometry(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);
 void GenerateGeometryTangents(Geometry& geometry);
-void QuantizeGeometry(Geometry& geometry);
 
 } // namespace Fly
 

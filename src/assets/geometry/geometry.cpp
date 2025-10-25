@@ -13,12 +13,23 @@ namespace Fly
 {
 
 typedef void (*VertexTransformFunc)(void* vertex, void* userData);
+
 struct Vertex
 {
     Math::Vec3 position;
     f32 pad0;
     Math::Vec3 normal;
     f32 pad1;
+};
+
+struct QuantizedVertex
+{
+    u16 positionX;
+    u16 positionY;
+    u16 positionZ;
+    u16 pad0;
+    u32 normal;
+    u32 pad1;
 };
 
 struct VertexTexCoord
@@ -39,6 +50,21 @@ struct MeshHeader
     u8 vertexSize;
     u8 vertexMask;
 };
+
+// struct QuantizedVertex
+// {
+//     f16 posX;
+//     f16 posY;
+//     f16 posZ;
+//     u8 normalX;
+//     u8 normalY;
+//     u8 normalZ;
+//     u8 tangentX;
+//     u8 tangentY;
+//     u8 tangentZ;
+//     u16 u;
+//     u16 v;
+// };
 
 struct TransformData
 {
@@ -418,8 +444,33 @@ void OptimizeGeometryVertexFetch(Geometry& geometry)
     Fly::Free(geometry.vertices);
     geometry.vertices = static_cast<u8*>(newVertices);
     geometry.vertexCount = newVertexCount;
+}
 
-    printf("New vertex count is %lu\n", newVertexCount);
+void QuantizeGeometry(Geometry& geometry)
+{
+    if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
+    {
+        return;
+    }
+
+    QuantizedVertex* newVertices = static_cast<QuantizedVertex*>(
+        Fly::Alloc(sizeof(QuantizedVertex) * geometry.vertexCount));
+    for (u32 i = 0; i < geometry.vertexCount; i++)
+    {
+        QuantizedVertex& quantized = newVertices[i];
+        Vertex& vertex = reinterpret_cast<Vertex*>(geometry.vertices)[i];
+        quantized.positionX = meshopt_quantizeHalf(vertex.position.x);
+        quantized.positionY = meshopt_quantizeHalf(vertex.position.y);
+        quantized.positionZ = meshopt_quantizeHalf(vertex.position.z);
+        quantized.normal =
+            (meshopt_quantizeUnorm((vertex.normal.x + 1.0f) / 2.0f, 10) << 20) |
+            (meshopt_quantizeUnorm((vertex.normal.y + 1.0f) / 2.0f, 10) << 10) |
+            meshopt_quantizeUnorm((vertex.normal.z + 1.0f) / 2.0f, 10);
+    }
+
+    Fly::Free(geometry.vertices);
+    geometry.vertices = reinterpret_cast<u8*>(newVertices);
+    geometry.vertexSize = sizeof(QuantizedVertex);
 }
 
 bool ExportGeometry(String8 path, Geometry& geometry)

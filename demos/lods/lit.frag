@@ -18,6 +18,5 @@ void main()
     vec3 n = normalize(inNormal);
 
     vec3 finalColor = vec3(1.0f)*max(dot(l, n), 0.0f);
-    //vec3 finalColor = vec3(1.0f);
     outColor = vec4(finalColor, 1.0f);
 }

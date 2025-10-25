@@ -1,5 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
 #include "bindless.glsl"
 
 layout(location = 0) out vec3 outNormal;
@@ -17,20 +19,39 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
 })
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
-    vec3 position;
-    float pad0;
-    vec3 normal;
-    float pad1;
+    f16vec3 position;
+    float16_t pad;
+    uint normal;
+    uint pad1;
 })
+
+vec3 DecodeNormal(uint quantized)
+{
+    const float scale = 1.0 / 1023.0; // 10-bit max value is 1023
+
+    uint xBits = (quantized >> 20) & 0x3FFu;
+    uint yBits = (quantized >> 10) & 0x3FFu;
+    uint zBits = quantized & 0x3FFu;
+
+    vec3 normal;
+    normal.x = float(xBits) * scale;
+    normal.y = float(yBits) * scale;
+    normal.z = float(zBits) * scale;
+
+    normal = normal * 2.0f - 1.0f;
+
+    return normalize(normal);
+}
 
 void main()
 {
     Vertex v = FLY_ACCESS_STORAGE_BUFFER(
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
-    outNormal = v.normal;
+    outNormal = DecodeNormal(v.normal);
+    vec3 position = vec3(v.position);
     gl_Position = FLY_ACCESS_UNIFORM_BUFFER(
                       Camera, gPushConstants.cameraBufferIndex, projection) *
                   FLY_ACCESS_UNIFORM_BUFFER(
                       Camera, gPushConstants.cameraBufferIndex, view) *
-                  vec4(v.position, 1.0f);
+                  vec4(position, 1.0f);
 }

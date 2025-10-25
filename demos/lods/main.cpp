@@ -109,6 +109,7 @@ static bool CreateResources(RHI::Device& device)
         FLY_ERROR("Failed to import mesh");
         return false;
     }
+    FLY_LOG("Mesh vertex size is %u", sMesh.vertexSize);
 
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
