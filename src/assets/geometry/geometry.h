@@ -43,11 +43,11 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
                        Geometry& geometry);
 void FlipGeometryWindingOrder(Geometry& geometry);
 void ReindexGeometry(Geometry& geometry);
+void OptimizeGeometryVertexCache(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);
 void GenerateGeometryTangents(Geometry& geometry);
-void OptimizeGeometryVertexCache(Geometry& geometry);
 void OptimizeGeometryOverdraw(Geometry& geometry);
 void OptimizeGeometryVertexFetch(Geometry& geometry);
 void QuantizeGeometry(Geometry& geometry);

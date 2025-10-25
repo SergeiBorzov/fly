@@ -384,6 +384,19 @@ void ReindexGeometry(Geometry& geometry)
     geometry.vertexCount = newVertexCount;
 }
 
+void OptimizeGeometryVertexCache(Geometry& geometry)
+{
+    // Note: If index buffer contains multiple ranges for multiple draw calls,
+    // this function needs to be called on each range individually
+    unsigned int* newIndices = static_cast<unsigned int*>(
+        Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
+
+    meshopt_optimizeVertexCache(newIndices, geometry.indices,
+                                geometry.indexCount, geometry.vertexCount);
+    Fly::Free(geometry.indices);
+    geometry.indices = newIndices;
+}
+
 bool ExportGeometry(String8 path, Geometry& geometry)
 {
     u64 totalSize = sizeof(MeshHeader) +
