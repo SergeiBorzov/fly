@@ -10,10 +10,20 @@ namespace Fly
 enum VertexFlags
 {
     FLY_VERTEX_NONE_BIT = 0,
-    FLY_VERTEX_POSITION_BIT = 1 << 1,
-    FLY_VERTEX_NORMAL_BIT = 1 << 2,
-    FLY_VERTEX_TANGENT_BIT = 1 << 3,
-    FLY_VERTEX_TEXCOORD_BIT = 1 << 4
+    FLY_VERTEX_POSITION_BIT = 1 << 0,
+    FLY_VERTEX_NORMAL_BIT = 1 << 1,
+    FLY_VERTEX_TANGENT_BIT = 1 << 2,
+    FLY_VERTEX_TEXCOORD_BIT = 1 << 3
+};
+
+enum class CoordSystem : u8
+{
+    XYZ = 0,
+    XZY = 1,
+    YXZ = 2,
+    YZX = 3,
+    ZXY = 4,
+    ZYX = 5
 };
 
 struct Geometry
@@ -27,6 +37,8 @@ struct Geometry
 };
 
 bool ImportGeometry(String8 path, Geometry& geometry);
+void TransformGeometry(f32 scale, CoordSystem coordSystem,
+                       bool flipForward, Geometry& geometry);
 bool ExportGeometry(String8 path, Geometry& geometry);
 void DestroyGeometry(Geometry& geometry);
 
@@ -35,7 +47,6 @@ void SetGeometryWindingOrder(Geometry& geometry, bool ccw = 1);
 void GenerateGeometryIndices(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);
 void GenerateGeometryTangents(Geometry& geometry);
-void ApplyTransformToGeometry(Geometry& geometry);
 void OptimizeGeometryVertexCache(Geometry& geometry);
 void OptimizeGeometryOverdraw(Geometry& geometry);
 void OptimizeGeometryVertexFetch(Geometry& geometry);

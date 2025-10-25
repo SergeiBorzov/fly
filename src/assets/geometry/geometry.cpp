@@ -10,6 +10,7 @@
 namespace Fly
 {
 
+typedef void (*VertexTransformFunc)(void* vertex, void* userData);
 struct Vertex
 {
     Math::Vec3 position;
@@ -35,6 +36,13 @@ struct MeshHeader
     u8 indexSize;
     u8 vertexSize;
     u8 vertexMask;
+};
+
+struct TransformData
+{
+    f32 scale;
+    CoordSystem coordSystem;
+    bool flipForward;
 };
 
 static void CopyVertices(const fastObjMesh* mesh, Geometry& geometry)
@@ -134,6 +142,147 @@ static bool ImportGeometryObj(String8 path, Geometry& geometry)
     return true;
 }
 
+static void ApplyVertexTransformToGeometry(
+    Geometry& geometry, VertexTransformFunc vertexTransformFunc, void* userData)
+{
+    FLY_ASSERT(vertexTransformFunc);
+    for (u32 i = 0; i < geometry.vertexCount; i++)
+    {
+        vertexTransformFunc(geometry.vertices + i * geometry.vertexSize,
+                            userData);
+    }
+}
+
+static void TransformVertexTexCoord(void* pVertex, void* userData)
+{
+    FLY_ASSERT(pVertex);
+    FLY_ASSERT(userData);
+
+    const TransformData& transformData =
+        *static_cast<const TransformData*>(userData);
+
+    VertexTexCoord& vertex = *static_cast<VertexTexCoord*>(pVertex);
+    switch (transformData.coordSystem)
+    {
+        case CoordSystem::XZY:
+        {
+            vertex.position = Math::Vec3(vertex.position.x, vertex.position.z,
+                                         vertex.position.y);
+            vertex.normal =
+                Math::Vec3(vertex.normal.x, vertex.normal.z, vertex.normal.y);
+            break;
+        }
+        case CoordSystem::YXZ:
+        {
+            vertex.position = Math::Vec3(vertex.position.y, vertex.position.x,
+                                         vertex.position.z);
+            vertex.normal =
+                Math::Vec3(vertex.normal.y, vertex.normal.x, vertex.normal.z);
+            break;
+        }
+        case CoordSystem::YZX:
+        {
+            vertex.position = Math::Vec3(vertex.position.y, vertex.position.z,
+                                         vertex.position.x);
+            vertex.normal =
+                Math::Vec3(vertex.normal.y, vertex.normal.z, vertex.normal.x);
+            break;
+        }
+        case CoordSystem::ZXY:
+        {
+            vertex.position = Math::Vec3(vertex.position.z, vertex.position.x,
+                                         vertex.position.y);
+            vertex.normal =
+                Math::Vec3(vertex.normal.z, vertex.normal.x, vertex.normal.y);
+            break;
+        }
+        case CoordSystem::ZYX:
+        {
+            vertex.position = Math::Vec3(vertex.position.z, vertex.position.y,
+                                         vertex.position.x);
+            vertex.normal =
+                Math::Vec3(vertex.normal.z, vertex.normal.y, vertex.normal.x);
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+
+    vertex.position *= transformData.scale;
+    if (transformData.flipForward)
+    {
+        vertex.position.z *= -1.0f;
+        vertex.normal.z *= -1.0f;
+    }
+}
+
+static void TransformVertex(void* pVertex, void* userData)
+{
+    FLY_ASSERT(vertex);
+    FLY_ASSERT(userData);
+
+    const TransformData& transformData =
+        *static_cast<const TransformData*>(userData);
+
+    Vertex& vertex = *static_cast<Vertex*>(pVertex);
+    switch (transformData.coordSystem)
+    {
+        case CoordSystem::XZY:
+        {
+            vertex.position = Math::Vec3(vertex.position.x, vertex.position.z,
+                                         vertex.position.y);
+            vertex.normal =
+                Math::Vec3(vertex.normal.x, vertex.normal.z, vertex.normal.y);
+            break;
+        }
+        case CoordSystem::YXZ:
+        {
+            vertex.position = Math::Vec3(vertex.position.y, vertex.position.x,
+                                         vertex.position.z);
+            vertex.normal =
+                Math::Vec3(vertex.normal.y, vertex.normal.x, vertex.normal.z);
+            break;
+        }
+        case CoordSystem::YZX:
+        {
+            vertex.position = Math::Vec3(vertex.position.y, vertex.position.z,
+                                         vertex.position.x);
+            vertex.normal =
+                Math::Vec3(vertex.normal.y, vertex.normal.z, vertex.normal.x);
+            break;
+        }
+        case CoordSystem::ZXY:
+        {
+            vertex.position = Math::Vec3(vertex.position.z, vertex.position.x,
+                                         vertex.position.y);
+            vertex.normal =
+                Math::Vec3(vertex.normal.z, vertex.normal.x, vertex.normal.y);
+            break;
+        }
+        case CoordSystem::ZYX:
+        {
+            vertex.position = Math::Vec3(vertex.position.z, vertex.position.y,
+                                         vertex.position.x);
+            vertex.normal =
+                Math::Vec3(vertex.normal.z, vertex.normal.y, vertex.normal.x);
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+
+    vertex.position *= transformData.scale;
+    if (transformData.flipForward)
+    {
+        vertex.position.z *= -1.0f;
+        vertex.normal.z *= -1.0f;
+    }
+}
+
 bool ImportGeometry(String8 path, Geometry& geometry)
 {
     String8 extension = String8::FindLast(path, '.');
@@ -156,6 +305,26 @@ void DestroyGeometry(Geometry& geometry)
     {
         Fly::Free(geometry.indices);
         geometry.indices = nullptr;
+    }
+}
+
+void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
+                       Geometry& geometry)
+{
+    TransformData transformData;
+    transformData.scale = scale;
+    transformData.coordSystem = coordSystem;
+    transformData.flipForward = flipForward;
+
+    if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
+    {
+        ApplyVertexTransformToGeometry(geometry, TransformVertexTexCoord,
+                                       &transformData);
+    }
+    else
+    {
+        ApplyVertexTransformToGeometry(geometry, TransformVertex,
+                                       &transformData);
     }
 }
 

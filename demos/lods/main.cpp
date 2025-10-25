@@ -55,7 +55,7 @@ static void ErrorCallbackGLFW(int error, const char* description)
 }
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 0.0f, -35.0f));
+                                    Math::Vec3(0.0f, 0.0f, -10.0f));
 
 static bool CreatePipelines(RHI::Device& device)
 {

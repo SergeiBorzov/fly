@@ -33,6 +33,12 @@ def _cook_meshes_impl(ctx):
         outs.append(out)
 
     extra_options = []
+    extra_options.append("-s")
+    extra_options.append(ctx.attr.scale)
+    extra_options.append("-c")
+    extra_options.append(ctx.attr.coord_system)
+    if ctx.attr.flip_forward:
+        extra_options.append("-ff")
 
     ctx.actions.run(
         inputs = ctx.files.inputs,
@@ -87,6 +93,16 @@ cook_meshes = rule(
             cfg = "exec",
             executable = True,
             default = Label("//src/assets/geometry:cooker"),
+        ),
+        "scale": attr.string(
+            default = "1.0"
+        ),
+        "coord_system": attr.string(
+            default = "xyz",
+            values = ["xyz", "xzy", "yxz", "yzx", "zxy", "zyx"],
+        ),
+        "flip_forward": attr.bool(
+            default = False,
         ),
     },
 )

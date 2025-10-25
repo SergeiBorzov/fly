@@ -13,6 +13,9 @@ struct Input
     String8* outputs = nullptr;
     u32 inputCount = 0;
     u32 outputCount = 0;
+    f32 scale = 1.0f;
+    bool flipForward = false;
+    CoordSystem coordSystem = CoordSystem::XYZ;
 };
 
 static bool IsOption(String8 str) { return str[0] == '-'; }
@@ -33,6 +36,41 @@ static u32 ParseArray(u32 argc, String8* argv, i32 start, String8* arr)
         }
     }
     return count;
+}
+
+static bool ParseCoordSystem(String8 str, CoordSystem& coordSystem)
+{
+    if (str == FLY_STRING8_LITERAL("xyz"))
+    {
+        coordSystem = CoordSystem::XYZ;
+        return true;
+    }
+    else if (str == FLY_STRING8_LITERAL("xzy"))
+    {
+        coordSystem = CoordSystem::XZY;
+        return true;
+    }
+    else if (str == FLY_STRING8_LITERAL("yxz"))
+    {
+        coordSystem = CoordSystem::YXZ;
+        return true;
+    }
+    else if (str == FLY_STRING8_LITERAL("yzx"))
+    {
+        coordSystem = CoordSystem::YZX;
+        return true;
+    }
+    else if (str == FLY_STRING8_LITERAL("zxy"))
+    {
+        coordSystem = CoordSystem::ZXY;
+        return true;
+    }
+    else if (str == FLY_STRING8_LITERAL("zyx"))
+    {
+        coordSystem = CoordSystem::ZYX;
+        return true;
+    }
+    return false;
 }
 
 static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
@@ -60,6 +98,26 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
             }
             data.outputs = FLY_PUSH_ARENA(arena, String8, data.outputCount);
             ParseArray(argc, argv, i + 1, data.outputs);
+        }
+        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-s")))
+        {
+            if (!String8::ParseF32(argv[++i], data.scale))
+            {
+                fprintf(stderr, "Parse error: unable to parse scale float");
+                exit(-3);
+            }
+        }
+        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-c")))
+        {
+            if (!ParseCoordSystem(argv[++i], data.coordSystem))
+            {
+                fprintf(stderr, "Parse error: failed to parse coord system");
+                exit(-4);
+            }
+        }
+        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-ff")))
+        {
+            data.flipForward = true;
         }
     }
 }
@@ -121,6 +179,13 @@ static void ProcessInput(Input& input)
             fprintf(stderr, "Failed to import geometry %s\n",
                     input.inputs[i].Data());
             exit(-5);
+        }
+
+        if (input.scale != 1.0f || input.coordSystem != CoordSystem::XYZ ||
+            input.flipForward)
+        {
+            TransformGeometry(input.scale, input.coordSystem, input.flipForward,
+                              geometry);
         }
 
         if (!ExportGeometry(input.outputs[i], geometry))

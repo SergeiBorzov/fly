@@ -32,5 +32,5 @@ void main()
                       Camera, gPushConstants.cameraBufferIndex, projection) *
                   FLY_ACCESS_UNIFORM_BUFFER(
                       Camera, gPushConstants.cameraBufferIndex, view) *
-                  vec4(v.position * 20.0f, 1.0f);
+                  vec4(v.position, 1.0f);
 }
