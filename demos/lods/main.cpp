@@ -4,6 +4,7 @@
 #include "core/platform.h"
 #include "core/thread_context.h"
 
+#include "rhi/allocation_callbacks.h"
 #include "rhi/command_buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
@@ -29,6 +30,9 @@ static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sDepthTexture;
 static Mesh sMesh;
+
+static VkQueryPool sTimestampQueryPool;
+static f32 sTimestampPeriod;
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -126,11 +130,26 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    VkQueryPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    createInfo.queryCount = 2;
+
+    if (vkCreateQueryPool(device.logicalDevice, &createInfo,
+                          RHI::GetVulkanAllocationCallbacks(),
+                          &sTimestampQueryPool) != VK_SUCCESS)
+    {
+        return false;
+    }
+
     return true;
 }
 
 static void DestroyResources(RHI::Device& device)
 {
+    vkDestroyQueryPool(device.logicalDevice, sTimestampQueryPool,
+                       RHI::GetVulkanAllocationCallbacks());
+
     DestroyMesh(device, sMesh);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -144,6 +163,10 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
                            const RHI::RecordTextureInput* textureInput,
                            void* pUserData)
 {
+    RHI::ResetQueryPool(cmd, sTimestampQueryPool, 0, 2);
+    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        sTimestampQueryPool, 0);
+
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
@@ -158,6 +181,8 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
     RHI::Draw(cmd, sMesh.indexCount, 1, 0, 0);
+    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        sTimestampQueryPool, 1);
 }
 
 static void DrawMesh(RHI::Device& device)
@@ -243,6 +268,15 @@ int main(int argc, char* argv[])
     RHI::Device& device = context.devices[0];
     device.swapchainRecreatedCallback.func = OnFramebufferResize;
 
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(device.physicalDevice, &props);
+    if (props.limits.timestampPeriod == 0)
+    {
+        FLY_ERROR("Device does not support timestamp queries");
+        return -1;
+    }
+    sTimestampPeriod = props.limits.timestampPeriod;
+
     if (!CreateResources(device))
     {
         FLY_ERROR("Failed to create resources");
@@ -278,6 +312,15 @@ int main(int argc, char* argv[])
         RHI::BeginRenderFrame(device);
         DrawMesh(device);
         RHI::EndRenderFrame(device);
+
+        u64 timestamps[2];
+        vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
+                              sizeof(timestamps), timestamps, sizeof(uint64_t),
+                              VK_QUERY_RESULT_64_BIT |
+                                  VK_QUERY_RESULT_WAIT_BIT);
+        f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
+            (timestamps[1] - timestamps[0]) * sTimestampPeriod));
+        FLY_LOG("Dragon draw: %f ms", drawTime);
     }
 
     RHI::WaitDeviceIdle(device);
