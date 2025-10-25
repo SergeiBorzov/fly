@@ -2,8 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/memory.h"
 #include "core/thread_context.h"
 #include "geometry.h"
+
+#include <meshoptimizer.h>
 
 using namespace Fly;
 
@@ -198,6 +201,8 @@ static void ProcessInput(Input& input)
             FlipGeometryWindingOrder(geometry);
         }
 
+        ReindexGeometry(geometry);
+
         if (!ExportGeometry(input.outputs[i], geometry))
         {
             fprintf(stderr, "Failed to export geometry %s\n",
@@ -210,6 +215,7 @@ static void ProcessInput(Input& input)
 int main(int argc, char* argv[])
 {
     InitArenas();
+    meshopt_setAllocator(Fly::Alloc, Fly::Free);
 
     Arena& arena = GetScratchArena();
     String8* argvStrings = FLY_PUSH_ARENA(arena, String8, argc);

@@ -7,6 +7,8 @@
 #define FAST_OBJ_IMPLEMENTATION
 #include <fast_obj.h>
 
+#include <meshoptimizer.h>
+
 namespace Fly
 {
 
@@ -63,7 +65,7 @@ static void CopyVertices(const fastObjMesh* mesh, Geometry& geometry)
             geometry.indices[i] = i;
             fastObjIndex index = mesh->indices[i];
 
-            Vertex vertex;
+            Vertex vertex{};
             vertex.position =
                 *reinterpret_cast<Math::Vec3*>(&(mesh->positions[3 * index.p]));
             vertex.normal =
@@ -83,7 +85,7 @@ static void CopyVertices(const fastObjMesh* mesh, Geometry& geometry)
         {
             geometry.indices[i] = i;
             fastObjIndex index = mesh->indices[i];
-            VertexTexCoord vertex;
+            VertexTexCoord vertex{};
             vertex.position =
                 *reinterpret_cast<Math::Vec3*>(&(mesh->positions[3 * index.p]));
             vertex.normal =
@@ -357,6 +359,31 @@ void FlipGeometryWindingOrder(Geometry& geometry)
     }
 }
 
+void ReindexGeometry(Geometry& geometry)
+{
+    unsigned int* remap = static_cast<unsigned int*>(
+        Fly::Alloc(sizeof(unsigned int) * geometry.vertexCount));
+    size_t newVertexCount = meshopt_generateVertexRemap(
+        remap, geometry.indices, geometry.indexCount, geometry.vertices,
+        geometry.vertexCount, geometry.vertexSize);
+
+    void* newVertices = Fly::Alloc(geometry.vertexSize * newVertexCount);
+    unsigned int* newIndices = static_cast<unsigned int*>(
+        Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
+
+    meshopt_remapVertexBuffer(newVertices, geometry.vertices,
+                              geometry.vertexCount, geometry.vertexSize, remap);
+    meshopt_remapIndexBuffer(newIndices, geometry.indices, geometry.indexCount,
+                             remap);
+
+    Fly::Free(geometry.vertices);
+    Fly::Free(geometry.indices);
+    Fly::Free(remap);
+    geometry.vertices = static_cast<u8*>(newVertices);
+    geometry.indices = newIndices;
+    geometry.vertexCount = newVertexCount;
+}
+
 bool ExportGeometry(String8 path, Geometry& geometry)
 {
     u64 totalSize = sizeof(MeshHeader) +
@@ -372,12 +399,12 @@ bool ExportGeometry(String8 path, Geometry& geometry)
     header->indexCount = geometry.indexCount;
     header->indexOffset =
         sizeof(MeshHeader) + geometry.vertexSize * geometry.vertexCount;
-    header->indexSize = sizeof(u32);
+    header->indexSize = sizeof(unsigned int);
 
     memcpy(data + header->vertexOffset, geometry.vertices,
            geometry.vertexSize * geometry.vertexCount);
     memcpy(data + header->indexOffset, geometry.indices,
-           sizeof(u32) * geometry.indexCount);
+           sizeof(unsigned int) * geometry.indexCount);
 
     String8 str(reinterpret_cast<char*>(data), totalSize);
     if (!WriteStringToFile(str, path))

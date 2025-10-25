@@ -12,6 +12,7 @@ cc_library(
         "//src/core:core",
         "//src/math:math",
         "@fast_obj//:fast_obj",
+        "@meshoptimizer//:meshoptimizer",
     ],
     includes = [
         "../..",

@@ -163,8 +163,7 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
                            const RHI::RecordTextureInput* textureInput,
                            void* pUserData)
 {
-    RHI::ResetQueryPool(cmd, sTimestampQueryPool, 0, 2);
-    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                         sTimestampQueryPool, 0);
 
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
@@ -180,8 +179,9 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
                            sMesh.vertexBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
-    RHI::Draw(cmd, sMesh.indexCount, 1, 0, 0);
-    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
+    RHI::DrawIndexed(cmd, sMesh.indexCount, 1, 0, 0, 0);
+    RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         sTimestampQueryPool, 1);
 }
 
@@ -310,6 +310,8 @@ int main(int argc, char* argv[])
                               cameraBuffer);
 
         RHI::BeginRenderFrame(device);
+        RHI::ResetQueryPool(RenderFrameCommandBuffer(device),
+                            sTimestampQueryPool, 0, 2);
         DrawMesh(device);
         RHI::EndRenderFrame(device);
 

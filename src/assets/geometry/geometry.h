@@ -29,7 +29,7 @@ enum class CoordSystem : u8
 struct Geometry
 {
     u8* vertices = nullptr;
-    u32* indices = nullptr;
+    unsigned int* indices = nullptr;
     u32 vertexSize = 0;
     u32 vertexCount = 0;
     u32 indexCount = 0;
@@ -42,9 +42,9 @@ void DestroyGeometry(Geometry& geometry);
 void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
                        Geometry& geometry);
 void FlipGeometryWindingOrder(Geometry& geometry);
+void ReindexGeometry(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
-void GenerateGeometryIndices(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);
 void GenerateGeometryTangents(Geometry& geometry);
 void OptimizeGeometryVertexCache(Geometry& geometry);
