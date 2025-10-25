@@ -203,6 +203,7 @@ static void ProcessInput(Input& input)
 
         ReindexGeometry(geometry);
         OptimizeGeometryVertexCache(geometry);
+        OptimizeGeometryOverdraw(geometry, 1.05f);
 
         if (!ExportGeometry(input.outputs[i], geometry))
         {

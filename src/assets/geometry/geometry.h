@@ -44,12 +44,12 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
 void FlipGeometryWindingOrder(Geometry& geometry);
 void ReindexGeometry(Geometry& geometry);
 void OptimizeGeometryVertexCache(Geometry& geometry);
+void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold);
+void OptimizeGeometryVertexFetch(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);
 void GenerateGeometryTangents(Geometry& geometry);
-void OptimizeGeometryOverdraw(Geometry& geometry);
-void OptimizeGeometryVertexFetch(Geometry& geometry);
 void QuantizeGeometry(Geometry& geometry);
 
 } // namespace Fly

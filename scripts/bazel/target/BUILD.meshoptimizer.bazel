@@ -11,6 +11,7 @@ cc_library(
         "src/indexanalyzer.cpp",
         "src/indexcodec.cpp",
         "src/indexgenerator.cpp",
+        "src/overdrawoptimizer.cpp",
         "src/partition.cpp",
         "src/quantization.cpp",
         "src/rasterizer.cpp",

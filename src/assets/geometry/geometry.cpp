@@ -397,6 +397,31 @@ void OptimizeGeometryVertexCache(Geometry& geometry)
     geometry.indices = newIndices;
 }
 
+void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold)
+{
+    unsigned int* newIndices = static_cast<unsigned int*>(
+        Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
+    meshopt_optimizeOverdraw(newIndices, geometry.indices, geometry.indexCount,
+                             reinterpret_cast<const f32*>(geometry.vertices),
+                             geometry.vertexCount, geometry.vertexSize,
+                             threshold);
+    Fly::Free(geometry.indices);
+    geometry.indices = newIndices;
+}
+
+void OptimizeGeometryVertexFetch(Geometry& geometry)
+{
+    void* newVertices = Fly::Alloc(geometry.vertexSize * geometry.vertexCount);
+    size_t newVertexCount = meshopt_optimizeVertexFetch(
+        newVertices, geometry.indices, geometry.indexCount, geometry.vertices,
+        geometry.vertexCount, geometry.vertexSize);
+    Fly::Free(geometry.vertices);
+    geometry.vertices = static_cast<u8*>(newVertices);
+    geometry.vertexCount = newVertexCount;
+
+    printf("New vertex count is %lu\n", newVertexCount);
+}
+
 bool ExportGeometry(String8 path, Geometry& geometry)
 {
     u64 totalSize = sizeof(MeshHeader) +
