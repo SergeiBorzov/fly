@@ -141,7 +141,9 @@ cc_library(
     hdrs = [
         "filesystem.h",
     ],
-    srcs = select({
+    srcs = [
+        "filesystem.cpp",
+    ] + select({
         "@platforms//os:windows": ["filesystem_windows.cpp"],
         "@platforms//os:linux": ["filesystem_unix.cpp"],
 	"@platforms//os:osx": ["filesystem_unix.cpp"],
