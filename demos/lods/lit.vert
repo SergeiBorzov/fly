@@ -10,6 +10,7 @@ layout(push_constant) uniform PushConstants
 {
     uint cameraBufferIndex;
     uint vertexBufferIndex;
+    uint offset;
 }
 gPushConstants;
 
@@ -49,9 +50,10 @@ void main()
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
     outNormal = DecodeNormal(v.normal);
     vec3 position = vec3(v.position);
-    gl_Position = FLY_ACCESS_UNIFORM_BUFFER(
-                      Camera, gPushConstants.cameraBufferIndex, projection) *
-                  FLY_ACCESS_UNIFORM_BUFFER(
-                      Camera, gPushConstants.cameraBufferIndex, view) *
-                  vec4(position, 1.0f);
+    gl_Position =
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gPushConstants.cameraBufferIndex,
+                                  projection) *
+        FLY_ACCESS_UNIFORM_BUFFER(Camera, gPushConstants.cameraBufferIndex,
+                                  view) *
+        vec4(position + vec3(gPushConstants.offset, 0.0f, 0.0f), 1.0f);
 }

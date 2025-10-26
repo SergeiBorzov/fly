@@ -201,10 +201,7 @@ static void ProcessInput(Input& input)
             FlipGeometryWindingOrder(geometry);
         }
 
-        ReindexGeometry(geometry);
-        OptimizeGeometryVertexCache(geometry);
-        OptimizeGeometryOverdraw(geometry, 1.05f);
-        QuantizeGeometry(geometry);
+        CookGeometry(geometry);
 
         if (!ExportGeometry(input.outputs[i], geometry))
         {

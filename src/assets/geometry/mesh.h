@@ -4,6 +4,8 @@
 #include "core/string8.h"
 #include "rhi/buffer.h"
 
+#define FLY_MAX_LOD_COUNT 8
+
 namespace Fly
 {
 
@@ -16,15 +18,23 @@ enum VertexFlags
     FLY_VERTEX_TEXCOORD_BIT = 1 << 4
 };
 
+struct GeometryLOD
+{
+    u32 firstIndex;
+    u32 indexCount;
+};
+
 struct Mesh
 {
+    GeometryLOD lods[FLY_MAX_LOD_COUNT];
+    RHI::Buffer vertexBuffer;
+    RHI::Buffer indexBuffer;
     u64 vertexCount;
     u64 indexCount;
     u8 vertexSize;
     u8 indexSize;
     u8 vertexMask;
-    RHI::Buffer vertexBuffer;
-    RHI::Buffer indexBuffer;
+    u8 lodCount;
 };
 
 bool ImportMesh(String8 path, RHI::Device& device, Mesh& mesh);

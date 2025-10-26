@@ -2,11 +2,14 @@
 #include "core/filesystem.h"
 #include "core/memory.h"
 
+#define FLY_MAX_LOD_COUNT 8
+
 namespace Fly
 {
 
 struct MeshHeader
 {
+    GeometryLOD lods[FLY_MAX_LOD_COUNT];
     u64 vertexCount;
     u64 vertexOffset;
     u64 indexCount;
@@ -14,6 +17,7 @@ struct MeshHeader
     u8 indexSize;
     u8 vertexSize;
     u8 vertexMask;
+    u8 lodCount;
 };
 
 bool ImportMesh(String8 path, RHI::Device& device, Mesh& mesh)
@@ -37,6 +41,8 @@ bool ImportMesh(String8 path, RHI::Device& device, Mesh& mesh)
     mesh.vertexSize = header->vertexSize;
     mesh.indexSize = header->indexSize;
     mesh.vertexMask = header->vertexMask;
+    mesh.lodCount = header->lodCount;
+    memcpy(mesh.lods, header->lods, sizeof(GeometryLOD) * header->lodCount);
 
     if (!RHI::CreateBuffer(device, false,
                            VK_BUFFER_USAGE_TRANSFER_DST_BIT |

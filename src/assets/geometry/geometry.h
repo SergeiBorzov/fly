@@ -4,6 +4,8 @@
 #include "core/string8.h"
 #include "math/vec.h"
 
+#define FLY_MAX_LOD_COUNT 8
+
 namespace Fly
 {
 
@@ -26,13 +28,21 @@ enum class CoordSystem : u8
     ZYX = 5
 };
 
+struct GeometryLOD
+{
+    u32 firstIndex;
+    u32 indexCount;
+};
+
 struct Geometry
 {
+    GeometryLOD lods[FLY_MAX_LOD_COUNT];
     u8* vertices = nullptr;
     unsigned int* indices = nullptr;
-    u32 vertexSize = 0;
     u32 vertexCount = 0;
     u32 indexCount = 0;
+    u16 vertexSize = 0;
+    u8 lodCount = 0;
     u8 vertexMask = FLY_VERTEX_NONE_BIT;
 };
 
@@ -47,6 +57,8 @@ void OptimizeGeometryVertexCache(Geometry& geometry);
 void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold);
 void OptimizeGeometryVertexFetch(Geometry& geometry);
 void QuantizeGeometry(Geometry& geometry);
+void GenerateGeometryLODs(Geometry& geometry);
+void CookGeometry(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);

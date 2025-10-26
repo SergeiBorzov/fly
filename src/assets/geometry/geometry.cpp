@@ -42,6 +42,7 @@ struct VertexTexCoord
 
 struct MeshHeader
 {
+    GeometryLOD lods[FLY_MAX_LOD_COUNT];
     u64 vertexCount;
     u64 vertexOffset;
     u64 indexCount;
@@ -49,6 +50,7 @@ struct MeshHeader
     u8 indexSize;
     u8 vertexSize;
     u8 vertexMask;
+    u8 lodCount;
 };
 
 // struct QuantizedVertex
@@ -78,6 +80,7 @@ static void CopyVertices(const fastObjMesh* mesh, Geometry& geometry)
 
     geometry.vertexCount = mesh->index_count;
     geometry.indexCount = mesh->index_count;
+    geometry.lodCount = 1;
 
     if (!(geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT))
     {
@@ -473,6 +476,77 @@ void QuantizeGeometry(Geometry& geometry)
     geometry.vertexSize = sizeof(QuantizedVertex);
 }
 
+void GenerateGeometryLODs(Geometry& geometry)
+{
+    f32 targetErrors[3] = {0.0005f, 0.003f, 0.01f};
+    unsigned int* lodIndices[3] = {nullptr, nullptr, nullptr};
+    size_t lodIndexCount[3] = {0};
+    for (u32 i = 0; i < 3; i++)
+    {
+        lodIndices[i] = static_cast<unsigned int*>(
+            Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
+        lodIndexCount[i] = meshopt_simplify(
+            lodIndices[i], geometry.indices, geometry.indexCount,
+            reinterpret_cast<const float*>(geometry.vertices),
+            geometry.vertexCount, geometry.vertexSize, 0, targetErrors[i], 0,
+            nullptr);
+    }
+
+    unsigned int* optimizedLodIndices[3] = {nullptr, nullptr, nullptr};
+    for (u32 i = 0; i < 3; i++)
+    {
+        optimizedLodIndices[i] = static_cast<unsigned int*>(
+            Fly::Alloc(sizeof(unsigned int) * lodIndexCount[i]));
+        meshopt_optimizeVertexCache(optimizedLodIndices[i], lodIndices[i],
+                                    lodIndexCount[i], geometry.vertexCount);
+        Fly::Free(lodIndices[i]);
+    }
+
+    u64 totalCount = geometry.indexCount;
+    for (u32 i = 0; i < 3; i++)
+    {
+        totalCount += lodIndexCount[i];
+    }
+
+    unsigned int* newIndices = static_cast<unsigned int*>(
+        Fly::Alloc(sizeof(unsigned int) * totalCount));
+
+    memcpy(newIndices, geometry.indices,
+           sizeof(unsigned int) * geometry.indexCount);
+    geometry.lods[0].indexCount = geometry.indexCount;
+    geometry.lods[0].firstIndex = 0;
+
+    u64 offset = geometry.indexCount;
+    for (u32 i = 0; i < 3; i++)
+    {
+        geometry.lods[i + 1].indexCount = lodIndexCount[i];
+        geometry.lods[i + 1].firstIndex = offset;
+        memcpy(newIndices + offset, optimizedLodIndices[i],
+               lodIndexCount[i] * sizeof(unsigned int));
+        offset += lodIndexCount[i];
+    }
+
+    Fly::Free(geometry.indices);
+    geometry.indices = newIndices;
+    geometry.indexCount = totalCount;
+    geometry.lodCount = 4;
+
+    for (u32 i = 0; i < 3; i++)
+    {
+        Fly::Free(optimizedLodIndices[i]);
+    }
+}
+
+void CookGeometry(Geometry& geometry)
+{
+    ReindexGeometry(geometry);
+    OptimizeGeometryVertexCache(geometry);
+    OptimizeGeometryOverdraw(geometry, 1.05f);
+    GenerateGeometryLODs(geometry);
+
+    QuantizeGeometry(geometry);
+}
+
 bool ExportGeometry(String8 path, Geometry& geometry)
 {
     u64 totalSize = sizeof(MeshHeader) +
@@ -489,6 +563,11 @@ bool ExportGeometry(String8 path, Geometry& geometry)
     header->indexOffset =
         sizeof(MeshHeader) + geometry.vertexSize * geometry.vertexCount;
     header->indexSize = sizeof(unsigned int);
+
+    header->lodCount = geometry.lodCount;
+    memset(header->lods, 0, sizeof(GeometryLOD) * FLY_MAX_LOD_COUNT);
+    memcpy(header->lods, geometry.lods,
+           sizeof(GeometryLOD) * geometry.lodCount);
 
     memcpy(data + header->vertexOffset, geometry.vertices,
            geometry.vertexSize * geometry.vertexCount);

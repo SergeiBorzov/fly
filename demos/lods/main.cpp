@@ -109,7 +109,12 @@ static bool CreateResources(RHI::Device& device)
         FLY_ERROR("Failed to import mesh");
         return false;
     }
-    FLY_LOG("Mesh vertex size is %u", sMesh.vertexSize);
+    FLY_LOG("Mesh vertex size is %u, lod count is %u", sMesh.vertexSize,
+            sMesh.lodCount);
+    for (u32 i = 0; i < sMesh.lodCount; i++)
+    {
+        FLY_LOG("LOD %u: triangle count %u", i, sMesh.lods[i].indexCount / 3);
+    }
 
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -176,12 +181,17 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 
     RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
 
-    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           sMesh.vertexBuffer.bindlessHandle};
-    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-
     RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
-    RHI::DrawIndexed(cmd, sMesh.indexCount, 1, 0, 0, 0);
+
+    for (u32 i = 0; i < sMesh.lodCount; i++)
+    {
+        u32 pushConstants[] = {cameraBuffer.bindlessHandle,
+                               sMesh.vertexBuffer.bindlessHandle, i * 5};
+        RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+        RHI::DrawIndexed(cmd, sMesh.lods[i].indexCount, 1,
+                         sMesh.lods[i].firstIndex, 0, 0);
+    }
     RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         sTimestampQueryPool, 1);
 }
@@ -212,6 +222,7 @@ static void DrawMesh(RHI::Device& device)
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
+
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
                          RecordDrawMesh, &bufferInput, &textureInput);
 }
@@ -258,6 +269,8 @@ int main(int argc, char* argv[])
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
+    settings.vulkan12Features.shaderFloat16 = true;
+    settings.vulkan11Features.storageBuffer16BitAccess = true;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
