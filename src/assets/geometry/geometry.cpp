@@ -24,9 +24,9 @@ struct Vertex
 
 struct QuantizedVertex
 {
-    u16 positionX;
-    u16 positionY;
-    u16 positionZ;
+    f16 positionX;
+    f16 positionY;
+    f16 positionZ;
     u16 pad0;
     u32 normal;
     u32 pad1;
@@ -462,9 +462,9 @@ void QuantizeGeometry(Geometry& geometry)
     {
         QuantizedVertex& quantized = newVertices[i];
         Vertex& vertex = reinterpret_cast<Vertex*>(geometry.vertices)[i];
-        quantized.positionX = meshopt_quantizeHalf(vertex.position.x);
-        quantized.positionY = meshopt_quantizeHalf(vertex.position.y);
-        quantized.positionZ = meshopt_quantizeHalf(vertex.position.z);
+        quantized.positionX = vertex.position.x;
+        quantized.positionY = vertex.position.y;
+        quantized.positionZ = vertex.position.z;
         quantized.normal =
             (meshopt_quantizeUnorm((vertex.normal.x + 1.0f) / 2.0f, 10) << 20) |
             (meshopt_quantizeUnorm((vertex.normal.y + 1.0f) / 2.0f, 10) << 10) |

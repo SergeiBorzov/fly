@@ -21,6 +21,115 @@ typedef double f64;
 #define FLY_MAX_U32 0xFFFFFFFFu
 #define FLY_MAX_U64 0xFFFFFFFFFFFFFFFFu
 
+struct f16
+{
+    static u16 QuantizeHalf(f32 f);
+    static f32 DequantizeHalf(f16 h);
+
+    inline explicit f16(u16 bits) : data(bits) {}
+    inline f16(f32 value = 0.0f) : data(QuantizeHalf(value)) {}
+    operator f32() const { return DequantizeHalf(*this); }
+
+    u16 data = 0;
+
+    inline f16& operator+=(f16 rhs)
+    {
+        f32 tmp = DequantizeHalf(*this) + DequantizeHalf(rhs);
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator+=(f32 rhs)
+    {
+        f32 tmp = DequantizeHalf(data);
+        tmp += rhs;
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator-=(f16 rhs)
+    {
+        f32 tmp = DequantizeHalf(*this) - DequantizeHalf(rhs);
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator-=(f32 rhs)
+    {
+        f32 tmp = DequantizeHalf(data);
+        tmp -= rhs;
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator*=(f16 rhs)
+    {
+        f32 tmp = DequantizeHalf(*this) * DequantizeHalf(rhs);
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator*=(f32 rhs)
+    {
+        f32 tmp = DequantizeHalf(data);
+        tmp *= rhs;
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator/=(f16 rhs)
+    {
+        f32 tmp = DequantizeHalf(*this) / DequantizeHalf(rhs);
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+
+    inline f16& operator/=(f32 rhs)
+    {
+        f32 tmp = DequantizeHalf(data);
+        tmp /= rhs;
+        data = QuantizeHalf(tmp);
+        return *this;
+    }
+};
+
+inline f16 operator+(f16 a) { return a; }
+inline f16 operator-(f16 a)
+{
+    return f16(static_cast<u16>(a.data ^ (1u << 15)));
+}
+inline f16 operator+(f16 a, f16 b)
+{
+    return f16(
+        f16::QuantizeHalf(f16::DequantizeHalf(a) + f16::DequantizeHalf(b)));
+}
+inline f32 operator+(f16 a, f32 b) { return f16::DequantizeHalf(a) + b; }
+inline f32 operator+(f32 a, f16 b) { return a + f16::DequantizeHalf(b); }
+
+inline f16 operator-(f16 a, f16 b)
+{
+    return f16(
+        f16::QuantizeHalf(f16::DequantizeHalf(a) - f16::DequantizeHalf(b)));
+}
+inline f32 operator-(f16 a, f32 b) { return f16::DequantizeHalf(a) - b; }
+inline f32 operator-(f32 a, f16 b) { return a - f16::DequantizeHalf(b); }
+
+inline f16 operator*(f16 a, f16 b)
+{
+    return f16(
+        f16::QuantizeHalf(f16::DequantizeHalf(a) * f16::DequantizeHalf(b)));
+}
+inline f32 operator*(f16 a, f32 b) { return f16::DequantizeHalf(a) * b; }
+inline f32 operator*(f32 a, f16 b) { return a * f16::DequantizeHalf(b); }
+
+inline f16 operator/(f16 a, f16 b)
+{
+    return f16(
+        f16::QuantizeHalf(f16::DequantizeHalf(a) / f16::DequantizeHalf(b)));
+}
+inline f32 operator/(f16 a, f32 b) { return f16::DequantizeHalf(a) / b; }
+inline f32 operator/(f32 a, f16 b) { return a / f16::DequantizeHalf(b); }
+
 inline f32 MinF32()
 {
     union

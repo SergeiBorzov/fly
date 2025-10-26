@@ -5,6 +5,9 @@ cc_library(
     hdrs = [
         "types.h",
     ],
+    srcs = [
+        "types.cpp",
+    ],
     visibility = ["//visibility:public"],
 )
 

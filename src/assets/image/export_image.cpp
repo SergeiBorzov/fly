@@ -24,61 +24,6 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-union u32f32
-{
-    u32 bits;
-    f32 value;
-};
-
-static f32 HalfToFloat(u16 half)
-{
-    u16 sign = (half & HALF_SIGN_MASK) >> 15;
-    u16 exponent = (half & HALF_EXPONENT_MASK) >> 10;
-    u16 significand = half & HALF_MANTISSA_MASK;
-
-    u32 f32Exponent = 0;
-    u32 f32Significand = 0;
-    u32 f32Sign = static_cast<u32>(sign) << 31;
-    if (exponent == 0)
-    {
-        if (significand == 0)
-        {
-            f32Exponent = 0;
-            f32Significand = 0;
-        }
-        else
-        {
-            // Subnormal
-            exponent = 1;
-            while ((significand & 0x0400u) == 0)
-            {
-                significand <<= 1;
-                --exponent;
-            }
-            significand &= 0x03FFu;
-            f32Exponent = static_cast<u32>(exponent + (127 - 15)) << 23;
-            f32Significand = static_cast<u32>(significand) << 13;
-        }
-    }
-    else if (exponent == 0x1F)
-    {
-        // NaN case
-        f32Exponent = 0xFFu << 23;
-        f32Significand =
-            (significand != 0) ? (static_cast<u32>(significand) << 13) : 0;
-    }
-    else
-    {
-        f32Exponent = static_cast<u32>((exponent + (127 - 15))) << 23;
-        f32Significand = static_cast<u32>(significand) << 13;
-    }
-
-    u32f32 res;
-    res.bits = f32Sign | f32Exponent | f32Significand;
-
-    return res.value;
-}
-
 static u8 ReinhardTonemap(f32 value)
 {
     value = value / (1.0f + value);
@@ -105,7 +50,7 @@ static Image TonemapHalf(const Image& image)
     output.layerCount = image.layerCount;
     output.channelCount = image.channelCount;
 
-    u16* imageData = reinterpret_cast<u16*>(image.data);
+    f16* imageData = reinterpret_cast<f16*>(image.data);
 
     for (u32 n = 0; n < image.layerCount; n++)
     {
@@ -115,11 +60,10 @@ static Image TonemapHalf(const Image& image)
             {
                 for (u32 k = 0; k < MIN(image.channelCount, 3); k++)
                 {
-                    f32 value = HalfToFloat(
-                        imageData[n * image.height * image.width *
-                                      image.channelCount +
-                                  image.width * image.channelCount * i +
-                                  image.channelCount * j + k]);
+                    f32 value = imageData[n * image.height * image.width *
+                                              image.channelCount +
+                                          image.width * image.channelCount * i +
+                                          image.channelCount * j + k];
 
                     output.data[n * image.height * image.width *
                                     image.channelCount +
@@ -130,11 +74,10 @@ static Image TonemapHalf(const Image& image)
 
                 if (image.channelCount == 4)
                 {
-                    f32 value = HalfToFloat(
-                        imageData[n * image.height * image.width *
-                                      image.channelCount +
-                                  image.width * image.channelCount * i +
-                                  image.channelCount * j + 3]);
+                    f32 value = imageData[n * image.height * image.width *
+                                              image.channelCount +
+                                          image.width * image.channelCount * i +
+                                          image.channelCount * j + 3];
 
                     output.data[n * image.height * image.width *
                                     image.channelCount +
@@ -364,15 +307,15 @@ static bool ExportEXR(String8 path, const Image& image)
         exrImage.width = image.width;
         exrImage.height = image.height * image.layerCount;
 
-        u16** images =
-            static_cast<u16**>(Fly::Alloc(sizeof(u16*) * image.channelCount));
+        f16** images =
+            static_cast<f16**>(Fly::Alloc(sizeof(f16*) * image.channelCount));
         for (u32 i = 0; i < image.channelCount; i++)
         {
-            images[i] = static_cast<u16*>(Fly::Alloc(
-                sizeof(u16) * image.layerCount * image.width * image.height));
+            images[i] = static_cast<f16*>(Fly::Alloc(
+                sizeof(f16) * image.layerCount * image.width * image.height));
         }
 
-        u16* imageData = reinterpret_cast<u16*>(image.data);
+        f16* imageData = reinterpret_cast<f16*>(image.data);
         for (u32 n = 0; n < image.layerCount; n++)
         {
             for (u32 i = 0; i < image.height; i++)
