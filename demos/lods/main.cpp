@@ -26,9 +26,17 @@ struct CameraData
     Math::Mat4 view = {};
 };
 
+struct MeshInstance
+{
+    Math::Vec3 position;
+    f32 pad;
+};
+
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sMeshInstances;
 static RHI::Texture sDepthTexture;
+static i32 sInstanceRowCount = 10;
 static Mesh sMesh;
 
 static VkQueryPool sTimestampQueryPool;
@@ -126,6 +134,30 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
+    Arena& arena = GetScratchArena();
+    MeshInstance* buffer = FLY_PUSH_ARENA(
+        arena, MeshInstance, sInstanceRowCount * sInstanceRowCount);
+    for (i32 i = 0; i < sInstanceRowCount; i++)
+    {
+        for (i32 j = 0; j < sInstanceRowCount; j++)
+        {
+            buffer[i * sInstanceRowCount + j].position =
+                Math::Vec3(i * 5.0f, 0.0f, -j * 5.0f);
+        }
+    }
+
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           buffer,
+                           sizeof(MeshInstance) * sInstanceRowCount *
+                               sInstanceRowCount,
+                           sMeshInstances))
+    {
+        FLY_ERROR("Failed to create instance buffer");
+        return false;
+    }
+
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
             device.swapchainWidth, device.swapchainHeight,
@@ -161,6 +193,7 @@ static void DestroyResources(RHI::Device& device)
     {
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
+    DestroyBuffer(device, sMeshInstances);
     RHI::DestroyTexture(device, sDepthTexture);
 }
 
@@ -180,18 +213,18 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
 
     RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& meshInstanceBuffer = *(bufferInput->buffers[1]);
 
     RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
 
-    for (u32 i = 0; i < sMesh.lodCount; i++)
-    {
-        u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                               sMesh.vertexBuffer.bindlessHandle, i * 5};
-        RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
+                           sMesh.vertexBuffer.bindlessHandle,
+                           meshInstanceBuffer.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
-        RHI::DrawIndexed(cmd, sMesh.lods[i].indexCount, 1,
-                         sMesh.lods[i].firstIndex, 0, 0);
-    }
+    RHI::DrawIndexed(cmd, sMesh.lods[0].indexCount,
+                     sInstanceRowCount * sInstanceRowCount,
+                     sMesh.lods[0].firstIndex, 0, 0);
     RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         sTimestampQueryPool, 1);
 }
@@ -199,11 +232,17 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 static void DrawMesh(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pCameraBuffer = &sCameraBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pCameraBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    RHI::Buffer* buffers[2];
+    VkAccessFlagBits2 bufferAccesses[2];
+
+    buffers[0] = &sCameraBuffers[device.frameIndex];
+    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[1] = &sMeshInstances;
+    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+
+    bufferInput.buffers = buffers;
+    bufferInput.bufferAccesses = bufferAccesses;
+    bufferInput.bufferCount = 2;
 
     RHI::RecordTextureInput textureInput;
     RHI::Texture* pDepthTexture = &sDepthTexture;
@@ -336,7 +375,7 @@ int main(int argc, char* argv[])
                                   VK_QUERY_RESULT_WAIT_BIT);
         f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
-        FLY_LOG("Dragon draw: %f ms", drawTime);
+        // FLY_LOG("Dragon draw: %f ms", drawTime);
     }
 
     RHI::WaitDeviceIdle(device);
