@@ -543,7 +543,6 @@ void CookGeometry(Geometry& geometry)
     OptimizeGeometryVertexCache(geometry);
     OptimizeGeometryOverdraw(geometry, 1.05f);
     GenerateGeometryLODs(geometry);
-
     QuantizeGeometry(geometry);
 }
 

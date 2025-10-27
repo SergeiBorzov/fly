@@ -35,6 +35,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "cull.comp.spv",
+    src = "cull.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -50,6 +58,7 @@ cc_binary(
         ":cook_dragon_mesh",
         ":lit.vert.spv",
         ":lit.frag.spv",
+        ":cull.comp.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],

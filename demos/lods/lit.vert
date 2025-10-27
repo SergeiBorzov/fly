@@ -55,12 +55,11 @@ void main()
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
     outNormal = DecodeNormal(v.normal);
     vec3 position = vec3(v.position);
-    MeshInstance instance =
-        FLY_ACCESS_STORAGE_BUFFER(
-            MeshInstance, gPushConstants.instanceBufferIndex)[gl_InstanceIndex];
+    MeshInstance instance = FLY_ACCESS_STORAGE_BUFFER(
+        MeshInstance, gPushConstants.instanceBufferIndex)[gl_InstanceIndex];
     gl_Position = FLY_ACCESS_UNIFORM_BUFFER(
                       Camera, gPushConstants.cameraBufferIndex, projection) *
                   FLY_ACCESS_UNIFORM_BUFFER(
                       Camera, gPushConstants.cameraBufferIndex, view) *
-        vec4(position + instance.position, 1.0f);
+                  vec4(position + instance.position, 1.0f);
 }

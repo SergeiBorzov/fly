@@ -1,0 +1,74 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint cameraBufferIndex;
+    uint instanceBufferIndex;
+    uint meshDataBufferIndex;
+    uint drawCommandBufferIndex;
+    uint drawCountBufferIndex;
+    uint instanceCount;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
+    vec3 center;
+    float radius;
+    uint lodCount;
+})
+
+layout(set = 0,
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
+{
+    uint count;
+}
+gDrawCountBuffers[];
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= gPushConstants.instanceCount)
+    {
+        return;
+    }
+
+    if (index < 8)
+    {
+        FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
+                                  gPushConstants.drawCommandBufferIndex)
+        [index].instanceCount = 0;
+    }
+    barrier();
+
+    if (index == 0)
+    {
+        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count = 8;
+    }
+    barrier();
+
+    // Only dragon mesh in the scene for now
+    // MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
+    //     MeshData, gPushConstants.meshDataBufferIndex)[0];
+
+    const bool visible = true; // No culling yet :)
+    if (visible)
+    {
+        uint instanceIndex =
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          DrawCommand, gPushConstants.drawCommandBufferIndex)[0]
+                          .instanceCount,
+                      1);
+    }
+}
