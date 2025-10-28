@@ -37,8 +37,10 @@ struct GeometryLOD
 struct Geometry
 {
     GeometryLOD lods[FLY_MAX_LOD_COUNT];
+    Math::Vec3 sphereCenter;
     u8* vertices = nullptr;
     unsigned int* indices = nullptr;
+    f32 sphereRadius = 0.0f;
     u32 vertexCount = 0;
     u32 indexCount = 0;
     u16 vertexSize = 0;
@@ -59,6 +61,7 @@ void OptimizeGeometryVertexFetch(Geometry& geometry);
 void QuantizeGeometry(Geometry& geometry);
 void GenerateGeometryLODs(Geometry& geometry);
 void CookGeometry(Geometry& geometry);
+void CalculateBoundingSphere(Geometry& geometry);
 
 void TriangulateGeometry(Geometry& geometry);
 void GenerateGeometryNormals(Geometry& geometry);

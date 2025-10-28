@@ -1,0 +1,45 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#include "bindless.glsl"
+
+#define MAX_LOD_COUNT 8
+
+layout(local_size_x = 64) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint drawCommandBufferIndex;
+    uint drawCount;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(, DrawCommand, {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+})
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x * MAX_LOD_COUNT;
+
+    if (index >= gPushConstants.drawCount)
+    {
+        return;
+    }
+
+    uint firstInstance = 0;
+    for (uint i = 0; i < MAX_LOD_COUNT; i++)
+    {
+        FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
+                                  gPushConstants.drawCommandBufferIndex)
+        [i].firstInstance = firstInstance;
+        firstInstance +=
+            FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
+                                      gPushConstants.drawCommandBufferIndex)[i]
+                .instanceCount;
+    }
+}

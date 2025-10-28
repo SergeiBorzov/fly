@@ -15,6 +15,11 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
+    mat4 projection;
+    mat4 view;
+})
+
 FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
     uint indexCount;
     uint instanceCount;
@@ -27,6 +32,11 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
     vec3 center;
     float radius;
     uint lodCount;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
+    vec3 position;
+    float pad;
 })
 
 layout(set = 0,
@@ -58,17 +68,28 @@ void main()
     }
     barrier();
 
-    // Only dragon mesh in the scene for now
-    // MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
-    //     MeshData, gPushConstants.meshDataBufferIndex)[0];
+    // Only dragon mesh in the scene
+    MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
+        MeshData, gPushConstants.meshDataBufferIndex)[0];
+
+    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, view);
+    vec3 translation =
+        FLY_ACCESS_STORAGE_BUFFER(MeshInstance,
+                                  gPushConstants.instanceBufferIndex)[index]
+            .position;
+    vec4 positionVS = view * vec4(meshData.center + translation, 1.0f);
+    float dist = length(positionVS);
+    uint lodIndex = min(uint(dist / 25.0f), meshData.lodCount - 1);
 
     const bool visible = true; // No culling yet :)
     if (visible)
     {
-        uint instanceIndex =
-            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
-                          DrawCommand, gPushConstants.drawCommandBufferIndex)[0]
-                          .instanceCount,
-                      1);
+        atomicAdd(
+            FLY_ACCESS_STORAGE_BUFFER(
+                DrawCommand, gPushConstants.drawCommandBufferIndex)[lodIndex]
+                .instanceCount,
+            1);
     }
+    barrier();
 }

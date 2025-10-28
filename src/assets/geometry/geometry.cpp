@@ -43,10 +43,12 @@ struct VertexTexCoord
 struct MeshHeader
 {
     GeometryLOD lods[FLY_MAX_LOD_COUNT];
+    Math::Vec3 sphereCenter;
     u64 vertexCount;
     u64 vertexOffset;
     u64 indexCount;
     u64 indexOffset;
+    f32 sphereRadius;
     u8 indexSize;
     u8 vertexSize;
     u8 vertexMask;
@@ -537,12 +539,54 @@ void GenerateGeometryLODs(Geometry& geometry)
     }
 }
 
+void CalculateBoundingSphere(Geometry& geometry)
+{
+    Math::Vec3 min = Math::Vec3(MaxF32());
+    Math::Vec3 max = Math::Vec3(MinF32());
+
+    for (u32 i = 0; i < geometry.vertexCount; i++)
+    {
+        const Math::Vec3& pos = *reinterpret_cast<const Math::Vec3*>(
+            geometry.vertices + geometry.vertexSize * i);
+
+        if (pos.x < min.x)
+        {
+            min.x = pos.x;
+        }
+        if (pos.y < min.y)
+        {
+            min.y = pos.y;
+        }
+        if (pos.z < min.z)
+        {
+            min.z = pos.z;
+        }
+
+        if (pos.x > max.x)
+        {
+            max.x = pos.x;
+        }
+        if (pos.y > max.y)
+        {
+            max.y = pos.y;
+        }
+        if (pos.z > max.z)
+        {
+            max.z = pos.z;
+        }
+    }
+
+    geometry.sphereCenter = 0.5f * (max + min);
+    geometry.sphereRadius = Math::Length(max - min) * 0.5f;
+}
+
 void CookGeometry(Geometry& geometry)
 {
     ReindexGeometry(geometry);
     OptimizeGeometryVertexCache(geometry);
     OptimizeGeometryOverdraw(geometry, 1.05f);
     GenerateGeometryLODs(geometry);
+    CalculateBoundingSphere(geometry);
     QuantizeGeometry(geometry);
 }
 
@@ -554,6 +598,8 @@ bool ExportGeometry(String8 path, Geometry& geometry)
     u8* data = static_cast<u8*>(Fly::Alloc(totalSize));
 
     MeshHeader* header = reinterpret_cast<MeshHeader*>(data);
+    header->sphereCenter = geometry.sphereCenter;
+    header->sphereRadius = geometry.sphereRadius;
     header->vertexCount = geometry.vertexCount;
     header->vertexOffset = sizeof(MeshHeader);
     header->vertexMask = geometry.vertexMask;

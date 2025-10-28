@@ -2,6 +2,8 @@
 #include "core/filesystem.h"
 #include "core/memory.h"
 
+#include "math/vec.h"
+
 #define FLY_MAX_LOD_COUNT 8
 
 namespace Fly
@@ -10,10 +12,12 @@ namespace Fly
 struct MeshHeader
 {
     GeometryLOD lods[FLY_MAX_LOD_COUNT];
+    Math::Vec3 sphereCenter;
     u64 vertexCount;
     u64 vertexOffset;
     u64 indexCount;
     u64 indexOffset;
+    f32 sphereRadius;
     u8 indexSize;
     u8 vertexSize;
     u8 vertexMask;
@@ -36,6 +40,8 @@ bool ImportMesh(String8 path, RHI::Device& device, Mesh& mesh)
     }
 
     const MeshHeader* header = reinterpret_cast<const MeshHeader*>(data);
+    mesh.sphereCenter = header->sphereCenter;
+    mesh.sphereRadius = header->sphereRadius;
     mesh.vertexCount = header->vertexCount;
     mesh.indexCount = header->indexCount;
     mesh.vertexSize = header->vertexSize;

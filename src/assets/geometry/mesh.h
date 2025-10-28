@@ -2,6 +2,8 @@
 #define FLY_MESH_H
 
 #include "core/string8.h"
+#include "math/vec.h"
+
 #include "rhi/buffer.h"
 
 #define FLY_MAX_LOD_COUNT 8
@@ -29,8 +31,10 @@ struct Mesh
     GeometryLOD lods[FLY_MAX_LOD_COUNT];
     RHI::Buffer vertexBuffer;
     RHI::Buffer indexBuffer;
+    Math::Vec3 sphereCenter;
     u64 vertexCount;
     u64 indexCount;
+    f32 sphereRadius;
     u8 vertexSize;
     u8 indexSize;
     u8 vertexMask;

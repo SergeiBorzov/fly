@@ -46,7 +46,7 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, BoundingSphereDraw, {
     uint indexOffset;
 })
 
-FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+FLY_REGISTER_STORAGE_BUFFER(, DrawCommand, {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;

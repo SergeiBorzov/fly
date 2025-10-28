@@ -41,6 +41,7 @@ struct MeshData
 
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::ComputePipeline sCullPipeline;
+static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sMeshInstances;
 static RHI::Buffer sMeshDataBuffer;
@@ -82,18 +83,29 @@ static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
 
 static bool CreatePipelines(RHI::Device& device)
 {
-    RHI::Shader cullShader;
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("cull.comp.spv"),
-                                cullShader))
+    RHI::ComputePipeline* computePipelines[] = {
+        &sCullPipeline,
+        &sFirstInstancePrefixSumPipeline,
+    };
+
+    String8 computeShaderPaths[] = {
+        FLY_STRING8_LITERAL("cull.comp.spv"),
+        FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
+    };
+
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
-        return false;
+        RHI::Shader shader;
+        if (!LoadShaderFromSpv(device, computeShaderPaths[i], shader))
+        {
+            return false;
+        }
+        if (!RHI::CreateComputePipeline(device, shader, *computePipelines[i]))
+        {
+            return false;
+        }
+        RHI::DestroyShader(device, shader);
     }
-    if (!RHI::CreateComputePipeline(device, cullShader, sCullPipeline))
-    {
-        FLY_ERROR("Failed to create cull compute pipeline");
-        return false;
-    }
-    RHI::DestroyShader(device, cullShader);
 
     RHI::ShaderProgram shaderProgram{};
     if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
@@ -133,6 +145,7 @@ static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyComputePipeline(device, sCullPipeline);
+    RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -144,6 +157,9 @@ static bool CreateResources(RHI::Device& device)
     }
     FLY_LOG("Mesh vertex size is %u, lod count is %u", sMesh.vertexSize,
             sMesh.lodCount);
+    FLY_LOG("Bounding sphere center is %f %f %f and radius %f",
+            sMesh.sphereCenter.x, sMesh.sphereCenter.y, sMesh.sphereCenter.z,
+            sMesh.sphereRadius);
     for (u32 i = 0; i < sMesh.lodCount; i++)
     {
         FLY_LOG("LOD %u: triangle count %u", i, sMesh.lods[i].indexCount / 3);
@@ -176,7 +192,7 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!RHI::CreateBuffer(device, false,
+    if (!RHI::CreateBuffer(device, true,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -329,6 +345,36 @@ static void Cull(RHI::Device& device)
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCull,
                         &bufferInput);
+}
+
+static void RecordFirstInstancePrefixSum(
+    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
+    const RHI::RecordTextureInput* textureInput, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sFirstInstancePrefixSumPipeline);
+
+    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[0]);
+
+    u32 pushConstants[] = {drawCommandBuffer.bindlessHandle, FLY_MAX_LOD_COUNT};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, static_cast<u32>(Math::Ceil(1 / 64.0f)), 1, 1);
+}
+
+static void FirstInstancePrefixSum(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput;
+    RHI::Buffer* buffers[1];
+    VkAccessFlagBits2 bufferAccesses[1];
+
+    buffers[0] = &sDrawCommands;
+    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+
+    bufferInput.buffers = buffers;
+    bufferInput.bufferAccesses = bufferAccesses;
+    bufferInput.bufferCount = 1;
+
+    RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                        RecordFirstInstancePrefixSum, &bufferInput);
 }
 
 static void RecordDrawMesh(RHI::CommandBuffer& cmd,
@@ -506,8 +552,19 @@ int main(int argc, char* argv[])
         RHI::ResetQueryPool(RenderFrameCommandBuffer(device),
                             sTimestampQueryPool, 0, 2);
         Cull(device);
+        FirstInstancePrefixSum(device);
         DrawMesh(device);
         RHI::EndRenderFrame(device);
+
+        // VkDrawIndexedIndirectCommand* commands =
+        //     static_cast<VkDrawIndexedIndirectCommand*>(
+        //         RHI::BufferMappedPtr(sDrawCommands));
+
+        // for (u32 i = 0; i < FLY_MAX_LOD_COUNT; i++)
+        // {
+        //     FLY_LOG("%u: i - %u fi - %u", i, commands[i].instanceCount,
+        //             commands[i].firstInstance);
+        // }
 
         u64 timestamps[2];
         vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
@@ -517,7 +574,7 @@ int main(int argc, char* argv[])
         f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
-        // FLY_LOG("Dragon draw: %f ms", drawTime);
+        FLY_LOG("Dragon draw: %f ms", drawTime);
     }
 
     RHI::WaitDeviceIdle(device);
