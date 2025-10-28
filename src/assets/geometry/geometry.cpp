@@ -480,10 +480,18 @@ void QuantizeGeometry(Geometry& geometry)
 
 void GenerateGeometryLODs(Geometry& geometry)
 {
-    f32 targetErrors[3] = {0.0005f, 0.003f, 0.01f};
-    unsigned int* lodIndices[3] = {nullptr, nullptr, nullptr};
-    size_t lodIndexCount[3] = {0};
-    for (u32 i = 0; i < 3; i++)
+    const f32 minError = 0.001f;
+    const f32 maxError = 0.05f;
+    f32 targetErrors[FLY_MAX_LOD_COUNT - 1];
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; ++i)
+    {
+        float t = float(i) / float(FLY_MAX_LOD_COUNT - 1);
+        targetErrors[i] = minError * Math::Pow(maxError / minError, t);
+    }
+
+    unsigned int* lodIndices[FLY_MAX_LOD_COUNT - 1];
+    size_t lodIndexCount[FLY_MAX_LOD_COUNT - 1];
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
     {
         lodIndices[i] = static_cast<unsigned int*>(
             Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
@@ -494,8 +502,8 @@ void GenerateGeometryLODs(Geometry& geometry)
             nullptr);
     }
 
-    unsigned int* optimizedLodIndices[3] = {nullptr, nullptr, nullptr};
-    for (u32 i = 0; i < 3; i++)
+    unsigned int* optimizedLodIndices[FLY_MAX_LOD_COUNT - 1];
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
     {
         optimizedLodIndices[i] = static_cast<unsigned int*>(
             Fly::Alloc(sizeof(unsigned int) * lodIndexCount[i]));
@@ -505,7 +513,7 @@ void GenerateGeometryLODs(Geometry& geometry)
     }
 
     u64 totalCount = geometry.indexCount;
-    for (u32 i = 0; i < 3; i++)
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
     {
         totalCount += lodIndexCount[i];
     }
@@ -519,7 +527,7 @@ void GenerateGeometryLODs(Geometry& geometry)
     geometry.lods[0].firstIndex = 0;
 
     u64 offset = geometry.indexCount;
-    for (u32 i = 0; i < 3; i++)
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
     {
         geometry.lods[i + 1].indexCount = lodIndexCount[i];
         geometry.lods[i + 1].firstIndex = offset;
@@ -531,9 +539,9 @@ void GenerateGeometryLODs(Geometry& geometry)
     Fly::Free(geometry.indices);
     geometry.indices = newIndices;
     geometry.indexCount = totalCount;
-    geometry.lodCount = 4;
+    geometry.lodCount = FLY_MAX_LOD_COUNT;
 
-    for (u32 i = 0; i < 3; i++)
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
     {
         Fly::Free(optimizedLodIndices[i]);
     }

@@ -42,6 +42,7 @@ f32 InvSqrt(f32 value)
 }
 
 f32 Exp(f32 value) { return expf(value); }
+f32 Pow(f32 value, f32 exponent) { return powf(value, exponent); }
 f32 Sin(f32 radians) { return sinf(radians); }
 
 f32 Cos(f32 radians) { return cosf(radians); }

@@ -2,6 +2,8 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "bindless.glsl"
 
+#define MAX_LOD_COUNT 8
+
 layout(local_size_x = 256) in;
 
 layout(push_constant) uniform PushConstants
@@ -12,6 +14,7 @@ layout(push_constant) uniform PushConstants
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
     uint instanceCount;
+    uint screenWidth;
 }
 gPushConstants;
 
@@ -29,8 +32,8 @@ FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
 })
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
-    vec3 center;
-    float radius;
+    vec3 sphereCenter;
+    float sphereRadius;
     uint lodCount;
 })
 
@@ -45,6 +48,10 @@ layout(set = 0,
     uint count;
 }
 gDrawCountBuffers[];
+
+const float sizes[MAX_LOD_COUNT] = {
+    0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f, 0.015625f, 0.0078125f, 0.00390625};
+const float lodFactor = 1.0f;
 
 void main()
 {
@@ -72,15 +79,29 @@ void main()
     MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
         MeshData, gPushConstants.meshDataBufferIndex)[0];
 
+    mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, projection);
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
     vec3 translation =
         FLY_ACCESS_STORAGE_BUFFER(MeshInstance,
                                   gPushConstants.instanceBufferIndex)[index]
             .position;
-    vec4 positionVS = view * vec4(meshData.center + translation, 1.0f);
-    float dist = length(positionVS);
-    uint lodIndex = min(uint(dist / 25.0f), meshData.lodCount - 1);
+    vec4 positionVS = view * vec4(meshData.sphereCenter + translation, 1.0f);
+    float dist = max(-positionVS.z - meshData.sphereRadius, 0.001f);
+
+    float invHalfTanFovHorizontal = projection[0][0];
+    float sizeRelativeToScreen =
+        (meshData.sphereRadius / dist) * invHalfTanFovHorizontal;
+
+    uint lodIndex = 0;
+    for (uint i = 0; i < 8; i++)
+    {
+        if (sizeRelativeToScreen < sizes[i])
+        {
+            lodIndex = i;
+        }
+    }
 
     const bool visible = true; // No culling yet :)
     if (visible)

@@ -165,10 +165,15 @@ static bool CreateResources(RHI::Device& device)
         FLY_LOG("LOD %u: triangle count %u", i, sMesh.lods[i].indexCount / 3);
     }
 
+    MeshData meshData;
+    meshData.center = sMesh.sphereCenter;
+    meshData.radius = sMesh.sphereRadius;
+    meshData.lodCount = sMesh.lodCount;
+
     if (!RHI::CreateBuffer(device, false,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                           nullptr, sizeof(MeshData), sMeshDataBuffer))
+                           &meshData, sizeof(MeshData), sMeshDataBuffer))
     {
         FLY_LOG("Failed to create mesh data buffer");
         return false;
@@ -312,7 +317,8 @@ static void RecordCull(RHI::CommandBuffer& cmd,
         meshDataBuffer.bindlessHandle,
         drawCommandBuffer.bindlessHandle,
         drawCountBuffer.bindlessHandle,
-        static_cast<u32>(sInstanceRowCount * sInstanceRowCount)};
+        static_cast<u32>(sInstanceRowCount * sInstanceRowCount),
+        cmd.device->swapchainWidth};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd,
                   static_cast<u32>(Math::Ceil(
