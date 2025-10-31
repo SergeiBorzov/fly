@@ -18,6 +18,10 @@ gPushConstants;
 FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
+    float near;
+    float far;
+    float halfTanFovHorizontal;
+    float halfTanFovVertical;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {

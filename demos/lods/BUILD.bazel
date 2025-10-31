@@ -65,6 +65,7 @@ cc_binary(
         "main.cpp",
     ],
     deps = [
+        "@imgui//:imgui",
         "//src/rhi:context",
         "//src/utils:utils",
         "//src/assets/geometry:mesh",

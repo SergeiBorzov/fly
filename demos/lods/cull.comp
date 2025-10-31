@@ -21,6 +21,10 @@ gPushConstants;
 FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
+    float near;
+    float far;
+    float halfTanFovHorizontal;
+    float halfTanFovVertical;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, VkDrawIndexedIndirectCommand, {
@@ -76,6 +80,20 @@ int SelectLodIndex(vec3 positionVS, float sphereRadius, uint lodCount,
     return lodIndex;
 }
 
+bool FrustumCulling(vec3 centerVS, float sphereRadius, float near, float far,
+                    float halfTanFovHorizontal, float halfTanFovVertical)
+{
+    bool visible =
+        -centerVS.z + sphereRadius > near && -centerVS.z - sphereRadius < far;
+    visible =
+        visible &&
+        -centerVS.z * halfTanFovHorizontal + sphereRadius - abs(centerVS.x) > 0;
+    visible =
+        visible &&
+        -centerVS.z * halfTanFovVertical + sphereRadius - abs(centerVS.y) > 0;
+    return visible;
+}
+
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
@@ -106,6 +124,15 @@ void main()
         Camera, gPushConstants.cameraBufferIndex, projection);
     mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
         Camera, gPushConstants.cameraBufferIndex, view);
+    float near = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, near);
+    float far = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, far);
+    float halfTanFovHorizontal = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, halfTanFovHorizontal);
+    float halfTanFovVertical = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, halfTanFovVertical);
+
     vec3 translation =
         FLY_ACCESS_STORAGE_BUFFER(MeshInstance,
                                   gPushConstants.instanceBufferIndex)[index]
@@ -115,7 +142,9 @@ void main()
     int lodIndex = -1;
     uint localInstanceOffset = 0;
 
-    const bool visible = true; // No culling yet :)
+    bool visible =
+        FrustumCulling(positionVS.xyz, meshData.sphereRadius, near, far,
+                       halfTanFovHorizontal, halfTanFovVertical);
     if (visible)
     {
         lodIndex = SelectLodIndex(positionVS.xyz, meshData.sphereRadius,

@@ -14,6 +14,10 @@
 
 #include "utils/utils.h"
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
 #include "demos/common/simple_camera_fps.h"
 
 #include <GLFW/glfw3.h>
@@ -22,8 +26,12 @@ using namespace Fly;
 
 struct CameraData
 {
-    Math::Mat4 projection = {};
-    Math::Mat4 view = {};
+    Math::Mat4 projection;
+    Math::Mat4 view;
+    float near;
+    float far;
+    float halfTanFovHorizontal;
+    float haflTanFovVertical;
 };
 
 struct MeshInstance
@@ -45,6 +53,7 @@ struct LodInstanceOffset
     u32 localInstanceOffset;
 };
 
+static VkDescriptorPool sImGuiDescriptorPool;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
@@ -57,8 +66,9 @@ static RHI::Buffer sDrawCountBuffer;
 static RHI::Buffer sLodInstanceOffsetBuffer;
 static RHI::Buffer sRemapBuffer;
 static RHI::Texture sDepthTexture;
-static i32 sInstanceRowCount = 10;
+static i32 sInstanceRowCount = 15;
 static Mesh sMesh;
+static bool sIsCullingFixed = false;
 
 static VkQueryPool sTimestampQueryPool;
 static f32 sTimestampPeriod;
@@ -89,6 +99,80 @@ static void ErrorCallbackGLFW(int error, const char* description)
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
                                     Math::Vec3(0.0f, 0.0f, -10.0f));
+
+static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
+                               GLFWwindow* window)
+{
+    VkDescriptorPoolSize poolSizes[] = {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE},
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolInfo.maxSets = 0;
+    for (VkDescriptorPoolSize& poolSize : poolSizes)
+        poolInfo.maxSets += poolSize.descriptorCount;
+    poolInfo.poolSizeCount = static_cast<u32>(STACK_ARRAY_COUNT(poolSizes));
+    poolInfo.pPoolSizes = poolSizes;
+    if (vkCreateDescriptorPool(device.logicalDevice, &poolInfo,
+                               RHI::GetVulkanAllocationCallbacks(),
+                               &sImGuiDescriptorPool) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.ApiVersion = VK_API_VERSION_1_3;
+    initInfo.Instance = context.instance;
+    initInfo.PhysicalDevice = device.physicalDevice;
+    initInfo.Device = device.logicalDevice;
+    initInfo.Queue = device.graphicsComputeQueue;
+    initInfo.DescriptorPool = sImGuiDescriptorPool;
+    initInfo.MinImageCount = device.swapchainTextureCount;
+    initInfo.ImageCount = device.swapchainTextureCount;
+    initInfo.UseDynamicRendering = true;
+
+    initInfo.PipelineRenderingCreateInfo = {};
+    initInfo.PipelineRenderingCreateInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    initInfo.PipelineRenderingCreateInfo.depthAttachmentFormat =
+        VK_FORMAT_D32_SFLOAT_S8_UINT;
+    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats =
+        &device.surfaceFormat.format;
+
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    initInfo.Allocator = RHI::GetVulkanAllocationCallbacks();
+
+    if (!ImGui_ImplVulkan_Init(&initInfo))
+    {
+        return false;
+    }
+    if (!ImGui_ImplVulkan_CreateFontsTexture())
+    {
+        return false;
+    }
+    return true;
+}
+
+static void DestroyImGuiContext(RHI::Device& device)
+{
+    ImGui_ImplVulkan_Shutdown();
+    vkDestroyDescriptorPool(device.logicalDevice, sImGuiDescriptorPool,
+                            RHI::GetVulkanAllocationCallbacks());
+}
 
 static bool CreatePipelines(RHI::Device& device)
 {
@@ -308,6 +392,19 @@ static bool CreateResources(RHI::Device& device)
     }
 
     return true;
+}
+
+static void ProcessImGuiFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::Begin("Culling");
+    ImGui::Checkbox("Fix current cull", &sIsCullingFixed);
+    ImGui::End();
+
+    ImGui::Render();
 }
 
 static void DestroyResources(RHI::Device& device)
@@ -537,6 +634,31 @@ static void DrawMesh(RHI::Device& device)
                          RecordDrawMesh, &bufferInput, &textureInput);
 }
 
+static void RecordDrawGUI(RHI::CommandBuffer& cmd,
+                          const RHI::RecordBufferInput* bufferInput,
+                          const RHI::RecordTextureInput* textureInput,
+                          void* pUserData)
+{
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd.handle);
+}
+
+static void DrawGUI(RHI::Device& device)
+{
+    VkRenderingAttachmentInfo colorAttachment =
+        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView,
+                                 VK_ATTACHMENT_LOAD_OP_LOAD);
+    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+        &colorAttachment, 1);
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordDrawGUI);
+}
+
 int main(int argc, char* argv[])
 {
     InitThreadContext();
@@ -602,6 +724,12 @@ int main(int argc, char* argv[])
     }
     sTimestampPeriod = props.limits.timestampPeriod;
 
+    if (!CreateImGuiContext(context, device, window))
+    {
+        FLY_ERROR("Failed to create imgui context");
+        return -1;
+    }
+
     if (!CreateResources(device))
     {
         FLY_ERROR("Failed to create resources");
@@ -617,6 +745,11 @@ int main(int argc, char* argv[])
     u64 previousFrameTime = 0;
     u64 loopStartTime = Fly::ClockNow();
     u64 currentFrameTime = loopStartTime;
+
+    float halfTanFovHorizontal =
+        Math::Tan(Math::Radians(sCamera.GetHorizontalFov()) * 0.5f);
+    float halfTanFovVertical =
+        Math::Tan(Math::Radians(sCamera.GetVerticalFov()) * 0.5f);
     while (!glfwWindowShouldClose(window))
     {
         previousFrameTime = currentFrameTime;
@@ -626,21 +759,31 @@ int main(int argc, char* argv[])
 
         glfwPollEvents();
 
-        sCamera.Update(window, deltaTime);
+        {
+            sCamera.Update(window, deltaTime);
+            CameraData cameraData = {
+                sCamera.GetProjection(), sCamera.GetView(),
+                sCamera.GetNear(),       sCamera.GetFar(),
+                halfTanFovHorizontal,    halfTanFovVertical};
+            RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
+            RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
+                                  cameraBuffer);
+        }
 
-        CameraData cameraData = {sCamera.GetProjection(), sCamera.GetView()};
-
-        RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
-        RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
-                              cameraBuffer);
+        ProcessImGuiFrame();
 
         RHI::BeginRenderFrame(device);
         RHI::ResetQueryPool(RenderFrameCommandBuffer(device),
                             sTimestampQueryPool, 0, 2);
-        Cull(device);
-        FirstInstancePrefixSum(device);
-        Remap(device);
+
+        if (!sIsCullingFixed)
+        {
+            Cull(device);
+            FirstInstancePrefixSum(device);
+            Remap(device);
+        }
         DrawMesh(device);
+        DrawGUI(device);
         RHI::EndRenderFrame(device);
 
         u64 timestamps[2];
@@ -657,6 +800,7 @@ int main(int argc, char* argv[])
     RHI::WaitDeviceIdle(device);
     DestroyPipelines(device);
     DestroyResources(device);
+    DestroyImGuiContext(device);
     RHI::DestroyContext(context);
 
     glfwDestroyWindow(window);
