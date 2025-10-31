@@ -1,0 +1,58 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "bindless.glsl"
+
+#define MAX_LOD_COUNT 8
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint lodInstanceOffsetBufferIndex;
+    uint drawCommandBufferIndex;
+    uint remapBufferIndex;
+    uint instanceCount;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, LodInstanceOffset, {
+    int lodIndex;
+    uint localInstanceOffset;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, VkDrawIndexedIndirectCommand, {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(writeonly, Remap, { uint value; })
+
+void main()
+{
+    uint instanceIndex = gl_GlobalInvocationID.x;
+    if (instanceIndex >= gPushConstants.instanceCount)
+    {
+        return;
+    }
+
+    LodInstanceOffset lodOffset = FLY_ACCESS_STORAGE_BUFFER(
+        LodInstanceOffset,
+        gPushConstants.lodInstanceOffsetBufferIndex)[instanceIndex];
+
+    if (lodOffset.lodIndex < 0)
+    {
+        return;
+    }
+
+    uint firstInstance =
+        FLY_ACCESS_STORAGE_BUFFER(
+            VkDrawIndexedIndirectCommand,
+            gPushConstants.drawCommandBufferIndex)[lodOffset.lodIndex]
+            .firstInstance;
+
+    FLY_ACCESS_STORAGE_BUFFER(Remap, gPushConstants.remapBufferIndex)
+    [firstInstance + lodOffset.localInstanceOffset].value = instanceIndex;
+}

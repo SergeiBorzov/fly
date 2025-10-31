@@ -11,10 +11,10 @@ layout(push_constant) uniform PushConstants
     uint cameraBufferIndex;
     uint instanceBufferIndex;
     uint meshDataBufferIndex;
+    uint lodInstanceOffsetBufferIndex;
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
     uint instanceCount;
-    uint screenWidth;
 }
 gPushConstants;
 
@@ -23,7 +23,7 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 view;
 })
 
-FLY_REGISTER_STORAGE_BUFFER(writeonly, DrawCommand, {
+FLY_REGISTER_STORAGE_BUFFER(writeonly, VkDrawIndexedIndirectCommand, {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
@@ -42,6 +42,11 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
     float pad;
 })
 
+FLY_REGISTER_STORAGE_BUFFER(writeonly, LodInstanceOffset, {
+    int lodIndex;
+    uint localInstanceOffset;
+})
+
 layout(set = 0,
        binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
 {
@@ -51,7 +56,25 @@ gDrawCountBuffers[];
 
 const float sizes[MAX_LOD_COUNT] = {
     0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f, 0.015625f, 0.0078125f, 0.00390625};
-const float lodFactor = 1.0f;
+
+int SelectLodIndex(vec3 positionVS, float sphereRadius, uint lodCount,
+                   float invHalfTanFovHorizontal)
+{
+    float dist = max(-positionVS.z - sphereRadius, 0.001f);
+
+    float sizeRelativeToScreen =
+        (sphereRadius / dist) * invHalfTanFovHorizontal;
+
+    int lodIndex = 0;
+    for (int i = 0; i < lodCount; i++)
+    {
+        if (sizeRelativeToScreen < sizes[i])
+        {
+            lodIndex = i;
+        }
+    }
+    return lodIndex;
+}
 
 void main()
 {
@@ -63,7 +86,7 @@ void main()
 
     if (index < 8)
     {
-        FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
+        FLY_ACCESS_STORAGE_BUFFER(VkDrawIndexedIndirectCommand,
                                   gPushConstants.drawCommandBufferIndex)
         [index].instanceCount = 0;
     }
@@ -88,29 +111,25 @@ void main()
                                   gPushConstants.instanceBufferIndex)[index]
             .position;
     vec4 positionVS = view * vec4(meshData.sphereCenter + translation, 1.0f);
-    float dist = max(-positionVS.z - meshData.sphereRadius, 0.001f);
 
-    float invHalfTanFovHorizontal = projection[0][0];
-    float sizeRelativeToScreen =
-        (meshData.sphereRadius / dist) * invHalfTanFovHorizontal;
-
-    uint lodIndex = 0;
-    for (uint i = 0; i < 8; i++)
-    {
-        if (sizeRelativeToScreen < sizes[i])
-        {
-            lodIndex = i;
-        }
-    }
+    int lodIndex = -1;
+    uint localInstanceOffset = 0;
 
     const bool visible = true; // No culling yet :)
     if (visible)
     {
-        atomicAdd(
-            FLY_ACCESS_STORAGE_BUFFER(
-                DrawCommand, gPushConstants.drawCommandBufferIndex)[lodIndex]
-                .instanceCount,
-            1);
+        lodIndex = SelectLodIndex(positionVS.xyz, meshData.sphereRadius,
+                                  meshData.lodCount, projection[0][0]);
+
+        localInstanceOffset =
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          VkDrawIndexedIndirectCommand,
+                          gPushConstants.drawCommandBufferIndex)[lodIndex]
+                          .instanceCount,
+                      1);
     }
-    barrier();
+
+    FLY_ACCESS_STORAGE_BUFFER(LodInstanceOffset,
+                              gPushConstants.lodInstanceOffsetBufferIndex)
+    [index] = LodInstanceOffset(lodIndex, localInstanceOffset);
 }

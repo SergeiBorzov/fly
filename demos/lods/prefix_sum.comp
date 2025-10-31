@@ -14,7 +14,7 @@ layout(push_constant) uniform PushConstants
 }
 gPushConstants;
 
-FLY_REGISTER_STORAGE_BUFFER(, DrawCommand, {
+FLY_REGISTER_STORAGE_BUFFER(, VkDrawIndexedIndirectCommand, {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
@@ -34,12 +34,12 @@ void main()
     uint firstInstance = 0;
     for (uint i = 0; i < MAX_LOD_COUNT; i++)
     {
-        FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
+        FLY_ACCESS_STORAGE_BUFFER(VkDrawIndexedIndirectCommand,
                                   gPushConstants.drawCommandBufferIndex)
-        [i].firstInstance = firstInstance;
-        firstInstance +=
-            FLY_ACCESS_STORAGE_BUFFER(DrawCommand,
-                                      gPushConstants.drawCommandBufferIndex)[i]
-                .instanceCount;
+        [index + i].firstInstance = firstInstance;
+        firstInstance += FLY_ACCESS_STORAGE_BUFFER(
+                             VkDrawIndexedIndirectCommand,
+                             gPushConstants.drawCommandBufferIndex)[index + i]
+                             .instanceCount;
     }
 }

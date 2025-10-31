@@ -51,6 +51,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "remap.comp.spv",
+    src = "remap.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -68,6 +76,7 @@ cc_binary(
         ":lit.frag.spv",
         ":cull.comp.spv",
         ":prefix_sum.comp.spv",
+        ":remap.comp.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],

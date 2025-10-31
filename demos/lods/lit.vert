@@ -10,6 +10,7 @@ layout(push_constant) uniform PushConstants
 {
     uint cameraBufferIndex;
     uint vertexBufferIndex;
+    uint remapBufferIndex;
     uint instanceBufferIndex;
 }
 gPushConstants;
@@ -30,6 +31,8 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
     vec3 position;
     float pad;
 })
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, Remap, { uint value; })
 
 vec3 DecodeNormal(uint quantized)
 {
@@ -55,8 +58,13 @@ void main()
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
     outNormal = DecodeNormal(v.normal);
     vec3 position = vec3(v.position);
+
+    uint instanceIndex =
+        FLY_ACCESS_STORAGE_BUFFER(
+            Remap, gPushConstants.remapBufferIndex)[gl_InstanceIndex]
+            .value;
     MeshInstance instance = FLY_ACCESS_STORAGE_BUFFER(
-        MeshInstance, gPushConstants.instanceBufferIndex)[gl_InstanceIndex];
+        MeshInstance, gPushConstants.instanceBufferIndex)[instanceIndex];
     gl_Position = FLY_ACCESS_UNIFORM_BUFFER(
                       Camera, gPushConstants.cameraBufferIndex, projection) *
                   FLY_ACCESS_UNIFORM_BUFFER(

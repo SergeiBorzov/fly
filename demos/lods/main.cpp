@@ -39,14 +39,23 @@ struct MeshData
     u32 lodCount;
 };
 
+struct LodInstanceOffset
+{
+    i32 lodIndex;
+    u32 localInstanceOffset;
+};
+
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
+static RHI::ComputePipeline sRemapPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sMeshInstances;
 static RHI::Buffer sMeshDataBuffer;
 static RHI::Buffer sDrawCommands;
 static RHI::Buffer sDrawCountBuffer;
+static RHI::Buffer sLodInstanceOffsetBuffer;
+static RHI::Buffer sRemapBuffer;
 static RHI::Texture sDepthTexture;
 static i32 sInstanceRowCount = 10;
 static Mesh sMesh;
@@ -84,14 +93,11 @@ static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sCullPipeline,
-        &sFirstInstancePrefixSumPipeline,
-    };
+        &sCullPipeline, &sFirstInstancePrefixSumPipeline, &sRemapPipeline};
 
-    String8 computeShaderPaths[] = {
-        FLY_STRING8_LITERAL("cull.comp.spv"),
-        FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
-    };
+    String8 computeShaderPaths[] = {FLY_STRING8_LITERAL("cull.comp.spv"),
+                                    FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
+                                    FLY_STRING8_LITERAL("remap.comp.spv")};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -146,6 +152,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyComputePipeline(device, sCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
+    RHI::DestroyComputePipeline(device, sRemapPipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -197,7 +204,7 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!RHI::CreateBuffer(device, true,
+    if (!RHI::CreateBuffer(device, false,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -243,7 +250,6 @@ static bool CreateResources(RHI::Device& device)
 
     if (!RHI::CreateBuffer(device, false,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                               VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                            meshInstances,
                            sizeof(MeshInstance) * sInstanceRowCount *
@@ -255,6 +261,29 @@ static bool CreateResources(RHI::Device& device)
     }
 
     ArenaPopToMarker(arena, marker);
+
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           nullptr,
+                           sizeof(LodInstanceOffset) * sInstanceRowCount *
+                               sInstanceRowCount,
+                           sLodInstanceOffsetBuffer))
+    {
+        FLY_ERROR("Failed to create lod, instance offset buffer");
+        return false;
+    }
+
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           nullptr,
+                           sizeof(u32) * sInstanceRowCount * sInstanceRowCount,
+                           sRemapBuffer))
+    {
+        FLY_ERROR("Failed to create remap buffer");
+        return false;
+    }
 
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
@@ -292,6 +321,8 @@ static void DestroyResources(RHI::Device& device)
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
     RHI::DestroyBuffer(device, sMeshInstances);
+    RHI::DestroyBuffer(device, sLodInstanceOffsetBuffer);
+    RHI::DestroyBuffer(device, sRemapBuffer);
     RHI::DestroyBuffer(device, sDrawCommands);
     RHI::DestroyBuffer(device, sDrawCountBuffer);
     RHI::DestroyBuffer(device, sMeshDataBuffer);
@@ -308,17 +339,18 @@ static void RecordCull(RHI::CommandBuffer& cmd,
     RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
     RHI::Buffer& instanceBuffer = *(bufferInput->buffers[1]);
     RHI::Buffer& meshDataBuffer = *(bufferInput->buffers[2]);
-    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[3]);
-    RHI::Buffer& drawCountBuffer = *(bufferInput->buffers[4]);
+    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput->buffers[3]);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[4]);
+    RHI::Buffer& drawCountBuffer = *(bufferInput->buffers[5]);
 
     u32 pushConstants[] = {
         cameraBuffer.bindlessHandle,
         instanceBuffer.bindlessHandle,
         meshDataBuffer.bindlessHandle,
+        lodInstanceOffsetBuffer.bindlessHandle,
         drawCommandBuffer.bindlessHandle,
         drawCountBuffer.bindlessHandle,
-        static_cast<u32>(sInstanceRowCount * sInstanceRowCount),
-        cmd.device->swapchainWidth};
+        static_cast<u32>(sInstanceRowCount * sInstanceRowCount)};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd,
                   static_cast<u32>(Math::Ceil(
@@ -329,8 +361,8 @@ static void RecordCull(RHI::CommandBuffer& cmd,
 static void Cull(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[5];
-    VkAccessFlagBits2 bufferAccesses[5];
+    RHI::Buffer* buffers[6];
+    VkAccessFlagBits2 bufferAccesses[6];
 
     buffers[0] = &sCameraBuffers[device.frameIndex];
     bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
@@ -338,16 +370,18 @@ static void Cull(RHI::Device& device)
     bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
     buffers[2] = &sMeshDataBuffer;
     bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[3] = &sDrawCommands;
-    bufferAccesses[3] =
-        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-    buffers[4] = &sDrawCountBuffer;
+    buffers[3] = &sLodInstanceOffsetBuffer;
+    bufferAccesses[3] = VK_ACCESS_2_SHADER_WRITE_BIT;
+    buffers[4] = &sDrawCommands;
     bufferAccesses[4] =
+        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+    buffers[5] = &sDrawCountBuffer;
+    bufferAccesses[5] =
         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 5;
+    bufferInput.bufferCount = 6;
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCull,
                         &bufferInput);
@@ -363,7 +397,7 @@ static void RecordFirstInstancePrefixSum(
 
     u32 pushConstants[] = {drawCommandBuffer.bindlessHandle, FLY_MAX_LOD_COUNT};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
-    RHI::Dispatch(cmd, static_cast<u32>(Math::Ceil(1 / 64.0f)), 1, 1);
+    RHI::Dispatch(cmd, 1, 1, 1);
 }
 
 static void FirstInstancePrefixSum(RHI::Device& device)
@@ -373,7 +407,7 @@ static void FirstInstancePrefixSum(RHI::Device& device)
     VkAccessFlagBits2 bufferAccesses[1];
 
     buffers[0] = &sDrawCommands;
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+    bufferAccesses[0] = VK_ACCESS_2_SHADER_WRITE_BIT;
 
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
@@ -381,6 +415,49 @@ static void FirstInstancePrefixSum(RHI::Device& device)
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
                         RecordFirstInstancePrefixSum, &bufferInput);
+}
+
+static void RecordRemap(RHI::CommandBuffer& cmd,
+                        const RHI::RecordBufferInput* bufferInput,
+                        const RHI::RecordTextureInput* textureInput,
+                        void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sRemapPipeline);
+
+    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[1]);
+    RHI::Buffer& remapBuffer = *(bufferInput->buffers[2]);
+
+    u32 pushConstants[] = {
+        lodInstanceOffsetBuffer.bindlessHandle,
+        drawCommandBuffer.bindlessHandle, remapBuffer.bindlessHandle,
+        static_cast<u32>(sInstanceRowCount * sInstanceRowCount)};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd,
+                  static_cast<u32>(Math::Ceil(
+                      (sInstanceRowCount * sInstanceRowCount) / 256.0f)),
+                  1, 1);
+}
+
+static void Remap(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput;
+    RHI::Buffer* buffers[3];
+    VkAccessFlagBits2 bufferAccesses[3];
+
+    buffers[0] = &sLodInstanceOffsetBuffer;
+    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[1] = &sDrawCommands;
+    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[2] = &sRemapBuffer;
+    bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
+
+    bufferInput.buffers = buffers;
+    bufferInput.bufferAccesses = bufferAccesses;
+    bufferInput.bufferCount = 3;
+
+    RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordRemap,
+                        &bufferInput);
 }
 
 static void RecordDrawMesh(RHI::CommandBuffer& cmd,
@@ -400,12 +477,13 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 
     RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
     RHI::Buffer& meshInstanceBuffer = *(bufferInput->buffers[1]);
+    RHI::Buffer& remapBuffer = *(bufferInput->buffers[2]);
 
     RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
 
-    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           sMesh.vertexBuffer.bindlessHandle,
-                           meshInstanceBuffer.bindlessHandle};
+    u32 pushConstants[] = {
+        cameraBuffer.bindlessHandle, sMesh.vertexBuffer.bindlessHandle,
+        remapBuffer.bindlessHandle, meshInstanceBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
     RHI::DrawIndexedIndirectCount(cmd, sDrawCommands, 0, sDrawCountBuffer, 0,
@@ -419,21 +497,23 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 static void DrawMesh(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[4];
-    VkAccessFlagBits2 bufferAccesses[4];
+    RHI::Buffer* buffers[5];
+    VkAccessFlagBits2 bufferAccesses[5];
 
     buffers[0] = &sCameraBuffers[device.frameIndex];
     bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
     buffers[1] = &sMeshInstances;
     bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[2] = &sDrawCommands;
-    bufferAccesses[2] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-    buffers[3] = &sDrawCountBuffer;
+    buffers[2] = &sRemapBuffer;
+    bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[3] = &sDrawCommands;
     bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+    buffers[4] = &sDrawCountBuffer;
+    bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
 
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 4;
+    bufferInput.bufferCount = 5;
 
     RHI::RecordTextureInput textureInput;
     RHI::Texture* pDepthTexture = &sDepthTexture;
@@ -559,18 +639,9 @@ int main(int argc, char* argv[])
                             sTimestampQueryPool, 0, 2);
         Cull(device);
         FirstInstancePrefixSum(device);
+        Remap(device);
         DrawMesh(device);
         RHI::EndRenderFrame(device);
-
-        // VkDrawIndexedIndirectCommand* commands =
-        //     static_cast<VkDrawIndexedIndirectCommand*>(
-        //         RHI::BufferMappedPtr(sDrawCommands));
-
-        // for (u32 i = 0; i < FLY_MAX_LOD_COUNT; i++)
-        // {
-        //     FLY_LOG("%u: i - %u fi - %u", i, commands[i].instanceCount,
-        //             commands[i].firstInstance);
-        // }
 
         u64 timestamps[2];
         vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
