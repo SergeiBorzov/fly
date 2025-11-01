@@ -1,4 +1,4 @@
-#version 450
+#version 460
 #extension GL_GOOGLE_include_directive : enable
 #include "bindless.glsl"
 
@@ -21,6 +21,7 @@ gPushConstants;
 FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
+    vec4 screenSize;
     float near;
     float far;
     float halfTanFovHorizontal;

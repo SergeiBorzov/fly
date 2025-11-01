@@ -28,6 +28,7 @@ struct CameraData
 {
     Math::Mat4 projection;
     Math::Mat4 view;
+    Math::Vec4 screenSize;
     float near;
     float far;
     float halfTanFovHorizontal;
@@ -53,8 +54,10 @@ struct LodInstanceOffset
     u32 localInstanceOffset;
 };
 
+static VkQueryPool sTimestampQueryPool;
 static VkDescriptorPool sImGuiDescriptorPool;
 static RHI::GraphicsPipeline sGraphicsPipeline;
+static RHI::GraphicsPipeline sSkyboxPipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
@@ -66,11 +69,11 @@ static RHI::Buffer sDrawCountBuffer;
 static RHI::Buffer sLodInstanceOffsetBuffer;
 static RHI::Buffer sRemapBuffer;
 static RHI::Texture sDepthTexture;
-static i32 sInstanceRowCount = 15;
+static RHI::Texture sSkyboxTexture;
 static Mesh sMesh;
-static bool sIsCullingFixed = false;
 
-static VkQueryPool sTimestampQueryPool;
+static i32 sInstanceRowCount = 15;
+static bool sIsCullingFixed = false;
 static f32 sTimestampPeriod;
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
@@ -197,7 +200,39 @@ static bool CreatePipelines(RHI::Device& device)
         RHI::DestroyShader(device, shader);
     }
 
+    RHI::GraphicsPipelineFixedStateStage fixedState{};
+    fixedState.pipelineRendering.colorAttachments[0] =
+        device.surfaceFormat.format;
+    fixedState.pipelineRendering.colorAttachmentCount = 1;
+    fixedState.colorBlendState.attachmentCount = 1;
+    // fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    fixedState.depthStencilState.depthTestEnable = false;
+
     RHI::ShaderProgram shaderProgram{};
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("skybox.vert.spv"),
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
+
+    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("skybox.frag.spv"),
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sSkyboxPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    fixedState.pipelineRendering.depthAttachmentFormat =
+        VK_FORMAT_D32_SFLOAT_S8_UINT;
+    fixedState.depthStencilState.depthTestEnable = true;
+
     if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
                                 shaderProgram[RHI::Shader::Type::Vertex]))
     {
@@ -209,16 +244,6 @@ static bool CreatePipelines(RHI::Device& device)
     {
         return false;
     }
-
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.depthStencilState.depthTestEnable = true;
-    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
                                      sGraphicsPipeline))
@@ -234,6 +259,7 @@ static bool CreatePipelines(RHI::Device& device)
 static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
+    RHI::DestroyGraphicsPipeline(device, sSkyboxPipeline);
     RHI::DestroyComputePipeline(device, sCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
     RHI::DestroyComputePipeline(device, sRemapPipeline);
@@ -379,6 +405,16 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    if (!LoadCubemap(
+            device,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            FLY_STRING8_LITERAL("day.exr"), VK_FORMAT_R16G16B16A16_SFLOAT,
+            RHI::Sampler::FilterMode::Trilinear, 0, sSkyboxTexture))
+    {
+        FLY_ERROR("Failed to load cubemap");
+        return false;
+    }
+
     VkQueryPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
     createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -424,6 +460,61 @@ static void DestroyResources(RHI::Device& device)
     RHI::DestroyBuffer(device, sDrawCountBuffer);
     RHI::DestroyBuffer(device, sMeshDataBuffer);
     RHI::DestroyTexture(device, sDepthTexture);
+    RHI::DestroyTexture(device, sSkyboxTexture);
+}
+
+static void RecordDrawSky(RHI::CommandBuffer& cmd,
+                          const RHI::RecordBufferInput* bufferInput,
+                          const RHI::RecordTextureInput* textureInput,
+                          void* pUserData)
+{
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+
+    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
+    RHI::Texture& skybox = *(textureInput->textures[0]);
+
+    RHI::BindGraphicsPipeline(cmd, sSkyboxPipeline);
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle, skybox.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Draw(cmd, 6, 1, 0, 0);
+}
+
+static void DrawSky(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput;
+    RHI::RecordTextureInput textureInput;
+
+    RHI::Buffer* buffers[1];
+    VkAccessFlagBits2 bufferAccesses[1];
+    RHI::Texture* textures[1];
+    RHI::ImageLayoutAccess imageLayoutsAccesses[1];
+
+    buffers[0] = &sCameraBuffers[device.frameIndex];
+    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+
+    bufferInput.bufferAccesses = bufferAccesses;
+    bufferInput.buffers = buffers;
+    bufferInput.bufferCount = 1;
+
+    textures[0] = &sSkyboxTexture;
+    imageLayoutsAccesses[0].imageLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+    textureInput.textures = textures;
+    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+    textureInput.textureCount = 1;
+
+    VkRenderingAttachmentInfo colorAttachment =
+        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
+    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+        &colorAttachment, 1);
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordDrawSky, &bufferInput, &textureInput);
 }
 
 static void RecordCull(RHI::CommandBuffer& cmd,
@@ -623,7 +714,8 @@ static void DrawMesh(RHI::Device& device)
     textureInput.textureCount = 1;
 
     VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
+        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView,
+                                 VK_ATTACHMENT_LOAD_OP_LOAD);
     VkRenderingAttachmentInfo depthAttachment =
         RHI::DepthAttachmentInfo(sDepthTexture.imageView);
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
@@ -762,9 +854,16 @@ int main(int argc, char* argv[])
         {
             sCamera.Update(window, deltaTime);
             CameraData cameraData = {
-                sCamera.GetProjection(), sCamera.GetView(),
-                sCamera.GetNear(),       sCamera.GetFar(),
-                halfTanFovHorizontal,    halfTanFovVertical};
+                sCamera.GetProjection(),
+                sCamera.GetView(),
+                Math::Vec4(static_cast<f32>(device.swapchainWidth),
+                           static_cast<f32>(device.swapchainHeight),
+                           1.0f / device.swapchainWidth,
+                           1.0f / device.swapchainHeight),
+                sCamera.GetNear(),
+                sCamera.GetFar(),
+                halfTanFovHorizontal,
+                halfTanFovVertical};
             RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
             RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
                                   cameraBuffer);
@@ -782,6 +881,7 @@ int main(int argc, char* argv[])
             FirstInstancePrefixSum(device);
             Remap(device);
         }
+        DrawSky(device);
         DrawMesh(device);
         DrawGUI(device);
         RHI::EndRenderFrame(device);
@@ -794,7 +894,7 @@ int main(int argc, char* argv[])
         f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
-        FLY_LOG("Dragon draw: %f ms", drawTime);
+        // FLY_LOG("Dragon draw: %f ms", drawTime);
     }
 
     RHI::WaitDeviceIdle(device);

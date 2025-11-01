@@ -1,10 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
-load("@fly//scripts/bazel/rules:cook.bzl", "cook_meshes")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_meshes", "cook_images")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 
 copy_vulkan_layers()
 copy_molten_vk()
+
+cook_images(
+    name = "cook_skybox",
+    inputs = [
+        "@ambientcg//:DayEnvironmentHDRI020_4K-HDR.exr",
+    ],
+    outputs = [
+        "day.exr",
+    ],
+    generate_mips = False,
+    eq2cube = True,
+)
 
 cook_meshes(
     name = "cook_dragon_mesh",
@@ -59,6 +71,22 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "skybox.vert.spv",
+    src = "skybox.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "skybox.frag.spv",
+    src = "skybox.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -73,11 +101,14 @@ cc_binary(
     ],
     data = [
         ":cook_dragon_mesh",
+        ":cook_skybox",
         ":lit.vert.spv",
         ":lit.frag.spv",
         ":cull.comp.spv",
         ":prefix_sum.comp.spv",
         ":remap.comp.spv",
+        ":skybox.vert.spv",
+        ":skybox.frag.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],
