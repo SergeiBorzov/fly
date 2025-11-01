@@ -495,16 +495,17 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordDrawSky(RHI::CommandBuffer& cmd,
                           const RHI::RecordBufferInput* bufferInput,
+                          u32 bufferInputCount,
                           const RHI::RecordTextureInput* textureInput,
-                          void* pUserData)
+                          u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
                     cmd.device->swapchainHeight);
 
-    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
-    RHI::Texture& skybox = *(textureInput->textures[0]);
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Texture& skybox = *(textureInput[0].pTexture);
 
     RHI::BindGraphicsPipeline(cmd, sSkyboxPipeline);
     u32 pushConstants[] = {cameraBuffer.bindlessHandle, skybox.bindlessHandle};
@@ -514,29 +515,11 @@ static void RecordDrawSky(RHI::CommandBuffer& cmd,
 
 static void DrawSky(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-
-    RHI::Buffer* buffers[1];
-    VkAccessFlagBits2 bufferAccesses[1];
-    RHI::Texture* textures[1];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[1];
-
-    buffers[0] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.buffers = buffers;
-    bufferInput.bufferCount = 1;
-
-    textures[0] = &sSkyboxTexture;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-    textureInput.textureCount = 1;
+    RHI::RecordBufferInput bufferInput = {&sCameraBuffers[device.frameIndex],
+                                          VK_ACCESS_2_SHADER_READ_BIT};
+    RHI::RecordTextureInput textureInput = {
+        &sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
@@ -544,18 +527,19 @@ static void DrawSky(RHI::Device& device)
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1);
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawSky, &bufferInput, &textureInput);
+                         RecordDrawSky, &bufferInput, 1, &textureInput, 1);
 }
 
 static void RecordProjectRadiance(RHI::CommandBuffer& cmd,
                                   const RHI::RecordBufferInput* bufferInput,
+                                  u32 bufferInputCount,
                                   const RHI::RecordTextureInput* textureInput,
-                                  void* pUserData)
+                                  u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sRadianceProjectionPipeline);
 
-    RHI::Texture& radianceMap = *(textureInput->textures[0]);
-    RHI::Buffer& radianceProjectionBuffer = *(bufferInput->buffers[0]);
+    RHI::Texture& radianceMap = *(textureInput[0].pTexture);
+    RHI::Buffer& radianceProjectionBuffer = *(bufferInput[0].pBuffer);
 
     u32 radianceMapSize = radianceMap.width;
     u32 pushConstants[] = {radianceMap.bindlessStorageHandle,
@@ -567,43 +551,30 @@ static void RecordProjectRadiance(RHI::CommandBuffer& cmd,
 
 static void ProjectRadiance(RHI::Device& device, RHI::CommandBuffer& cmd)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pRadianceProjectionBuffer = &sRadianceProjectionBuffer;
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_WRITE_BIT;
-    bufferInput.buffers = &pRadianceProjectionBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    RHI::RecordBufferInput bufferInput = {&sRadianceProjectionBuffer,
+                                          VK_ACCESS_2_SHADER_WRITE_BIT};
+    RHI::RecordTextureInput textureInput = {
+        &sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* textures[1];
-    textures[0] = &sSkyboxTexture;
-
-    RHI::ImageLayoutAccess imageLayoutsAccesses[1];
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textureInput.textureCount = 1;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-    RHI::ExecuteCompute(cmd, RecordProjectRadiance, &bufferInput,
-                        &textureInput);
+    RHI::ExecuteCompute(cmd, RecordProjectRadiance, &bufferInput, 1,
+                        &textureInput, 1);
 }
 
 static void RecordCull(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sCullPipeline);
 
-    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& instanceBuffer = *(bufferInput->buffers[1]);
-    RHI::Buffer& meshDataBuffer = *(bufferInput->buffers[2]);
-    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput->buffers[3]);
-    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[4]);
-    RHI::Buffer& drawCountBuffer = *(bufferInput->buffers[5]);
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& instanceBuffer = *(bufferInput[1].pBuffer);
+    RHI::Buffer& meshDataBuffer = *(bufferInput[2].pBuffer);
+    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput[3].pBuffer);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput[4].pBuffer);
+    RHI::Buffer& drawCountBuffer = *(bufferInput[5].pBuffer);
 
     u32 pushConstants[] = {
         cameraBuffer.bindlessHandle,
@@ -622,40 +593,28 @@ static void RecordCull(RHI::CommandBuffer& cmd,
 
 static void Cull(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[6];
-    VkAccessFlagBits2 bufferAccesses[6];
-
-    buffers[0] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sMeshInstances;
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[2] = &sMeshDataBuffer;
-    bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[3] = &sLodInstanceOffsetBuffer;
-    bufferAccesses[3] = VK_ACCESS_2_SHADER_WRITE_BIT;
-    buffers[4] = &sDrawCommands;
-    bufferAccesses[4] =
-        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-    buffers[5] = &sDrawCountBuffer;
-    bufferAccesses[5] =
-        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 6;
+    RHI::RecordBufferInput bufferInput[6] = {
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+        {&sMeshInstances, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sMeshDataBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sLodInstanceOffsetBuffer, VK_ACCESS_2_SHADER_WRITE_BIT},
+        {&sDrawCommands,
+         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT},
+        {&sDrawCountBuffer,
+         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT}};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCull,
-                        &bufferInput);
+                        bufferInput, 6);
 }
 
 static void RecordFirstInstancePrefixSum(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sFirstInstancePrefixSumPipeline);
 
-    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput[0].pBuffer);
 
     u32 pushConstants[] = {drawCommandBuffer.bindlessHandle, FLY_MAX_LOD_COUNT};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
@@ -664,31 +623,23 @@ static void RecordFirstInstancePrefixSum(
 
 static void FirstInstancePrefixSum(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[1];
-    VkAccessFlagBits2 bufferAccesses[1];
-
-    buffers[0] = &sDrawCommands;
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_WRITE_BIT;
-
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 1;
-
+    RHI::RecordBufferInput bufferInput = {&sDrawCommands,
+                                          VK_ACCESS_2_SHADER_WRITE_BIT};
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                        RecordFirstInstancePrefixSum, &bufferInput);
+                        RecordFirstInstancePrefixSum, &bufferInput, 1);
 }
 
 static void RecordRemap(RHI::CommandBuffer& cmd,
                         const RHI::RecordBufferInput* bufferInput,
+                        u32 bufferInputCount,
                         const RHI::RecordTextureInput* textureInput,
-                        void* pUserData)
+                        u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sRemapPipeline);
 
-    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& drawCommandBuffer = *(bufferInput->buffers[1]);
-    RHI::Buffer& remapBuffer = *(bufferInput->buffers[2]);
+    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput[1].pBuffer);
+    RHI::Buffer& remapBuffer = *(bufferInput[2].pBuffer);
 
     u32 pushConstants[] = {
         lodInstanceOffsetBuffer.bindlessHandle,
@@ -703,29 +654,20 @@ static void RecordRemap(RHI::CommandBuffer& cmd,
 
 static void Remap(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[3];
-    VkAccessFlagBits2 bufferAccesses[3];
-
-    buffers[0] = &sLodInstanceOffsetBuffer;
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sDrawCommands;
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[2] = &sRemapBuffer;
-    bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 3;
+    RHI::RecordBufferInput bufferInput[3] = {
+        {&sLodInstanceOffsetBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sDrawCommands, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sRemapBuffer, VK_ACCESS_2_SHADER_WRITE_BIT}};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordRemap,
-                        &bufferInput);
+                        bufferInput, 3);
 }
 
 static void RecordDrawMesh(RHI::CommandBuffer& cmd,
                            const RHI::RecordBufferInput* bufferInput,
+                           u32 bufferInputCount,
                            const RHI::RecordTextureInput* textureInput,
-                           void* pUserData)
+                           u32 textureInputCount, void* pUserData)
 {
     RHI::WriteTimestamp(cmd, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                         sTimestampQueryPool, 0);
@@ -737,10 +679,10 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
 
-    RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& meshInstanceBuffer = *(bufferInput->buffers[1]);
-    RHI::Buffer& remapBuffer = *(bufferInput->buffers[2]);
-    RHI::Buffer& radianceProjectionBuffer = *(bufferInput->buffers[3]);
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& meshInstanceBuffer = *(bufferInput[1].pBuffer);
+    RHI::Buffer& remapBuffer = *(bufferInput[2].pBuffer);
+    RHI::Buffer& radianceProjectionBuffer = *(bufferInput[3].pBuffer);
 
     RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
 
@@ -760,36 +702,17 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 
 static void DrawMesh(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[6];
-    VkAccessFlagBits2 bufferAccesses[6];
+    RHI::RecordBufferInput bufferInput[6] = {
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+        {&sMeshInstances, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sRemapBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sRadianceProjectionBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sDrawCommands, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT},
+        {&sDrawCountBuffer, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}};
 
-    buffers[0] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sMeshInstances;
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[2] = &sRemapBuffer;
-    bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[3] = &sRadianceProjectionBuffer;
-    bufferAccesses[3] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[4] = &sDrawCommands;
-    bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-    buffers[5] = &sDrawCountBuffer;
-    bufferAccesses[5] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = 5;
-
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* pDepthTexture = &sDepthTexture;
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-    textureInput.textures = &pDepthTexture;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
+    RHI::RecordTextureInput textureInput = {
+        &sDepthTexture, VK_ACCESS_2_SHADER_WRITE_BIT,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView,
@@ -801,13 +724,14 @@ static void DrawMesh(RHI::Device& device)
         &colorAttachment, 1, &depthAttachment);
 
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawMesh, &bufferInput, &textureInput);
+                         RecordDrawMesh, bufferInput, 6, &textureInput, 1);
 }
 
 static void RecordDrawGUI(RHI::CommandBuffer& cmd,
                           const RHI::RecordBufferInput* bufferInput,
+                          u32 bufferInputCount,
                           const RHI::RecordTextureInput* textureInput,
-                          void* pUserData)
+                          u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);

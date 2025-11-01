@@ -128,48 +128,47 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* stencilAttachment = nullptr,
               u32 layerCount = 1, u32 viewMask = 0);
 
-struct ImageLayoutAccess
+struct RecordTextureInput
 {
-    VkAccessFlagBits2 accessMask = VK_ACCESS_2_NONE;
-    VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    Texture* pTexture;
+    VkAccessFlagBits2 accessMask;
+    VkImageLayout imageLayout;
 };
 
 struct RecordBufferInput
 {
-    Buffer** buffers;
-    const VkAccessFlagBits2* bufferAccesses;
-    u32 bufferCount;
-};
-
-struct RecordTextureInput
-{
-    Texture** textures;
-    const ImageLayoutAccess* imageLayoutsAccesses;
-    u32 textureCount;
+    Buffer* pBuffer;
+    VkAccessFlagBits2 accessMask;
 };
 
 typedef void (*RecordCallback)(CommandBuffer& cmd,
                                const RecordBufferInput* bufferInput,
+                               u32 bufferInputCount,
                                const RecordTextureInput* textureInput,
-                               void* userData);
+                               u32 textureInputCount, void* userData);
 
 void ExecuteGraphics(CommandBuffer& cmd, const VkRenderingInfo& renderingInfo,
                      RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
+                     u32 bufferInputCount = 0,
                      const RecordTextureInput* textureInput = nullptr,
-                     void* userData = nullptr);
+                     u32 textureInputCount = 0, void* userData = nullptr);
 void ExecuteCompute(CommandBuffer& cmd, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput = nullptr,
+                    u32 bufferInputCount = 0,
                     const RecordTextureInput* textureInput = nullptr,
-                    void* userData = nullptr);
+                    u32 textureInputCount = 0, void* userData = nullptr);
 void ExecuteComputeIndirect(CommandBuffer& cmd, RecordCallback recordCallback,
                             const RecordBufferInput* bufferInput = nullptr,
+                            u32 bufferInputCount = 0,
                             const RecordTextureInput* textureInput = nullptr,
+                            u32 textureInputCount = 0,
                             void* userData = nullptr);
 void ExecuteTransfer(CommandBuffer& cmd, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput = nullptr,
+                     u32 bufferInputCount = 0,
                      const RecordTextureInput* textureInput = nullptr,
-                     void* userData = nullptr);
+                     u32 textureInputCount = 0, void* userData = nullptr);
 
 void ChangeTextureAccessLayout(CommandBuffer& commandBuffer, Texture& texture,
                                VkImageLayout newLayout,

@@ -269,16 +269,17 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordFrustumCull(RHI::CommandBuffer& cmd,
                               const RHI::RecordBufferInput* bufferInput,
+                              u32 bufferInputCount,
                               const RHI::RecordTextureInput* textureInput,
-                              void* pUserData)
+                              u32 textureInputCount, void* pUserData)
 {
     u32 workGroupCount = static_cast<u32>(
         Math::Ceil(static_cast<f32>(sSplatCount) / COUNT_TILE_SIZE));
     RHI::BindComputePipeline(cmd, sCullPipeline);
 
-    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& keys = *(bufferInput->buffers[1]);
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[2]);
+    RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& keys = *(bufferInput[1].pBuffer);
+    RHI::Buffer& indirectCount = *(bufferInput[2].pBuffer);
     u32 pushConstants[] = {uniformBuffer.bindlessHandle,
                            sSplatBuffer.bindlessHandle, keys.bindlessHandle,
                            indirectCount.bindlessHandle, sSplatCount};
@@ -288,12 +289,13 @@ static void RecordFrustumCull(RHI::CommandBuffer& cmd,
 
 static void RecordWriteIndirect(RHI::CommandBuffer& cmd,
                                 const RHI::RecordBufferInput* bufferInput,
+                                u32 bufferInputCount,
                                 const RHI::RecordTextureInput* textureInput,
-                                void* pBufferState)
+                                u32 textureInputCount, void* pBufferState)
 {
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[0]);
-    RHI::Buffer& indirectDraw = *(bufferInput->buffers[1]);
-    RHI::Buffer& indirectDispatch = *(bufferInput->buffers[2]);
+    RHI::Buffer& indirectCount = *(bufferInput[0].pBuffer);
+    RHI::Buffer& indirectDraw = *(bufferInput[1].pBuffer);
+    RHI::Buffer& indirectDispatch = *(bufferInput[2].pBuffer);
 
     RHI::BindComputePipeline(cmd, sWriteIndirectDispatchPipeline);
     u32 pushConstants[] = {indirectCount.bindlessHandle,
@@ -305,16 +307,17 @@ static void RecordWriteIndirect(RHI::CommandBuffer& cmd,
 
 static void RecordCountHistograms(RHI::CommandBuffer& cmd,
                                   const RHI::RecordBufferInput* bufferInput,
+                                  u32 bufferInputCount,
                                   const RHI::RecordTextureInput* textureInput,
-                                  void* pUserData)
+                                  u32 textureInputCount, void* pUserData)
 {
     RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
 
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[0]);
-    RHI::Buffer& keys = *(bufferInput->buffers[1]);
-    RHI::Buffer& tileHistograms = *(bufferInput->buffers[2]);
-    RHI::Buffer& globalHistograms = *(bufferInput->buffers[3]);
-    RHI::Buffer& indirectDispatch = *(bufferInput->buffers[4]);
+    RHI::Buffer& indirectCount = *(bufferInput[0].pBuffer);
+    RHI::Buffer& keys = *(bufferInput[1].pBuffer);
+    RHI::Buffer& tileHistograms = *(bufferInput[2].pBuffer);
+    RHI::Buffer& globalHistograms = *(bufferInput[3].pBuffer);
+    RHI::Buffer& indirectDispatch = *(bufferInput[4].pBuffer);
 
     RHI::BindComputePipeline(cmd, sCountPipeline);
     u32 pushConstants[] = {sortData.passIndex, indirectCount.bindlessHandle,
@@ -327,15 +330,16 @@ static void RecordCountHistograms(RHI::CommandBuffer& cmd,
 
 static void RecordScan(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
     RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
 
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[0]);
-    RHI::Buffer& globalHistograms = *(bufferInput->buffers[1]);
-    RHI::Buffer& tileHistograms = *(bufferInput->buffers[2]);
-    RHI::Buffer& indirectDispatch = *(bufferInput->buffers[3]);
+    RHI::Buffer& indirectCount = *(bufferInput[0].pBuffer);
+    RHI::Buffer& globalHistograms = *(bufferInput[1].pBuffer);
+    RHI::Buffer& tileHistograms = *(bufferInput[2].pBuffer);
+    RHI::Buffer& indirectDispatch = *(bufferInput[3].pBuffer);
 
     // Exclusive prefix sums - global offsets
     RHI::BindComputePipeline(cmd, sScanPipeline);
@@ -349,17 +353,18 @@ static void RecordScan(RHI::CommandBuffer& cmd,
 
 static void RecordSort(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
 
     RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
 
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[0]);
-    RHI::Buffer& keys = *(bufferInput->buffers[1]);
-    RHI::Buffer& prefixSums = *(bufferInput->buffers[2]);
-    RHI::Buffer& sortedKeys = *(bufferInput->buffers[3]);
-    RHI::Buffer& indirectDispatch = *(bufferInput->buffers[4]);
+    RHI::Buffer& indirectCount = *(bufferInput[0].pBuffer);
+    RHI::Buffer& keys = *(bufferInput[1].pBuffer);
+    RHI::Buffer& prefixSums = *(bufferInput[2].pBuffer);
+    RHI::Buffer& sortedKeys = *(bufferInput[3].pBuffer);
+    RHI::Buffer& indirectDispatch = *(bufferInput[4].pBuffer);
 
     RHI::BindComputePipeline(cmd, sSortPipeline);
     u32 pushConstants[] = {sortData.passIndex, indirectCount.bindlessHandle,
@@ -371,13 +376,14 @@ static void RecordSort(RHI::CommandBuffer& cmd,
 
 static void RecordCopy(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[0]);
-    RHI::Buffer& sortedKeys = *(bufferInput->buffers[1]);
-    RHI::Buffer& sortedSplats = *(bufferInput->buffers[2]);
-    RHI::Buffer& indirectDispatch = *(bufferInput->buffers[3]);
+    RHI::Buffer& indirectCount = *(bufferInput[0].pBuffer);
+    RHI::Buffer& sortedKeys = *(bufferInput[1].pBuffer);
+    RHI::Buffer& sortedSplats = *(bufferInput[2].pBuffer);
+    RHI::Buffer& indirectDispatch = *(bufferInput[3].pBuffer);
 
     RHI::BindComputePipeline(cmd, sCopyPipeline);
     u32 pushConstants[] = {
@@ -389,13 +395,14 @@ static void RecordCopy(RHI::CommandBuffer& cmd,
 
 static void RecordDraw(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pBufferState)
+                       u32 textureInputCount, void* pBufferState)
 {
-    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& sortedSplats = *(bufferInput->buffers[1]);
-    RHI::Buffer& indirectDraws = *(bufferInput->buffers[2]);
-    RHI::Buffer& indirectCount = *(bufferInput->buffers[3]);
+    RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& sortedSplats = *(bufferInput[1].pBuffer);
+    RHI::Buffer& indirectDraws = *(bufferInput[2].pBuffer);
+    RHI::Buffer& indirectCount = *(bufferInput[3].pBuffer);
 
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
@@ -416,114 +423,81 @@ static void DrawSplats(RHI::Device& device)
     ArenaMarker marker = ArenaGetMarker(arena);
 
     RadixSortData sortData;
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 5);
-    VkAccessFlagBits2* bufferAccesses =
-        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 5);
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
 
     {
-        bufferInput.bufferCount = 3;
-        buffers[0] = &sUniformBuffers[device.frameIndex];
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[1] = &sKeys[0];
-        bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
-        buffers[2] = &sIndirectCount;
-        bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
+        RHI::RecordBufferInput bufferInput[3] = {
+            {&sUniformBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+            {&sKeys[0], VK_ACCESS_2_SHADER_WRITE_BIT},
+            {&sIndirectCount, VK_ACCESS_2_SHADER_WRITE_BIT}};
         RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordFrustumCull,
-                            &bufferInput);
+                            bufferInput, 3);
     }
 
     {
-        bufferInput.bufferCount = 3;
-        buffers[0] = &sIndirectCount;
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[1] = &sIndirectDraw;
-        bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
-        buffers[2] = &sIndirectDispatch;
-        bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
+        RHI::RecordBufferInput bufferInput[3] = {
+            {&sIndirectCount, VK_ACCESS_2_SHADER_READ_BIT},
+            {&sIndirectDraw, VK_ACCESS_2_SHADER_WRITE_BIT},
+            {&sIndirectDispatch, VK_ACCESS_2_SHADER_WRITE_BIT}};
         RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                            RecordWriteIndirect, &bufferInput);
+                            RecordWriteIndirect, bufferInput, 3);
     }
 
     for (u32 i = 0; i < RADIX_PASS_COUNT; i++)
     {
         sortData.passIndex = i;
         {
-            bufferInput.bufferCount = 5;
-            buffers[0] = &sIndirectCount;
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sKeys[i % 2];
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[2] = &sTileHistograms;
-            bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-            buffers[3] = &sGlobalHistograms;
-            bufferAccesses[3] =
-                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-            buffers[4] = &sIndirectDispatch;
-            bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+            RHI::RecordBufferInput bufferInput[5] = {
+                {&sIndirectCount, VK_ACCESS_2_SHADER_READ_BIT},
+                {&sKeys[i % 2], VK_ACCESS_2_SHADER_READ_BIT},
+                {&sTileHistograms, VK_ACCESS_2_SHADER_WRITE_BIT},
+                {&sGlobalHistograms,
+                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT},
+                {&sIndirectDispatch, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT},
+            };
             RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
-                                        RecordCountHistograms, &bufferInput,
-                                        nullptr, &sortData);
+                                        RecordCountHistograms, bufferInput, 5,
+                                        nullptr, 0, &sortData);
         }
         {
-            bufferInput.bufferCount = 4;
-            buffers[0] = &sIndirectCount;
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sGlobalHistograms;
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[2] = &sTileHistograms;
-            bufferAccesses[2] =
-                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-            buffers[3] = &sIndirectDispatch;
-            bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+            RHI::RecordBufferInput bufferInput[4] = {
+                {&sIndirectCount, VK_ACCESS_2_SHADER_READ_BIT},
+                {&sGlobalHistograms, VK_ACCESS_2_SHADER_READ_BIT},
+                {&sTileHistograms,
+                 VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT},
+                {&sIndirectDispatch, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}};
             RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
-                                        RecordScan, &bufferInput, nullptr,
+                                        RecordScan, bufferInput, 4, nullptr, 0,
                                         &sortData);
         }
         {
-            bufferInput.bufferCount = 5;
-            buffers[0] = &sIndirectCount;
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sKeys[i % 2];
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[2] = &sTileHistograms;
-            bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[3] = &sKeys[(i + 1) % 2];
-            bufferAccesses[3] = VK_ACCESS_2_SHADER_WRITE_BIT;
-            buffers[4] = &sIndirectDispatch;
-            bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+            RHI::RecordBufferInput bufferInput[5] = {
+                {&sIndirectCount, VK_ACCESS_2_SHADER_READ_BIT},
+                {&sKeys[i % 2], VK_ACCESS_2_SHADER_READ_BIT},
+                {&sTileHistograms, VK_ACCESS_2_SHADER_READ_BIT},
+                {&sKeys[(i + 1) % 2], VK_ACCESS_2_SHADER_WRITE_BIT},
+                {&sIndirectDispatch, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}};
 
             RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
-                                        RecordSort, &bufferInput, nullptr,
+                                        RecordSort, bufferInput, 5, nullptr, 0,
                                         &sortData);
         }
     }
 
     {
-        bufferInput.bufferCount = 4;
-        buffers[0] = &sIndirectCount;
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[1] = &sKeys[RADIX_PASS_COUNT % 2];
-        bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[2] = &sSortedSplatBuffer;
-        bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
-        buffers[3] = &sIndirectDispatch;
-        bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+        RHI::RecordBufferInput bufferInput[4] = {
+            {&sIndirectCount, VK_ACCESS_2_SHADER_READ_BIT},
+            {&sKeys[RADIX_PASS_COUNT % 2], VK_ACCESS_2_SHADER_READ_BIT},
+            {&sSortedSplatBuffer, VK_ACCESS_2_SHADER_WRITE_BIT},
+            {&sIndirectDispatch, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}};
         RHI::ExecuteComputeIndirect(RenderFrameCommandBuffer(device),
-                                    RecordCopy, &bufferInput);
+                                    RecordCopy, bufferInput, 4);
     }
     {
-        bufferInput.bufferCount = 4;
-        buffers[0] = &sUniformBuffers[device.frameIndex];
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[1] = &sSortedSplatBuffer;
-        bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[2] = &sIndirectDraw;
-        bufferAccesses[2] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-        buffers[3] = &sIndirectCount;
-        bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+        RHI::RecordBufferInput bufferInput[4] = {
+            {&sUniformBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+            {&sSortedSplatBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+            {&sIndirectDraw, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT},
+            {&sIndirectCount, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}};
 
         VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
             RenderFrameSwapchainTexture(device).imageView);
@@ -531,7 +505,7 @@ static void DrawSplats(RHI::Device& device)
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1);
         RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                             RecordDraw, &bufferInput);
+                             RecordDraw, bufferInput, 4);
     }
 
     ArenaPopToMarker(arena, marker);

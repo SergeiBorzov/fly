@@ -154,8 +154,9 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordCountHistograms(RHI::CommandBuffer& cmd,
                                   const RHI::RecordBufferInput* bufferInput,
+                                  u32 bufferInputCount,
                                   const RHI::RecordTextureInput* textureInput,
-                                  void* pUserData)
+                                  u32 textureInputCount, void* pUserData)
 {
     RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
     u32 workGroupCount = static_cast<u32>(
@@ -170,9 +171,9 @@ static void RecordCountHistograms(RHI::CommandBuffer& cmd,
 
     RHI::BindComputePipeline(cmd, sCountPipeline);
 
-    RHI::Buffer& keys = *(bufferInput->buffers[0]);
-    RHI::Buffer& tileHistograms = *(bufferInput->buffers[1]);
-    RHI::Buffer& globalHistograms = *(bufferInput->buffers[2]);
+    RHI::Buffer& keys = *(bufferInput[0].pBuffer);
+    RHI::Buffer& tileHistograms = *(bufferInput[1].pBuffer);
+    RHI::Buffer& globalHistograms = *(bufferInput[2].pBuffer);
 
     u32 pushConstants[] = {sortData.passIndex, sortData.keyCount,
                            keys.bindlessHandle, tileHistograms.bindlessHandle,
@@ -184,15 +185,16 @@ static void RecordCountHistograms(RHI::CommandBuffer& cmd,
 
 static void RecordScan(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
     RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
 
     RHI::BindComputePipeline(cmd, sScanPipeline);
 
-    RHI::Buffer& tileHistograms = *(bufferInput->buffers[0]);
-    RHI::Buffer& globalHistograms = *(bufferInput->buffers[1]);
+    RHI::Buffer& tileHistograms = *(bufferInput[0].pBuffer);
+    RHI::Buffer& globalHistograms = *(bufferInput[1].pBuffer);
 
     u32 pushConstants[] = {sortData.passIndex, sortData.keyCount,
                            tileHistograms.bindlessHandle,
@@ -203,8 +205,9 @@ static void RecordScan(RHI::CommandBuffer& cmd,
 
 static void RecordSort(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
     RadixSortData& sortData = *(static_cast<RadixSortData*>(pUserData));
     u32 workGroupCount = static_cast<u32>(
@@ -212,9 +215,9 @@ static void RecordSort(RHI::CommandBuffer& cmd,
 
     RHI::BindComputePipeline(cmd, sSortPipeline);
 
-    RHI::Buffer& keys = *(bufferInput->buffers[0]);
-    RHI::Buffer& prefixSums = *(bufferInput->buffers[1]);
-    RHI::Buffer& sortedKeys = *(bufferInput->buffers[2]);
+    RHI::Buffer& keys = *(bufferInput[0].pBuffer);
+    RHI::Buffer& prefixSums = *(bufferInput[1].pBuffer);
+    RHI::Buffer& sortedKeys = *(bufferInput[2].pBuffer);
 
     u32 pushConstants[] = {sortData.passIndex, sortData.keyCount,
                            keys.bindlessHandle, prefixSums.bindlessHandle,
@@ -237,13 +240,8 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
     RHI::CopyDataToBuffer(device, keys, sizeof(u32) * keyCount, 0, sKeys[0]);
 
     RHI::BeginOneTimeSubmit(device);
-    RHI::RecordBufferInput bufferInput;
 
-    RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 3);
-    VkAccessFlagBits2* bufferAccesses =
-        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 3);
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
+    RHI::RecordBufferInput bufferInput[3];
 
     RadixSortData sortData;
     sortData.keyCount = keyCount;
@@ -251,40 +249,31 @@ static void RadixSort(RHI::Device& device, const u32* keys, u32 keyCount)
     {
         sortData.passIndex = i;
         {
-            buffers[0] = &sKeys[i % 2];
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sTileHistograms;
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
-            buffers[2] = &sGlobalHistograms;
-            bufferAccesses[2] =
-                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-            bufferInput.bufferCount = 3;
+            bufferInput[0] = {&sKeys[i % 2], VK_ACCESS_2_SHADER_READ_BIT};
+            bufferInput[1] = {&sTileHistograms, VK_ACCESS_2_SHADER_WRITE_BIT};
+            bufferInput[2] = {&sGlobalHistograms,
+                              VK_ACCESS_2_SHADER_READ_BIT |
+                                  VK_ACCESS_2_SHADER_WRITE_BIT};
 
             RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device),
-                                RecordCountHistograms, &bufferInput, nullptr,
-                                &sortData);
+                                RecordCountHistograms, bufferInput, 3, nullptr,
+                                0, &sortData);
         }
 
         {
-            buffers[0] = &sTileHistograms;
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_WRITE_BIT;
-            buffers[1] = &sGlobalHistograms;
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-            bufferInput.bufferCount = 2;
+            bufferInput[0] = {&sTileHistograms, VK_ACCESS_2_SHADER_WRITE_BIT};
+            bufferInput[1] = {&sGlobalHistograms, VK_ACCESS_2_SHADER_READ_BIT};
 
             RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device), RecordScan,
-                                &bufferInput, nullptr, &sortData);
+                                bufferInput, 2, nullptr, 0, &sortData);
         }
 
         {
-            buffers[0] = &sKeys[i % 2];
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sTileHistograms;
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[2] = &sKeys[(i + 1) % 2];
-            bufferAccesses[2] = VK_ACCESS_2_SHADER_WRITE_BIT;
+            bufferInput[0] = {&sKeys[i % 2], VK_ACCESS_2_SHADER_READ_BIT};
+            bufferInput[1] = {&sTileHistograms, VK_ACCESS_2_SHADER_READ_BIT};
+            bufferInput[2] = {&sKeys[(i + 1) % 2], VK_ACCESS_SHADER_WRITE_BIT};
             RHI::ExecuteCompute(OneTimeSubmitCommandBuffer(device), RecordSort,
-                                &bufferInput, nullptr, &sortData);
+                                bufferInput, 3, nullptr, 0, &sortData);
         }
     }
     RHI::EndOneTimeSubmit(device);

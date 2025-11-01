@@ -93,13 +93,14 @@ bool ResizeImageLinear(const Image& srcImage, u32 width, u32 height,
 
 static void RecordConvertFromEquirectangular(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::GraphicsPipeline* graphicsPipeline =
         static_cast<RHI::GraphicsPipeline*>(pUserData);
 
-    RHI::Texture& equirectangular = *(textureInput->textures[0]);
-    RHI::Texture& cubemap = *(textureInput->textures[1]);
+    RHI::Texture& equirectangular = *(textureInput[0].pTexture);
+    RHI::Texture& cubemap = *(textureInput[1].pTexture);
     RHI::BindGraphicsPipeline(cmd, *graphicsPipeline);
 
     u32 indices[] = {equirectangular.bindlessHandle};
@@ -112,22 +113,24 @@ static void RecordConvertFromEquirectangular(
 
 static void RecordGenerateMipmaps(RHI::CommandBuffer& cmd,
                                   const RHI::RecordBufferInput* bufferInput,
+                                  u32 bufferInputCount,
                                   const RHI::RecordTextureInput* textureInput,
-                                  void* pUserData)
+                                  u32 textureInputCount, void* pUserData)
 {
-    RHI::Texture& cubemap = *(textureInput->textures[1]);
+    RHI::Texture& cubemap = *(textureInput[1].pTexture);
     RHI::GenerateMipmaps(cmd, cubemap);
 }
 
 static void RecordReadbackCubemap(RHI::CommandBuffer& cmd,
                                   const RHI::RecordBufferInput* bufferInput,
+                                  u32 bufferInputCount,
                                   const RHI::RecordTextureInput* textureInput,
-                                  void* pUserData)
+                                  u32 textureInputCount, void* pUserData)
 {
-    RHI::Texture& cubemap = *(textureInput->textures[0]);
+    RHI::Texture& cubemap = *(textureInput[0].pTexture);
     for (u32 i = 0; i < cubemap.mipCount; i++)
     {
-        RHI::Buffer& stagingBuffer = *(bufferInput->buffers[i]);
+        RHI::Buffer& stagingBuffer = *(bufferInput[i].pBuffer);
         RHI::CopyTextureToBuffer(cmd, stagingBuffer, cubemap, i);
     }
 }
@@ -292,22 +295,12 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* textures[2];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-    textureInput.textures = textures;
+    RHI::RecordBufferInput* bufferInput =
+        FLY_PUSH_ARENA(arena, RHI::RecordBufferInput, cubemap.mipCount);
+    RHI::RecordTextureInput textureInput[2];
 
     RHI::Buffer* stagingBuffers =
         FLY_PUSH_ARENA(arena, RHI::Buffer, cubemap.mipCount);
-    VkAccessFlagBits2* bufferAccesses =
-        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, cubemap.mipCount);
-    RHI::Buffer** buffers =
-        FLY_PUSH_ARENA(arena, RHI::Buffer*, cubemap.mipCount);
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    bufferInput.bufferCount = cubemap.mipCount;
 
     u64 totalSize = 0;
     for (u32 i = 0; i < cubemap.mipCount; i++)
@@ -320,46 +313,38 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
         {
             return false;
         }
-        buffers[i] = &(stagingBuffers[i]);
-        bufferAccesses[i] = VK_ACCESS_2_TRANSFER_READ_BIT;
+        bufferInput[i].pBuffer = &(stagingBuffers[i]);
+        bufferInput[i].accessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
         totalSize += size;
     }
 
     RHI::BeginOneTimeSubmit(device);
     RHI::CommandBuffer& cmd = OneTimeSubmitCommandBuffer(device);
     {
+        textureInput[0] = {&texture2D, VK_ACCESS_2_SHADER_READ_BIT,
+                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-        textureInput.textureCount = 2;
-        textures[0] = &texture2D;
-        imageLayoutsAccesses[0].imageLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-        textures[1] = &cubemap;
-        imageLayoutsAccesses[1].imageLayout =
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        imageLayoutsAccesses[1].accessMask =
-            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        textureInput[1] = {&cubemap, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
         RHI::ExecuteGraphics(cmd, renderingInfo,
-                             RecordConvertFromEquirectangular, nullptr,
-                             &textureInput, &eq2cubePipeline);
+                             RecordConvertFromEquirectangular, nullptr, 0,
+                             textureInput, 2, &eq2cubePipeline);
         if (generateMips)
         {
-            RHI::ExecuteTransfer(cmd, RecordGenerateMipmaps, nullptr,
-                                 &textureInput);
+            RHI::ExecuteTransfer(cmd, RecordGenerateMipmaps, nullptr, 0,
+                                 textureInput, 2);
         }
     }
 
     {
-        textureInput.textureCount = 1;
-        textures[0] = &cubemap;
-        imageLayoutsAccesses[0].imageLayout =
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+        RHI::RecordTextureInput textureInputReadback = {
+            &cubemap, VK_ACCESS_2_TRANSFER_READ_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL};
 
-        RHI::ExecuteTransfer(cmd, RecordReadbackCubemap, &bufferInput,
-                             &textureInput, nullptr);
+        RHI::ExecuteTransfer(cmd, RecordReadbackCubemap, bufferInput,
+                             cubemap.mipCount, &textureInputReadback, 1,
+                             nullptr);
     }
     RHI::EndOneTimeSubmit(device);
 

@@ -145,16 +145,17 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordDrawCubes(RHI::CommandBuffer& cmd,
                             const RHI::RecordBufferInput* bufferInput,
+                            u32 bufferInputCount,
                             const RHI::RecordTextureInput* textureInput,
-                            void* pUserData)
+                            u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
                     cmd.device->swapchainHeight);
 
-    const RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    const RHI::Texture& cubeTexture = *(textureInput->textures[0]);
+    const RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
+    const RHI::Texture& cubeTexture = *(textureInput[0].pTexture);
 
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
 
@@ -165,21 +166,12 @@ static void RecordDrawCubes(RHI::CommandBuffer& cmd,
 
 static void DrawCubes(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pUniformBuffer = &sUniformBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pUniformBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    RHI::RecordBufferInput bufferInput[1] = {
+        {&sUniformBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT}};
 
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* pCubeTexture = &sCubeTexture;
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-    textureInput.textures = &pCubeTexture;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
+    RHI::RecordTextureInput textureInput[1] = {
+        {&sCubeTexture, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
@@ -189,7 +181,7 @@ static void DrawCubes(RHI::Device& device)
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawCubes, &bufferInput, &textureInput);
+                         RecordDrawCubes, bufferInput, 1, textureInput, 1);
 }
 
 int main(int argc, char* argv[])

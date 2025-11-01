@@ -33,7 +33,9 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 
 void RecordDrawGui(RHI::CommandBuffer& cmd,
                    const RHI::RecordBufferInput* bufferInput,
-                   const RHI::RecordTextureInput* textureInput, void* pUserData)
+                   u32 bufferInputCount,
+                   const RHI::RecordTextureInput* textureInput,
+                   u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);

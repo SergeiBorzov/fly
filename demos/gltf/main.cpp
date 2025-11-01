@@ -134,8 +134,9 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordDrawScene(RHI::CommandBuffer& cmd,
                             const RHI::RecordBufferInput* bufferInput,
+                            u32 bufferInputCount,
                             const RHI::RecordTextureInput* textureInput,
-                            void* pUserData)
+                            u32 textureInputCount, void* pUserData)
 {
     Scene* scene = static_cast<Scene*>(pUserData);
 
@@ -144,7 +145,7 @@ static void RecordDrawScene(RHI::CommandBuffer& cmd,
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
                     cmd.device->swapchainHeight);
 
-    const RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
+    const RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
     const RHI::Buffer& materialBuffer = scene->materialBuffer;
 
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
@@ -175,12 +176,8 @@ static void RecordDrawScene(RHI::CommandBuffer& cmd,
 
 static void DrawScene(RHI::Device& device, Scene* scene)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pUniformBuffer = &sUniformBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pUniformBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    RHI::RecordBufferInput bufferInput = {&sUniformBuffers[device.frameIndex],
+                                          VK_ACCESS_2_SHADER_READ_BIT};
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
@@ -190,7 +187,7 @@ static void DrawScene(RHI::Device& device, Scene* scene)
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawScene, &bufferInput, nullptr, scene);
+                         RecordDrawScene, &bufferInput, 1, nullptr, 0, scene);
 }
 
 int main(int argc, char* argv[])

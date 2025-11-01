@@ -407,8 +407,9 @@ static bool CreateResources(RHI::Device& device)
     if (!LoadCompressedCubemap(
             device,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            FLY_STRING8_LITERAL("DaySkyHDRI051B_4K-TONEMAPPED.fbc1"), VK_FORMAT_BC1_RGB_SRGB_BLOCK,
-            RHI::Sampler::FilterMode::Trilinear, sSkyboxTexture))
+            FLY_STRING8_LITERAL("DaySkyHDRI051B_4K-TONEMAPPED.fbc1"),
+            VK_FORMAT_BC1_RGB_SRGB_BLOCK, RHI::Sampler::FilterMode::Trilinear,
+            sSkyboxTexture))
     {
         return false;
     }
@@ -601,13 +602,14 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordCascadeSpectrum(RHI::CommandBuffer& cmd,
                                   const RHI::RecordBufferInput* bufferInput,
+                                  u32 bufferInputCount,
                                   const RHI::RecordTextureInput* textureInput,
-                                  void* pUserData)
+                                  u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sSpectrumPipeline);
 
-    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& frequencyBuffer = *(bufferInput->buffers[1]);
+    RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& frequencyBuffer = *(bufferInput[1].pBuffer);
 
     u32 pushConstants[] = {uniformBuffer.bindlessHandle,
                            frequencyBuffer.bindlessHandle};
@@ -617,12 +619,13 @@ static void RecordCascadeSpectrum(RHI::CommandBuffer& cmd,
 
 static void RecordIFFT(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sIFFTPipeline);
 
-    RHI::Buffer& frequencyBuffer = *(bufferInput->buffers[0]);
+    RHI::Buffer& frequencyBuffer = *(bufferInput[0].pBuffer);
 
     u32 pushConstants[] = {frequencyBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
@@ -631,13 +634,14 @@ static void RecordIFFT(RHI::CommandBuffer& cmd,
 
 static void RecordTranspose(RHI::CommandBuffer& cmd,
                             const RHI::RecordBufferInput* bufferInput,
+                            u32 bufferInputCount,
                             const RHI::RecordTextureInput* textureInput,
-                            void* pUserData)
+                            u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sTransposePipeline);
 
-    RHI::Buffer& inFrequencyBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& outFrequencyBuffer = *(bufferInput->buffers[1]);
+    RHI::Buffer& inFrequencyBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& outFrequencyBuffer = *(bufferInput[1].pBuffer);
     u32 pushConstants[] = {inFrequencyBuffer.bindlessHandle,
                            outFrequencyBuffer.bindlessHandle,
                            sCascadeResolution};
@@ -648,14 +652,15 @@ static void RecordTranspose(RHI::CommandBuffer& cmd,
 
 static void RecordCopy(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
                        const RHI::RecordTextureInput* textureInput,
-                       void* pUserData)
+                       u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sCopyPipeline);
 
-    RHI::Buffer& frequencyBuffer = *(bufferInput->buffers[0]);
-    RHI::Texture& diffDisplacementMap = *(textureInput->textures[0]);
-    RHI::Texture& heightMap = *(textureInput->textures[1]);
+    RHI::Buffer& frequencyBuffer = *(bufferInput[0].pBuffer);
+    RHI::Texture& diffDisplacementMap = *(textureInput[0].pTexture);
+    RHI::Texture& heightMap = *(textureInput[1].pTexture);
 
     u32 pushConstants[] = {frequencyBuffer.bindlessHandle,
                            diffDisplacementMap.bindlessStorageHandle,
@@ -666,16 +671,17 @@ static void RecordCopy(RHI::CommandBuffer& cmd,
 
 static void RecordDrawSky(RHI::CommandBuffer& cmd,
                           const RHI::RecordBufferInput* bufferInput,
+                          u32 bufferInputCount,
                           const RHI::RecordTextureInput* textureInput,
-                          void* pUserData)
+                          u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
                     cmd.device->swapchainHeight);
 
-    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    RHI::Texture& skybox = *(textureInput->textures[0]);
+    RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
+    RHI::Texture& skybox = *(textureInput[0].pTexture);
 
     RHI::BindGraphicsPipeline(cmd, sSkyPipeline);
     u32 pushConstants[] = {uniformBuffer.bindlessHandle, skybox.bindlessHandle};
@@ -685,16 +691,17 @@ static void RecordDrawSky(RHI::CommandBuffer& cmd,
 
 static void RecordDrawOcean(RHI::CommandBuffer& cmd,
                             const RHI::RecordBufferInput* bufferInput,
+                            u32 bufferInputCount,
                             const RHI::RecordTextureInput* textureInput,
-                            void* pUserData)
+                            u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
                     cmd.device->swapchainHeight);
 
-    RHI::Buffer& uniformBuffer = *(bufferInput->buffers[0]);
-    RHI::Buffer& shadeParams = *(bufferInput->buffers[1]);
+    RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& shadeParams = *(bufferInput[1].pBuffer);
 
     RHI::BindGraphicsPipeline(cmd, sOceanPipeline);
 
@@ -705,9 +712,9 @@ static void RecordDrawOcean(RHI::CommandBuffer& cmd,
     for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
     {
         pushConstants.diffDisplacements[i] =
-            textureInput->textures[i]->bindlessHandle;
+            textureInput[i].pTexture->bindlessHandle;
         pushConstants.heightMaps[i] =
-            textureInput->textures[OCEAN_CASCADE_COUNT + i]->bindlessHandle;
+            textureInput[OCEAN_CASCADE_COUNT + i].pTexture->bindlessHandle;
     }
     pushConstants.skyboxTextureIndex = sSkyboxTexture.bindlessHandle;
     pushConstants.waveChopiness = sWaveChopiness;
@@ -720,8 +727,9 @@ static void RecordDrawOcean(RHI::CommandBuffer& cmd,
 
 static void RecordDrawGUI(RHI::CommandBuffer& cmd,
                           const RHI::RecordBufferInput* bufferInput,
+                          u32 bufferInputCount,
                           const RHI::RecordTextureInput* textureInput,
-                          void* pUserData)
+                          u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
@@ -736,104 +744,83 @@ static void Draw(RHI::Device& device)
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
 
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-    RHI::Buffer** buffers = FLY_PUSH_ARENA(arena, RHI::Buffer*, 2);
-    VkAccessFlagBits2* bufferAccesses =
-        FLY_PUSH_ARENA(arena, VkAccessFlagBits2, 2);
-    RHI::Texture** textures =
-        FLY_PUSH_ARENA(arena, RHI::Texture*, OCEAN_CASCADE_COUNT * 2);
-    RHI::ImageLayoutAccess* imageLayoutsAccesses =
-        FLY_PUSH_ARENA(arena, RHI::ImageLayoutAccess, OCEAN_CASCADE_COUNT * 2);
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+    RHI::RecordBufferInput bufferInput[2];
+    RHI::RecordTextureInput textureInput[OCEAN_CASCADE_COUNT * 2];
 
     {
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            bufferInput.bufferCount = 2;
-            buffers[0] = &sCascades[i].uniformBuffers[device.frameIndex];
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sCascades[i].frequencyBuffers[0];
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
+            bufferInput[0] = {&sCascades[i].uniformBuffers[device.frameIndex],
+                              VK_ACCESS_2_SHADER_READ_BIT};
+            bufferInput[1] = {&sCascades[i].frequencyBuffers[0],
+                              VK_ACCESS_2_SHADER_WRITE_BIT};
 
             RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                                RecordCascadeSpectrum, &bufferInput);
+                                RecordCascadeSpectrum, bufferInput, 2);
         }
     }
 
     {
-        bufferInput.bufferCount = 1;
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            buffers[0] = &sCascades[i].frequencyBuffers[0];
-            bufferAccesses[0] =
-                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+            bufferInput[0] = {&sCascades[i].frequencyBuffers[0],
+                              VK_ACCESS_2_SHADER_READ_BIT |
+                                  VK_ACCESS_2_SHADER_WRITE_BIT};
 
             RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordIFFT,
-                                &bufferInput);
+                                bufferInput, 1);
         }
     }
 
     {
-        bufferInput.bufferCount = 2;
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            buffers[0] = &sCascades[i].frequencyBuffers[0];
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-            buffers[1] = &sCascades[i].frequencyBuffers[1];
-            bufferAccesses[1] = VK_ACCESS_2_SHADER_WRITE_BIT;
+            bufferInput[0] = {&sCascades[i].frequencyBuffers[0],
+                              VK_ACCESS_2_SHADER_READ_BIT};
+            bufferInput[1] = {&sCascades[i].frequencyBuffers[1],
+                              VK_ACCESS_2_SHADER_WRITE_BIT};
 
             RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                                RecordTranspose, &bufferInput);
+                                RecordTranspose, bufferInput, 2);
         }
     }
 
     {
-        bufferInput.bufferCount = 1;
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            buffers[0] = &sCascades[i].frequencyBuffers[1];
-            bufferAccesses[0] =
-                VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+            bufferInput[0] = {&sCascades[i].frequencyBuffers[1],
+                              VK_ACCESS_2_SHADER_READ_BIT |
+                                  VK_ACCESS_2_SHADER_WRITE_BIT};
 
             RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordIFFT,
-                                &bufferInput);
+                                bufferInput, 1);
         }
     }
 
     {
-        bufferInput.bufferCount = 1;
-        textureInput.textureCount = 2;
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            buffers[0] = &sCascades[i].frequencyBuffers[1];
-            bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+            bufferInput[0] = {&sCascades[i].frequencyBuffers[1],
+                              VK_ACCESS_2_SHADER_READ_BIT};
 
-            textures[0] = &sCascades[i].diffDisplacementMap;
-            imageLayoutsAccesses[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-            textures[1] = &sCascades[i].heightMap;
-            imageLayoutsAccesses[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-            imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+            textureInput[0] = {&sCascades[i].diffDisplacementMap,
+                               VK_ACCESS_2_SHADER_WRITE_BIT,
+                               VK_IMAGE_LAYOUT_GENERAL};
+            textureInput[1] = {&sCascades[i].heightMap,
+                               VK_ACCESS_2_SHADER_WRITE_BIT,
+                               VK_IMAGE_LAYOUT_GENERAL};
 
             RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCopy,
-                                &bufferInput, &textureInput);
+                                bufferInput, 1, textureInput, 2);
         }
     }
 
     {
-        bufferInput.bufferCount = 1;
-        buffers[0] = &sCameraBuffers[device.frameIndex];
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
+        bufferInput[0] = {&sCameraBuffers[device.frameIndex],
+                          VK_ACCESS_2_SHADER_READ_BIT};
 
-        textureInput.textureCount = 1;
-        textures[0] = &sSkyboxTexture;
-        imageLayoutsAccesses[0].imageLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+        textureInput[0] = {&sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
+                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
         VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
             RenderFrameSwapchainTexture(device).imageView);
@@ -841,31 +828,27 @@ static void Draw(RHI::Device& device)
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1);
         RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                             RecordDrawSky, &bufferInput, &textureInput);
+                             RecordDrawSky, bufferInput, 1, textureInput, 1);
     }
 
     {
-        bufferInput.bufferCount = 2;
-        buffers[0] = &sCameraBuffers[device.frameIndex];
-        bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-        buffers[1] = &sShadeParams[device.frameIndex];
-        bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
+        bufferInput[0] = {&sCameraBuffers[device.frameIndex],
+                          VK_ACCESS_2_SHADER_READ_BIT};
+        bufferInput[1] = {&sShadeParams[device.frameIndex],
+                          VK_ACCESS_2_SHADER_READ_BIT};
 
-        textureInput.textureCount = OCEAN_CASCADE_COUNT * 2;
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            textures[i] = &sCascades[i].diffDisplacementMap;
-            imageLayoutsAccesses[i].imageLayout =
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageLayoutsAccesses[i].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+            textureInput[i] = {&sCascades[i].diffDisplacementMap,
+                               VK_ACCESS_2_SHADER_READ_BIT,
+                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         }
+
         for (u32 i = 0; i < OCEAN_CASCADE_COUNT; i++)
         {
-            textures[OCEAN_CASCADE_COUNT + i] = &sCascades[i].heightMap;
-            imageLayoutsAccesses[OCEAN_CASCADE_COUNT + i].imageLayout =
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageLayoutsAccesses[OCEAN_CASCADE_COUNT + i].accessMask =
-                VK_ACCESS_2_SHADER_READ_BIT;
+            textureInput[OCEAN_CASCADE_COUNT + i] = {
+                &sCascades[i].heightMap, VK_ACCESS_2_SHADER_READ_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         }
 
         VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
@@ -877,7 +860,8 @@ static void Draw(RHI::Device& device)
             {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
             &colorAttachment, 1, &depthAttachment);
         RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                             RecordDrawOcean, &bufferInput, &textureInput);
+                             RecordDrawOcean, bufferInput, 2, textureInput,
+                             OCEAN_CASCADE_COUNT * 2);
     }
 
     {

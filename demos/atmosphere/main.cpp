@@ -437,12 +437,13 @@ static void DestroyResources(RHI::Device& device)
 
 static void RecordComputeTransmittance(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sTransmittancePipeline);
 
-    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
-    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
+    RHI::Buffer& atmosphereParams = *(bufferInput[0].pBuffer);
+    RHI::Texture& transmittanceLUT = *(textureInput[0].pTexture);
 
     u32 pushConstants[] = {atmosphereParams.bindlessHandle,
                            transmittanceLUT.bindlessStorageHandle};
@@ -453,38 +454,28 @@ static void RecordComputeTransmittance(
 
 static void DrawTransmittanceLUT(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-
-    RHI::Buffer* pAtmosphereParamsBuffer =
-        &sAtmosphereParamsBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pAtmosphereParamsBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
-
-    RHI::Texture* pTransmittanceLUT = &sTransmittanceLUT;
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-    textureInput.textures = &pTransmittanceLUT;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
+    RHI::RecordBufferInput bufferInput = {
+        &sAtmosphereParamsBuffers[device.frameIndex],
+        VK_ACCESS_2_SHADER_READ_BIT};
+    RHI::RecordTextureInput textureInput = {&sTransmittanceLUT,
+                                            VK_ACCESS_2_SHADER_WRITE_BIT,
+                                            VK_IMAGE_LAYOUT_GENERAL};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                        RecordComputeTransmittance, &bufferInput,
-                        &textureInput);
+                        RecordComputeTransmittance, &bufferInput, 1,
+                        &textureInput, 1);
 }
 
 static void RecordComputeMultiscattering(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sMultiscatteringPipeline);
 
-    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
-    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
-    RHI::Texture& multiscatteringLUT = *(textureInput->textures[1]);
+    RHI::Buffer& atmosphereParams = *(bufferInput[0].pBuffer);
+    RHI::Texture& transmittanceLUT = *(textureInput[0].pTexture);
+    RHI::Texture& multiscatteringLUT = *(textureInput[1].pTexture);
 
     u32 pushConstants[] = {atmosphereParams.bindlessHandle,
                            transmittanceLUT.bindlessHandle,
@@ -496,49 +487,33 @@ static void RecordComputeMultiscattering(
 
 static void DrawMultiscatteringLUT(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-
-    RHI::Buffer* pAtmosphereParamsBuffer =
-        &sAtmosphereParamsBuffers[device.frameIndex];
-    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_READ_BIT;
-    bufferInput.buffers = &pAtmosphereParamsBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
-
-    RHI::Texture* textures[2];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[2];
-
-    textureInput.textureCount = 2;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-    textures[0] = &sTransmittanceLUT;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[1] = &sMultiscatteringLUT;
-    imageLayoutsAccesses[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    RHI::RecordBufferInput bufferInput = {
+        &sAtmosphereParamsBuffers[device.frameIndex],
+        VK_ACCESS_2_SHADER_READ_BIT};
+    RHI::RecordTextureInput textureInput[2] = {
+        {&sTransmittanceLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sMultiscatteringLUT, VK_ACCESS_2_SHADER_WRITE_BIT,
+         VK_IMAGE_LAYOUT_GENERAL}};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                        RecordComputeMultiscattering, &bufferInput,
-                        &textureInput);
+                        RecordComputeMultiscattering, &bufferInput, 1,
+                        textureInput, 2);
 }
 
 static void RecordComputeSkyview(RHI::CommandBuffer& cmd,
                                  const RHI::RecordBufferInput* bufferInput,
+                                 u32 bufferInputCount,
                                  const RHI::RecordTextureInput* textureInput,
-                                 void* pUserData)
+                                 u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sSkyviewPipeline);
 
-    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
-    RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
-    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
-    RHI::Texture& multiscatteringLUT = *(textureInput->textures[1]);
-    RHI::Texture& skyviewLUT = *(textureInput->textures[2]);
+    RHI::Buffer& atmosphereParams = *(bufferInput[0].pBuffer);
+    RHI::Buffer& cameraParams = *(bufferInput[1].pBuffer);
+    RHI::Texture& transmittanceLUT = *(textureInput[0].pTexture);
+    RHI::Texture& multiscatteringLUT = *(textureInput[1].pTexture);
+    RHI::Texture& skyviewLUT = *(textureInput[2].pTexture);
 
     u32 pushConstants[] = {
         atmosphereParams.bindlessHandle, cameraParams.bindlessHandle,
@@ -550,56 +525,33 @@ static void RecordComputeSkyview(RHI::CommandBuffer& cmd,
 
 static void DrawSkyviewLUT(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
-
-    RHI::Buffer* buffers[2];
-    VkAccessFlagBits2 bufferAccesses[2];
-    bufferInput.bufferCount = 2;
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-
-    buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-
-    RHI::Texture* textures[3];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[3];
-    textureInput.textureCount = 3;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-    textures[0] = &sTransmittanceLUT;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[1] = &sMultiscatteringLUT;
-    imageLayoutsAccesses[1].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[2] = &sSkyviewLUT;
-
-    imageLayoutsAccesses[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    RHI::RecordBufferInput bufferInput[2] = {
+        {&sAtmosphereParamsBuffers[device.frameIndex],
+         VK_ACCESS_2_SHADER_READ_BIT},
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT}};
+    RHI::RecordTextureInput textureInput[3] = {
+        {&sTransmittanceLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sMultiscatteringLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sSkyviewLUT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordComputeSkyview,
-                        &bufferInput, &textureInput);
+                        bufferInput, 2, textureInput, 3);
 }
 
 static void RecordComputeAerialPerspective(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sAerialPerspectivePipeline);
 
-    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
-    RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
-    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
-    RHI::Texture& multiscatteringLUT = *(textureInput->textures[1]);
-    RHI::Texture& aerialPerspectiveLUT = *(textureInput->textures[2]);
+    RHI::Buffer& atmosphereParams = *(bufferInput[0].pBuffer);
+    RHI::Buffer& cameraParams = *(bufferInput[1].pBuffer);
+    RHI::Texture& transmittanceLUT = *(textureInput[0].pTexture);
+    RHI::Texture& multiscatteringLUT = *(textureInput[1].pTexture);
+    RHI::Texture& aerialPerspectiveLUT = *(textureInput[2].pTexture);
 
     u32 pushConstants[] = {atmosphereParams.bindlessHandle,
                            cameraParams.bindlessHandle,
@@ -617,52 +569,32 @@ static void RecordComputeAerialPerspective(
 
 static void DrawAerialPerspectiveLUT(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
+    RHI::RecordBufferInput bufferInput[2] = {
+        {&sAtmosphereParamsBuffers[device.frameIndex],
+         VK_ACCESS_2_SHADER_READ_BIT},
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT}};
 
-    RHI::Buffer* buffers[2];
-    VkAccessFlagBits2 bufferAccesses[2];
-    bufferInput.bufferCount = 2;
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-
-    buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-
-    RHI::Texture* textures[3];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[3];
-    textureInput.textureCount = 3;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-    textures[0] = &sTransmittanceLUT;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[1] = &sMultiscatteringLUT;
-    imageLayoutsAccesses[1].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[2] = &sAerialPerspectiveLUT;
-    imageLayoutsAccesses[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    RHI::RecordTextureInput textureInput[3] = {
+        {&sTransmittanceLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sMultiscatteringLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sAerialPerspectiveLUT, VK_ACCESS_2_SHADER_WRITE_BIT,
+         VK_IMAGE_LAYOUT_GENERAL}};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                        RecordComputeAerialPerspective, &bufferInput,
-                        &textureInput);
+                        RecordComputeAerialPerspective, bufferInput, 2,
+                        textureInput, 3);
 }
 
 static void RecordProjectSkyviewRadiance(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sProjectSkyviewRadiancePipeline);
-    RHI::Texture& skyviewLUT = *(textureInput->textures[0]);
-    RHI::Buffer& projectionBuffer = *(bufferInput->buffers[0]);
+    RHI::Texture& skyviewLUT = *(textureInput[0].pTexture);
+    RHI::Buffer& projectionBuffer = *(bufferInput[0].pBuffer);
 
     u32 pushConstants[] = {skyviewLUT.bindlessStorageHandle,
                            projectionBuffer.bindlessHandle, SKYVIEW_LUT_WIDTH,
@@ -674,37 +606,28 @@ static void RecordProjectSkyviewRadiance(
 
 static void ProjectSkyviewRadiance(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pSkyviewRadianceProjectionBuffer =
-        &sSkyviewRadianceProjectionBuffer;
-    VkAccessFlagBits2 bufferAccess =
-        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-    bufferInput.buffers = &pSkyviewRadianceProjectionBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    RHI::RecordBufferInput bufferInput = {&sSkyviewRadianceProjectionBuffer,
+                                          VK_ACCESS_2_SHADER_READ_BIT |
+                                              VK_ACCESS_2_SHADER_WRITE_BIT};
 
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* pSkyviewLUT = &sSkyviewLUT;
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-    textureInput.textures = &pSkyviewLUT;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
+    RHI::RecordTextureInput textureInput = {
+        &sSkyviewLUT, VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                        RecordProjectSkyviewRadiance, &bufferInput,
-                        &textureInput);
+                        RecordProjectSkyviewRadiance, &bufferInput, 1,
+                        &textureInput, 1);
 }
 
 static void RecordAverageHorizonLuminance(
     RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
-    const RHI::RecordTextureInput* textureInput, void* pUserData)
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
 {
     RHI::BindComputePipeline(cmd, sAverageHorizonLuminancePipeline);
 
-    RHI::Texture& skyviewLUT = *(textureInput->textures[0]);
-    RHI::Buffer& averageLuminanceBuffer = *(bufferInput->buffers[0]);
+    RHI::Texture& skyviewLUT = *(textureInput[0].pTexture);
+    RHI::Buffer& averageLuminanceBuffer = *(bufferInput[0].pBuffer);
     u32 pushConstants[] = {skyviewLUT.bindlessStorageHandle,
                            averageLuminanceBuffer.bindlessHandle,
                            skyviewLUT.width, skyviewLUT.height};
@@ -714,33 +637,24 @@ static void RecordAverageHorizonLuminance(
 
 static void AverageHorizonLuminance(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* pAverageHorizonLuminanceBuffer =
-        &sAverageHorizonLuminanceBuffer;
-    VkAccessFlagBits2 bufferAccess =
-        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
-    bufferInput.buffers = &pAverageHorizonLuminanceBuffer;
-    bufferInput.bufferAccesses = &bufferAccess;
-    bufferInput.bufferCount = 1;
+    RHI::RecordBufferInput bufferInput = {&sAverageHorizonLuminanceBuffer,
+                                          VK_ACCESS_2_SHADER_READ_BIT |
+                                              VK_ACCESS_2_SHADER_WRITE_BIT};
 
-    RHI::RecordTextureInput textureInput;
-    RHI::Texture* pSkyviewLUT = &sSkyviewLUT;
-    RHI::ImageLayoutAccess imageLayoutAccess;
-    imageLayoutAccess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutAccess.accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-    textureInput.textures = &pSkyviewLUT;
-    textureInput.imageLayoutsAccesses = &imageLayoutAccess;
-    textureInput.textureCount = 1;
+    RHI::RecordTextureInput textureInput = {
+        &sSkyviewLUT, VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
-                        RecordAverageHorizonLuminance, &bufferInput,
-                        &textureInput);
+                        RecordAverageHorizonLuminance, &bufferInput, 1,
+                        &textureInput, 1);
 }
 
 static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
                                    const RHI::RecordBufferInput* bufferInput,
+                                   u32 bufferInputCount,
                                    const RHI::RecordTextureInput* textureInput,
-                                   void* pUserData)
+                                   u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0.0f, 0.0f,
                      static_cast<f32>(cmd.device->swapchainWidth),
@@ -750,13 +664,13 @@ static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
 
     RHI::BindGraphicsPipeline(cmd, sTerrainScenePipeline);
 
-    RHI::Buffer& atmosphereParams = *(bufferInput->buffers[0]);
-    RHI::Buffer& cameraParams = *(bufferInput->buffers[1]);
-    RHI::Buffer& skyRadianceProjectionBuffer = *(bufferInput->buffers[2]);
-    RHI::Buffer& averageHorizonLuminance = *(bufferInput->buffers[3]);
-    RHI::Texture& transmittanceLUT = *(textureInput->textures[0]);
-    RHI::Texture& skyviewLUT = *(textureInput->textures[1]);
-    RHI::Texture& aerialPerspectiveLUT = *(textureInput->textures[2]);
+    RHI::Buffer& atmosphereParams = *(bufferInput[0].pBuffer);
+    RHI::Buffer& cameraParams = *(bufferInput[1].pBuffer);
+    RHI::Buffer& skyRadianceProjectionBuffer = *(bufferInput[2].pBuffer);
+    RHI::Buffer& averageHorizonLuminance = *(bufferInput[3].pBuffer);
+    RHI::Texture& transmittanceLUT = *(textureInput[0].pTexture);
+    RHI::Texture& skyviewLUT = *(textureInput[1].pTexture);
+    RHI::Texture& aerialPerspectiveLUT = *(textureInput[2].pTexture);
 
     u32 pushConstants[] = {atmosphereParams.bindlessHandle,
                            cameraParams.bindlessHandle,
@@ -771,44 +685,20 @@ static void RecordDrawTerrainScene(RHI::CommandBuffer& cmd,
 
 static void DrawTerrainScene(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput;
-    RHI::RecordTextureInput textureInput;
+    RHI::RecordBufferInput bufferInput[4] = {
+        {&sAtmosphereParamsBuffers[device.frameIndex],
+         VK_ACCESS_2_SHADER_READ_BIT},
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+        {&sSkyviewRadianceProjectionBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sAverageHorizonLuminanceBuffer, VK_ACCESS_2_SHADER_READ_BIT}};
 
-    RHI::Buffer* buffers[4];
-    VkAccessFlagBits2 bufferAccesses[4];
-    bufferInput.bufferCount = 4;
-    bufferInput.buffers = buffers;
-    bufferInput.bufferAccesses = bufferAccesses;
-
-    buffers[0] = &sAtmosphereParamsBuffers[device.frameIndex];
-    bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[1] = &sCameraBuffers[device.frameIndex];
-    bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[2] = &sSkyviewRadianceProjectionBuffer;
-    bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[3] = &sAverageHorizonLuminanceBuffer;
-    bufferAccesses[3] = VK_ACCESS_2_SHADER_READ_BIT;
-
-    RHI::Texture* textures[3];
-    RHI::ImageLayoutAccess imageLayoutsAccesses[3];
-    textureInput.textureCount = 3;
-    textureInput.textures = textures;
-    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
-
-    textures[0] = &sTransmittanceLUT;
-    imageLayoutsAccesses[0].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[1] = &sSkyviewLUT;
-    imageLayoutsAccesses[1].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[1].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-    textures[2] = &sAerialPerspectiveLUT;
-    imageLayoutsAccesses[2].imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageLayoutsAccesses[2].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+    RHI::RecordTextureInput textureInput[3] = {
+        {&sTransmittanceLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sSkyviewLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sAerialPerspectiveLUT, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
@@ -817,13 +707,15 @@ static void DrawTerrainScene(RHI::Device& device)
         &colorAttachment, 1);
 
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawTerrainScene, &bufferInput, &textureInput);
+                         RecordDrawTerrainScene, bufferInput, 4, textureInput,
+                         3);
 }
 
 static void RecordDrawGUI(RHI::CommandBuffer& cmd,
                           const RHI::RecordBufferInput* bufferInput,
+                          u32 bufferInputCount,
                           const RHI::RecordTextureInput* textureInput,
-                          void* pUserData)
+                          u32 textureInputCount, void* pUserData)
 {
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
