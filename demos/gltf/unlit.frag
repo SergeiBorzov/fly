@@ -1,5 +1,5 @@
 #version 450
-#extension GL_GOOGLE_include_directive : enable
+#extension GL_GOOGLE_include_directive : require
 #include "bindless.glsl"
 
 layout(push_constant) uniform Indices

@@ -1,6 +1,6 @@
 #version 450
-#extension GL_EXT_multiview : enable
-#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_multiview : require
+#extension GL_GOOGLE_include_directive : require
 #include "bindless.glsl"
 
 layout(push_constant) uniform PushConstants { uint textureIndex; }

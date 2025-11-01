@@ -1,6 +1,6 @@
 #version 460
-#extension GL_GOOGLE_include_directive : enable
-#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
 #include "bindless.glsl"
 
 #define MAX_LOD_COUNT 8

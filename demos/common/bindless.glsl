@@ -1,4 +1,4 @@
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_nonuniform_qualifier : require
 
 #define FLY_UNIFORM_BUFFER_BINDING_INDEX 0
 #define FLY_STORAGE_BUFFER_BINDING_INDEX 1

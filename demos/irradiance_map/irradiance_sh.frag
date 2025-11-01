@@ -1,6 +1,6 @@
 #version 460
-#extension GL_GOOGLE_include_directive : enable
-#extension GL_EXT_multiview : enable
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_multiview : require
 #include "bindless.glsl"
 
 #define PI 3.14159265359f

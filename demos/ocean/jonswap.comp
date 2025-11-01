@@ -1,5 +1,5 @@
 #version 460
-#extension GL_GOOGLE_include_directive : enable
+#extension GL_GOOGLE_include_directive : require
 #include "bindless.glsl"
 
 #define G (9.81f)
