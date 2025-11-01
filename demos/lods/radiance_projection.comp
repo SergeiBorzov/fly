@@ -1,0 +1,161 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_atomic_int64 : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_EXT_shader_subgroup_extended_types_int64 : require
+
+#include "bindless.glsl"
+
+#define PI 3.14159265359f
+#define SCALE 1e10f
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint radianceMapIndex;
+    uint radianceProjectionBufferIndex;
+    uint radianceMapSize;
+}
+gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(, RadianceProjectionSH, {
+    i64vec3 coefficient;
+    int64_t pad;
+})
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(readonly, RGBA16FCubemaps, imageCube,
+                                    rgba16f)
+
+void EvalSH9(vec3 n, out float sh[9])
+{
+    const float c0 = sqrt(1.0f / (4.0f * PI));
+    const float c1 = sqrt(3.0f / (4.0f * PI));
+    const float c2 = sqrt(15.0f / (4.0f * PI));
+    const float c3 = sqrt(5.0f / (16.0f * PI));
+    const float c4 = sqrt(15.0f / (16.0f * PI));
+
+    sh[0] = c0;
+    sh[1] = c1 * n.y;
+    sh[2] = c1 * n.z;
+    sh[3] = c1 * n.x;
+    sh[4] = c2 * n.x * n.y;
+    sh[5] = c2 * n.y * n.z;
+    sh[6] = c3 * (3.0f * n.z * n.z - 1.0f);
+    sh[7] = c2 * n.x * n.z;
+    sh[8] = c4 * (n.x * n.x - n.y * n.y);
+}
+
+float AreaElement(float x, float y)
+{
+    return atan(x * y / sqrt(x * x + y * y + 1));
+}
+
+float TexelCoordSolidAngle(vec2 coord)
+{
+    float invSize = 1.0f / float(gPushConstants.radianceMapSize);
+
+    float x0 = coord.x - invSize;
+    float y0 = coord.y - invSize;
+    float x1 = coord.x + invSize;
+    float y1 = coord.y + invSize;
+    float solidAngle = AreaElement(x0, y0) - AreaElement(x0, y1) -
+                       AreaElement(x1, y0) + AreaElement(x1, y1);
+
+    return solidAngle;
+}
+
+vec3 GetViewDirection(vec2 coord, uint faceIndex)
+{
+    if (faceIndex == 0)
+    {
+        return normalize(vec3(1.0f, coord.y, -coord.x));
+    }
+    else if (faceIndex == 1)
+    {
+        return normalize(vec3(-1.0f, coord.y, coord.x));
+    }
+    else if (faceIndex == 2)
+    {
+        return normalize(vec3(coord.x, 1.0f, coord.y));
+    }
+    else if (faceIndex == 3)
+    {
+        return normalize(vec3(coord.x, -1.0f, -coord.y));
+    }
+    else if (faceIndex == 4)
+    {
+        return normalize(vec3(coord.x, coord.y, 1.0f));
+    }
+    else
+    {
+        return normalize(vec3(-coord.x, coord.y, -1.0f));
+    }
+}
+
+shared int64_t localRadianceProjectionR[9];
+shared int64_t localRadianceProjectionG[9];
+shared int64_t localRadianceProjectionB[9];
+void main()
+{
+    uvec3 gid = gl_GlobalInvocationID;
+    vec2 uv = (vec2(gid.xy) + 0.5f) / gPushConstants.radianceMapSize;
+    vec2 coord = uv * 2.0f - 1.0f;
+    vec3 normal = GetViewDirection(coord, gid.z);
+
+    if (gl_LocalInvocationIndex < 9)
+    {
+        localRadianceProjectionR[gl_LocalInvocationIndex] = 0;
+        localRadianceProjectionG[gl_LocalInvocationIndex] = 0;
+        localRadianceProjectionB[gl_LocalInvocationIndex] = 0;
+    }
+    barrier();
+
+    // vec3 radiance =
+    //     imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+    //                   RGBA16FCubemaps, gPushConstants.radianceMapIndex),
+    //               ivec3(gid))
+    //         .rgb;
+    vec3 radiance = vec3(1.0f, 1.0f, 1.0f);
+
+    float y[9];
+    EvalSH9(normal, y);
+    vec3 radianceSolidAngle = radiance * TexelCoordSolidAngle(coord);
+
+    for (uint i = 0; i < 9; i++)
+    {
+        vec3 contribution = radianceSolidAngle * y[i];
+        i64vec3 scaledContribution = i64vec3(contribution * SCALE);
+        i64vec3 subgroupContribution = subgroupAdd(scaledContribution);
+        if (subgroupElect())
+        {
+            atomicAdd(localRadianceProjectionR[i], subgroupContribution.r);
+            atomicAdd(localRadianceProjectionG[i], subgroupContribution.g);
+            atomicAdd(localRadianceProjectionB[i], subgroupContribution.b);
+        }
+    }
+    barrier();
+    memoryBarrier();
+
+    if (gl_LocalInvocationIndex == 0)
+    {
+        for (int i = 0; i < 9; i++)
+        {
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.radianceProjectionBufferIndex)[i]
+                          .coefficient.r,
+                      localRadianceProjectionR[i]);
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.radianceProjectionBufferIndex)[i]
+                          .coefficient.g,
+                      localRadianceProjectionG[i]);
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          RadianceProjectionSH,
+                          gPushConstants.radianceProjectionBufferIndex)[i]
+                          .coefficient.b,
+                      localRadianceProjectionB[i]);
+        }
+    }
+}

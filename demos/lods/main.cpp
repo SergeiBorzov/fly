@@ -24,6 +24,8 @@
 
 using namespace Fly;
 
+#define SCALE 1e10f
+
 struct CameraData
 {
     Math::Mat4 projection;
@@ -54,6 +56,14 @@ struct LodInstanceOffset
     u32 localInstanceOffset;
 };
 
+struct RadianceProjectionCoeff
+{
+    i64 r;
+    i64 g;
+    i64 b;
+    i64 pad;
+};
+
 static VkQueryPool sTimestampQueryPool;
 static VkDescriptorPool sImGuiDescriptorPool;
 static RHI::GraphicsPipeline sGraphicsPipeline;
@@ -61,6 +71,7 @@ static RHI::GraphicsPipeline sSkyboxPipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
+static RHI::ComputePipeline sRadianceProjectionPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sMeshInstances;
 static RHI::Buffer sMeshDataBuffer;
@@ -68,6 +79,7 @@ static RHI::Buffer sDrawCommands;
 static RHI::Buffer sDrawCountBuffer;
 static RHI::Buffer sLodInstanceOffsetBuffer;
 static RHI::Buffer sRemapBuffer;
+static RHI::Buffer sRadianceProjectionBuffer;
 static RHI::Texture sDepthTexture;
 static RHI::Texture sSkyboxTexture;
 static Mesh sMesh;
@@ -180,11 +192,14 @@ static void DestroyImGuiContext(RHI::Device& device)
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sCullPipeline, &sFirstInstancePrefixSumPipeline, &sRemapPipeline};
+        &sCullPipeline, &sFirstInstancePrefixSumPipeline, &sRemapPipeline,
+        &sRadianceProjectionPipeline};
 
-    String8 computeShaderPaths[] = {FLY_STRING8_LITERAL("cull.comp.spv"),
-                                    FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
-                                    FLY_STRING8_LITERAL("remap.comp.spv")};
+    String8 computeShaderPaths[] = {
+        FLY_STRING8_LITERAL("cull.comp.spv"),
+        FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
+        FLY_STRING8_LITERAL("remap.comp.spv"),
+        FLY_STRING8_LITERAL("radiance_projection.comp.spv")};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -205,7 +220,7 @@ static bool CreatePipelines(RHI::Device& device)
         device.surfaceFormat.format;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
-    // fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
     fixedState.depthStencilState.depthTestEnable = false;
 
     RHI::ShaderProgram shaderProgram{};
@@ -263,6 +278,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
     RHI::DestroyComputePipeline(device, sRemapPipeline);
+    RHI::DestroyComputePipeline(device, sRadianceProjectionPipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -415,6 +431,18 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    RadianceProjectionCoeff data[9];
+    memset(data, 0, sizeof(data));
+    if (!RHI::CreateBuffer(device, true,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           data, sizeof(RadianceProjectionCoeff) * 9,
+                           sRadianceProjectionBuffer))
+    {
+        FLY_ERROR("Failed to create radiance projection buffer");
+        return false;
+    }
+
     VkQueryPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
     createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -459,6 +487,7 @@ static void DestroyResources(RHI::Device& device)
     RHI::DestroyBuffer(device, sDrawCommands);
     RHI::DestroyBuffer(device, sDrawCountBuffer);
     RHI::DestroyBuffer(device, sMeshDataBuffer);
+    RHI::DestroyBuffer(device, sRadianceProjectionBuffer);
     RHI::DestroyTexture(device, sDepthTexture);
     RHI::DestroyTexture(device, sSkyboxTexture);
 }
@@ -515,6 +544,50 @@ static void DrawSky(RHI::Device& device)
         &colorAttachment, 1);
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
                          RecordDrawSky, &bufferInput, &textureInput);
+}
+
+static void RecordProjectRadiance(RHI::CommandBuffer& cmd,
+                                  const RHI::RecordBufferInput* bufferInput,
+                                  const RHI::RecordTextureInput* textureInput,
+                                  void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sRadianceProjectionPipeline);
+
+    RHI::Texture& radianceMap = *(textureInput->textures[0]);
+    RHI::Buffer& radianceProjectionBuffer = *(bufferInput->buffers[0]);
+
+    u32 radianceMapSize = radianceMap.width;
+    u32 pushConstants[] = {radianceMap.bindlessStorageHandle,
+                           radianceProjectionBuffer.bindlessHandle,
+                           radianceMapSize};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, radianceMapSize / 16, radianceMapSize / 16, 6);
+}
+
+static void ProjectRadiance(RHI::Device& device, RHI::CommandBuffer& cmd)
+{
+    RHI::RecordBufferInput bufferInput;
+    RHI::Buffer* pRadianceProjectionBuffer = &sRadianceProjectionBuffer;
+    VkAccessFlagBits2 bufferAccess = VK_ACCESS_2_SHADER_WRITE_BIT;
+    bufferInput.buffers = &pRadianceProjectionBuffer;
+    bufferInput.bufferAccesses = &bufferAccess;
+    bufferInput.bufferCount = 1;
+
+    RHI::RecordTextureInput textureInput;
+    RHI::Texture* textures[1];
+    textures[0] = &sSkyboxTexture;
+
+    RHI::ImageLayoutAccess imageLayoutsAccesses[1];
+    imageLayoutsAccesses[0].imageLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageLayoutsAccesses[0].accessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+    textureInput.textureCount = 1;
+    textureInput.textures = textures;
+    textureInput.imageLayoutsAccesses = imageLayoutsAccesses;
+
+    RHI::ExecuteCompute(cmd, RecordProjectRadiance, &bufferInput,
+                        &textureInput);
 }
 
 static void RecordCull(RHI::CommandBuffer& cmd,
@@ -795,7 +868,10 @@ int main(int argc, char* argv[])
     settings.windowPtr = window;
     settings.vulkan12Features.shaderFloat16 = true;
     settings.vulkan12Features.drawIndirectCount = true;
+    settings.vulkan12Features.shaderBufferInt64Atomics = true;
+    settings.vulkan12Features.shaderSharedInt64Atomics = true;
     settings.vulkan11Features.storageBuffer16BitAccess = true;
+    settings.features2.features.shaderInt64 = true;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
@@ -842,6 +918,11 @@ int main(int argc, char* argv[])
         Math::Tan(Math::Radians(sCamera.GetHorizontalFov()) * 0.5f);
     float halfTanFovVertical =
         Math::Tan(Math::Radians(sCamera.GetVerticalFov()) * 0.5f);
+
+    RHI::BeginOneTimeSubmit(device);
+    ProjectRadiance(device, RHI::OneTimeSubmitCommandBuffer(device));
+    RHI::EndOneTimeSubmit(device);
+
     while (!glfwWindowShouldClose(window))
     {
         previousFrameTime = currentFrameTime;
@@ -885,6 +966,14 @@ int main(int argc, char* argv[])
         DrawMesh(device);
         DrawGUI(device);
         RHI::EndRenderFrame(device);
+
+        RadianceProjectionCoeff* coeffs = static_cast<RadianceProjectionCoeff*>(
+            RHI::BufferMappedPtr(sRadianceProjectionBuffer));
+        for (u32 i = 0; i < 9; i++)
+        {
+            FLY_LOG("%u %f %f %f", i, coeffs[i].r / SCALE, coeffs[i].g / SCALE,
+                    coeffs[i].b / SCALE);
+        }
 
         u64 timestamps[2];
         vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,

@@ -87,6 +87,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "radiance_projection.comp.spv",
+    src = "radiance_projection.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -107,6 +115,7 @@ cc_binary(
         ":cull.comp.spv",
         ":prefix_sum.comp.spv",
         ":remap.comp.spv",
+        ":radiance_projection.comp.spv",
         ":skybox.vert.spv",
         ":skybox.frag.spv",
     ] + select({
