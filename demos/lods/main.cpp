@@ -421,11 +421,12 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
-    if (!LoadCubemap(
-            device,
-            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            FLY_STRING8_LITERAL("day.exr"), VK_FORMAT_R16G16B16A16_SFLOAT,
-            RHI::Sampler::FilterMode::Trilinear, 0, sSkyboxTexture))
+    if (!LoadCubemap(device,
+                     VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                     FLY_STRING8_LITERAL("day.exr"),
+                     VK_FORMAT_R16G16B16A16_SFLOAT,
+                     RHI::Sampler::FilterMode::Trilinear, 0, sSkyboxTexture))
     {
         FLY_ERROR("Failed to load cubemap");
         return false;
@@ -870,6 +871,7 @@ int main(int argc, char* argv[])
     settings.vulkan12Features.drawIndirectCount = true;
     settings.vulkan12Features.shaderBufferInt64Atomics = true;
     settings.vulkan12Features.shaderSharedInt64Atomics = true;
+    settings.vulkan12Features.shaderSubgroupExtendedTypes = true;
     settings.vulkan11Features.storageBuffer16BitAccess = true;
     settings.features2.features.shaderInt64 = true;
 
@@ -967,13 +969,13 @@ int main(int argc, char* argv[])
         DrawGUI(device);
         RHI::EndRenderFrame(device);
 
-        RadianceProjectionCoeff* coeffs = static_cast<RadianceProjectionCoeff*>(
-            RHI::BufferMappedPtr(sRadianceProjectionBuffer));
-        for (u32 i = 0; i < 9; i++)
-        {
-            FLY_LOG("%u %f %f %f", i, coeffs[i].r / SCALE, coeffs[i].g / SCALE,
-                    coeffs[i].b / SCALE);
-        }
+        // RadianceProjectionCoeff* coeffs = static_cast<RadianceProjectionCoeff*>(
+        //     RHI::BufferMappedPtr(sRadianceProjectionBuffer));
+        // for (u32 i = 0; i < 9; i++)
+        // {
+        //     FLY_LOG("%u %f %f %f", i, coeffs[i].r / SCALE, coeffs[i].g / SCALE,
+        //             coeffs[i].b / SCALE);
+        // }
 
         u64 timestamps[2];
         vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,

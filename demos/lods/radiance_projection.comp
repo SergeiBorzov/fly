@@ -111,12 +111,11 @@ void main()
     }
     barrier();
 
-    // vec3 radiance =
-    //     imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
-    //                   RGBA16FCubemaps, gPushConstants.radianceMapIndex),
-    //               ivec3(gid))
-    //         .rgb;
-    vec3 radiance = vec3(1.0f, 1.0f, 1.0f);
+    vec3 radiance =
+        imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                      RGBA16FCubemaps, gPushConstants.radianceMapIndex),
+                  ivec3(gid))
+            .rgb;
 
     float y[9];
     EvalSH9(normal, y);
