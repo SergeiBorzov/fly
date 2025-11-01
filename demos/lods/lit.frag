@@ -1,6 +1,10 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #include "bindless.glsl"
+
+#define PI 3.14159265359f
+#define SCALE 1e10f
 
 layout(location = 0) in vec3 inNormal;
 layout(location = 0) out vec4 outColor;
@@ -9,8 +13,16 @@ layout(push_constant) uniform PushConstants
 {
     uint cameraBufferIndex;
     uint vertexBufferIndex;
+    uint remapBufferIndex;
+    uint instanceBufferIndex;
+    uint radianceProjectionBufferIndex;
 }
 gPushConstants;
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
+    i64vec3 coefficient;
+    int64_t pad;
+})
 
 vec3 IrradianceSH9(vec3 n, vec3 l[9])
 {
@@ -50,6 +62,17 @@ void main()
     vec3 l = vec3(0.0f, 1.0f, 0.0f);
     vec3 n = normalize(inNormal);
 
-    vec3 finalColor = vec3(1.0f) * max(dot(l, n), 0.0f);
+    vec3 radianceProjection[9];
+    for (uint i = 0; i < 9; i++)
+    {
+        radianceProjection[i] =
+            vec3(FLY_ACCESS_STORAGE_BUFFER(
+                     RadianceProjectionSH,
+                     gPushConstants.radianceProjectionBufferIndex)[i]
+                     .coefficient) /
+            SCALE;
+    }
+
+    vec3 finalColor = (vec3(1.0f) / PI) * IrradianceSH9(n, radianceProjection);
     outColor = vec4(finalColor, 1.0f);
 }

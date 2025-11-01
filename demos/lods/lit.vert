@@ -12,6 +12,7 @@ layout(push_constant) uniform PushConstants
     uint vertexBufferIndex;
     uint remapBufferIndex;
     uint instanceBufferIndex;
+    uint radianceProjectionBufferIndex;
 }
 gPushConstants;
 

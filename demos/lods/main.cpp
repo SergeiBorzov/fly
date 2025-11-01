@@ -740,12 +740,14 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
     RHI::Buffer& cameraBuffer = *(bufferInput->buffers[0]);
     RHI::Buffer& meshInstanceBuffer = *(bufferInput->buffers[1]);
     RHI::Buffer& remapBuffer = *(bufferInput->buffers[2]);
+    RHI::Buffer& radianceProjectionBuffer = *(bufferInput->buffers[3]);
 
     RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
 
     u32 pushConstants[] = {
         cameraBuffer.bindlessHandle, sMesh.vertexBuffer.bindlessHandle,
-        remapBuffer.bindlessHandle, meshInstanceBuffer.bindlessHandle};
+        remapBuffer.bindlessHandle, meshInstanceBuffer.bindlessHandle,
+        radianceProjectionBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
     RHI::DrawIndexedIndirectCount(cmd, sDrawCommands, 0, sDrawCountBuffer, 0,
@@ -759,8 +761,8 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
 static void DrawMesh(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput;
-    RHI::Buffer* buffers[5];
-    VkAccessFlagBits2 bufferAccesses[5];
+    RHI::Buffer* buffers[6];
+    VkAccessFlagBits2 bufferAccesses[6];
 
     buffers[0] = &sCameraBuffers[device.frameIndex];
     bufferAccesses[0] = VK_ACCESS_2_SHADER_READ_BIT;
@@ -768,10 +770,12 @@ static void DrawMesh(RHI::Device& device)
     bufferAccesses[1] = VK_ACCESS_2_SHADER_READ_BIT;
     buffers[2] = &sRemapBuffer;
     bufferAccesses[2] = VK_ACCESS_2_SHADER_READ_BIT;
-    buffers[3] = &sDrawCommands;
-    bufferAccesses[3] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
-    buffers[4] = &sDrawCountBuffer;
+    buffers[3] = &sRadianceProjectionBuffer;
+    bufferAccesses[3] = VK_ACCESS_2_SHADER_READ_BIT;
+    buffers[4] = &sDrawCommands;
     bufferAccesses[4] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+    buffers[5] = &sDrawCountBuffer;
+    bufferAccesses[5] = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
 
     bufferInput.buffers = buffers;
     bufferInput.bufferAccesses = bufferAccesses;
@@ -969,11 +973,13 @@ int main(int argc, char* argv[])
         DrawGUI(device);
         RHI::EndRenderFrame(device);
 
-        // RadianceProjectionCoeff* coeffs = static_cast<RadianceProjectionCoeff*>(
+        // RadianceProjectionCoeff* coeffs =
+        // static_cast<RadianceProjectionCoeff*>(
         //     RHI::BufferMappedPtr(sRadianceProjectionBuffer));
         // for (u32 i = 0; i < 9; i++)
         // {
-        //     FLY_LOG("%u %f %f %f", i, coeffs[i].r / SCALE, coeffs[i].g / SCALE,
+        //     FLY_LOG("%u %f %f %f", i, coeffs[i].r / SCALE, coeffs[i].g /
+        //     SCALE,
         //             coeffs[i].b / SCALE);
         // }
 
