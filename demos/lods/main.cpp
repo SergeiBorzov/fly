@@ -25,6 +25,7 @@
 using namespace Fly;
 
 #define SCALE 1e10f
+#define BRDF_INTEGRATION_LUT_SIZE 256
 
 struct CameraData
 {
@@ -72,6 +73,7 @@ static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
 static RHI::ComputePipeline sRadianceProjectionPipeline;
+static RHI::ComputePipeline sBrdfIntegrationPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sMeshInstances;
 static RHI::Buffer sMeshDataBuffer;
@@ -82,6 +84,7 @@ static RHI::Buffer sRemapBuffer;
 static RHI::Buffer sRadianceProjectionBuffer;
 static RHI::Texture sDepthTexture;
 static RHI::Texture sSkyboxTexture;
+static RHI::Texture sBrdfIntegrationLUT;
 static Mesh sMesh;
 
 static i32 sInstanceRowCount = 15;
@@ -193,13 +196,14 @@ static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
         &sCullPipeline, &sFirstInstancePrefixSumPipeline, &sRemapPipeline,
-        &sRadianceProjectionPipeline};
+        &sRadianceProjectionPipeline, &sBrdfIntegrationPipeline};
 
     String8 computeShaderPaths[] = {
         FLY_STRING8_LITERAL("cull.comp.spv"),
         FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
         FLY_STRING8_LITERAL("remap.comp.spv"),
-        FLY_STRING8_LITERAL("radiance_projection.comp.spv")};
+        FLY_STRING8_LITERAL("radiance_projection.comp.spv"),
+        FLY_STRING8_LITERAL("brdf_integration_lut.comp.spv")};
 
     for (u32 i = 0; i < STACK_ARRAY_COUNT(computeShaderPaths); i++)
     {
@@ -279,6 +283,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
     RHI::DestroyComputePipeline(device, sRemapPipeline);
     RHI::DestroyComputePipeline(device, sRadianceProjectionPipeline);
+    RHI::DestroyComputePipeline(device, sBrdfIntegrationPipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -421,6 +426,16 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    if (!RHI::CreateTexture2D(
+            device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            nullptr, BRDF_INTEGRATION_LUT_SIZE, BRDF_INTEGRATION_LUT_SIZE,
+            VK_FORMAT_R16G16_SFLOAT, RHI::Sampler::FilterMode::Bilinear,
+            RHI::Sampler::WrapMode::Clamp, 1, sBrdfIntegrationLUT))
+    {
+        FLY_ERROR("Failed to create brdf integration lut");
+        return false;
+    }
+
     if (!LoadCubemap(device,
                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -491,6 +506,35 @@ static void DestroyResources(RHI::Device& device)
     RHI::DestroyBuffer(device, sRadianceProjectionBuffer);
     RHI::DestroyTexture(device, sDepthTexture);
     RHI::DestroyTexture(device, sSkyboxTexture);
+    RHI::DestroyTexture(device, sBrdfIntegrationLUT);
+}
+
+static void RecordComputeBrdfIntegrationLUT(
+    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sBrdfIntegrationPipeline);
+
+    RHI::Texture& brdfIntegrationMap = *(textureInput[0].pTexture);
+    u32 width = brdfIntegrationMap.width;
+    u32 height = brdfIntegrationMap.height;
+
+    u32 pushConstants[] = {brdfIntegrationMap.bindlessStorageHandle, width,
+                           height};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, width / 16, height / 16, 1);
+}
+
+static void ComputeBrdfIntegrationLUT(RHI::Device& device,
+                                      RHI::CommandBuffer& cmd)
+{
+
+    RHI::RecordTextureInput textureInput = {&sBrdfIntegrationLUT,
+                                            VK_ACCESS_2_SHADER_WRITE_BIT,
+                                            VK_IMAGE_LAYOUT_GENERAL};
+    RHI::ExecuteCompute(cmd, RecordComputeBrdfIntegrationLUT, nullptr, 0,
+                        &textureInput, 1);
 }
 
 static void RecordDrawSky(RHI::CommandBuffer& cmd,
@@ -892,6 +936,7 @@ int main(int argc, char* argv[])
             FirstInstancePrefixSum(device);
             Remap(device);
         }
+        ComputeBrdfIntegrationLUT(device, RenderFrameCommandBuffer(device));
         DrawSky(device);
         DrawMesh(device);
         DrawGUI(device);

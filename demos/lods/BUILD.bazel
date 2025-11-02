@@ -95,6 +95,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "brdf_integration_lut.comp.spv",
+    src = "brdf_integration_lut.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -116,6 +124,7 @@ cc_binary(
         ":prefix_sum.comp.spv",
         ":remap.comp.spv",
         ":radiance_projection.comp.spv",
+        ":brdf_integration_lut.comp.spv",
         ":skybox.vert.spv",
         ":skybox.frag.spv",
     ] + select({
