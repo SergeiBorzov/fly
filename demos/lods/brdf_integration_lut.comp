@@ -2,6 +2,9 @@
 #extension GL_GOOGLE_include_directive : require
 #include "bindless.glsl"
 
+#define PI 3.14159265359f
+#define SAMPLE_COUNT 1024
+
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(push_constant) uniform PushConstants
@@ -15,26 +18,86 @@ gPushConstants;
 FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTexturesRG16F, image2D,
                                     rg16f)
 
+float RadicalInverse2(uint n)
+{
+    // Note that digits of radical inverse with base 2 (Van der Corput sequence)
+    // Is just the reverse of the bits
+    n = ((n >> 1) & 0x55555555u) | ((n & 0x55555555u) << 1);
+    n = ((n >> 2) & 0x33333333u) | ((n & 0x33333333u) << 2);
+    n = ((n >> 4) & 0x0F0F0F0Fu) | ((n & 0x0F0F0F0Fu) << 4);
+    n = ((n >> 8) & 0x00FF00FFu) | ((n & 0x00FF00FFu) << 8);
+    n = (n >> 16) | (n << 16);
+
+    return float(n) * 2.3283064365386963e-10;
+}
+
+vec2 Hammersley(uint i, uint N)
+{
+    return vec2(float(i) / float(N), RadicalInverse2(i));
+}
+
+// //
 // https://seblagarde.wordpress.com/wp-content/uploads/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
-float SmithGGXCorrelated(float nl, float nv, float roughness)
+// float SmithGGXCorrelated(float nl, float nv, float roughness)
+// {
+//     float roughness2 = roughness * roughness;
+//     float lambdaGGXV = nl * sqrt((-nv * roughness2 + nv) * nv + roughness2);
+//     float lambdaGGXL = nv * sqrt((-nl * roughness2 + nl) * nl + roughness2);
+//     return 0.5f / (lambdaGGXV + lambdaGGXL);
+// }
+
+// float TrowbridgeReitzGGX(float nh, float roughness)
+// {
+//     float roughness2 = roughness * roughness;
+//     float denominator = PI * ((nh * roughness2 - nh) * nh + 1.0f);
+
+//     return roughness2 / denominator;
+// }
+
+// vec3 FresnelSchlick(vec3 f0, float vh)
+// {
+//     return f0 + (vec3(1.0f) - f0) * pow(1.0f - vh, 5.0f);
+// }
+
+vec3 ImportanceSampleGGX(vec2 p, vec3 n, float roughness)
 {
-    float roughness2 = roughness * roughness;
-    float lambdaGGXV = nl * sqrt((-nv * roughness2 + nv) * nv + roughness2);
-    float lambdaGGXL = nv * sqrt((-nl * roughness2 + nl) * nl + roughness2);
-    return 0.5 f / (lambdaGGXV + lambdaGGXL);
+    float a = roughness * roughness;
+
+    float phi = 2.0f * PI * p.x;
+    float cosTheta = sqrt((1.0f - p.y) / (1.0f + (a * a - 1.0f) * p.y));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    vec3 h;
+    h.x = cos(phi) * sinTheta;
+    h.y = cosTheta;
+    h.z = sin(phi) * sinTheta;
+
+    vec3 up =
+        abs(n.y) < 0.999f ? vec3(0.0f, 1.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
+    vec3 tangent = normalize(cross(up, n));
+    vec3 bitangent = cross(n, tangent);
+
+    vec3 sampleVec = tangent * h.x + n * h.y + bitangent * h.z;
+    return normalize(sampleVec);
 }
 
-float TrowbridgeReitzGGX(float nh, float roughness)
+float GeometrySchlickGGX(float nv, float roughness)
 {
-    float nominator = roughness * roughness;
-    float denominator = PI * ((nh * roughness2 - nh) * nh + 1.0f);
+    float a = roughness;
+    float k = (a * a) / 2.0f;
 
-    return nominator / denominator;
+    float nom = nv;
+    float denom = nv * (1.0 - k) + k;
+
+    return nom / denom;
 }
 
-vec3 FresnelSchlick(vec3 f0, float hl)
+float GeometrySmith(float nv, float nl, float roughness)
 {
-    return f0 + (vec3(1.0f) - f0) * pow(1.0f - nv, 5.0f);
+    float ggx2 = GeometrySchlickGGX(nv, roughness);
+    float ggx1 = GeometrySchlickGGX(nl, roughness);
+
+    return ggx1 * ggx2;
 }
 
 void main()
@@ -43,13 +106,42 @@ void main()
                      gPushConstants.brdfIntegrationMapHeight);
     vec2 uv = (gl_GlobalInvocationID.xy + 0.5f) / dims;
 
-    float d = TrowbridgeReitzGGX(nh, uv.v);
-    vec3 f = FresnelSchlick(f0, hl);
-    float g = SmithGGXCorrelated(nl, nv, uv.v);
-    float fr = d * f * g;
+    float nv = uv.x;
+    float roughness = uv.y;
+
+    float sinTheta = sqrt(1.0f - nv * nv);
+    vec3 v = vec3(sinTheta, nv, 0);
+    vec3 n = vec3(0.0f, 1.0f, 0.0f);
+
+    vec2 result = vec2(0.0f);
+    for (uint i = 0; i < SAMPLE_COUNT; i++)
+    {
+        vec2 p = Hammersley(i, SAMPLE_COUNT);
+        vec3 h = ImportanceSampleGGX(p, n, roughness);
+        vec3 l = normalize(reflect(-v, h));
+
+        float nl = max(l.y, 0.0f);
+        if (nl > 0.0)
+        {
+            float nh = max(h.y, 0.0f);
+            float vh = max(dot(v, h), 0.0f);
+
+            // float g = SmithGGXCorrelated(nl, nv, roughness);
+            float g = GeometrySmith(nv, nl, roughness);
+            float gCosTheta = (g * vh) / (nv * nh);
+            float alpha = pow(1.0f - vh, 5.0f);
+
+            // Note: dWl = 4*(v, h)/(n, h)dWh !
+            result.x += (1 - alpha) * gCosTheta;
+            result.y += alpha * gCosTheta;
+        }
+    }
+
+    result.x /= float(SAMPLE_COUNT);
+    result.y /= float(SAMPLE_COUNT);
 
     imageStore(
         FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
             StorageTexturesRG16F, gPushConstants.brdfIntegrationMapIndex),
-        ivec2(gl_GlobalInvocationID.xy), vec4(uv, 0.0f, 1.0f));
+        ivec2(gl_GlobalInvocationID.xy), vec4(result, 0.0f, 1.0f));
 }
