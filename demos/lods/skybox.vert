@@ -24,9 +24,6 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
 const vec2 positions[6] =
     vec2[](vec2(-1.0f, 1.0f), vec2(1.0f, 1.0f), vec2(-1.0f, -1.0f),
            vec2(-1.0f, -1.0f), vec2(1.0f, 1.0f), vec2(1.0f, -1.0f));
-const vec2 uvs[6] =
-    vec2[](vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(0.0f, 1.0f),
-           vec2(0.0f, 1.0f), vec2(1.0f, 0.0f), vec2(1.0f, 1.0f));
 
 void main()
 {

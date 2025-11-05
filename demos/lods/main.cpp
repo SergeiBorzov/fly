@@ -69,6 +69,7 @@ static VkQueryPool sTimestampQueryPool;
 static VkDescriptorPool sImGuiDescriptorPool;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sSkyboxPipeline;
+static RHI::GraphicsPipeline sPrefilterPipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
@@ -84,6 +85,7 @@ static RHI::Buffer sRemapBuffer;
 static RHI::Buffer sRadianceProjectionBuffer;
 static RHI::Texture sDepthTexture;
 static RHI::Texture sSkyboxTexture;
+static RHI::Texture sPrefilteredSkyboxTexture;
 static RHI::Texture sBrdfIntegrationLUT;
 static Mesh sMesh;
 
@@ -272,6 +274,31 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
+    fixedState.pipelineRendering.colorAttachments[0] =
+        VK_FORMAT_R16G16B16A16_SFLOAT;
+    fixedState.pipelineRendering.colorAttachmentCount = 1;
+    fixedState.pipelineRendering.viewMask = 0x3F;
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("prefilter.vert.spv"),
+                                shaderProgram[RHI::Shader::Type::Vertex]))
+    {
+        return false;
+    }
+
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("prefilter.frag.spv"),
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sPrefilterPipeline))
+    {
+        return false;
+    }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
     return true;
 }
 
@@ -279,6 +306,7 @@ static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sSkyboxPipeline);
+    RHI::DestroyGraphicsPipeline(device, sPrefilterPipeline);
     RHI::DestroyComputePipeline(device, sCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
     RHI::DestroyComputePipeline(device, sRemapPipeline);
@@ -441,9 +469,20 @@ static bool CreateResources(RHI::Device& device)
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                      FLY_STRING8_LITERAL("day.exr"),
                      VK_FORMAT_R16G16B16A16_SFLOAT,
-                     RHI::Sampler::FilterMode::Trilinear, 0, sSkyboxTexture))
+                     RHI::Sampler::FilterMode::Bilinear, 1, sSkyboxTexture))
     {
         FLY_ERROR("Failed to load cubemap");
+        return false;
+    }
+
+    if (!CreateCubemap(
+            device,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            nullptr, sSkyboxTexture.width, sSkyboxTexture.format,
+            RHI::Sampler::FilterMode::Trilinear, 0, sPrefilteredSkyboxTexture))
+    {
+        FLY_ERROR("Failed to create prefiltered skybox");
         return false;
     }
 
@@ -507,6 +546,7 @@ static void DestroyResources(RHI::Device& device)
     RHI::DestroyTexture(device, sDepthTexture);
     RHI::DestroyTexture(device, sSkyboxTexture);
     RHI::DestroyTexture(device, sBrdfIntegrationLUT);
+    RHI::DestroyTexture(device, sPrefilteredSkyboxTexture);
 }
 
 static void RecordComputeBrdfIntegrationLUT(
@@ -535,6 +575,48 @@ static void ComputeBrdfIntegrationLUT(RHI::Device& device,
                                             VK_IMAGE_LAYOUT_GENERAL};
     RHI::ExecuteCompute(cmd, RecordComputeBrdfIntegrationLUT, nullptr, 0,
                         &textureInput, 1);
+}
+
+static void RecordPrefilterEnvironmentMap(
+    RHI::CommandBuffer& cmd, const RHI::RecordBufferInput* bufferInput,
+    u32 bufferInputCount, const RHI::RecordTextureInput* textureInput,
+    u32 textureInputCount, void* pUserData)
+{
+    RHI::Texture& skybox = *(textureInput[0].pTexture);
+    RHI::Texture& prefilterMap = *(textureInput[1].pTexture);
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(prefilterMap.width),
+                     static_cast<f32>(prefilterMap.width), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, prefilterMap.width, prefilterMap.width);
+
+    RHI::BindGraphicsPipeline(cmd, sPrefilterPipeline);
+
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle, skybox.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Draw(cmd, 6, 1, 0, 0);
+}
+
+static void PrefilterEnvironmentMap(RHI::Device& device,
+                                    RHI::CommandBuffer& cmd)
+{
+    VkRenderingAttachmentInfo colorAttachment =
+        RHI::ColorAttachmentInfo(sPrefilteredSkyboxTexture.imageView);
+    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+        {{0, 0},
+         {sPrefilteredSkyboxTexture.width, sPrefilteredSkyboxTexture.width}},
+        &colorAttachment, 1, nullptr, nullptr, 6, 0x3F);
+
+    RHI::RecordTextureInput textureInput[2] = {
+        {&sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sPrefilteredSkyboxTexture, VK_ACCESS_2_SHADER_WRITE_BIT,
+         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}};
+
+    RHI::RecordBufferInput bufferInput = {&sCameraBuffers[device.frameIndex],
+                                          VK_ACCESS_2_SHADER_READ_BIT};
+    RHI::ExecuteGraphics(cmd, renderingInfo, RecordPrefilterEnvironmentMap,
+                         &bufferInput, 1, textureInput, 2);
 }
 
 static void RecordDrawSky(RHI::CommandBuffer& cmd,
@@ -845,6 +927,7 @@ int main(int argc, char* argv[])
     settings.vulkan12Features.shaderSharedInt64Atomics = true;
     settings.vulkan12Features.shaderSubgroupExtendedTypes = true;
     settings.vulkan11Features.storageBuffer16BitAccess = true;
+    settings.vulkan11Features.multiview = true;
     settings.features2.features.shaderInt64 = true;
 
     RHI::Context context;
@@ -895,6 +978,7 @@ int main(int argc, char* argv[])
 
     RHI::BeginOneTimeSubmit(device);
     ProjectRadiance(device, RHI::OneTimeSubmitCommandBuffer(device));
+    ComputeBrdfIntegrationLUT(device, RHI::OneTimeSubmitCommandBuffer(device));
     RHI::EndOneTimeSubmit(device);
 
     while (!glfwWindowShouldClose(window))
@@ -936,7 +1020,8 @@ int main(int argc, char* argv[])
             FirstInstancePrefixSum(device);
             Remap(device);
         }
-        ComputeBrdfIntegrationLUT(device, RenderFrameCommandBuffer(device));
+
+        PrefilterEnvironmentMap(device, RHI::RenderFrameCommandBuffer(device));
         DrawSky(device);
         DrawMesh(device);
         DrawGUI(device);

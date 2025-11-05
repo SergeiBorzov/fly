@@ -103,6 +103,22 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "prefilter.vert.spv",
+    src = "prefilter.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "prefilter.frag.spv",
+    src = "prefilter.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -127,6 +143,8 @@ cc_binary(
         ":brdf_integration_lut.comp.spv",
         ":skybox.vert.spv",
         ":skybox.frag.spv",
+        ":prefilter.vert.spv",
+        ":prefilter.frag.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],
