@@ -6,6 +6,8 @@
 
 layout(location = 0) out vec3 outNormal;
 layout(location = 1) out vec3 outView;
+layout(location = 2) out float outRoughness;
+layout(location = 3) out float outMetallic;
 
 layout(push_constant) uniform PushConstants
 {
@@ -35,7 +37,9 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
     vec3 position;
-    float pad;
+    float roughness;
+    float metallic;
+    float pad[3];
 })
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, Remap, { uint value; })
@@ -79,9 +83,11 @@ void main()
             .value;
     MeshInstance instance = FLY_ACCESS_STORAGE_BUFFER(
         MeshInstance, gPushConstants.instanceBufferIndex)[instanceIndex];
-    
+
     outNormal = DecodeNormal(v.normal);
     outView = normalize(camPos - (position + instance.position));
+    outRoughness = instance.roughness;
+    outMetallic = instance.metallic;
 
     gl_Position = projection * view * vec4(position + instance.position, 1.0f);
 }

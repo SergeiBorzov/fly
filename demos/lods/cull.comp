@@ -44,7 +44,9 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
     vec3 position;
-    float pad;
+    float roughness;
+    float metallic;
+    float pad[3];
 })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, LodInstanceOffset, {

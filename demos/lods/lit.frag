@@ -8,6 +8,8 @@
 
 layout(location = 0) in vec3 inNormal;
 layout(location = 1) in vec3 inView;
+layout(location = 2) in float inRoughness;
+layout(location = 3) in float inMetallic;
 
 layout(location = 0) out vec4 outColor;
 
@@ -86,23 +88,25 @@ void main()
             SCALE;
     }
 
-    vec3 f0 = vec3(1.059f, 0.773f, 0.307f); // gold
-    float roughness = 0.3f;
+    vec3 f0 = vec3(0.04);
+    vec3 gold = vec3(1.059f, 0.773f, 0.307f);
+    f0 = mix(f0, gold, inMetallic);
 
     vec2 envBRDF =
         texture(FLY_ACCESS_TEXTURE_BUFFER(
                     Textures2D, gPushConstants.brdfIntegrationMapIndex),
-                vec2(nv, roughness))
+                vec2(nv, inRoughness))
             .rg;
     vec3 prefilteredColor =
         textureLod(FLY_ACCESS_TEXTURE_BUFFER(
                        Cubemaps, gPushConstants.prefilteredMapIndex),
-                   r, roughness * gPushConstants.prefilteredMapMipCount)
+                   r, inRoughness * gPushConstants.prefilteredMapMipCount)
             .rgb;
 
-    // vec3 finalColor = (vec3(1.0f) / PI) * IrradianceSH9(n,
-    // radianceProjection);
+    vec3 diffuseColor = (gold / PI) * IrradianceSH9(n, radianceProjection);
+    vec3 specularColor = (f0 * envBRDF.x + envBRDF.y) * prefilteredColor;
 
-    vec3 finalColor = (f0 * envBRDF.x + envBRDF.y) * prefilteredColor;
+    vec3 finalColor = mix(diffuseColor, specularColor, inMetallic);
+
     outColor = vec4(finalColor, 1.0f);
 }

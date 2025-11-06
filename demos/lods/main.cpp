@@ -41,7 +41,9 @@ struct CameraData
 struct MeshInstance
 {
     Math::Vec3 position;
-    f32 pad;
+    f32 roughness;
+    f32 metallic;
+    f32 pad[3];
 };
 
 struct MeshData
@@ -405,6 +407,10 @@ static bool CreateResources(RHI::Device& device)
         {
             meshInstances[i * sInstanceRowCount + j].position =
                 Math::Vec3(i * 5.0f, 0.0f, -j * 5.0f);
+            meshInstances[i * sInstanceRowCount + j].roughness =
+                float(j) / Math::Max((sInstanceRowCount - 1), 1);
+            meshInstances[i * sInstanceRowCount + j].metallic =
+                float(i) / Math::Max((sInstanceRowCount - 1), 1);
         }
     }
 
