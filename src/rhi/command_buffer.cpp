@@ -377,10 +377,14 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
 
                 barrier.subresourceRange.aspectMask =
                     GetImageAspectMask(texture.format);
-                barrier.subresourceRange.baseMipLevel = 0;
-                barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-                barrier.subresourceRange.baseArrayLayer = 0;
-                barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+                barrier.subresourceRange.baseMipLevel =
+                    textureInput[i].baseMipLevel;
+                barrier.subresourceRange.levelCount =
+                    textureInput[i].levelCount;
+                barrier.subresourceRange.baseArrayLayer =
+                    textureInput[i].baseArrayLayer;
+                barrier.subresourceRange.layerCount =
+                    textureInput[i].layerCount;
 
                 texture.accessMask = textureInput[i].accessMask;
                 texture.pipelineStageMask = pipelineStageMask;

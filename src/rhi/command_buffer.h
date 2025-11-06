@@ -130,15 +130,19 @@ RenderingInfo(const VkRect2D& renderArea,
 
 struct RecordTextureInput
 {
-    Texture* pTexture;
-    VkAccessFlagBits2 accessMask;
-    VkImageLayout imageLayout;
+    Texture* pTexture = nullptr;
+    VkAccessFlagBits2 accessMask = VK_ACCESS_2_NONE;
+    VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    u32 baseMipLevel = 0;
+    u32 baseArrayLayer = 0;
+    u32 levelCount = VK_REMAINING_MIP_LEVELS;
+    u32 layerCount = VK_REMAINING_ARRAY_LAYERS;
 };
 
 struct RecordBufferInput
 {
-    Buffer* pBuffer;
-    VkAccessFlagBits2 accessMask;
+    Buffer* pBuffer = nullptr;
+    VkAccessFlagBits2 accessMask = VK_ACCESS_2_NONE;
 };
 
 typedef void (*RecordCallback)(CommandBuffer& cmd,

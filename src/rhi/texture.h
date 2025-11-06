@@ -82,6 +82,12 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
                    u32 size, VkFormat format, Sampler::FilterMode filterMode,
                    u32 mipCount, Texture& texture);
 
+VkImageView CreateImageView(Device& device, const Texture& texture,
+                            VkImageViewType imageViewType, u32 baseMipLevel = 0,
+                            u32 mipCount = VK_REMAINING_MIP_LEVELS,
+                            u32 baseArrayLayer = 0,
+                            u32 layerCount = VK_REMAINING_ARRAY_LAYERS);
+
 } // namespace RHI
 } // namespace Fly
 

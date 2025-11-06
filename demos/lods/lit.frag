@@ -7,6 +7,8 @@
 #define SCALE 1e10f
 
 layout(location = 0) in vec3 inNormal;
+layout(location = 1) in vec3 inView;
+
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants
@@ -16,6 +18,9 @@ layout(push_constant) uniform PushConstants
     uint remapBufferIndex;
     uint instanceBufferIndex;
     uint radianceProjectionBufferIndex;
+    uint brdfIntegrationMapIndex;
+    uint prefilteredMapIndex;
+    uint prefilteredMapMipCount;
 }
 gPushConstants;
 
@@ -23,6 +28,9 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, RadianceProjectionSH, {
     i64vec3 coefficient;
     int64_t pad;
 })
+
+FLY_REGISTER_TEXTURE_BUFFER(Cubemaps, samplerCube)
+FLY_REGISTER_TEXTURE_BUFFER(Textures2D, sampler2D)
 
 vec3 IrradianceSH9(vec3 n, vec3 l[9])
 {
@@ -61,6 +69,11 @@ void main()
 {
     vec3 l = vec3(0.0f, 1.0f, 0.0f);
     vec3 n = normalize(inNormal);
+    vec3 v = normalize(inView);
+    vec3 r = reflect(-v, n);
+
+    float nl = max(dot(n, l), 0.0f);
+    float nv = abs(dot(n, v));
 
     vec3 radianceProjection[9];
     for (uint i = 0; i < 9; i++)
@@ -73,6 +86,23 @@ void main()
             SCALE;
     }
 
-    vec3 finalColor = (vec3(1.0f) / PI) * IrradianceSH9(n, radianceProjection);
+    vec3 f0 = vec3(1.059f, 0.773f, 0.307f); // gold
+    float roughness = 0.3f;
+
+    vec2 envBRDF =
+        texture(FLY_ACCESS_TEXTURE_BUFFER(
+                    Textures2D, gPushConstants.brdfIntegrationMapIndex),
+                vec2(nv, roughness))
+            .rg;
+    vec3 prefilteredColor =
+        textureLod(FLY_ACCESS_TEXTURE_BUFFER(
+                       Cubemaps, gPushConstants.prefilteredMapIndex),
+                   r, roughness * gPushConstants.prefilteredMapMipCount)
+            .rgb;
+
+    // vec3 finalColor = (vec3(1.0f) / PI) * IrradianceSH9(n,
+    // radianceProjection);
+
+    vec3 finalColor = (f0 * envBRDF.x + envBRDF.y) * prefilteredColor;
     outColor = vec4(finalColor, 1.0f);
 }

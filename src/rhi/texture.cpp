@@ -183,7 +183,7 @@ static u32 Log2(u32 x)
 }
 
 static VkImage
-CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
+CreateVulkanImage(Device& device, VmaAllocationInfo& allocationInfo,
                   VmaAllocation& allocation, VkImageCreateFlags flags,
                   VkImageType imageType, VkImageUsageFlags usage,
                   VkFormat format, VkImageTiling tiling, u32 width, u32 height,
@@ -219,24 +219,25 @@ CreateVulkanImage(Fly::RHI::Device& device, VmaAllocationInfo& allocationInfo,
     return result;
 }
 
-static VkImageView
-CreateVulkanImageView(Fly::RHI::Device& device, VkImage image, VkFormat format,
-                      u32 mipCount, VkImageViewType imageViewType,
-                      VkImageAspectFlags aspectMask, u32 layerCount)
+static VkImageView CreateVulkanImageView(Device& device, VkImage image,
+                                         VkFormat format, u32 mipCount,
+                                         VkImageViewType imageViewType,
+                                         VkImageAspectFlags aspectMask,
+                                         u32 layerCount)
 {
-    VkImageViewCreateInfo viewCreateInfo{};
-    viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewCreateInfo.image = image;
-    viewCreateInfo.viewType = imageViewType;
-    viewCreateInfo.format = format;
-    viewCreateInfo.subresourceRange.aspectMask = GetImageAspectMask(format);
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
-    viewCreateInfo.subresourceRange.levelCount = mipCount;
-    viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = layerCount;
+    VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = image;
+    createInfo.viewType = imageViewType;
+    createInfo.format = format;
+    createInfo.subresourceRange.aspectMask = aspectMask;
+    createInfo.subresourceRange.baseMipLevel = 0;
+    createInfo.subresourceRange.levelCount = mipCount;
+    createInfo.subresourceRange.baseArrayLayer = 0;
+    createInfo.subresourceRange.layerCount = layerCount;
 
     VkImageView result;
-    if (vkCreateImageView(device.logicalDevice, &viewCreateInfo,
+    if (vkCreateImageView(device.logicalDevice, &createInfo,
                           Fly::RHI::GetVulkanAllocationCallbacks(),
                           &result) != VK_SUCCESS)
     {
@@ -246,8 +247,32 @@ CreateVulkanImageView(Fly::RHI::Device& device, VkImage image, VkFormat format,
     return result;
 }
 
-static void CreateDescriptors(Fly::RHI::Device& device,
-                              Fly::RHI::Texture& texture)
+VkImageView CreateImageView(Device& device, const Texture& texture,
+                            VkImageViewType imageViewType, u32 baseMipLevel,
+                            u32 mipCount, u32 baseArrayLayer, u32 layerCount)
+{
+    VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = texture.image;
+    createInfo.viewType = imageViewType;
+    createInfo.format = texture.format;
+    createInfo.subresourceRange.aspectMask = GetImageAspectMask(texture.format);
+    createInfo.subresourceRange.baseMipLevel = baseMipLevel;
+    createInfo.subresourceRange.levelCount = mipCount;
+    createInfo.subresourceRange.baseArrayLayer = baseArrayLayer;
+    createInfo.subresourceRange.layerCount = layerCount;
+
+    VkImageView result;
+    if (vkCreateImageView(device.logicalDevice, &createInfo,
+                          Fly::RHI::GetVulkanAllocationCallbacks(),
+                          &result) != VK_SUCCESS)
+    {
+        return VK_NULL_HANDLE;
+    }
+    return result;
+}
+
+static void CreateDescriptors(Device& device, Texture& texture)
 {
     u32 count = (texture.usage & VK_IMAGE_USAGE_STORAGE_BIT) ? 2 : 1;
 
@@ -286,8 +311,8 @@ static void CreateDescriptors(Fly::RHI::Device& device,
     texture.bindlessStorageHandle = device.bindlessWriteTextureHandleCount++;
 }
 
-static bool CopyDataToTexture(Fly::RHI::Device& device, const u8* data,
-                              bool generateMips, Fly::RHI::Texture& texture)
+static bool CopyDataToTexture(Device& device, const u8* data, bool generateMips,
+                              Texture& texture)
 {
     if (data)
     {

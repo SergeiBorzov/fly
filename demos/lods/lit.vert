@@ -5,6 +5,7 @@
 #include "bindless.glsl"
 
 layout(location = 0) out vec3 outNormal;
+layout(location = 1) out vec3 outView;
 
 layout(push_constant) uniform PushConstants
 {
@@ -59,9 +60,17 @@ vec3 DecodeNormal(uint quantized)
 
 void main()
 {
+    mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, projection);
+    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, view);
+
+    mat3 R = mat3(view);
+    vec3 T = vec3(view[3]);
+    vec3 camPos = -transpose(R) * T;
+
     Vertex v = FLY_ACCESS_STORAGE_BUFFER(
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
-    outNormal = DecodeNormal(v.normal);
     vec3 position = vec3(v.position);
 
     uint instanceIndex =
@@ -70,9 +79,9 @@ void main()
             .value;
     MeshInstance instance = FLY_ACCESS_STORAGE_BUFFER(
         MeshInstance, gPushConstants.instanceBufferIndex)[instanceIndex];
-    gl_Position = FLY_ACCESS_UNIFORM_BUFFER(
-                      Camera, gPushConstants.cameraBufferIndex, projection) *
-                  FLY_ACCESS_UNIFORM_BUFFER(
-                      Camera, gPushConstants.cameraBufferIndex, view) *
-                  vec4(position + instance.position, 1.0f);
+    
+    outNormal = DecodeNormal(v.normal);
+    outView = normalize(camPos - (position + instance.position));
+
+    gl_Position = projection * view * vec4(position + instance.position, 1.0f);
 }
