@@ -25,8 +25,12 @@ To run demos: `bazel run demos/{demo}:app`
 ## Gaussian splatting
 ![GaussianSplatting](https://github.com/SergeiBorzov/fly/blob/master/gallery/gaussian_splatting.png)
 
-## Ocean rendering
+## Ocean simulation
 ![Ocean](https://github.com/SergeiBorzov/fly/blob/master/gallery/ocean.gif)
+
+## Dragons (IBL, PBR, SH Irradiance Map, GPU Driven LOD selection and Culling)
+![Dragons1](https://github.com/SergeiBorzov/fly/blob/master/gallery/dragons_1.png)
+![Dragons2](https://github.com/SergeiBorzov/fly/blob/master/gallery/dragons_2.png)
 
 # Sources of wisdom
 
@@ -43,11 +47,18 @@ To run demos: `bazel run demos/{demo}:app`
 - https://iquilezles.org/articles/fbm/
 - https://iquilezles.org/articles/gradientnoise/
 
+## Gaussian splatting
+- https://gpuopen.com/download/Introduction_to_GPU_Radix_Sort.pdf
+- https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
+
 ## Ocean
 - https://people.computing.clemson.edu/~jtessen/reports/papers_files/coursenotes2004.pdf
 - https://www.cg.tuwien.ac.at/research/publications/2018/GAMPER-2018-OSG/GAMPER-2018-OSG-thesis.pdf
 - https://gdcvault.com/play/1025819/Advanced-Graphics-Techniques-Tutorial-Wakes
 
-## Gaussian splatting
-- https://gpuopen.com/download/Introduction_to_GPU_Radix_Sort.pdf
-- https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
+## Dragons
+- https://reecocho.github.io/2024/01/30/gpu-driven-rendering/
+- https://cseweb.ucsd.edu/~ravir/papers/envmap/envmap.pdf
+- https://www.ppsloan.org/publications/StupidSH36.pdf
+- https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+- https://seblagarde.wordpress.com/wp-content/uploads/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
