@@ -36,29 +36,6 @@ vec2 Hammersley(uint i, uint N)
     return vec2(float(i) / float(N), RadicalInverse2(i));
 }
 
-// //
-// https://seblagarde.wordpress.com/wp-content/uploads/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
-// float SmithGGXCorrelated(float nl, float nv, float roughness)
-// {
-//     float roughness2 = roughness * roughness;
-//     float lambdaGGXV = nl * sqrt((-nv * roughness2 + nv) * nv + roughness2);
-//     float lambdaGGXL = nv * sqrt((-nl * roughness2 + nl) * nl + roughness2);
-//     return 0.5f / (lambdaGGXV + lambdaGGXL);
-// }
-
-// float TrowbridgeReitzGGX(float nh, float roughness)
-// {
-//     float roughness2 = roughness * roughness;
-//     float denominator = PI * ((nh * roughness2 - nh) * nh + 1.0f);
-
-//     return roughness2 / denominator;
-// }
-
-// vec3 FresnelSchlick(vec3 f0, float vh)
-// {
-//     return f0 + (vec3(1.0f) - f0) * pow(1.0f - vh, 5.0f);
-// }
-
 vec3 ImportanceSampleGGX(vec2 p, vec3 n, float roughness)
 {
     float a = roughness * roughness;
@@ -126,7 +103,6 @@ void main()
             float nh = max(h.y, 0.0f);
             float vh = max(dot(v, h), 0.0f);
 
-            // float g = SmithGGXCorrelated(nl, nv, roughness);
             float g = GeometrySmith(nv, nl, roughness);
             float gCosTheta = (g * vh) / (nv * nh);
             float alpha = pow(1.0f - vh, 5.0f);

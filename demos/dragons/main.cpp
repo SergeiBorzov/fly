@@ -1070,24 +1070,13 @@ int main(int argc, char* argv[])
         DrawGUI(device);
         RHI::EndRenderFrame(device);
 
-        // RadianceProjectionCoeff* coeffs =
-        // static_cast<RadianceProjectionCoeff*>(
-        //     RHI::BufferMappedPtr(sRadianceProjectionBuffer));
-        // for (u32 i = 0; i < 9; i++)
-        // {
-        //     FLY_LOG("%u %f %f %f", i, coeffs[i].r / SCALE, coeffs[i].g /
-        //     SCALE,
-        //             coeffs[i].b / SCALE);
-        // }
-
-        // u64 timestamps[2];
-        // vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0,
-        // 2,
-        //                       sizeof(timestamps), timestamps,
-        //                       sizeof(uint64_t), VK_QUERY_RESULT_64_BIT |
-        //                           VK_QUERY_RESULT_WAIT_BIT);
-        // f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
-        //     (timestamps[1] - timestamps[0]) * sTimestampPeriod));
+        u64 timestamps[2];
+        vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
+                              sizeof(timestamps), timestamps, sizeof(uint64_t),
+                              VK_QUERY_RESULT_64_BIT |
+                                  VK_QUERY_RESULT_WAIT_BIT);
+        f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
+            (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
         // FLY_LOG("Dragon draw: %f ms", drawTime);
     }
