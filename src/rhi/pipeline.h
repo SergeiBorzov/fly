@@ -51,7 +51,7 @@ struct GraphicsPipelineFixedStateStage
     {
         VkStencilOpState stencilFront = {};
         VkStencilOpState stencilBack = {};
-        VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
+        VkCompareOp depthCompareOp = VK_COMPARE_OP_GREATER;
         bool depthTestEnable = false;
         bool depthWriteEnable = true;
         bool stencilTestEnable = false;

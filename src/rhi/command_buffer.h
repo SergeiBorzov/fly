@@ -118,7 +118,7 @@ VkRenderingAttachmentInfo
 DepthAttachmentInfo(VkImageView imageView,
                     VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                    VkClearDepthStencilValue clearDepthStencil = {1.0f, 0});
+                    VkClearDepthStencilValue clearDepthStencil = {0.0f, 0});
 
 VkRenderingInfo
 RenderingInfo(const VkRect2D& renderArea,

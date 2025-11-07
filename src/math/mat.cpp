@@ -176,17 +176,21 @@ Mat4 RotateZ(f32 angle)
 
 Mat4 Perspective(f32 fovx_degrees, f32 aspect, float near, float far)
 {
+    // Near and far are swapped to create a reverse-z buffer
+    float rNear = far;
+    float rFar = near;
+
     Mat4 res(0.0f);
 
     f32 hTanH = Tan(Radians(fovx_degrees) * 0.5f);
     f32 f = 1.0f / hTanH;
-    f32 a = far / (near - far);
+    f32 a = rFar / (rNear - rFar);
 
     res.data[0] = f;
     res.data[5] = -f * aspect;
     res.data[10] = a;
     res.data[11] = -1.0f;
-    res.data[14] = near * a;
+    res.data[14] = rNear * a;
 
     return res;
 }
