@@ -26,7 +26,9 @@ struct Sampler
         Anisotropy2x,
         Anisotropy4x,
         Anisotropy8x,
-        Anisotropy16x
+        Anisotropy16x,
+        Min,
+        Max
     };
 
     enum class WrapMode

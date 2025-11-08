@@ -412,6 +412,8 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
             samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
             break;
         }
+        case Sampler::FilterMode::Max:
+        case Sampler::FilterMode::Min:
         case Sampler::FilterMode::Trilinear:
         {
             samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
@@ -503,6 +505,24 @@ bool CreateSampler(Device& device, Sampler::FilterMode filterMode,
     samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
     samplerCreateInfo.compareEnable = VK_FALSE;
     samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    VkSamplerReductionModeCreateInfo reductionModeCreateInfo{};
+    reductionModeCreateInfo.sType =
+        VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO;
+    if (filterMode == Sampler::FilterMode::Min)
+    {
+        reductionModeCreateInfo.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
+    }
+    else if (filterMode == Sampler::FilterMode::Max)
+    {
+        reductionModeCreateInfo.reductionMode = VK_SAMPLER_REDUCTION_MODE_MAX;
+    }
+    else
+    {
+        reductionModeCreateInfo.reductionMode =
+            VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
+    }
+    samplerCreateInfo.pNext = &reductionModeCreateInfo;
 
     if (vkCreateSampler(device.logicalDevice, &samplerCreateInfo,
                         GetVulkanAllocationCallbacks(),
