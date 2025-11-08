@@ -205,7 +205,7 @@ static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
     initInfo.PipelineRenderingCreateInfo.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
+        VK_FORMAT_D32_SFLOAT;
     initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats =
         &device.surfaceFormat.format;
 
@@ -349,8 +349,7 @@ static bool CreatePipelines(RHI::Device& device)
     {
         return false;
     }
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
+    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
     fixedState.depthStencilState.depthTestEnable = true;
     // fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
@@ -379,9 +378,9 @@ static bool CreateResources(RHI::Device& device)
 {
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
-            device.swapchainWidth, device.swapchainHeight,
-            VK_FORMAT_D32_SFLOAT_S8_UINT, RHI::Sampler::FilterMode::Nearest,
-            RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture))
+            device.swapchainWidth, device.swapchainHeight, VK_FORMAT_D32_SFLOAT,
+            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
+            1, sDepthTexture))
     {
         return false;
     }
@@ -897,7 +896,7 @@ static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
 {
     RHI::DestroyTexture(device, sDepthTexture);
     RHI::CreateTexture2D(device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                         nullptr, width, height, VK_FORMAT_D32_SFLOAT_S8_UINT,
+                         nullptr, width, height, VK_FORMAT_D32_SFLOAT,
                          RHI::Sampler::FilterMode::Nearest,
                          RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture);
 }

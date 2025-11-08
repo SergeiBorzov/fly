@@ -43,7 +43,7 @@ static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
 {
     RHI::DestroyTexture(device, sDepthTexture);
     RHI::CreateTexture2D(device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                         nullptr, width, height, VK_FORMAT_D32_SFLOAT_S8_UINT,
+                         nullptr, width, height, VK_FORMAT_D32_SFLOAT,
                          RHI::Sampler::FilterMode::Nearest,
                          RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture);
 }
@@ -73,7 +73,7 @@ static bool CreatePipeline(RHI::Device& device)
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
     fixedState.pipelineRendering.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
+        VK_FORMAT_D32_SFLOAT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
@@ -102,7 +102,7 @@ static bool CreateResources(RHI::Device& device)
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
             device.swapchainWidth, device.swapchainHeight,
-            VK_FORMAT_D32_SFLOAT_S8_UINT, RHI::Sampler::FilterMode::Nearest,
+            VK_FORMAT_D32_SFLOAT, RHI::Sampler::FilterMode::Nearest,
             RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture))
     {
         FLY_ERROR("Failed to create depth texture");
