@@ -48,6 +48,14 @@ glsl_shader(
 )
 
 glsl_shader(
+    name = "hzb_downsample.frag.spv",
+    src = "hzb_downsample.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+    
+glsl_shader(
     name = "cull.comp.spv",
     src = "cull.comp",
     deps = [
@@ -145,6 +153,7 @@ cc_binary(
         ":skybox.frag.spv",
         ":prefilter.vert.spv",
         ":prefilter.frag.spv",
+        ":hzb_downsample.frag.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],

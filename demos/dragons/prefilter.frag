@@ -29,27 +29,27 @@ vec3 GetViewDirection(vec2 coord, uint faceIndex)
 {
     if (faceIndex == 0)
     {
-        return normalize(vec3(1.0f, coord.y, -coord.x));
+        return normalize(vec3(1.0f, -coord.y, -coord.x));
     }
     else if (faceIndex == 1)
     {
-        return normalize(vec3(-1.0f, coord.y, coord.x));
+        return normalize(vec3(-1.0f, -coord.y, coord.x));
     }
     else if (faceIndex == 2)
     {
-        return normalize(vec3(coord.x, 1.0f, -coord.y));
+        return normalize(vec3(coord.x, 1.0f, coord.y));
     }
     else if (faceIndex == 3)
     {
-        return normalize(vec3(coord.x, -1.0f, coord.y));
+        return normalize(vec3(coord.x, -1.0f, -coord.y));
     }
     else if (faceIndex == 4)
     {
-        return normalize(vec3(coord.x, coord.y, 1.0f));
+        return normalize(vec3(coord.x, -coord.y, 1.0f));
     }
     else
     {
-        return normalize(vec3(-coord.x, coord.y, -1.0f));
+        return normalize(vec3(-coord.x, -coord.y, -1.0f));
     }
 }
 

@@ -1,6 +1,7 @@
 #include "core/assert.h"
 #include "core/clock.h"
 #include "core/log.h"
+#include "core/memory.h"
 #include "core/platform.h"
 #include "core/thread_context.h"
 
@@ -72,6 +73,7 @@ static VkDescriptorPool sImGuiDescriptorPool;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sSkyboxPipeline;
 static RHI::GraphicsPipeline sPrefilterPipeline;
+static RHI::GraphicsPipeline sHzbDownsamplePipeline;
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
@@ -86,9 +88,11 @@ static RHI::Buffer sLodInstanceOffsetBuffer;
 static RHI::Buffer sRemapBuffer;
 static RHI::Buffer sRadianceProjectionBuffer;
 static RHI::Texture sDepthTexture;
+static RHI::Texture sHzbTexture;
 static RHI::Texture sSkyboxTexture;
 static RHI::Texture sBrdfIntegrationLUT;
 static RHI::Texture sPrefilteredSkyboxTexture;
+static VkImageView* sHzbTextureImageViews;
 static VkImageView* sPrefilteredSkyboxImageViews;
 static Mesh sMesh;
 
@@ -109,13 +113,33 @@ static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
                                 void*)
 {
     RHI::DestroyTexture(device, sDepthTexture);
+    RHI::DestroyTexture(device, sHzbTexture);
+    for (u32 i = 0; i < sHzbTexture.mipCount; i++)
+    {
+        vkDestroyImageView(device.logicalDevice, sHzbTextureImageViews[i],
+                           RHI::GetVulkanAllocationCallbacks());
+    }
+    Fly::Free(sHzbTextureImageViews);
+
     RHI::CreateTexture2D(device,
                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                         nullptr, width, height, VK_FORMAT_D32_SFLOAT_S8_UINT,
-                         RHI::Sampler::FilterMode::Nearest,
-                         RHI::Sampler::WrapMode::Clamp, 0, sDepthTexture);
+                             VK_IMAGE_USAGE_SAMPLED_BIT,
+                         nullptr, width, height, VK_FORMAT_D32_SFLOAT,
+                         RHI::Sampler::FilterMode::Max,
+                         RHI::Sampler::WrapMode::Clamp, 1, sDepthTexture);
+    RHI::CreateTexture2D(device,
+                         VK_IMAGE_USAGE_SAMPLED_BIT |
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                         nullptr, width, height, VK_FORMAT_R16_SFLOAT,
+                         RHI::Sampler::FilterMode::Max,
+                         RHI::Sampler::WrapMode::Clamp, 0, sHzbTexture);
+    sHzbTextureImageViews = static_cast<VkImageView*>(
+        Fly::Alloc(sizeof(VkImageView) * sHzbTexture.mipCount));
+    for (u32 i = 0; i < sHzbTexture.mipCount; i++)
+    {
+        sHzbTextureImageViews[i] = RHI::CreateImageView(
+            device, sHzbTexture, VK_IMAGE_VIEW_TYPE_2D, i, 1);
+    }
 }
 
 static void ErrorCallbackGLFW(int error, const char* description)
@@ -175,7 +199,7 @@ static bool CreateImGuiContext(RHI::Context& context, RHI::Device& device,
         VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
     initInfo.PipelineRenderingCreateInfo.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
+        VK_FORMAT_D32_SFLOAT;
     initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats =
         &device.surfaceFormat.format;
 
@@ -256,8 +280,7 @@ static bool CreatePipelines(RHI::Device& device)
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT_S8_UINT;
+    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
     fixedState.depthStencilState.depthTestEnable = true;
 
     if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
@@ -302,6 +325,23 @@ static bool CreatePipelines(RHI::Device& device)
     {
         return false;
     }
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R16_SFLOAT;
+    fixedState.pipelineRendering.colorAttachmentCount = 1;
+    fixedState.pipelineRendering.viewMask = 0;
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("hzb_downsample.frag.spv"),
+                                shaderProgram[RHI::Shader::Type::Fragment]))
+    {
+        return false;
+    }
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                     sHzbDownsamplePipeline))
+    {
+        return false;
+    }
+
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
@@ -313,6 +353,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sSkyboxPipeline);
     RHI::DestroyGraphicsPipeline(device, sPrefilterPipeline);
+    RHI::DestroyGraphicsPipeline(device, sHzbDownsamplePipeline);
     RHI::DestroyComputePipeline(device, sCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
     RHI::DestroyComputePipeline(device, sRemapPipeline);
@@ -454,17 +495,35 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
-    if (!RHI::CreateTexture2D(
-            device,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            nullptr, device.swapchainWidth, device.swapchainHeight,
-            VK_FORMAT_D32_SFLOAT_S8_UINT, RHI::Sampler::FilterMode::Nearest,
-            RHI::Sampler::WrapMode::Clamp, 0, sDepthTexture))
+    if (!RHI::CreateTexture2D(device,
+                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                                  VK_IMAGE_USAGE_SAMPLED_BIT,
+                              nullptr, device.swapchainWidth,
+                              device.swapchainHeight, VK_FORMAT_D32_SFLOAT,
+                              RHI::Sampler::FilterMode::Max,
+                              RHI::Sampler::WrapMode::Clamp, 1, sDepthTexture))
     {
         FLY_ERROR("Failed to create depth texture");
         return false;
+    }
+
+    if (!RHI::CreateTexture2D(
+            device,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            nullptr, device.swapchainWidth, device.swapchainHeight,
+            VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Max,
+            RHI::Sampler::WrapMode::Clamp, 0, sHzbTexture))
+    {
+        FLY_ERROR("Failed to create hzb texture");
+        return false;
+    }
+
+    sHzbTextureImageViews = static_cast<VkImageView*>(
+        Fly::Alloc(sizeof(VkImageView) * sHzbTexture.mipCount));
+    for (u32 i = 0; i < sHzbTexture.mipCount; i++)
+    {
+        sHzbTextureImageViews[i] = RHI::CreateImageView(
+            device, sHzbTexture, VK_IMAGE_VIEW_TYPE_2D, i, 1);
     }
 
     if (!RHI::CreateTexture2D(
@@ -557,6 +616,7 @@ static void DestroyResources(RHI::Device& device)
     RHI::DestroyBuffer(device, sMeshDataBuffer);
     RHI::DestroyBuffer(device, sRadianceProjectionBuffer);
     RHI::DestroyTexture(device, sDepthTexture);
+    RHI::DestroyTexture(device, sHzbTexture);
     RHI::DestroyTexture(device, sSkyboxTexture);
     RHI::DestroyTexture(device, sBrdfIntegrationLUT);
     RHI::DestroyTexture(device, sPrefilteredSkyboxTexture);
@@ -714,45 +774,78 @@ static void ProjectRadiance(RHI::Device& device, RHI::CommandBuffer& cmd)
                         &textureInput, 1);
 }
 
-static void RecordBuildHZB(RHI::CommandBuffer& cmd,
-                           const RHI::RecordBufferInput* bufferInput,
-                           u32 bufferInputCount,
-                           const RHI::RecordTextureInput* textureInput,
-                           u32 textureInputCount, void* pUserData)
+static void RecordDownsampleHzb(RHI::CommandBuffer& cmd,
+                                const RHI::RecordBufferInput* bufferInput,
+                                u32 bufferInputCount,
+                                const RHI::RecordTextureInput* textureInput,
+                                u32 textureInputCount, void* pUserData)
 {
-    
-    return;
+    RHI::Texture& srcTexture = *(textureInput[0].pTexture);
+
+    u32 srcMipLevel = textureInput[0].baseMipLevel;
+    u32 dstMipLevel = textureInput[1].baseMipLevel;
+    u32 width = Math::Max(sHzbTexture.width >> dstMipLevel, 1u);
+    u32 height = Math::Max(sHzbTexture.height >> dstMipLevel, 1u);
+
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(width),
+                     static_cast<f32>(height), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, width, height);
+
+    RHI::BindGraphicsPipeline(cmd, sHzbDownsamplePipeline);
+
+    u32 pushConstants[] = {srcTexture.bindlessHandle, srcMipLevel};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+    RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
-static void BuildHZB(RHI::Device& device)
+static void DownsampleHzb(RHI::Device& device)
 {
+    VkRenderingAttachmentInfo colorAttachment =
+        RHI::ColorAttachmentInfo(sHzbTextureImageViews[0]);
+
+    u32 width = sHzbTexture.width;
+    u32 height = sHzbTexture.height;
+
+    VkRenderingInfo renderingInfo =
+        RHI::RenderingInfo({{0, 0}, {width, height}}, &colorAttachment, 1);
+
     RHI::RecordTextureInput textureInput[2] = {
-        {&sDepthTexture, VK_ACCESS_2_TRANSFER_READ_BIT,
-         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, 1},
-        {&sDepthTexture, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1}};
-    RHI::ExecuteTransfer(RenderFrameCommandBuffer(device), RecordBuildHZB,
-                         nullptr, 0, textureInput, 2);
+        {&sDepthTexture, VK_ACCESS_2_SHADER_READ_BIT,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {&sHzbTexture, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}};
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordDownsampleHzb, nullptr, 0, textureInput, 2);
 
-    for (u32 i = 1; i < sDepthTexture.mipCount - 1; i++)
+    for (u32 i = 0; i < sHzbTexture.mipCount - 1; i++)
     {
-        RHI::RecordTextureInput textureInput[2] = {
-            {&sDepthTexture, VK_ACCESS_2_TRANSFER_READ_BIT,
-             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-             VK_ACCESS_2_TRANSFER_WRITE_BIT,
-             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, i, 1},
-            {&sDepthTexture, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, i + 1, 1}};
+        u32 width = Math::Max(sHzbTexture.width >> (i + 1u), 1u);
+        u32 height = Math::Max(sHzbTexture.height >> (i + 1u), 1u);
 
-        RHI::ExecuteTransfer(RenderFrameCommandBuffer(device), RecordBuildHZB,
-                             nullptr, 0, textureInput, 2);
+        VkRenderingAttachmentInfo colorAttachment =
+            RHI::ColorAttachmentInfo(sHzbTextureImageViews[i + 1]);
+
+        VkRenderingInfo renderingInfo =
+            RHI::RenderingInfo({{0, 0}, {width, height}}, &colorAttachment, 1);
+
+        RHI::RecordTextureInput textureInput[2] = {
+            {&sHzbTexture, VK_ACCESS_2_SHADER_READ_BIT,
+             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, i, 1},
+            {&sHzbTexture, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, i + 1, 1}};
+
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDownsampleHzb, nullptr, 0, textureInput, 2);
     }
+
+    RHI::RecordTransitionImageLayout(RenderFrameCommandBuffer(device),
+                                     sHzbTexture, VK_IMAGE_LAYOUT_UNDEFINED,
+                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     RHI::RecordTransitionImageLayout(
         RenderFrameCommandBuffer(device), sDepthTexture,
@@ -1012,6 +1105,7 @@ int main(int argc, char* argv[])
     settings.vulkan12Features.shaderBufferInt64Atomics = true;
     settings.vulkan12Features.shaderSharedInt64Atomics = true;
     settings.vulkan12Features.shaderSubgroupExtendedTypes = true;
+    settings.vulkan12Features.samplerFilterMinmax = true;
     settings.vulkan11Features.storageBuffer16BitAccess = true;
     settings.vulkan11Features.multiview = true;
     settings.features2.features.shaderInt64 = true;
@@ -1118,8 +1212,8 @@ int main(int argc, char* argv[])
 
         DrawSky(device);
         DrawMesh(device);
+        DownsampleHzb(device);
         DrawGUI(device);
-        BuildHZB(device);
 
         RHI::EndRenderFrame(device);
 
@@ -1143,6 +1237,12 @@ int main(int argc, char* argv[])
                            sPrefilteredSkyboxImageViews[i],
                            RHI::GetVulkanAllocationCallbacks());
     }
+    for (u32 i = 0; i < sHzbTexture.mipCount; i++)
+    {
+        vkDestroyImageView(device.logicalDevice, sHzbTextureImageViews[i],
+                           RHI::GetVulkanAllocationCallbacks());
+    }
+    Fly::Free(sHzbTextureImageViews);
     DestroyImGuiContext(device);
     RHI::DestroyContext(context);
 
