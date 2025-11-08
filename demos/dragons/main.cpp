@@ -109,10 +109,13 @@ static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
                                 void*)
 {
     RHI::DestroyTexture(device, sDepthTexture);
-    RHI::CreateTexture2D(device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+    RHI::CreateTexture2D(device,
+                         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                          nullptr, width, height, VK_FORMAT_D32_SFLOAT_S8_UINT,
                          RHI::Sampler::FilterMode::Nearest,
-                         RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture);
+                         RHI::Sampler::WrapMode::Clamp, 0, sDepthTexture);
 }
 
 static void ErrorCallbackGLFW(int error, const char* description)
@@ -452,10 +455,13 @@ static bool CreateResources(RHI::Device& device)
     }
 
     if (!RHI::CreateTexture2D(
-            device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
-            device.swapchainWidth, device.swapchainHeight,
+            device,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            nullptr, device.swapchainWidth, device.swapchainHeight,
             VK_FORMAT_D32_SFLOAT_S8_UINT, RHI::Sampler::FilterMode::Nearest,
-            RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture))
+            RHI::Sampler::WrapMode::Clamp, 0, sDepthTexture))
     {
         FLY_ERROR("Failed to create depth texture");
         return false;
@@ -609,7 +615,6 @@ static void RecordPrefilterEnvironmentMap(
 static void PrefilterEnvironmentMap(RHI::Device& device,
                                     RHI::CommandBuffer& cmd)
 {
-
     RHI::RecordTextureInput textureInput[2] = {
         {&sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
@@ -620,6 +625,8 @@ static void PrefilterEnvironmentMap(RHI::Device& device,
     {
         textureInput[1].baseMipLevel = i;
         textureInput[1].levelCount = 1;
+        textureInput[1].srcAccessMask = sPrefilteredSkyboxTexture.accessMask;
+        textureInput[1].srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
         u32 size =
             sPrefilteredSkyboxTexture.width >> textureInput[1].baseMipLevel;
@@ -634,11 +641,9 @@ static void PrefilterEnvironmentMap(RHI::Device& device,
                              nullptr, 0, textureInput, 2);
     }
 
-    RHI::RecordTransitionImageLayout(cmd, sPrefilteredSkyboxTexture.image,
+    RHI::RecordTransitionImageLayout(cmd, sPrefilteredSkyboxTexture,
                                      VK_IMAGE_LAYOUT_UNDEFINED,
                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    sPrefilteredSkyboxTexture.imageLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
 static void RecordDrawSky(RHI::CommandBuffer& cmd,
@@ -708,6 +713,52 @@ static void ProjectRadiance(RHI::Device& device, RHI::CommandBuffer& cmd)
     RHI::ExecuteCompute(cmd, RecordProjectRadiance, &bufferInput, 1,
                         &textureInput, 1);
 }
+
+static void RecordBuildHZB(RHI::CommandBuffer& cmd,
+                           const RHI::RecordBufferInput* bufferInput,
+                           u32 bufferInputCount,
+                           const RHI::RecordTextureInput* textureInput,
+                           u32 textureInputCount, void* pUserData)
+{
+    
+    return;
+}
+
+static void BuildHZB(RHI::Device& device)
+{
+    RHI::RecordTextureInput textureInput[2] = {
+        {&sDepthTexture, VK_ACCESS_2_TRANSFER_READ_BIT,
+         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0, 1},
+        {&sDepthTexture, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, 1}};
+    RHI::ExecuteTransfer(RenderFrameCommandBuffer(device), RecordBuildHZB,
+                         nullptr, 0, textureInput, 2);
+
+    for (u32 i = 1; i < sDepthTexture.mipCount - 1; i++)
+    {
+        RHI::RecordTextureInput textureInput[2] = {
+            {&sDepthTexture, VK_ACCESS_2_TRANSFER_READ_BIT,
+             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+             VK_ACCESS_2_TRANSFER_WRITE_BIT,
+             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, i, 1},
+            {&sDepthTexture, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, i + 1, 1}};
+
+        RHI::ExecuteTransfer(RenderFrameCommandBuffer(device), RecordBuildHZB,
+                             nullptr, 0, textureInput, 2);
+    }
+
+    RHI::RecordTransitionImageLayout(
+        RenderFrameCommandBuffer(device), sDepthTexture,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+};
 
 static void RecordCull(RHI::CommandBuffer& cmd,
                        const RHI::RecordBufferInput* bufferInput,
@@ -1068,6 +1119,8 @@ int main(int argc, char* argv[])
         DrawSky(device);
         DrawMesh(device);
         DrawGUI(device);
+        BuildHZB(device);
+
         RHI::EndRenderFrame(device);
 
         u64 timestamps[2];

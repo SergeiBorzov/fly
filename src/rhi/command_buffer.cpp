@@ -235,6 +235,43 @@ void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
     vkCmdPipelineBarrier2(commandBuffer.handle, &dependencyInfo);
 }
 
+void RecordTransitionImageLayout(CommandBuffer& commandBuffer, Texture& texture,
+                                 VkImageLayout currentLayout,
+                                 VkImageLayout newLayout)
+{
+    FLY_ASSERT(commandBuffer.state == CommandBuffer::State::Recording);
+
+    VkImageMemoryBarrier2 imageBarrier{};
+    imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    imageBarrier.pNext = nullptr;
+    imageBarrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    imageBarrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+    imageBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    imageBarrier.dstAccessMask =
+        VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+    imageBarrier.oldLayout = currentLayout;
+    imageBarrier.newLayout = newLayout;
+
+    imageBarrier.subresourceRange.baseMipLevel = 0;
+    imageBarrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+    imageBarrier.subresourceRange.baseArrayLayer = 0;
+    imageBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+    imageBarrier.subresourceRange.aspectMask =
+        GetImageAspectMask(texture.format);
+
+    imageBarrier.image = texture.image;
+
+    VkDependencyInfo dependencyInfo{};
+    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependencyInfo.pNext = nullptr;
+    dependencyInfo.imageMemoryBarrierCount = 1;
+    dependencyInfo.pImageMemoryBarriers = &imageBarrier;
+
+    vkCmdPipelineBarrier2(commandBuffer.handle, &dependencyInfo);
+
+    texture.imageLayout = newLayout;
+}
+
 VkRenderingAttachmentInfo ColorAttachmentInfo(VkImageView imageView,
                                               VkAttachmentLoadOp loadOp,
                                               VkAttachmentStoreOp storeOp,
@@ -368,11 +405,22 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
                 barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 barrier.image = texture.image;
-                barrier.srcAccessMask = texture.accessMask;
-                barrier.dstAccessMask = textureInput[i].accessMask;
+
+                if (textureInput[i].baseMipLevel != 0 ||
+                    textureInput[i].levelCount != VK_REMAINING_MIP_LEVELS)
+                {
+                    barrier.srcAccessMask = textureInput[i].srcAccessMask;
+                    barrier.oldLayout = textureInput[i].srcImageLayout;
+                }
+                else
+                {
+                    barrier.srcAccessMask = texture.accessMask;
+                    barrier.oldLayout = texture.imageLayout;
+                }
                 barrier.srcStageMask = texture.pipelineStageMask;
+
+                barrier.dstAccessMask = textureInput[i].accessMask;
                 barrier.dstStageMask = pipelineStageMask;
-                barrier.oldLayout = texture.imageLayout;
                 barrier.newLayout = textureInput[i].imageLayout;
 
                 barrier.subresourceRange.aspectMask =
@@ -386,9 +434,12 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
                 barrier.subresourceRange.layerCount =
                     textureInput[i].layerCount;
 
-                texture.accessMask = textureInput[i].accessMask;
-                texture.pipelineStageMask = pipelineStageMask;
-                texture.imageLayout = textureInput[i].imageLayout;
+                if (textureInput[i].baseMipLevel == 0)
+                {
+                    texture.accessMask = textureInput[i].accessMask;
+                    texture.pipelineStageMask = pipelineStageMask;
+                    texture.imageLayout = textureInput[i].imageLayout;
+                }
                 ++imageBarrierCount;
             }
         }

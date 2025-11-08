@@ -53,6 +53,9 @@ bool ResetCommandBuffer(CommandBuffer& commandBuffer, bool releaseResources);
 void RecordTransitionImageLayout(CommandBuffer& commandBuffer, VkImage image,
                                  VkImageLayout currentLayout,
                                  VkImageLayout newLayout);
+void RecordTransitionImageLayout(CommandBuffer& commandBuffer, Texture& texture,
+                                 VkImageLayout currentLayout,
+                                 VkImageLayout newLayout);
 
 void FillBuffer(CommandBuffer& commandBuffer, Buffer& buffer, u32 value,
                 u64 size = 0, u64 offset = 0);
@@ -133,9 +136,11 @@ struct RecordTextureInput
     Texture* pTexture = nullptr;
     VkAccessFlagBits2 accessMask = VK_ACCESS_2_NONE;
     VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkAccessFlagBits2 srcAccessMask = VK_ACCESS_2_NONE;
+    VkImageLayout srcImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     u32 baseMipLevel = 0;
-    u32 baseArrayLayer = 0;
     u32 levelCount = VK_REMAINING_MIP_LEVELS;
+    u32 baseArrayLayer = 0;
     u32 layerCount = VK_REMAINING_ARRAY_LAYERS;
 };
 

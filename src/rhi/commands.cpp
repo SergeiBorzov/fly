@@ -15,13 +15,11 @@ namespace RHI
 
 void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
 {
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+
     i32 mipWidth = static_cast<i32>(texture.width);
     i32 mipHeight = static_cast<i32>(texture.height);
     i32 mipDepth = static_cast<i32>(texture.depth);
-
-    RHI::ChangeTextureAccessLayout(cmd, texture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     VkImageMemoryBarrier2 imageBarriers[2];
     for (u32 i = 0; i < 2; i++)
