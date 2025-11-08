@@ -13,6 +13,43 @@ namespace Fly
 namespace RHI
 {
 
+void Blit(CommandBuffer& cmd, Texture& src, u32 srcMipLevel, Texture& dst,
+          u32 dstMipLevel, VkFilter filter)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(src.image != VK_NULL_HANDLE);
+    FLY_ASSERT(dst.image != VK_NULL_HANDLE);
+    FLY_ASSERT(srcMipLevel < src.mipCount);
+    FLY_ASSERT(dstMipLevel < dst.mipCount);
+
+    i32 srcMipWidth = static_cast<i32>(MAX(src.width >> srcMipLevel, 1u));
+    i32 srcMipHeight = static_cast<i32>(MAX(src.height >> srcMipLevel, 1u));
+    i32 srcMipDepth = static_cast<i32>(MAX(src.depth >> srcMipLevel, 1u));
+
+    i32 dstMipWidth = static_cast<i32>(MAX(dst.width >> dstMipLevel, 1u));
+    i32 dstMipHeight = static_cast<i32>(MAX(dst.height >> dstMipLevel, 1u));
+    i32 dstMipDepth = static_cast<i32>(MAX(dst.depth >> dstMipLevel, 1u));
+
+    VkImageBlit blit{};
+    blit.srcOffsets[0] = {0, 0, 0};
+    blit.srcOffsets[1] = {srcMipWidth, srcMipHeight, srcMipDepth};
+    blit.srcSubresource.aspectMask = GetImageAspectMask(src.format);
+    blit.srcSubresource.mipLevel = srcMipLevel;
+    blit.srcSubresource.baseArrayLayer = 0;
+    blit.srcSubresource.layerCount = src.layerCount;
+
+    blit.dstOffsets[0] = {0, 0, 0};
+    blit.dstOffsets[1] = {dstMipWidth, dstMipHeight, dstMipDepth};
+    blit.dstSubresource.aspectMask = GetImageAspectMask(dst.format);
+    blit.dstSubresource.mipLevel = dstMipLevel;
+    blit.dstSubresource.baseArrayLayer = 0;
+    blit.dstSubresource.layerCount = dst.layerCount;
+
+    vkCmdBlitImage(cmd.handle, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+                   filter);
+}
+
 void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
@@ -64,26 +101,27 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
         srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
         srcPipelineStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 
-        VkImageBlit blit{};
-        blit.srcOffsets[0] = {0, 0, 0};
-        blit.srcOffsets[1] = {mipWidth, mipHeight, mipDepth};
-        blit.srcSubresource.aspectMask = GetImageAspectMask(texture.format);
-        blit.srcSubresource.mipLevel = i - 1;
-        blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = texture.layerCount;
+        Blit(cmd, texture, i - 1, texture, i, VK_FILTER_LINEAR);
+        // VkImageBlit blit{};
+        // blit.srcOffsets[0] = {0, 0, 0};
+        // blit.srcOffsets[1] = {mipWidth, mipHeight, mipDepth};
+        // blit.srcSubresource.aspectMask = GetImageAspectMask(texture.format);
+        // blit.srcSubresource.mipLevel = i - 1;
+        // blit.srcSubresource.baseArrayLayer = 0;
+        // blit.srcSubresource.layerCount = texture.layerCount;
 
-        blit.dstOffsets[0] = {0, 0, 0};
-        blit.dstOffsets[1] = {MAX(mipWidth >> 1, 1), MAX(mipHeight >> 1, 1),
-                              MAX(mipDepth >> 1, 1)};
-        blit.dstSubresource.aspectMask = GetImageAspectMask(texture.format);
-        blit.dstSubresource.mipLevel = i;
-        blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = texture.layerCount;
+        // blit.dstOffsets[0] = {0, 0, 0};
+        // blit.dstOffsets[1] = {MAX(mipWidth >> 1, 1), MAX(mipHeight >> 1, 1),
+        //                       MAX(mipDepth >> 1, 1)};
+        // blit.dstSubresource.aspectMask = GetImageAspectMask(texture.format);
+        // blit.dstSubresource.mipLevel = i;
+        // blit.dstSubresource.baseArrayLayer = 0;
+        // blit.dstSubresource.layerCount = texture.layerCount;
 
-        vkCmdBlitImage(cmd.handle, texture.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-                       VK_FILTER_LINEAR);
+        // vkCmdBlitImage(cmd.handle, texture.image,
+        //                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
+        //                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+        //                VK_FILTER_LINEAR);
 
         mipWidth = MAX(mipWidth >> 1, 1);
         mipHeight = MAX(mipHeight >> 1, 1);

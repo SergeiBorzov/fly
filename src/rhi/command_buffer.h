@@ -67,6 +67,8 @@ VkBufferMemoryBarrier BufferMemoryBarrier(const Buffer& buffer,
                                           u64 size = VK_WHOLE_SIZE);
 
 /*--Commands--*/
+void Blit(CommandBuffer& cmd, Texture& src, u32 srcMipLevel, Texture& dst,
+          u32 dstMipLevel, VkFilter filter);
 void CopyTextureToBuffer(CommandBuffer& cmd, Buffer& dstBuffer,
                          const Texture& srcTexture, u32 mipLevel);
 void CopyBufferToTexture(CommandBuffer& cmd, Texture& dstTexture,
