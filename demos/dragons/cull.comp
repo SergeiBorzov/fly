@@ -97,6 +97,39 @@ bool FrustumCulling(vec3 centerVS, float sphereRadius, float near, float far,
     return visible;
 }
 
+// https://jcgt.org/published/0002/02/05/paper.pdf
+bool SphereScreenAABB(vec3 centerVS, float radius, float zNear, float p00,
+                      float p11, out vec4 aabb)
+{
+    // if sphere clips near plane, consider it visible
+    // sphere completely outside is handled by frustum culling
+    if (centerVS.z + radius >= zNear)
+    {
+        return false;
+    }
+
+    // Note: projecting only (1, 0, 0) and (0, 1, 0) axis, but paper allows to
+    // carve out any polygon
+
+    // Note: not normalizing vector like in paper, in the end we will
+    // anyways use fraction tX.x / tX.y to get NDC values, so the scale will be
+    // canceled out
+    vec2 vX =
+        vec2(sqrt(dot(centerVS.xz, centerVS.xz) - radius * radius), radius);
+    vec2 minX = mat2(vX.x, -vX.y, vX.y, vX.x) * centerVS.xz;
+    vec2 maxX = mat2(vX.x, vX.y, -vX.y, vX.x) * centerVS.xz;
+
+    vec2 vY =
+        vec2(sqrt(dot(centerVS.yz, centerVS.yz) - radius * radius), radius);
+    vec2 minY = mat2(vY.x, -vY.y, vY.y, vY.x) * centerVS.yz;
+    vec2 maxY = mat2(vY.x, vY.y, -vY.y, vY.x) * centerVS.yz;
+
+    aabb = 0.5f - 0.5f * vec4(minX.x / minX.y * p00, minY.x / minY.y * p11,
+                              maxX.x / maxX.y * p00, minY.x / minY.y * p11);
+
+    return true;
+}
+
 void main()
 {
     uint index = gl_GlobalInvocationID.x;

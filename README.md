@@ -39,6 +39,7 @@ To run demos: `bazel run demos/{demo}:app`
 - https://dev.to/gasim/implementing-bindless-design-in-vulkan-34no
 - https://www.reedbeta.com/blog/understanding-bcn-texture-compression-formats/
 - https://developer.nvidia.com/content/depth-precision-visualized
+- https://jcgt.org/published/0002/02/05/paper.pdf
 
 ## Atmosphere
 - https://sebh.github.io/publications/egsr2020.pdf
