@@ -15,6 +15,9 @@ layout(push_constant) uniform PushConstants
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
     uint instanceCount;
+    uint hzbTextureIndex;
+    uint hzbWidth;
+    uint hzbHeight;
 }
 gPushConstants;
 
@@ -54,6 +57,8 @@ FLY_REGISTER_STORAGE_BUFFER(writeonly, LodInstanceOffset, {
     uint localInstanceOffset;
 })
 
+FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
+
 layout(set = 0,
        binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
 {
@@ -64,18 +69,12 @@ gDrawCountBuffers[];
 const float sizes[MAX_LOD_COUNT] = {
     0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f, 0.015625f, 0.0078125f, 0.00390625};
 
-int SelectLodIndex(vec3 positionVS, float sphereRadius, uint lodCount,
-                   float invHalfTanFovHorizontal)
+int SelectLodIndex(float diagonalNDC, uint lodCount)
 {
-    float dist = max(-positionVS.z - sphereRadius, 0.001f);
-
-    float sizeRelativeToScreen =
-        (sphereRadius / dist) * invHalfTanFovHorizontal;
-
     int lodIndex = 0;
     for (int i = 0; i < lodCount; i++)
     {
-        if (sizeRelativeToScreen < sizes[i])
+        if (diagonalNDC < sizes[i])
         {
             lodIndex = i;
         }
@@ -95,6 +94,26 @@ bool FrustumCulling(vec3 centerVS, float sphereRadius, float near, float far,
         visible &&
         -centerVS.z * halfTanFovVertical + sphereRadius - abs(centerVS.y) > 0;
     return visible;
+}
+
+bool OcclusionCulling(vec4 aabb, vec3 centerVS, float radius, float near)
+{
+    float width = aabb.z - aabb.x;
+    float height = aabb.w - aabb.y;
+    float pixelWidth = width * gPushConstants.hzbWidth;
+    float pixelHeight = height * gPushConstants.hzbHeight;
+
+    // Find mip so that 1x1 texel hzb covers the aabb entirely
+    float mipIndex = max(floor(log2(max(pixelWidth, pixelHeight))), 0.0f);
+    // Sample center of aabb from hzb
+    float sampleDepth =
+        textureLod(
+            FLY_ACCESS_TEXTURE_BUFFER(Textures, gPushConstants.hzbTextureIndex),
+            0.5f * (aabb.xy + aabb.zw), mipIndex)
+            .r;
+    float depth = clamp(near / (-centerVS.z - radius), 0.0f, 1.0f);
+
+    return sampleDepth < depth;
 }
 
 // https://jcgt.org/published/0002/02/05/paper.pdf
@@ -181,10 +200,27 @@ void main()
     bool visible =
         FrustumCulling(positionVS.xyz, meshData.sphereRadius, near, far,
                        halfTanFovHorizontal, halfTanFovVertical);
+
+    vec4 aabb = vec4(0.0f, 0.0f, 1.0f, 1.0f);
     if (visible)
     {
-        lodIndex = SelectLodIndex(positionVS.xyz, meshData.sphereRadius,
-                                  meshData.lodCount, projection[0][0]);
+        bool aabbValid =
+            SphereScreenAABB(positionVS.xyz, meshData.sphereRadius, near,
+                             projection[0][0], projection[1][1], aabb);
+
+        if (aabbValid)
+        {
+            visible = visible && OcclusionCulling(aabb, positionVS.xyz,
+                                                  meshData.sphereRadius, near);
+        }
+    }
+
+    if (visible)
+    {
+        float width = aabb.z - aabb.x;
+        float height = aabb.w - aabb.y;
+        float diagonal = sqrt(width * width + height * height);
+        lodIndex = SelectLodIndex(diagonal, meshData.lodCount);
 
         localInstanceOffset =
             atomicAdd(FLY_ACCESS_STORAGE_BUFFER(

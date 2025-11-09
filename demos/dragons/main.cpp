@@ -125,13 +125,13 @@ static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
                              VK_IMAGE_USAGE_SAMPLED_BIT,
                          nullptr, width, height, VK_FORMAT_D32_SFLOAT,
-                         RHI::Sampler::FilterMode::Max,
+                         RHI::Sampler::FilterMode::Min,
                          RHI::Sampler::WrapMode::Clamp, 1, sDepthTexture);
     RHI::CreateTexture2D(device,
                          VK_IMAGE_USAGE_SAMPLED_BIT |
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                          nullptr, width, height, VK_FORMAT_R16_SFLOAT,
-                         RHI::Sampler::FilterMode::Max,
+                         RHI::Sampler::FilterMode::Min,
                          RHI::Sampler::WrapMode::Clamp, 0, sHzbTexture);
     sHzbTextureImageViews = static_cast<VkImageView*>(
         Fly::Alloc(sizeof(VkImageView) * sHzbTexture.mipCount));
@@ -500,7 +500,7 @@ static bool CreateResources(RHI::Device& device)
                                   VK_IMAGE_USAGE_SAMPLED_BIT,
                               nullptr, device.swapchainWidth,
                               device.swapchainHeight, VK_FORMAT_D32_SFLOAT,
-                              RHI::Sampler::FilterMode::Max,
+                              RHI::Sampler::FilterMode::Min,
                               RHI::Sampler::WrapMode::Clamp, 1, sDepthTexture))
     {
         FLY_ERROR("Failed to create depth texture");
@@ -511,7 +511,7 @@ static bool CreateResources(RHI::Device& device)
             device,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             nullptr, device.swapchainWidth, device.swapchainHeight,
-            VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Max,
+            VK_FORMAT_R16_SFLOAT, RHI::Sampler::FilterMode::Min,
             RHI::Sampler::WrapMode::Clamp, 0, sHzbTexture))
     {
         FLY_ERROR("Failed to create hzb texture");
@@ -868,6 +868,8 @@ static void RecordCull(RHI::CommandBuffer& cmd,
     RHI::Buffer& drawCommandBuffer = *(bufferInput[4].pBuffer);
     RHI::Buffer& drawCountBuffer = *(bufferInput[5].pBuffer);
 
+    RHI::Texture& hzbTexture = *(textureInput[0].pTexture);
+
     u32 pushConstants[] = {
         cameraBuffer.bindlessHandle,
         instanceBuffer.bindlessHandle,
@@ -875,7 +877,10 @@ static void RecordCull(RHI::CommandBuffer& cmd,
         lodInstanceOffsetBuffer.bindlessHandle,
         drawCommandBuffer.bindlessHandle,
         drawCountBuffer.bindlessHandle,
-        static_cast<u32>(sInstanceRowCount * sInstanceRowCount)};
+        static_cast<u32>(sInstanceRowCount * sInstanceRowCount),
+        hzbTexture.bindlessHandle,
+        hzbTexture.width,
+        hzbTexture.height};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
     RHI::Dispatch(cmd,
                   static_cast<u32>(Math::Ceil(
@@ -895,8 +900,12 @@ static void Cull(RHI::Device& device)
         {&sDrawCountBuffer,
          VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT}};
 
+    RHI::RecordTextureInput textureInput = {
+        &sHzbTexture, VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCull,
-                        bufferInput, 6);
+                        bufferInput, 6, &textureInput, 1);
 }
 
 static void RecordFirstInstancePrefixSum(
