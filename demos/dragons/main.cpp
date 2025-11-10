@@ -70,6 +70,7 @@ struct RadianceProjectionCoeff
 
 static VkQueryPool sTimestampQueryPool;
 static VkDescriptorPool sImGuiDescriptorPool;
+static RHI::GraphicsPipeline sPrepassPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sSkyboxPipeline;
 static RHI::GraphicsPipeline sPrefilterPipeline;
@@ -251,105 +252,188 @@ static bool CreatePipelines(RHI::Device& device)
         RHI::DestroyShader(device, shader);
     }
 
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-    fixedState.depthStencilState.depthTestEnable = false;
-
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("skybox.vert.spv"),
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    // Prepass pipeline
     {
-        return false;
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachmentCount = 0;
+        fixedState.colorBlendState.attachmentCount = 0;
+        fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+
+        fixedState.pipelineRendering.depthAttachmentFormat =
+            VK_FORMAT_D32_SFLOAT;
+        fixedState.depthStencilState.depthTestEnable = true;
+
+        RHI::ShaderProgram shaderProgram{};
+        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
+                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                         sPrepassPipeline))
+        {
+            return false;
+        }
+
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
     }
 
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("skybox.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
+    // Lit pass
     {
-        return false;
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachments[0] =
+            device.surfaceFormat.format;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+
+        fixedState.pipelineRendering.depthAttachmentFormat =
+            VK_FORMAT_D32_SFLOAT;
+        fixedState.depthStencilState.depthTestEnable = true;
+        fixedState.depthStencilState.depthWriteEnable = false;
+        fixedState.depthStencilState.depthCompareOp =
+            VK_COMPARE_OP_GREATER_OR_EQUAL;
+
+        RHI::ShaderProgram shaderProgram{};
+        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
+                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        {
+            return false;
+        }
+
+        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.frag.spv"),
+                                    shaderProgram[RHI::Shader::Type::Fragment]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                         sGraphicsPipeline))
+        {
+            return false;
+        }
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
     }
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sSkyboxPipeline))
+    // Prefilter
     {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachments[0] =
+            VK_FORMAT_R16G16B16A16_SFLOAT;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.pipelineRendering.viewMask = 0x3F;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
-    fixedState.depthStencilState.depthTestEnable = true;
+        RHI::ShaderProgram shaderProgram{};
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("prefilter.vert.spv"),
+                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        {
+            return false;
+        }
 
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("prefilter.frag.spv"),
+                                    shaderProgram[RHI::Shader::Type::Fragment]))
+        {
+            return false;
+        }
 
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                         sPrefilterPipeline))
+        {
+            return false;
+        }
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sGraphicsPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
-
-    fixedState.pipelineRendering.colorAttachments[0] =
-        VK_FORMAT_R16G16B16A16_SFLOAT;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.pipelineRendering.viewMask = 0x3F;
-    if (!Fly::LoadShaderFromSpv(device,
-                                FLY_STRING8_LITERAL("prefilter.vert.spv"),
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
     }
 
-    if (!Fly::LoadShaderFromSpv(device,
-                                FLY_STRING8_LITERAL("prefilter.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
+    // Hzb downsample pipeline
     {
-        return false;
-    }
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sPrefilterPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
 
-    fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R16_SFLOAT;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.pipelineRendering.viewMask = 0;
-    if (!Fly::LoadShaderFromSpv(device,
-                                FLY_STRING8_LITERAL("hzb_downsample.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sHzbDownsamplePipeline))
-    {
-        return false;
+        fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R16_SFLOAT;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.pipelineRendering.viewMask = 0;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+
+        RHI::ShaderProgram shaderProgram{};
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("prefilter.vert.spv"),
+                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        {
+            return false;
+        }
+
+        if (!Fly::LoadShaderFromSpv(
+                device, FLY_STRING8_LITERAL("hzb_downsample.frag.spv"),
+                shaderProgram[RHI::Shader::Type::Fragment]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                         sHzbDownsamplePipeline))
+        {
+            return false;
+        }
+
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
     }
 
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+    // Skybox pipeline
+    {
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+
+        fixedState.pipelineRendering.colorAttachments[0] =
+            device.surfaceFormat.format;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.pipelineRendering.viewMask = 0;
+        fixedState.colorBlendState.attachmentCount = 1;
+
+        fixedState.pipelineRendering.depthAttachmentFormat =
+            VK_FORMAT_D32_SFLOAT;
+        fixedState.depthStencilState.depthTestEnable = true;
+        fixedState.depthStencilState.depthWriteEnable = false;
+        fixedState.depthStencilState.depthCompareOp =
+            VK_COMPARE_OP_GREATER_OR_EQUAL;
+
+        RHI::ShaderProgram shaderProgram{};
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("skybox.vert.spv"),
+                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        {
+            return false;
+        }
+
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("skybox.frag.spv"),
+                                    shaderProgram[RHI::Shader::Type::Fragment]))
+        {
+            return false;
+        }
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                         sSkyboxPipeline))
+        {
+            return false;
+        }
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+    }
 
     return true;
 }
 
 static void DestroyPipelines(RHI::Device& device)
 {
+    RHI::DestroyGraphicsPipeline(device, sPrepassPipeline);
     RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
     RHI::DestroyGraphicsPipeline(device, sSkyboxPipeline);
     RHI::DestroyGraphicsPipeline(device, sPrefilterPipeline);
@@ -735,10 +819,14 @@ static void DrawSky(RHI::Device& device)
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
+        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView,
+                                 VK_ATTACHMENT_LOAD_OP_LOAD);
+    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
+        sDepthTexture.imageView, VK_ATTACHMENT_LOAD_OP_LOAD);
+
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
-        &colorAttachment, 1);
+        &colorAttachment, 1, &depthAttachment);
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
                          RecordDrawSky, &bufferInput, 1, &textureInput, 1);
 }
@@ -964,6 +1052,58 @@ static void Remap(RHI::Device& device)
                         bufferInput, 3);
 }
 
+static void RecordPrepass(RHI::CommandBuffer& cmd,
+                          const RHI::RecordBufferInput* bufferInput,
+                          u32 bufferInputCount,
+                          const RHI::RecordTextureInput* textureInput,
+                          u32 textureInputCount, void* pUserData)
+{
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+
+    RHI::BindGraphicsPipeline(cmd, sPrepassPipeline);
+
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& meshInstanceBuffer = *(bufferInput[1].pBuffer);
+    RHI::Buffer& remapBuffer = *(bufferInput[2].pBuffer);
+
+    RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
+
+    u32 pushConstants[] = {
+        cameraBuffer.bindlessHandle, sMesh.vertexBuffer.bindlessHandle,
+        remapBuffer.bindlessHandle, meshInstanceBuffer.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+    RHI::DrawIndexedIndirectCount(cmd, sDrawCommands, 0, sDrawCountBuffer, 0,
+                                  FLY_MAX_LOD_COUNT,
+                                  sizeof(VkDrawIndexedIndirectCommand));
+}
+
+static void Prepass(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput[5] = {
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+        {&sMeshInstances, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sRemapBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sDrawCommands, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT},
+        {&sDrawCountBuffer, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}};
+
+    RHI::RecordTextureInput textureInput[1] = {
+        {&sDepthTexture, VK_ACCESS_2_SHADER_WRITE_BIT,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}};
+
+    VkRenderingAttachmentInfo depthAttachment =
+        RHI::DepthAttachmentInfo(sDepthTexture.imageView);
+    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}}, nullptr, 0,
+        &depthAttachment);
+
+    RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                         RecordPrepass, bufferInput, 5, textureInput, 1);
+}
+
 static void RecordDrawMesh(RHI::CommandBuffer& cmd,
                            const RHI::RecordBufferInput* bufferInput,
                            u32 bufferInputCount,
@@ -1027,10 +1167,9 @@ static void DrawMesh(RHI::Device& device)
          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}};
 
     VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView,
-                                 VK_ATTACHMENT_LOAD_OP_LOAD);
-    VkRenderingAttachmentInfo depthAttachment =
-        RHI::DepthAttachmentInfo(sDepthTexture.imageView);
+        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
+    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
+        sDepthTexture.imageView, VK_ATTACHMENT_LOAD_OP_LOAD);
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
@@ -1219,9 +1358,10 @@ int main(int argc, char* argv[])
             Remap(device);
         }
 
-        DrawSky(device);
-        DrawMesh(device);
+        Prepass(device);
         DownsampleHzb(device);
+        DrawMesh(device);
+        DrawSky(device);
         DrawGUI(device);
 
         RHI::EndRenderFrame(device);

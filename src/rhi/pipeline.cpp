@@ -80,8 +80,6 @@ static VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo(
     VkPipelineColorBlendStateCreateFlags flags = 0,
     const f32* blendConstants = nullptr, u32 blendConstantCount = 0)
 {
-    FLY_ASSERT(colorBlendAttachments);
-    FLY_ASSERT(colorBlendAttachmentCount > 0);
     FLY_ASSERT(colorBlendAttachmentCount <=
                FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT);
     FLY_ASSERT(blendConstants);
@@ -215,8 +213,6 @@ PipelineRenderingCreateInfo(const VkFormat* colorAttachments,
                             VkFormat depthAttachmentFormat,
                             VkFormat stencilAttachmentFormat, u32 viewMask)
 {
-    FLY_ASSERT(colorAttachments);
-    FLY_ASSERT(colorAttachmentCount > 0);
     FLY_ASSERT(colorAttachmentCount <=
                FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT);
 

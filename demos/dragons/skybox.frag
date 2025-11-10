@@ -24,12 +24,7 @@ void main()
                                    Cubemaps, gPushConstants.skyBoxTextureIndex),
                                dir)
                            .rgb;
-    // vec3 fogColor = vec3(0.7f, 0.75f, 0.8f);
-    // float horizonStart = 0.0f;
-    // float horizonEnd = 0.2f;
-    // float fogFactor = smoothstep(horizonStart, horizonEnd, dir.y);
-    // vec3 finalColor = mix(fogColor, skyBoxColor, fogFactor);
-
     vec3 finalColor = Reinhard(skyBoxColor);
+    //gl_FragDepth = 0.0f;
     outFragColor = vec4(finalColor, 1.0f);
 }

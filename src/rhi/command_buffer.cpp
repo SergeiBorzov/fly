@@ -317,9 +317,6 @@ RenderingInfo(const VkRect2D& renderArea,
               const VkRenderingAttachmentInfo* stencilAttachment,
               u32 layerCount, u32 viewMask)
 {
-    FLY_ASSERT(colorAttachments);
-    FLY_ASSERT(colorAttachmentCount > 0);
-
     VkRenderingInfo renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderInfo.pNext = nullptr;
