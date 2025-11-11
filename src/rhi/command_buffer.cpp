@@ -7,6 +7,22 @@
 #include "device.h"
 #include "texture.h"
 
+#define WRITE_MASK                                                             \
+    (VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |   \
+     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |                          \
+     VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_HOST_WRITE_BIT |             \
+     VK_ACCESS_2_MEMORY_WRITE_BIT |                                            \
+     VK_ACCESS_2_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |                            \
+     VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR)
+
+#define DEVICE_READ_MASK                                                       \
+    (VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_UNIFORM_READ_BIT |              \
+     VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_TRANSFER_READ_BIT |   \
+     VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT |     \
+     VK_ACCESS_2_INDEX_READ_BIT | VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT |      \
+     VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR |                         \
+     VK_ACCESS_2_CONDITIONAL_RENDERING_READ_BIT_EXT)
+
 namespace Fly
 {
 namespace RHI
@@ -332,6 +348,27 @@ RenderingInfo(const VkRect2D& renderArea,
     return renderInfo;
 }
 
+static bool IsReadAfterRead(VkAccessFlags2 srcAccess, VkAccessFlags2 dstAccess)
+{
+    if ((srcAccess & WRITE_MASK) || (dstAccess & WRITE_MASK))
+    {
+        return false;
+    }
+
+    bool srcIsDeviceRead =
+        (srcAccess & DEVICE_READ_MASK) && !(srcAccess & ~DEVICE_READ_MASK);
+
+    bool dstIsHostRead = (dstAccess & VK_ACCESS_2_HOST_READ_BIT) &&
+                         !(dstAccess & ~VK_ACCESS_2_HOST_READ_BIT);
+
+    if (srcIsDeviceRead && dstIsHostRead)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static void InsertBarriers(RHI::CommandBuffer& cmd,
                            VkPipelineStageFlagBits2 pipelineStageMask,
                            const RecordBufferInput* bufferInput,
@@ -353,9 +390,8 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
         {
             RHI::Buffer& buffer = *(bufferInput[i].pBuffer);
 
-            // TODO
             if (buffer.pipelineStageMask != pipelineStageMask ||
-                buffer.accessMask != bufferInput[i].accessMask)
+                !IsReadAfterRead(buffer.accessMask, bufferInput[i].accessMask))
             {
                 VkBufferMemoryBarrier2& barrier =
                     bufferBarriers[bufferBarrierCount];
@@ -393,7 +429,8 @@ static void InsertBarriers(RHI::CommandBuffer& cmd,
             // TODO
             if (texture.pipelineStageMask != pipelineStageMask ||
                 texture.imageLayout != textureInput[i].imageLayout ||
-                texture.accessMask != textureInput[i].accessMask)
+                !IsReadAfterRead(texture.accessMask,
+                                 textureInput[i].accessMask))
             {
                 VkImageMemoryBarrier2& barrier =
                     imageBarriers[imageBarrierCount];
