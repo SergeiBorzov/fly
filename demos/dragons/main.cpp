@@ -1263,6 +1263,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    sCamera.speed = 20.0f;
+
     Arena& arena = GetScratchArena();
 
     if (volkInitialize() != VK_SUCCESS)
