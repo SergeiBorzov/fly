@@ -56,8 +56,16 @@ glsl_shader(
 )
     
 glsl_shader(
-    name = "cull.comp.spv",
-    src = "cull.comp",
+    name = "main_cull.comp.spv",
+    src = "main_cull.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "occluder_cull.comp.spv",
+    src = "occluder_cull.comp",
     deps = [
         "//demos/common:glsl_bindless",
     ],
@@ -144,7 +152,8 @@ cc_binary(
         ":cook_skybox",
         ":lit.vert.spv",
         ":lit.frag.spv",
-        ":cull.comp.spv",
+        ":main_cull.comp.spv",
+        ":occluder_cull.comp.spv",
         ":prefix_sum.comp.spv",
         ":remap.comp.spv",
         ":radiance_projection.comp.spv",

@@ -1,0 +1,204 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "bindless.glsl"
+
+#define MAX_LOD_COUNT 8
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants
+{
+    uint cameraBufferIndex;
+    uint instanceBufferIndex;
+    uint meshDataBufferIndex;
+    uint lodInstanceOffsetBufferIndex;
+    uint drawCommandBufferIndex;
+    uint drawCountBufferIndex;
+    uint instanceCount;
+}
+gPushConstants;
+
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
+    mat4 projection;
+    mat4 view;
+    vec4 screenSize;
+    float near;
+    float far;
+    float halfTanFovHorizontal;
+    float halfTanFovVertical;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(writeonly, VkDrawIndexedIndirectCommand, {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, MeshData, {
+    vec3 sphereCenter;
+    float sphereRadius;
+    uint lodCount;
+})
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
+    vec3 position;
+    float roughness;
+    float metallic;
+    float pad[3];
+})
+
+FLY_REGISTER_STORAGE_BUFFER(writeonly, LodInstanceOffset, {
+    int lodIndex;
+    uint localInstanceOffset;
+})
+
+FLY_REGISTER_TEXTURE_BUFFER(Textures, sampler2D)
+
+layout(set = 0,
+       binding = FLY_STORAGE_BUFFER_BINDING_INDEX) writeonly buffer DrawCount
+{
+    uint count;
+}
+gDrawCountBuffers[];
+
+const float sizes[MAX_LOD_COUNT] = {
+    0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f, 0.015625f, 0.0078125f, 0.00390625};
+
+int SelectLodIndex(float diagonalNDC, uint lodCount)
+{
+    int lodIndex = 0;
+    for (int i = 0; i < lodCount; i++)
+    {
+        if (diagonalNDC < sizes[i])
+        {
+            lodIndex = i;
+        }
+    }
+    return lodIndex;
+}
+
+bool FrustumCulling(vec3 centerVS, float sphereRadius, float near, float far,
+                    float halfTanFovHorizontal, float halfTanFovVertical)
+{
+    bool visible =
+        -centerVS.z + sphereRadius > near && -centerVS.z - sphereRadius < far;
+    visible =
+        visible &&
+        -centerVS.z * halfTanFovHorizontal + sphereRadius - abs(centerVS.x) > 0;
+    visible =
+        visible &&
+        -centerVS.z * halfTanFovVertical + sphereRadius - abs(centerVS.y) > 0;
+    return visible;
+}
+
+// https://jcgt.org/published/0002/02/05/paper.pdf
+bool SphereScreenAABB(vec3 centerVS, float radius, float zNear, float p00,
+                      float p11, out vec4 aabb)
+{
+    // if sphere clips near plane, consider it visible
+    // sphere completely outside is handled by frustum culling
+    if (centerVS.z + radius >= zNear)
+    {
+        return false;
+    }
+
+    // Note: projecting only (1, 0, 0) and (0, 1, 0) axis, but paper allows to
+    // carve out any polygon
+
+    // Note: not normalizing vector like in paper, in the end we will
+    // anyways use fraction tX.x / tX.y to get NDC values, so the scale will be
+    // canceled out
+    vec2 vX =
+        vec2(sqrt(dot(centerVS.xz, centerVS.xz) - radius * radius), radius);
+    vec2 minX = mat2(vX.x, -vX.y, vX.y, vX.x) * centerVS.xz;
+    vec2 maxX = mat2(vX.x, vX.y, -vX.y, vX.x) * centerVS.xz;
+
+    vec2 vY =
+        vec2(sqrt(dot(centerVS.yz, centerVS.yz) - radius * radius), radius);
+    vec2 minY = mat2(vY.x, -vY.y, vY.y, vY.x) * centerVS.yz;
+    vec2 maxY = mat2(vY.x, vY.y, -vY.y, vY.x) * centerVS.yz;
+
+    aabb = 0.5f - 0.5f * vec4(minX.x / minX.y * p00, minY.x / minY.y * p11,
+                              maxX.x / maxX.y * p00, minY.x / minY.y * p11);
+
+    return true;
+}
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= gPushConstants.instanceCount)
+    {
+        return;
+    }
+
+    if (index < 8)
+    {
+        FLY_ACCESS_STORAGE_BUFFER(VkDrawIndexedIndirectCommand,
+                                  gPushConstants.drawCommandBufferIndex)
+        [index].instanceCount = 0;
+    }
+    barrier();
+
+    if (index == 0)
+    {
+        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count = 8;
+    }
+    barrier();
+
+    // Only dragon mesh in the scene
+    MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
+        MeshData, gPushConstants.meshDataBufferIndex)[0];
+
+    mat4 projection = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, projection);
+    mat4 view = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, view);
+    float near = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, near);
+    float far = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, far);
+    float halfTanFovHorizontal = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, halfTanFovHorizontal);
+    float halfTanFovVertical = FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, halfTanFovVertical);
+
+    vec3 translation =
+        FLY_ACCESS_STORAGE_BUFFER(MeshInstance,
+                                  gPushConstants.instanceBufferIndex)[index]
+            .position;
+    vec4 positionVS = view * vec4(meshData.sphereCenter + translation, 1.0f);
+
+    int lodIndex = -1;
+    uint localInstanceOffset = 0;
+
+    bool visible =
+        FrustumCulling(positionVS.xyz, meshData.sphereRadius, near, far,
+                       halfTanFovHorizontal, halfTanFovVertical);
+
+    vec4 aabb = vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    if (visible)
+    {
+        bool aabbValid =
+            SphereScreenAABB(positionVS.xyz, meshData.sphereRadius, near,
+                             projection[0][0], projection[1][1], aabb);
+
+        float width = aabb.z - aabb.x;
+        float height = aabb.w - aabb.y;
+        float diagonal = sqrt(width * width + height * height);
+        lodIndex = SelectLodIndex(diagonal, meshData.lodCount);
+
+        localInstanceOffset =
+            atomicAdd(FLY_ACCESS_STORAGE_BUFFER(
+                          VkDrawIndexedIndirectCommand,
+                          gPushConstants.drawCommandBufferIndex)[lodIndex]
+                          .instanceCount,
+                      1);
+    }
+
+    FLY_ACCESS_STORAGE_BUFFER(LodInstanceOffset,
+                              gPushConstants.lodInstanceOffsetBufferIndex)
+    [index] = LodInstanceOffset(lodIndex, localInstanceOffset);
+}

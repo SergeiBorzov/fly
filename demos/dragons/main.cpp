@@ -75,7 +75,8 @@ static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sSkyboxPipeline;
 static RHI::GraphicsPipeline sPrefilterPipeline;
 static RHI::GraphicsPipeline sHzbDownsamplePipeline;
-static RHI::ComputePipeline sCullPipeline;
+static RHI::ComputePipeline sMainCullPipeline;
+static RHI::ComputePipeline sOccluderCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
 static RHI::ComputePipeline sRadianceProjectionPipeline;
@@ -228,11 +229,13 @@ static void DestroyImGuiContext(RHI::Device& device)
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sCullPipeline, &sFirstInstancePrefixSumPipeline, &sRemapPipeline,
-        &sRadianceProjectionPipeline, &sBrdfIntegrationPipeline};
+        &sOccluderCullPipeline,           &sMainCullPipeline,
+        &sFirstInstancePrefixSumPipeline, &sRemapPipeline,
+        &sRadianceProjectionPipeline,     &sBrdfIntegrationPipeline};
 
     String8 computeShaderPaths[] = {
-        FLY_STRING8_LITERAL("cull.comp.spv"),
+        FLY_STRING8_LITERAL("occluder_cull.comp.spv"),
+        FLY_STRING8_LITERAL("main_cull.comp.spv"),
         FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
         FLY_STRING8_LITERAL("remap.comp.spv"),
         FLY_STRING8_LITERAL("radiance_projection.comp.spv"),
@@ -438,7 +441,8 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyGraphicsPipeline(device, sSkyboxPipeline);
     RHI::DestroyGraphicsPipeline(device, sPrefilterPipeline);
     RHI::DestroyGraphicsPipeline(device, sHzbDownsamplePipeline);
-    RHI::DestroyComputePipeline(device, sCullPipeline);
+    RHI::DestroyComputePipeline(device, sOccluderCullPipeline);
+    RHI::DestroyComputePipeline(device, sMainCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
     RHI::DestroyComputePipeline(device, sRemapPipeline);
     RHI::DestroyComputePipeline(device, sRadianceProjectionPipeline);
@@ -941,13 +945,60 @@ static void DownsampleHzb(RHI::Device& device)
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 };
 
-static void RecordCull(RHI::CommandBuffer& cmd,
-                       const RHI::RecordBufferInput* bufferInput,
-                       u32 bufferInputCount,
-                       const RHI::RecordTextureInput* textureInput,
-                       u32 textureInputCount, void* pUserData)
+static void RecordOccluderCull(RHI::CommandBuffer& cmd,
+                               const RHI::RecordBufferInput* bufferInput,
+                               u32 bufferInputCount,
+                               const RHI::RecordTextureInput* textureInput,
+                               u32 textureInputCount, void* pUserData)
 {
-    RHI::BindComputePipeline(cmd, sCullPipeline);
+    RHI::BindComputePipeline(cmd, sOccluderCullPipeline);
+
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& instanceBuffer = *(bufferInput[1].pBuffer);
+    RHI::Buffer& meshDataBuffer = *(bufferInput[2].pBuffer);
+    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput[3].pBuffer);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput[4].pBuffer);
+    RHI::Buffer& drawCountBuffer = *(bufferInput[5].pBuffer);
+
+    u32 pushConstants[] = {
+        cameraBuffer.bindlessHandle,
+        instanceBuffer.bindlessHandle,
+        meshDataBuffer.bindlessHandle,
+        lodInstanceOffsetBuffer.bindlessHandle,
+        drawCommandBuffer.bindlessHandle,
+        drawCountBuffer.bindlessHandle,
+        static_cast<u32>(sInstanceRowCount * sInstanceRowCount)};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+    RHI::Dispatch(cmd,
+                  static_cast<u32>(Math::Ceil(
+                      (sInstanceRowCount * sInstanceRowCount) / 256.0f)),
+                  1, 1);
+}
+
+static void OccluderCull(RHI::Device& device)
+{
+    RHI::RecordBufferInput bufferInput[6] = {
+        {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+        {&sMeshInstances, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sMeshDataBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sLodInstanceOffsetBuffer, VK_ACCESS_2_SHADER_WRITE_BIT},
+        {&sDrawCommands,
+         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT},
+        {&sDrawCountBuffer,
+         VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT}};
+
+    RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordOccluderCull,
+                        bufferInput, 6);
+}
+
+static void RecordMainCull(RHI::CommandBuffer& cmd,
+                           const RHI::RecordBufferInput* bufferInput,
+                           u32 bufferInputCount,
+                           const RHI::RecordTextureInput* textureInput,
+                           u32 textureInputCount, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sMainCullPipeline);
 
     RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
     RHI::Buffer& instanceBuffer = *(bufferInput[1].pBuffer);
@@ -976,7 +1027,7 @@ static void RecordCull(RHI::CommandBuffer& cmd,
                   1, 1);
 }
 
-static void Cull(RHI::Device& device)
+static void MainCull(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput[6] = {
         {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
@@ -992,7 +1043,7 @@ static void Cull(RHI::Device& device)
         &sHzbTexture, VK_ACCESS_2_SHADER_READ_BIT,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-    RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordCull,
+    RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordMainCull,
                         bufferInput, 6, &textureInput, 1);
 }
 
@@ -1353,13 +1404,19 @@ int main(int argc, char* argv[])
 
         if (!sIsCullingFixed)
         {
-            Cull(device);
+            // First pass
+            OccluderCull(device);
+            FirstInstancePrefixSum(device);
+            Remap(device);
+            Prepass(device);
+            DownsampleHzb(device);
+
+            // Second pass
+            MainCull(device);
             FirstInstancePrefixSum(device);
             Remap(device);
         }
 
-        Prepass(device);
-        DownsampleHzb(device);
         DrawMesh(device);
         DrawSky(device);
         DrawGUI(device);
