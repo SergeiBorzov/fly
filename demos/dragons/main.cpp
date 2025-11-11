@@ -98,7 +98,7 @@ static VkImageView* sHzbTextureImageViews;
 static VkImageView* sPrefilteredSkyboxImageViews;
 static Mesh sMesh;
 
-static i32 sInstanceRowCount = 15;
+static i32 sInstanceRowCount = 100;
 static bool sIsCullingFixed = false;
 static f32 sTimestampPeriod;
 
@@ -294,9 +294,8 @@ static bool CreatePipelines(RHI::Device& device)
         fixedState.pipelineRendering.depthAttachmentFormat =
             VK_FORMAT_D32_SFLOAT;
         fixedState.depthStencilState.depthTestEnable = true;
-        fixedState.depthStencilState.depthWriteEnable = false;
-        fixedState.depthStencilState.depthCompareOp =
-            VK_COMPARE_OP_GREATER_OR_EQUAL;
+        fixedState.depthStencilState.depthWriteEnable = true;
+        fixedState.depthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER;
 
         RHI::ShaderProgram shaderProgram{};
         if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
@@ -1064,7 +1063,8 @@ static void RecordFirstInstancePrefixSum(
 static void FirstInstancePrefixSum(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput = {&sDrawCommands,
-                                          VK_ACCESS_2_SHADER_WRITE_BIT};
+                                          VK_ACCESS_2_SHADER_READ_BIT |
+                                              VK_ACCESS_2_SHADER_WRITE_BIT};
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
                         RecordFirstInstancePrefixSum, &bufferInput, 1);
 }
@@ -1219,8 +1219,8 @@ static void DrawMesh(RHI::Device& device)
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
-    VkRenderingAttachmentInfo depthAttachment = RHI::DepthAttachmentInfo(
-        sDepthTexture.imageView, VK_ATTACHMENT_LOAD_OP_LOAD);
+    VkRenderingAttachmentInfo depthAttachment =
+        RHI::DepthAttachmentInfo(sDepthTexture.imageView);
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);

@@ -134,12 +134,14 @@ bool SphereScreenAABB(vec3 centerVS, float radius, float zNear, float p00,
     // anyways use fraction tX.x / tX.y to get NDC values, so the scale will be
     // canceled out
     vec2 vX =
-        vec2(sqrt(dot(centerVS.xz, centerVS.xz) - radius * radius), radius);
+        vec2(sqrt(max(dot(centerVS.xz, centerVS.xz) - radius * radius, 0.0f)),
+             radius);
     vec2 minX = mat2(vX.x, -vX.y, vX.y, vX.x) * centerVS.xz;
     vec2 maxX = mat2(vX.x, vX.y, -vX.y, vX.x) * centerVS.xz;
 
     vec2 vY =
-        vec2(sqrt(dot(centerVS.yz, centerVS.yz) - radius * radius), radius);
+        vec2(sqrt(max(dot(centerVS.yz, centerVS.yz) - radius * radius, 0.0f)),
+             radius);
     vec2 minY = mat2(vY.x, -vY.y, vY.y, vY.x) * centerVS.yz;
     vec2 maxY = mat2(vY.x, vY.y, -vY.y, vY.x) * centerVS.yz;
 
@@ -167,7 +169,8 @@ void main()
 
     if (index == 0)
     {
-        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count = 8;
+        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count =
+            MAX_LOD_COUNT;
     }
     barrier();
 
@@ -208,11 +211,12 @@ void main()
             SphereScreenAABB(positionVS.xyz, meshData.sphereRadius, near,
                              projection[0][0], projection[1][1], aabb);
 
-        if (aabbValid)
-        {
-            visible = visible && OcclusionCulling(aabb, positionVS.xyz,
-                                                  meshData.sphereRadius, near);
-        }
+        // if (aabbValid)
+        // {
+        //     visible = visible && OcclusionCulling(aabb, positionVS.xyz,
+        //                                           meshData.sphereRadius,
+        //                                           near);
+        // }
     }
 
     if (visible)

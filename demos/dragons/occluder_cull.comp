@@ -144,7 +144,7 @@ void main()
 
     if (index == 0)
     {
-        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count = 8;
+        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count = MAX_LOD_COUNT;
     }
     barrier();
 
@@ -200,5 +200,5 @@ void main()
 
     FLY_ACCESS_STORAGE_BUFFER(LodInstanceOffset,
                               gPushConstants.lodInstanceOffsetBufferIndex)
-    [index] = LodInstanceOffset(lodIndex, localInstanceOffset);
+        [index] = LodInstanceOffset(lodIndex, localInstanceOffset);
 }
