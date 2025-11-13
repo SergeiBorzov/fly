@@ -28,7 +28,7 @@ To run demos: `bazel run demos/{demo}:app`
 ## Ocean simulation
 ![Ocean](https://github.com/SergeiBorzov/fly/blob/master/gallery/ocean.gif)
 
-## Dragons (IBL, PBR, SH Irradiance Map, GPU Driven LOD selection and Culling)
+## Dragons (IBL, PBR, SH Irradiance Map, GPU Driven LOD selection and Culling (Frustum + 2 Pass Occlusion Culling))
 ![Dragons1](https://github.com/SergeiBorzov/fly/blob/master/gallery/dragons_1.png)
 ![Dragons2](https://github.com/SergeiBorzov/fly/blob/master/gallery/dragons_2.png)
 
@@ -64,3 +64,4 @@ To run demos: `bazel run demos/{demo}:app`
 - https://www.ppsloan.org/publications/StupidSH36.pdf
 - https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
 - https://seblagarde.wordpress.com/wp-content/uploads/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+- https://medium.com/@mil_kru/two-pass-occlusion-culling-4100edcad501

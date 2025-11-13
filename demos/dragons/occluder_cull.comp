@@ -11,10 +11,11 @@ layout(push_constant) uniform PushConstants
     uint cameraBufferIndex;
     uint instanceBufferIndex;
     uint meshDataBufferIndex;
+    uint remapBufferIndex;
     uint lodInstanceOffsetBufferIndex;
     uint drawCommandBufferIndex;
     uint drawCountBufferIndex;
-    uint instanceCount;
+    uint visibleCount;
 }
 gPushConstants;
 
@@ -48,6 +49,8 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
     float metallic;
     float pad[3];
 })
+
+FLY_REGISTER_STORAGE_BUFFER(readonly, Remap, { uint value; })
 
 FLY_REGISTER_STORAGE_BUFFER(writeonly, LodInstanceOffset, {
     int lodIndex;
@@ -128,25 +131,28 @@ bool SphereScreenAABB(vec3 centerVS, float radius, float zNear, float p00,
 
 void main()
 {
-    uint index = gl_GlobalInvocationID.x;
-    if (index >= gPushConstants.instanceCount)
+    uint drawIndex = gl_GlobalInvocationID.x;
+    if (drawIndex >= gPushConstants.visibleCount)
     {
         return;
     }
 
-    if (index < 8)
+    if (drawIndex == 0)
     {
-        FLY_ACCESS_STORAGE_BUFFER(VkDrawIndexedIndirectCommand,
-                                  gPushConstants.drawCommandBufferIndex)
-        [index].instanceCount = 0;
+        for (uint i = 0; i < MAX_LOD_COUNT; i++)
+        {
+            FLY_ACCESS_STORAGE_BUFFER(VkDrawIndexedIndirectCommand,
+                                      gPushConstants.drawCommandBufferIndex)
+            [i].instanceCount = 0;
+        }
+        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count =
+            MAX_LOD_COUNT;
     }
     barrier();
 
-    if (index == 0)
-    {
-        gDrawCountBuffers[gPushConstants.drawCountBufferIndex].count = MAX_LOD_COUNT;
-    }
-    barrier();
+    uint index = FLY_ACCESS_STORAGE_BUFFER(
+                     Remap, gPushConstants.remapBufferIndex)[drawIndex]
+                     .value;
 
     // Only dragon mesh in the scene
     MeshData meshData = FLY_ACCESS_STORAGE_BUFFER(
@@ -200,5 +206,5 @@ void main()
 
     FLY_ACCESS_STORAGE_BUFFER(LodInstanceOffset,
                               gPushConstants.lodInstanceOffsetBufferIndex)
-        [index] = LodInstanceOffset(lodIndex, localInstanceOffset);
+    [index] = LodInstanceOffset(lodIndex, localInstanceOffset);
 }

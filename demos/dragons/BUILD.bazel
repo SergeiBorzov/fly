@@ -135,6 +135,14 @@ glsl_shader(
     ],
 )
 
+glsl_shader(
+    name = "clear_draw_commands.comp.spv",
+    src = "clear_draw_commands.comp",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -153,6 +161,7 @@ cc_binary(
         ":lit.vert.spv",
         ":lit.frag.spv",
         ":main_cull.comp.spv",
+        ":clear_draw_commands.comp.spv",
         ":occluder_cull.comp.spv",
         ":prefix_sum.comp.spv",
         ":remap.comp.spv",

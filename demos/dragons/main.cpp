@@ -76,6 +76,7 @@ static RHI::GraphicsPipeline sSkyboxPipeline;
 static RHI::GraphicsPipeline sPrefilterPipeline;
 static RHI::GraphicsPipeline sHzbDownsamplePipeline;
 static RHI::ComputePipeline sMainCullPipeline;
+static RHI::ComputePipeline sClearDrawCommandsPipeline;
 static RHI::ComputePipeline sOccluderCullPipeline;
 static RHI::ComputePipeline sFirstInstancePrefixSumPipeline;
 static RHI::ComputePipeline sRemapPipeline;
@@ -98,7 +99,7 @@ static VkImageView* sHzbTextureImageViews;
 static VkImageView* sPrefilteredSkyboxImageViews;
 static Mesh sMesh;
 
-static i32 sInstanceRowCount = 100;
+static i32 sInstanceRowCount = 15;
 static bool sIsCullingFixed = false;
 static f32 sTimestampPeriod;
 
@@ -229,11 +230,16 @@ static void DestroyImGuiContext(RHI::Device& device)
 static bool CreatePipelines(RHI::Device& device)
 {
     RHI::ComputePipeline* computePipelines[] = {
-        &sOccluderCullPipeline,           &sMainCullPipeline,
-        &sFirstInstancePrefixSumPipeline, &sRemapPipeline,
-        &sRadianceProjectionPipeline,     &sBrdfIntegrationPipeline};
+        &sClearDrawCommandsPipeline,
+        &sOccluderCullPipeline,
+        &sMainCullPipeline,
+        &sFirstInstancePrefixSumPipeline,
+        &sRemapPipeline,
+        &sRadianceProjectionPipeline,
+        &sBrdfIntegrationPipeline};
 
     String8 computeShaderPaths[] = {
+        FLY_STRING8_LITERAL("clear_draw_commands.comp.spv"),
         FLY_STRING8_LITERAL("occluder_cull.comp.spv"),
         FLY_STRING8_LITERAL("main_cull.comp.spv"),
         FLY_STRING8_LITERAL("prefix_sum.comp.spv"),
@@ -295,7 +301,8 @@ static bool CreatePipelines(RHI::Device& device)
             VK_FORMAT_D32_SFLOAT;
         fixedState.depthStencilState.depthTestEnable = true;
         fixedState.depthStencilState.depthWriteEnable = true;
-        fixedState.depthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER;
+        fixedState.depthStencilState.depthCompareOp =
+            VK_COMPARE_OP_GREATER_OR_EQUAL;
 
         RHI::ShaderProgram shaderProgram{};
         if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
@@ -440,6 +447,7 @@ static void DestroyPipelines(RHI::Device& device)
     RHI::DestroyGraphicsPipeline(device, sSkyboxPipeline);
     RHI::DestroyGraphicsPipeline(device, sPrefilterPipeline);
     RHI::DestroyGraphicsPipeline(device, sHzbDownsamplePipeline);
+    RHI::DestroyComputePipeline(device, sClearDrawCommandsPipeline);
     RHI::DestroyComputePipeline(device, sOccluderCullPipeline);
     RHI::DestroyComputePipeline(device, sMainCullPipeline);
     RHI::DestroyComputePipeline(device, sFirstInstancePrefixSumPipeline);
@@ -497,7 +505,7 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!RHI::CreateBuffer(device, false,
+    if (!RHI::CreateBuffer(device, true,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -944,6 +952,23 @@ static void DownsampleHzb(RHI::Device& device)
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 };
 
+static void RecordClearDrawCommands(RHI::CommandBuffer& cmd,
+                                    const RHI::RecordBufferInput* bufferInput,
+                                    u32 bufferInputCount,
+                                    const RHI::RecordTextureInput* textureInput,
+                                    u32 textureInputCount, void* pUserData)
+{
+    RHI::BindComputePipeline(cmd, sClearDrawCommandsPipeline);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& drawCountBuffer = *(bufferInput[1].pBuffer);
+
+    u32 pushConstants[] = {drawCommandBuffer.bindlessHandle,
+                           drawCountBuffer.bindlessHandle};
+
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Dispatch(cmd, 1, 1, 1);
+}
+
 static void RecordOccluderCull(RHI::CommandBuffer& cmd,
                                const RHI::RecordBufferInput* bufferInput,
                                u32 bufferInputCount,
@@ -955,32 +980,55 @@ static void RecordOccluderCull(RHI::CommandBuffer& cmd,
     RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
     RHI::Buffer& instanceBuffer = *(bufferInput[1].pBuffer);
     RHI::Buffer& meshDataBuffer = *(bufferInput[2].pBuffer);
-    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput[3].pBuffer);
-    RHI::Buffer& drawCommandBuffer = *(bufferInput[4].pBuffer);
-    RHI::Buffer& drawCountBuffer = *(bufferInput[5].pBuffer);
+    RHI::Buffer& remapBuffer = *(bufferInput[3].pBuffer);
+    RHI::Buffer& lodInstanceOffsetBuffer = *(bufferInput[4].pBuffer);
+    RHI::Buffer& drawCommandBuffer = *(bufferInput[5].pBuffer);
+    RHI::Buffer& drawCountBuffer = *(bufferInput[6].pBuffer);
+    u32 visibleCount = *(static_cast<u32*>(pUserData));
+    FLY_ASSERT(visibleCount > 0);
 
-    u32 pushConstants[] = {
-        cameraBuffer.bindlessHandle,
-        instanceBuffer.bindlessHandle,
-        meshDataBuffer.bindlessHandle,
-        lodInstanceOffsetBuffer.bindlessHandle,
-        drawCommandBuffer.bindlessHandle,
-        drawCountBuffer.bindlessHandle,
-        static_cast<u32>(sInstanceRowCount * sInstanceRowCount)};
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
+                           instanceBuffer.bindlessHandle,
+                           meshDataBuffer.bindlessHandle,
+                           remapBuffer.bindlessHandle,
+                           lodInstanceOffsetBuffer.bindlessHandle,
+                           drawCommandBuffer.bindlessHandle,
+                           drawCountBuffer.bindlessHandle,
+                           static_cast<u32>(visibleCount)};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
-    RHI::Dispatch(cmd,
-                  static_cast<u32>(Math::Ceil(
-                      (sInstanceRowCount * sInstanceRowCount) / 256.0f)),
-                  1, 1);
+    RHI::Dispatch(cmd, visibleCount, 1, 1);
 }
 
 static void OccluderCull(RHI::Device& device)
 {
-    RHI::RecordBufferInput bufferInput[6] = {
+
+    VkDrawIndexedIndirectCommand* commands =
+        static_cast<VkDrawIndexedIndirectCommand*>(
+            RHI::BufferMappedPtr(sDrawCommands));
+
+    u32 visibleCount = 0;
+    for (u32 i = 0; i < FLY_MAX_LOD_COUNT; i++)
+    {
+        visibleCount += commands[i].instanceCount;
+    }
+
+    if (visibleCount == 0)
+    {
+        RHI::RecordBufferInput bufferInput[2] = {
+            {&sDrawCommands, VK_ACCESS_2_SHADER_WRITE_BIT},
+            {&sDrawCountBuffer, VK_ACCESS_2_SHADER_WRITE_BIT}};
+
+        RHI::ExecuteCompute(RenderFrameCommandBuffer(device),
+                            RecordClearDrawCommands, bufferInput, 2);
+        return;
+    }
+
+    RHI::RecordBufferInput bufferInput[7] = {
         {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
         {&sMeshInstances, VK_ACCESS_2_SHADER_READ_BIT},
         {&sMeshDataBuffer, VK_ACCESS_2_SHADER_READ_BIT},
+        {&sRemapBuffer, VK_ACCESS_2_SHADER_READ_BIT},
         {&sLodInstanceOffsetBuffer, VK_ACCESS_2_SHADER_WRITE_BIT},
         {&sDrawCommands,
          VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT},
@@ -988,7 +1036,7 @@ static void OccluderCull(RHI::Device& device)
          VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT}};
 
     RHI::ExecuteCompute(RenderFrameCommandBuffer(device), RecordOccluderCull,
-                        bufferInput, 6);
+                        bufferInput, 7, nullptr, 0, &visibleCount);
 }
 
 static void RecordMainCull(RHI::CommandBuffer& cmd,
@@ -1219,8 +1267,14 @@ static void DrawMesh(RHI::Device& device)
 
     VkRenderingAttachmentInfo colorAttachment =
         RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
+
+    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    if (sIsCullingFixed)
+    {
+        loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    }
     VkRenderingAttachmentInfo depthAttachment =
-        RHI::DepthAttachmentInfo(sDepthTexture.imageView);
+        RHI::DepthAttachmentInfo(sDepthTexture.imageView, loadOp);
     VkRenderingInfo renderingInfo = RHI::RenderingInfo(
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
@@ -1433,7 +1487,7 @@ int main(int argc, char* argv[])
         f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
-        // FLY_LOG("Dragon draw: %f ms", drawTime);
+        FLY_LOG("Dragon draw: %f ms", drawTime);
     }
 
     RHI::WaitDeviceIdle(device);
