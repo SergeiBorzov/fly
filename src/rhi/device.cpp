@@ -1078,5 +1078,45 @@ void EndOneTimeSubmit(Device& device)
 
 void WaitDeviceIdle(Device& device) { vkDeviceWaitIdle(device.logicalDevice); }
 
+bool CreateQueryPool(RHI::Device& device, VkQueryType type, u32 queryCount,
+                     VkQueryPipelineStatisticFlags pipelineStatistics,
+                     RHI::QueryPool& queryPool)
+{
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
+    FLY_ASSERT(queryCount > 0);
+
+    VkQueryPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    createInfo.queryType = type;
+    createInfo.queryCount = queryCount;
+    createInfo.pipelineStatistics = pipelineStatistics;
+
+    if (vkCreateQueryPool(device.logicalDevice, &createInfo,
+                          RHI::GetVulkanAllocationCallbacks(),
+                          &queryPool.handle) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void GetQueryPoolResults(RHI::Device& device, RHI::QueryPool& queryPool,
+                         u32 firstQuery, u32 queryCount, void* dst, u32 dstSize,
+                         u32 stride, VkQueryResultFlags flags)
+{
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
+    FLY_ASSERT(queryPool.handle != VK_NULL_HANDLE);
+
+    vkGetQueryPoolResults(device.logicalDevice, queryPool.handle, firstQuery,
+                          queryCount, dstSize, dst, stride, flags);
+}
+
+void DestroyQueryPool(RHI::Device& device, RHI::QueryPool& queryPool)
+{
+    vkDestroyQueryPool(device.logicalDevice, queryPool.handle,
+                       RHI::GetVulkanAllocationCallbacks());
+}
+
 } // namespace RHI
 } // namespace Fly

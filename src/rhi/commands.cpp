@@ -381,18 +381,21 @@ void PipelineBarrier(CommandBuffer& cmd,
     vkCmdPipelineBarrier2(cmd.handle, &dependencyInfo);
 }
 
-void ResetQueryPool(CommandBuffer& cmd, VkQueryPool queryPool, u32 firstQuery,
-                    u32 queryCount)
+void ResetQueryPool(CommandBuffer& cmd, RHI::QueryPool& queryPool,
+                    u32 firstQuery, u32 queryCount)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
-    vkCmdResetQueryPool(cmd.handle, queryPool, firstQuery, queryCount);
+    vkCmdResetQueryPool(cmd.handle, queryPool.handle, firstQuery, queryCount);
 }
 
 void WriteTimestamp(CommandBuffer& cmd, VkPipelineStageFlagBits pipelineStage,
-                    VkQueryPool queryPool, u32 queryIndex)
+                    RHI::QueryPool& queryPool, u32 queryIndex)
 {
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
-    vkCmdWriteTimestamp(cmd.handle, pipelineStage, queryPool, queryIndex);
+    FLY_ASSERT(queryPool.handle != VK_NULL_HANDLE);
+
+    vkCmdWriteTimestamp(cmd.handle, pipelineStage, queryPool.handle,
+                        queryIndex);
 }
 
 } // namespace RHI

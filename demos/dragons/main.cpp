@@ -68,8 +68,8 @@ struct RadianceProjectionCoeff
     i64 pad;
 };
 
-static VkQueryPool sTimestampQueryPool;
 static VkDescriptorPool sImGuiDescriptorPool;
+static RHI::QueryPool sTimestampQueryPool;
 static RHI::GraphicsPipeline sPrepassPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::GraphicsPipeline sSkyboxPipeline;
@@ -665,14 +665,8 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
-    VkQueryPoolCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-    createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-    createInfo.queryCount = 2;
-
-    if (vkCreateQueryPool(device.logicalDevice, &createInfo,
-                          RHI::GetVulkanAllocationCallbacks(),
-                          &sTimestampQueryPool) != VK_SUCCESS)
+    if (!RHI::CreateQueryPool(device, VK_QUERY_TYPE_TIMESTAMP, 2, 0,
+                              sTimestampQueryPool))
     {
         return false;
     }
@@ -695,8 +689,7 @@ static void ProcessImGuiFrame()
 
 static void DestroyResources(RHI::Device& device)
 {
-    vkDestroyQueryPool(device.logicalDevice, sTimestampQueryPool,
-                       RHI::GetVulkanAllocationCallbacks());
+    RHI::DestroyQueryPool(device, sTimestampQueryPool);
 
     DestroyMesh(device, sMesh);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
@@ -1480,14 +1473,14 @@ int main(int argc, char* argv[])
         RHI::EndRenderFrame(device);
 
         u64 timestamps[2];
-        vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
-                              sizeof(timestamps), timestamps, sizeof(uint64_t),
-                              VK_QUERY_RESULT_64_BIT |
-                                  VK_QUERY_RESULT_WAIT_BIT);
+        RHI::GetQueryPoolResults(device, sTimestampQueryPool, 0, 2, timestamps,
+                                 sizeof(timestamps), sizeof(uint64_t),
+                                 VK_QUERY_RESULT_64_BIT |
+                                     VK_QUERY_RESULT_WAIT_BIT);
         f64 drawTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
-        FLY_LOG("Dragon draw: %f ms", drawTime);
+        // FLY_LOG("Dragon draw: %f ms", drawTime);
     }
 
     RHI::WaitDeviceIdle(device);

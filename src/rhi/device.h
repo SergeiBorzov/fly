@@ -119,6 +119,20 @@ bool EndRenderFrame(Device& device, VkSemaphore* extraWaitSemaphores,
 
 void WaitDeviceIdle(Device& device);
 
+struct QueryPool
+{
+    VkQueryType type;
+    VkQueryPool handle = VK_NULL_HANDLE;
+};
+
+bool CreateQueryPool(RHI::Device& device, VkQueryType type, u32 queryCount,
+                     VkQueryPipelineStatisticFlags pipelineStatistics,
+                     RHI::QueryPool& queryPool);
+void GetQueryPoolResults(RHI::Device& device, RHI::QueryPool& queryPool,
+                         u32 firstQuery, u32 queryCount, void* dst, u32 dstSize,
+                         u32 stride, VkQueryResultFlags flags);
+void DestroyQueryPool(RHI::Device& device, RHI::QueryPool& queryPool);
+
 } // namespace RHI
 } // namespace Fly
 

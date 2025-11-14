@@ -11,6 +11,7 @@ namespace RHI
 {
 
 struct Device;
+struct QueryPool;
 struct Buffer;
 struct Texture;
 struct GraphicsPipeline;
@@ -109,10 +110,10 @@ void PipelineBarrier(CommandBuffer& cmd,
                      u32 bufferBarrierCount,
                      const VkImageMemoryBarrier2* imageBarriers,
                      u32 imageBarrierCount);
-void ResetQueryPool(CommandBuffer& cmd, VkQueryPool, u32 firstQuery,
-                    u32 queryCount);
+void ResetQueryPool(CommandBuffer& cmd, RHI::QueryPool& queryPool,
+                    u32 firstQuery, u32 queryCount);
 void WriteTimestamp(CommandBuffer& cmd, VkPipelineStageFlagBits pipelineStage,
-                    VkQueryPool queryPool, u32 query);
+                    RHI::QueryPool& queryPool, u32 query);
 /*----------*/
 VkRenderingAttachmentInfo
 ColorAttachmentInfo(VkImageView imageView,

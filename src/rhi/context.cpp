@@ -977,6 +977,7 @@ bool CreateContext(ContextSettings& settings, Context& context)
     settings.vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
     settings.vulkan12Features.runtimeDescriptorArray = VK_TRUE;
     settings.vulkan12Features.timelineSemaphore = VK_TRUE;
+    settings.vulkan12Features.bufferDeviceAddress = VK_TRUE;
     settings.vulkan12Features.pNext = &settings.vulkan13Features;
 
     settings.vulkan11Features.sType =

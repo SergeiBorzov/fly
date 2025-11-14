@@ -27,7 +27,7 @@ using namespace Fly;
 static RHI::ComputePipeline sCountPipeline;
 static RHI::ComputePipeline sScanPipeline;
 static RHI::ComputePipeline sSortPipeline;
-static VkQueryPool sTimestampQueryPool;
+static RHI::QueryPool sTimestampQueryPool;
 static f32 sTimestampPeriod;
 static u32 sMaxKeyCount;
 
@@ -80,14 +80,8 @@ static bool CreateComputePipelines(RHI::Device& device)
     }
     RHI::DestroyShader(device, sortShader);
 
-    VkQueryPoolCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-    createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-    createInfo.queryCount = 2;
-
-    if (vkCreateQueryPool(device.logicalDevice, &createInfo,
-                          RHI::GetVulkanAllocationCallbacks(),
-                          &sTimestampQueryPool) != VK_SUCCESS)
+    if (!RHI::CreateQueryPool(device, VK_QUERY_TYPE_TIMESTAMP, 2, 0,
+                              sTimestampQueryPool))
     {
         return false;
     }
@@ -97,8 +91,7 @@ static bool CreateComputePipelines(RHI::Device& device)
 
 static void DestroyComputePipelines(RHI::Device& device)
 {
-    vkDestroyQueryPool(device.logicalDevice, sTimestampQueryPool,
-                       RHI::GetVulkanAllocationCallbacks());
+    RHI::DestroyQueryPool(device, sTimestampQueryPool);
     RHI::DestroyComputePipeline(device, sScanPipeline);
     RHI::DestroyComputePipeline(device, sCountPipeline);
     RHI::DestroyComputePipeline(device, sSortPipeline);
@@ -365,10 +358,10 @@ int main(int argc, char* argv[])
         RadixSort(device, keys, keyCount);
 
         u64 timestamps[2];
-        vkGetQueryPoolResults(device.logicalDevice, sTimestampQueryPool, 0, 2,
-                              sizeof(timestamps), timestamps, sizeof(uint64_t),
-                              VK_QUERY_RESULT_64_BIT |
-                                  VK_QUERY_RESULT_WAIT_BIT);
+        RHI::GetQueryPoolResults(device, sTimestampQueryPool, 0, 2, timestamps,
+                                 sizeof(timestamps), sizeof(uint64_t),
+                                 VK_QUERY_RESULT_64_BIT |
+                                     VK_QUERY_RESULT_WAIT_BIT);
         f64 radixSortTime = Fly::ToMilliseconds(static_cast<u64>(
             (timestamps[1] - timestamps[0]) * sTimestampPeriod));
 
