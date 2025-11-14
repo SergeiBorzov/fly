@@ -42,6 +42,15 @@ static bool CreateBufferImpl(Device& device, bool hostVisible,
         return false;
     }
 
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+    {
+        VkBufferDeviceAddressInfoKHR addrInfo{};
+        addrInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        addrInfo.buffer = buffer.handle;
+        buffer.address =
+            vkGetBufferDeviceAddress(device.logicalDevice, &addrInfo);
+    }
+
     return true;
 }
 

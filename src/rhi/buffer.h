@@ -17,6 +17,7 @@ struct Device;
 struct Buffer
 {
     VmaAllocationInfo allocationInfo;
+    VkDeviceAddress address;
     VkAccessFlagBits2 accessMask;
     VkPipelineStageFlagBits2 pipelineStageMask;
     VmaAllocation allocation;

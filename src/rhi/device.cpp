@@ -695,7 +695,8 @@ static bool CreateVmaAllocator(Context& context, Device& device)
     vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
 
     VmaAllocatorCreateInfo createInfo{};
-    createInfo.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
+    createInfo.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT |
+                       VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     createInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     createInfo.physicalDevice = device.physicalDevice;
     createInfo.device = device.logicalDevice;
