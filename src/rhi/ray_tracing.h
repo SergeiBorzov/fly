@@ -12,19 +12,20 @@ struct Device;
 
 struct AccStructure
 {
-    RHI::Buffer buffer;
+    Buffer buffer;
+    VkDeviceAddress address;
     VkAccelerationStructureTypeKHR type;
     VkAccelerationStructureKHR handle;
 };
 
 bool CreateAccStructure(
-    RHI::Device& device, VkAccelerationStructureTypeKHR type,
+    Device& device, VkAccelerationStructureTypeKHR type,
     VkBuildAccelerationStructureFlagsKHR flags,
     VkAccelerationStructureGeometryKHR* geometries,
     const VkAccelerationStructureBuildRangeInfoKHR* rangeInfos,
-    u32 geometryCount, RHI::AccStructure& accStructure);
+    u32 geometryCount, AccStructure& accStructure);
 
-void DestroyAccStructure(RHI::Device& device, RHI::AccStructure& accStructure);
+void DestroyAccStructure(Device& device, AccStructure& accStructure);
 
 } // namespace RHI
 } // namespace Fly

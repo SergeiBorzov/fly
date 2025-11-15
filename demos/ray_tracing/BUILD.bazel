@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
+
+copy_vulkan_layers()
+copy_molten_vk()
+
+cc_binary(
+    name = "app",
+    srcs = [
+        "main.cpp",
+    ],
+    deps = [
+        "//src/rhi:context",
+        "//src/utils:utils",
+    ],
+    data = [
+    ] + select({
+        "@fly//scripts/bazel/build_type:release": [
+        ],
+        "//conditions:default": [
+            ":copy_vulkan_validation_layer",
+        ],
+    }) + select({
+        "@platforms//os:osx": [
+            ":copy_molten_vk",
+	],
+        "//conditions:default": [],
+    }),
+)
+
