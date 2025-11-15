@@ -713,14 +713,14 @@ static bool CreateEq2CubePipeline(RHI::Device& device,
     fixedState.pipelineRendering.viewMask = 0x3F;
 
     RHI::ShaderProgram shaderProgram{};
-    if (!RHI::CreateShader(device,
+    if (!RHI::CreateShader(device, RHI::Shader::Type::Vertex,
                            reinterpret_cast<const char*>(screenQuadVertSpv),
                            SCREEN_QUAD_VERT_SPV_SIZE,
                            shaderProgram[RHI::Shader::Type::Vertex]))
     {
         return false;
     }
-    if (!RHI::CreateShader(device,
+    if (!RHI::CreateShader(device, RHI::Shader::Type::Fragment,
                            reinterpret_cast<const char*>(screenQuadFragSpv),
                            SCREEN_QUAD_FRAG_SPV_SIZE,
                            shaderProgram[RHI::Shader::Type::Fragment]))

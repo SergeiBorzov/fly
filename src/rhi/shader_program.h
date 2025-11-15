@@ -32,10 +32,11 @@ struct Shader
         Invalid,
     };
 
+    Type type = Type::Invalid;
     VkShaderModule handle = VK_NULL_HANDLE;
 };
-bool CreateShader(Device& device, const char* spvSource, u64 codeSize,
-                  Shader& shaderModule);
+bool CreateShader(Device& device, Shader::Type type, const char* spvSource,
+                  u64 codeSize, Shader& shaderModule);
 void DestroyShader(Device& device, Shader& shaderModule);
 
 struct ShaderProgram

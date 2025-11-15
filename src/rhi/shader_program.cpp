@@ -1,14 +1,14 @@
+#include "shader_program.h"
 #include "allocation_callbacks.h"
 #include "device.h"
-#include "shader_program.h"
 
 namespace Fly
 {
 namespace RHI
 {
 
-bool CreateShader(Device& device, const char* spvSource, u64 codeSize,
-                  Shader& shader)
+bool CreateShader(Device& device, Shader::Type type, const char* spvSource,
+                  u64 codeSize, Shader& shader)
 {
     FLY_ASSERT(spvSource);
     FLY_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
@@ -25,6 +25,8 @@ bool CreateShader(Device& device, const char* spvSource, u64 codeSize,
         return false;
     }
 
+    shader.type = type;
+
     return true;
 }
 
@@ -34,6 +36,7 @@ void DestroyShader(Device& device, Shader& shader)
     vkDestroyShaderModule(device.logicalDevice, shader.handle,
                           GetVulkanAllocationCallbacks());
     shader.handle = VK_NULL_HANDLE;
+    shader.type = Shader::Type::Invalid;
 }
 
 } // namespace RHI

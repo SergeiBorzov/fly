@@ -161,6 +161,56 @@ bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
     return true;
 }
 
+static RHI::Shader::Type GetShaderType(String8 path)
+{
+    if (path.EndsWith(FLY_STRING8_LITERAL(".vert.spv")))
+    {
+        return RHI::Shader::Type::Vertex;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".frag.spv")))
+    {
+        return RHI::Shader::Type::Fragment;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".task.spv")))
+    {
+        return RHI::Shader::Type::Task;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".mesh.spv")))
+    {
+        return RHI::Shader::Type::Mesh;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".comp.spv")))
+    {
+        return RHI::Shader::Type::Compute;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".rgen.spv")))
+    {
+        return RHI::Shader::Type::RayGeneration;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".rint.spv")))
+    {
+        return RHI::Shader::Type::RayIntersection;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".rahit.spv")))
+    {
+        return RHI::Shader::Type::RayAnyHit;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".rchit.spv")))
+    {
+        return RHI::Shader::Type::RayClosestHit;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".rmiss.spv")))
+    {
+        return RHI::Shader::Type::RayMiss;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".rcall.spv")))
+    {
+        return RHI::Shader::Type::RayCall;
+    }
+
+    return RHI::Shader::Type::Invalid;
+}
+
 bool LoadShaderFromSpv(RHI::Device& device, String8 path, RHI::Shader& shader)
 {
     FLY_ASSERT(path);
@@ -173,7 +223,8 @@ bool LoadShaderFromSpv(RHI::Device& device, String8 path, RHI::Shader& shader)
     {
         return false;
     }
-    if (!RHI::CreateShader(device, spvSource.Data(), spvSource.Size(), shader))
+    if (!RHI::CreateShader(device, GetShaderType(path), spvSource.Data(),
+                           spvSource.Size(), shader))
     {
         ArenaPopToMarker(scratch, marker);
         return false;
