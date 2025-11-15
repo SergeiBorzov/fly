@@ -1,11 +1,10 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_ray_tracing : require
-#extension GL_EXT_shader_image_load_formatted : require
 
 #include "bindless.glsl"
 
-layout(location = 0) rayPayloadEXT vec3 hitValue;
+layout(location = 0) rayPayloadEXT vec4 hitValue;
 
 layout(push_constant) uniform PushConstants
 {
@@ -42,7 +41,7 @@ void main()
 
     vec3 rayOriginWS = inverseView[3].xyz;
 
-    hitValue = vec3(0.0f);
+    hitValue = vec4(0.0f);
     traceRayEXT(FLY_ACCESS_ACCELERATION_STRUCTURE_BUFFER(
                     AccStructures, gPushConstants.accStructureIndex),
                 gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, rayOriginWS, 0.0f,
@@ -50,5 +49,5 @@ void main()
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    StorageTexturesRGBA8, gPushConstants.outputTextureIndex),
-               ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
+               ivec2(gl_LaunchIDEXT.xy), hitValue);
 }

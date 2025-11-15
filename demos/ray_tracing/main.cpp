@@ -65,7 +65,23 @@ static bool CreatePipelines(RHI::Device& device)
         return false;
     }
 
+    if (!Fly::LoadShaderFromSpv(
+            device, FLY_STRING8_LITERAL("ray_closest_hit.rchit.spv"),
+            shaderProgram[RHI::Shader::Type::RayClosestHit]))
+    {
+        return false;
+    }
+
+    if (!Fly::LoadShaderFromSpv(device,
+                                FLY_STRING8_LITERAL("ray_miss.rmiss.spv"),
+                                shaderProgram[RHI::Shader::Type::RayMiss]))
+    {
+        return false;
+    }
+
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayGeneration]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayClosestHit]);
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayMiss]);
     return true;
 }
 
@@ -261,7 +277,8 @@ int main(int argc, char* argv[])
     glfwSetErrorCallback(ErrorCallbackGLFW);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "Window", nullptr, nullptr);
+    GLFWwindow* window =
+        glfwCreateWindow(1280, 720, "Ray tracing", nullptr, nullptr);
 
     if (!window)
     {
