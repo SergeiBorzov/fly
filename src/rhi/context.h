@@ -76,6 +76,7 @@ struct Context
     FramebufferResizeFn framebufferResizeCallback = nullptr;
     GLFWwindow* windowPtr = nullptr;
     u32 deviceCount = 0;
+    bool accelerationStructureExtensionPresent = false;
 };
 
 bool CreateContext(ContextSettings& settings, Context& outContext);

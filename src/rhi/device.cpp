@@ -454,10 +454,19 @@ static bool RecreateSwapchain(Device& device)
 
 static bool CreateDescriptorPool(Device& device)
 {
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR
+        accelerationStructureProperties{};
+    accelerationStructureProperties.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+    accelerationStructureProperties.pNext = nullptr;
+
     VkPhysicalDeviceDescriptorIndexingProperties descriptorIndexingProperties{};
     descriptorIndexingProperties.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
-    descriptorIndexingProperties.pNext = nullptr;
+    if (device.context->accelerationStructureExtensionPresent)
+    {
+        descriptorIndexingProperties.pNext = &accelerationStructureProperties;
+    }
 
     VkPhysicalDeviceProperties2 deviceProperties2{};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
@@ -481,6 +490,10 @@ static bool CreateDescriptorPool(Device& device)
         MIN(FLY_DESCRIPTOR_MAX_COUNT,
             descriptorIndexingProperties
                 .maxPerStageDescriptorUpdateAfterBindStorageImages);
+    u32 accelerationStructureDescriptorPoolSize =
+        MIN(FLY_DESCRIPTOR_MAX_COUNT,
+            accelerationStructureProperties
+                .maxPerStageDescriptorUpdateAfterBindAccelerationStructures);
 
     FLY_LOG("Device %s: uniform buffer descriptor pool size %u", device.name,
             uniformBufferDescriptorPoolSize);
@@ -490,18 +503,24 @@ static bool CreateDescriptorPool(Device& device)
             device.name, combinedImageSamplerDescriptorPoolSize);
     FLY_LOG("Device %s: Storage image buffer descriptor pool size %u",
             device.name, storageImageDescriptorPoolSize);
+    FLY_LOG("Device %s: Acceleration structure buffer descriptor pool size %u",
+            device.name, accelerationStructureDescriptorPoolSize);
 
-    VkDescriptorPoolSize poolSizes[4] = {
+    u32 descriptorTypeCount =
+        4 + device.context->accelerationStructureExtensionPresent;
+    VkDescriptorPoolSize poolSizes[5] = {
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uniformBufferDescriptorPoolSize},
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, storageBufferDescriptorPoolSize},
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
          combinedImageSamplerDescriptorPoolSize},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, storageImageDescriptorPoolSize}};
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, storageImageDescriptorPoolSize},
+        {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+         accelerationStructureDescriptorPoolSize}};
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     createInfo.pPoolSizes = poolSizes;
-    createInfo.poolSizeCount = STACK_ARRAY_COUNT(poolSizes);
+    createInfo.poolSizeCount = descriptorTypeCount;
     createInfo.maxSets = 1;
     createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 
@@ -513,7 +532,7 @@ static bool CreateDescriptorPool(Device& device)
         return false;
     }
 
-    VkDescriptorBindingFlags bindingFlags[] = {
+    VkDescriptorBindingFlags bindingFlags[5] = {
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
@@ -522,16 +541,17 @@ static bool CreateDescriptorPool(Device& device)
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-    };
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo{};
     bindingFlagsCreateInfo.sType =
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
     bindingFlagsCreateInfo.pBindingFlags = bindingFlags;
-    bindingFlagsCreateInfo.bindingCount = STACK_ARRAY_COUNT(bindingFlags);
+    bindingFlagsCreateInfo.bindingCount = descriptorTypeCount;
     bindingFlagsCreateInfo.pNext = nullptr;
 
-    VkDescriptorSetLayoutBinding bindings[] = {
+    VkDescriptorSetLayoutBinding bindings[5] = {
         {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, uniformBufferDescriptorPoolSize,
          VK_SHADER_STAGE_ALL, nullptr},
         {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, storageBufferDescriptorPoolSize,
@@ -539,12 +559,15 @@ static bool CreateDescriptorPool(Device& device)
         {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
          combinedImageSamplerDescriptorPoolSize, VK_SHADER_STAGE_ALL, nullptr},
         {3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, storageImageDescriptorPoolSize,
-         VK_SHADER_STAGE_ALL, nullptr}};
+         VK_SHADER_STAGE_ALL, nullptr},
+        {4, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+         accelerationStructureDescriptorPoolSize, VK_SHADER_STAGE_ALL, nullptr},
+    };
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
     descriptorSetLayoutCreateInfo.sType =
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutCreateInfo.bindingCount = STACK_ARRAY_COUNT(bindings);
+    descriptorSetLayoutCreateInfo.bindingCount = descriptorTypeCount;
     descriptorSetLayoutCreateInfo.pBindings = bindings;
     descriptorSetLayoutCreateInfo.flags =
         VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
@@ -758,12 +781,20 @@ bool CreateLogicalDevice(const char** extensions, u32 extensionCount,
     totalExtensions = FLY_PUSH_ARENA(arena, const char*, totalExtensionCount);
     for (u32 i = 0; i < extensionCount; i++)
     {
-        FLY_LOG("Requested device extensions %s", extensions[i]);
         totalExtensions[i] = extensions[i];
     }
-    FLY_LOG("Adding VK_KHR_portability_subset to list of device extensions");
     totalExtensions[extensionCount] = "VK_KHR_portability_subset";
 #endif
+
+    for (u32 i = 0; i < totalExtensionCount; i++)
+    {
+        FLY_LOG("Requested device extensions %s", extensions[i]);
+        if (strncmp(extensions[i], VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+                    strlen(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME)) == 0)
+        {
+            context.accelerationStructureExtensionPresent = true;
+        }
+    }
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
