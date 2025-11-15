@@ -1,0 +1,33 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+
+float SafeSqrt(float x) { return sqrt(max(0.0f, x)); }
+
+float RaySphereIntersect(vec3 o, vec3 d, vec3 p, float r)
+{
+    float b = dot(o - p, d);
+    float c = dot(o - p, o - p) - r * r;
+
+    float disc = b * b - c;
+    if (disc < 0.0f)
+    {
+        return -1.0f;
+    }
+
+    float t = (-b - SafeSqrt(disc));
+    if (t < 0.0f)
+    {
+        t = (-b + SafeSqrt(disc));
+    }
+    return t;
+}
+
+void main()
+{
+    float t = RaySphereIntersect(gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT,
+                                 vec3(0.0f), 1.0f);
+    if (t > 0.0f)
+    {
+        reportIntersectionEXT(t, 1);
+    }
+}

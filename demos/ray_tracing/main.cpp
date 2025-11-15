@@ -72,6 +72,13 @@ static bool CreatePipelines(RHI::Device& device)
         return false;
     }
 
+    if (!Fly::LoadShaderFromSpv(
+            device, FLY_STRING8_LITERAL("ray_intersection.rint.spv"),
+            shaderProgram[RHI::Shader::Type::RayIntersection]))
+    {
+        return false;
+    }
+
     if (!Fly::LoadShaderFromSpv(device,
                                 FLY_STRING8_LITERAL("ray_miss.rmiss.spv"),
                                 shaderProgram[RHI::Shader::Type::RayMiss]))
@@ -81,6 +88,8 @@ static bool CreatePipelines(RHI::Device& device)
 
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayGeneration]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayClosestHit]);
+    RHI::DestroyShader(device,
+                       shaderProgram[RHI::Shader::Type::RayIntersection]);
     RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayMiss]);
     return true;
 }
