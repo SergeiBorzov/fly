@@ -34,9 +34,7 @@ static RHI::AccelerationStructure sTlas;
 static RHI::Buffer sInstanceBuffer;
 static RHI::Buffer sGeometryBuffer;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::GraphicsPipeline sGraphicsPipeline;
-
-static RHI::QueryPool sCompactionQueryPool;
+static RHI::RayTracingPipeline sRayTracingPipeline;
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
                                     Math::Vec3(0.0f, 0.0f, 5.0f));
@@ -57,44 +55,42 @@ static void ErrorCallbackGLFW(int error, const char* description)
 
 static bool CreatePipelines(RHI::Device& device)
 {
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(
-            device, FLY_STRING8_LITERAL("ray_generation.rgen.spv"),
-            shaderProgram[RHI::Shader::Type::RayGeneration]))
+    RHI::Shader shaders[4];
+    String8 shaderPaths[4] = {FLY_STRING8_LITERAL("ray_generation.rgen.spv"),
+                              FLY_STRING8_LITERAL("ray_miss.rmiss.spv"),
+                              FLY_STRING8_LITERAL("ray_intersection.rint.spv"),
+                              FLY_STRING8_LITERAL("ray_closest_hit.rchit.spv")};
+
+    for (u32 i = 0; i < 4; i++)
     {
+        if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+        {
+            return false;
+        }
+    }
+
+    RHI::RayTracingGroup groups[3] = {RHI::GeneralRayTracingGroup(0),
+                                      RHI::GeneralRayTracingGroup(1),
+                                      RHI::ProceduralHitRayTracingGroup(2, 3)};
+
+    if (!RHI::CreateRayTracingPipeline(device, 3, shaders, 4, groups, 3,
+                                       sRayTracingPipeline))
+    {
+        FLY_ERROR("Failed to create ray tracing pipeline");
         return false;
     }
 
-    if (!Fly::LoadShaderFromSpv(
-            device, FLY_STRING8_LITERAL("ray_closest_hit.rchit.spv"),
-            shaderProgram[RHI::Shader::Type::RayClosestHit]))
+    for (u32 i = 0; i < 4; i++)
     {
-        return false;
+        RHI::DestroyShader(device, shaders[i]);
     }
-
-    if (!Fly::LoadShaderFromSpv(
-            device, FLY_STRING8_LITERAL("ray_intersection.rint.spv"),
-            shaderProgram[RHI::Shader::Type::RayIntersection]))
-    {
-        return false;
-    }
-
-    if (!Fly::LoadShaderFromSpv(device,
-                                FLY_STRING8_LITERAL("ray_miss.rmiss.spv"),
-                                shaderProgram[RHI::Shader::Type::RayMiss]))
-    {
-        return false;
-    }
-
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayGeneration]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayClosestHit]);
-    RHI::DestroyShader(device,
-                       shaderProgram[RHI::Shader::Type::RayIntersection]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayMiss]);
     return true;
 }
 
-static void DestroyPipelines(RHI::Device& device) {}
+static void DestroyPipelines(RHI::Device& device)
+{
+    RHI::DestroyRayTracingPipeline(device, sRayTracingPipeline);
+}
 
 static bool CreateResources(RHI::Device& device)
 {
@@ -131,13 +127,6 @@ static bool CreateResources(RHI::Device& device)
     VkAccelerationStructureBuildRangeInfoKHR blasRangeInfo{};
     blasRangeInfo.primitiveCount = 1;
     blasRangeInfo.primitiveOffset = 0;
-
-    if (!RHI::CreateQueryPool(
-            device, VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, 1,
-            0, sCompactionQueryPool))
-    {
-        return false;
-    }
 
     if (!RHI::CreateAccelerationStructure(
             device, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
@@ -211,7 +200,6 @@ static bool CreateResources(RHI::Device& device)
 
 static void DestroyResources(RHI::Device& device)
 {
-    RHI::DestroyQueryPool(device, sCompactionQueryPool);
     RHI::DestroyAccelerationStructure(device, sTlas);
     RHI::DestroyAccelerationStructure(device, sBlas);
     RHI::DestroyBuffer(device, sInstanceBuffer);

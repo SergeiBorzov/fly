@@ -94,6 +94,36 @@ bool CreateComputePipeline(Device& device, const Shader& computeShader,
                            ComputePipeline& computePipeline);
 void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline);
 
+struct RayTracingGroup
+{
+    VkRayTracingShaderGroupTypeKHR type =
+        VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    u32 generalShader = VK_SHADER_UNUSED_KHR;
+    u32 closestHitShader = VK_SHADER_UNUSED_KHR;
+    u32 anyHitShader = VK_SHADER_UNUSED_KHR;
+    u32 intersectionShader = VK_SHADER_UNUSED_KHR;
+};
+
+RayTracingGroup GeneralRayTracingGroup(u32 generalShaderIndex);
+RayTracingGroup
+ProceduralHitRayTracingGroup(u32 intersectionShaderIndex,
+                             u32 closestHitShaderIndex = VK_SHADER_UNUSED_KHR,
+                             u32 anyHitShaderIndex = VK_SHADER_UNUSED_KHR);
+RayTracingGroup TriangleHitGroup(u32 closestHitShaderIndex,
+                                 u32 anyHitShaderIndex = VK_SHADER_UNUSED_KHR);
+
+struct RayTracingPipeline
+{
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    VkPipeline handle = VK_NULL_HANDLE;
+};
+bool CreateRayTracingPipeline(Device& device, u32 maxRecursionDepth,
+                              const Shader* shaders, u32 shaderCount,
+                              const RayTracingGroup* groups, u32 groupCount,
+                              RayTracingPipeline& rayTracingPipeline);
+void DestroyRayTracingPipeline(Device& device,
+                               RayTracingPipeline& rayTracingPipeline);
+
 } // namespace RHI
 } // namespace Fly
 

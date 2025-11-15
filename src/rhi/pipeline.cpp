@@ -1,4 +1,6 @@
 #include "core/assert.h"
+#include "core/log.h"
+#include "core/thread_context.h"
 
 #include "allocation_callbacks.h"
 #include "device.h"
@@ -258,6 +260,7 @@ bool CreateGraphicsPipeline(Device& device,
                             const ShaderProgram& shaderProgram,
                             GraphicsPipeline& graphicsPipeline)
 {
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
     FLY_ASSERT(fixedState.colorBlendState.attachmentCount ==
                fixedState.pipelineRendering.colorAttachmentCount);
 
@@ -386,6 +389,7 @@ void DestroyGraphicsPipeline(Device& device, GraphicsPipeline& graphicsPipeline)
 bool CreateComputePipeline(Device& device, const Shader& computeShader,
                            ComputePipeline& computePipeline)
 {
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
     computePipeline.layout = device.pipelineLayout;
 
     VkPipelineShaderStageCreateInfo stageCreateInfo{};
@@ -413,6 +417,7 @@ bool CreateComputePipeline(Device& device, const Shader& computeShader,
 
 void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline)
 {
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
     FLY_ASSERT(computePipeline.layout != VK_NULL_HANDLE);
     FLY_ASSERT(computePipeline.handle != VK_NULL_HANDLE);
 
@@ -420,6 +425,120 @@ void DestroyComputePipeline(Device& device, ComputePipeline& computePipeline)
                       GetVulkanAllocationCallbacks());
     computePipeline.handle = VK_NULL_HANDLE;
     computePipeline.layout = VK_NULL_HANDLE;
+}
+
+RayTracingGroup GeneralRayTracingGroup(u32 generalShaderIndex)
+{
+    RayTracingGroup group{};
+    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    group.generalShader = generalShaderIndex;
+    group.closestHitShader = VK_SHADER_UNUSED_KHR;
+    group.anyHitShader = VK_SHADER_UNUSED_KHR;
+    group.intersectionShader = VK_SHADER_UNUSED_KHR;
+    return group;
+}
+
+RayTracingGroup ProceduralHitRayTracingGroup(u32 intersectionShaderIndex,
+                                             u32 closestHitShaderIndex,
+                                             u32 anyHitShaderIndex)
+{
+    RayTracingGroup group{};
+    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR;
+    group.generalShader = VK_SHADER_UNUSED_KHR;
+    group.closestHitShader = closestHitShaderIndex;
+    group.anyHitShader = anyHitShaderIndex;
+    group.intersectionShader = intersectionShaderIndex;
+    return group;
+}
+
+RayTracingGroup TriangleHitRayTracingGroup(u32 closestHitShaderIndex,
+                                           u32 anyHitShaderIndex)
+{
+    RayTracingGroup group{};
+    group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    group.generalShader = VK_SHADER_UNUSED_KHR;
+    group.closestHitShader = closestHitShaderIndex;
+    group.anyHitShader = anyHitShaderIndex;
+    group.intersectionShader = VK_SHADER_UNUSED_KHR;
+    return group;
+}
+
+bool CreateRayTracingPipeline(Device& device, u32 maxRecursionDepth,
+                              const Shader* shaders, u32 shaderCount,
+                              const RayTracingGroup* groups, u32 groupCount,
+                              RayTracingPipeline& rayTracingPipeline)
+
+{
+    FLY_ASSERT(maxRecursionDepth >= 1);
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
+    FLY_ASSERT(groups);
+    FLY_ASSERT(groupCount >= 0);
+
+    rayTracingPipeline.layout = device.pipelineLayout;
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    VkPipelineShaderStageCreateInfo* stages =
+        FLY_PUSH_ARENA(arena, VkPipelineShaderStageCreateInfo, shaderCount);
+    for (u32 i = 0; i < shaderCount; i++)
+    {
+        stages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[i].pNext = nullptr;
+        stages[i].flags = 0;
+        stages[i].stage = ShaderTypeToVkShaderStage(shaders[i].type);
+        stages[i].module = shaders[i].handle;
+        stages[i].pName = "main";
+        stages[i].pSpecializationInfo = nullptr;
+    }
+
+    VkRayTracingShaderGroupCreateInfoKHR* groupCreateInfos =
+        FLY_PUSH_ARENA(arena, VkRayTracingShaderGroupCreateInfoKHR, groupCount);
+    for (u32 i = 0; i < groupCount; i++)
+    {
+        groupCreateInfos[i].sType =
+            VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+        groupCreateInfos[i].pNext = nullptr;
+        groupCreateInfos[i].type = groups[i].type;
+        groupCreateInfos[i].generalShader = groups[i].generalShader;
+        groupCreateInfos[i].closestHitShader = groups[i].closestHitShader;
+        groupCreateInfos[i].anyHitShader = groups[i].anyHitShader;
+        groupCreateInfos[i].intersectionShader = groups[i].intersectionShader;
+        groupCreateInfos[i].pShaderGroupCaptureReplayHandle = nullptr;
+    }
+
+    VkRayTracingPipelineCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+    createInfo.stageCount = shaderCount;
+    createInfo.pStages = stages;
+    createInfo.groupCount = groupCount;
+    createInfo.pGroups = groupCreateInfos;
+    createInfo.maxPipelineRayRecursionDepth = maxRecursionDepth;
+    createInfo.layout = device.pipelineLayout;
+
+    if (vkCreateRayTracingPipelinesKHR(
+            device.logicalDevice, VK_NULL_HANDLE, VK_NULL_HANDLE, 1,
+            &createInfo, GetVulkanAllocationCallbacks(),
+            &rayTracingPipeline.handle) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    ArenaPopToMarker(arena, marker);
+    return true;
+}
+
+void DestroyRayTracingPipeline(Device& device,
+                               RayTracingPipeline& rayTracingPipeline)
+{
+    FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
+    FLY_ASSERT(rayTracingPipeline.layout != VK_NULL_HANDLE);
+    FLY_ASSERT(rayTracingPipeline.handle != VK_NULL_HANDLE);
+
+    vkDestroyPipeline(device.logicalDevice, rayTracingPipeline.handle,
+                      GetVulkanAllocationCallbacks());
+    rayTracingPipeline.handle = VK_NULL_HANDLE;
+    rayTracingPipeline.layout = VK_NULL_HANDLE;
 }
 
 } // namespace RHI
