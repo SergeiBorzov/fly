@@ -1,5 +1,5 @@
-#ifndef FLY_RHI_RAY_TRACING_H
-#define FLY_RHI_RAY_TRACING_H
+#ifndef FLY_RHI_ACCELERATION_STRUCTURE_H
+#define FLY_RHI_ACCELERATION_STRUCTURE_H
 
 #include "buffer.h"
 
@@ -10,7 +10,7 @@ namespace RHI
 
 struct Device;
 
-struct AccStructure
+struct AccelerationStructure
 {
     Buffer buffer;
     VkDeviceAddress address;
@@ -18,16 +18,17 @@ struct AccStructure
     VkAccelerationStructureKHR handle;
 };
 
-bool CreateAccStructure(
+bool CreateAccelerationStructure(
     Device& device, VkAccelerationStructureTypeKHR type,
     VkBuildAccelerationStructureFlagsKHR flags,
     VkAccelerationStructureGeometryKHR* geometries,
     const VkAccelerationStructureBuildRangeInfoKHR* rangeInfos,
-    u32 geometryCount, AccStructure& accStructure);
+    u32 geometryCount, AccelerationStructure& accelerationStructure);
 
-void DestroyAccStructure(Device& device, AccStructure& accStructure);
+void DestroyAccelerationStructure(Device& device,
+                                  AccelerationStructure& accelerationStructure);
 
 } // namespace RHI
 } // namespace Fly
 
-#endif /* FLY_RHI_RAY_TRACING_H */
+#endif /* FLY_RHI_ACCELERATION_STRUCTURE_H */

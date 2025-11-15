@@ -1,30 +1,45 @@
 #include <string.h>
 
 #include "core/assert.h"
+#include "core/clock.h"
 #include "core/log.h"
 #include "core/platform.h"
 #include "core/thread_context.h"
 
+#include "math/mat.h"
+
+#include "rhi/acceleration_structure.h"
 #include "rhi/buffer.h"
 #include "rhi/command_buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/ray_tracing.h"
 #include "rhi/shader_program.h"
 
 #include "utils/utils.h"
+
+#include "demos/common/simple_camera_fps.h"
 
 #include <GLFW/glfw3.h>
 
 using namespace Fly;
 
-static RHI::AccStructure sBlas;
-static RHI::AccStructure sTlas;
+struct CameraData
+{
+    Math::Mat4 projection;
+    Math::Mat4 view;
+};
+
+static RHI::AccelerationStructure sBlas;
+static RHI::AccelerationStructure sTlas;
 static RHI::Buffer sInstanceBuffer;
 static RHI::Buffer sGeometryBuffer;
+static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::GraphicsPipeline sGraphicsPipeline;
 
 static RHI::QueryPool sCompactionQueryPool;
+
+static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
+                                    Math::Vec3(0.0f, 0.0f, 5.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -40,7 +55,19 @@ static void ErrorCallbackGLFW(int error, const char* description)
     FLY_ERROR("GLFW - error: %s", description);
 }
 
-static bool CreatePipelines(RHI::Device& device) { return true; }
+static bool CreatePipelines(RHI::Device& device)
+{
+    RHI::ShaderProgram shaderProgram{};
+    if (!Fly::LoadShaderFromSpv(
+            device, FLY_STRING8_LITERAL("ray_generation.rgen.spv"),
+            shaderProgram[RHI::Shader::Type::RayGeneration]))
+    {
+        return false;
+    }
+
+    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::RayGeneration]);
+    return true;
+}
 
 static void DestroyPipelines(RHI::Device& device) {}
 
@@ -87,7 +114,7 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
-    if (!RHI::CreateAccStructure(
+    if (!RHI::CreateAccelerationStructure(
             device, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
             VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR |
                 VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR,
@@ -136,12 +163,22 @@ static bool CreateResources(RHI::Device& device)
     tlasRangeInfo.primitiveCount = 1;
     tlasRangeInfo.primitiveOffset = 0;
 
-    if (!RHI::CreateAccStructure(
+    if (!RHI::CreateAccelerationStructure(
             device, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
             VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
             &tlasGeometry, &tlasRangeInfo, 1, sTlas))
     {
         return false;
+    }
+
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        if (!RHI::CreateBuffer(device, true, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                               nullptr, sizeof(CameraData), sCameraBuffers[i]))
+        {
+            FLY_ERROR("Failed to create camera buffer %u", i);
+            return false;
+        }
     }
 
     return true;
@@ -150,10 +187,14 @@ static bool CreateResources(RHI::Device& device)
 static void DestroyResources(RHI::Device& device)
 {
     RHI::DestroyQueryPool(device, sCompactionQueryPool);
-    RHI::DestroyAccStructure(device, sTlas);
-    RHI::DestroyAccStructure(device, sBlas);
+    RHI::DestroyAccelerationStructure(device, sTlas);
+    RHI::DestroyAccelerationStructure(device, sBlas);
     RHI::DestroyBuffer(device, sInstanceBuffer);
     RHI::DestroyBuffer(device, sGeometryBuffer);
+    for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
+    {
+        RHI::DestroyBuffer(device, sCameraBuffers[i]);
+    }
 }
 
 static void DrawScene(RHI::Device& device)
@@ -282,9 +323,26 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    u64 previousFrameTime = 0;
+    u64 loopStartTime = Fly::ClockNow();
+    u64 currentFrameTime = loopStartTime;
+
     while (!glfwWindowShouldClose(window))
     {
+        previousFrameTime = currentFrameTime;
+        currentFrameTime = Fly::ClockNow();
+        f64 deltaTime = Fly::ToSeconds(currentFrameTime - previousFrameTime);
+
         glfwPollEvents();
+
+        {
+            sCamera.Update(window, deltaTime);
+            CameraData cameraData = {sCamera.GetProjection(),
+                                     sCamera.GetView()};
+            RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
+            RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
+                                  cameraBuffer);
+        }
 
         RHI::BeginRenderFrame(device);
         RHI::EndRenderFrame(device);

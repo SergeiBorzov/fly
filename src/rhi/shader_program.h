@@ -22,6 +22,12 @@ struct Shader
         Task = 3,
         Mesh = 4,
         Compute = 5,
+        RayGeneration = 6,
+        RayIntersection = 7,
+        RayAnyHit = 8,
+        RayClosestHit = 9,
+        RayMiss = 10,
+        RayCall = 11,
         Count,
         Invalid,
     };

@@ -1,0 +1,54 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_shader_image_load_formatted : require
+
+#include "bindless.glsl"
+
+layout(location = 0) rayPayloadEXT vec3 hitValue;
+
+layout(push_constant) uniform PushConstants
+{
+    uint cameraBufferIndex;
+    uint accStructureIndex;
+    uint outputTextureIndex;
+}
+gPushConstants;
+
+FLY_REGISTER_UNIFORM_BUFFER(Camera, {
+    mat4 projection;
+    mat4 view;
+})
+
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTexturesRGBA8, image2D,
+                                    rgba8)
+
+FLY_REGISTER_ACCELERATION_STRUCTURE_BUFFER(AccStructures)
+
+void main()
+{
+    vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5f) / gl_LaunchSizeEXT.xy;
+
+    mat4 inverseProjection = inverse(FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, projection));
+    mat4 inverseView = inverse(FLY_ACCESS_UNIFORM_BUFFER(
+        Camera, gPushConstants.cameraBufferIndex, view));
+
+    vec4 clipPos = vec4(2.0f * uv - 1.0f, 0.0f, 1.0f);
+    vec4 viewPos = inverseProjection * clipPos;
+    viewPos /= viewPos.w;
+    vec3 rayDirVS = normalize(viewPos.xyz);
+    vec3 rayDirWS = normalize(inverseView * vec4(rayDirVS, 0.0f)).xyz;
+
+    vec3 rayOriginWS = inverseView[3].xyz;
+
+    hitValue = vec3(0.0f);
+    traceRayEXT(FLY_ACCESS_ACCELERATION_STRUCTURE_BUFFER(
+                    AccStructures, gPushConstants.accStructureIndex),
+                gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, rayOriginWS, 0.0f,
+                rayDirWS, 100.0f, 0);
+
+    imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                   StorageTexturesRGBA8, gPushConstants.outputTextureIndex),
+               ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
+}

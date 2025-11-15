@@ -13,7 +13,7 @@ cc_library(
         "texture.h",
         "vma.h",
         "shader_program.h",
-        "ray_tracing.h",
+        "acceleration_structure.h",
     ],
     srcs = [
         "allocation_callbacks.cpp",
@@ -26,7 +26,7 @@ cc_library(
         "pipeline.cpp",
         "texture.cpp",
         "shader_program.cpp",
-        "ray_tracing.cpp",
+        "acceleration_structure.cpp",
     ],
     includes = [".."],
     deps = [

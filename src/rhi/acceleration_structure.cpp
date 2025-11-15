@@ -1,23 +1,23 @@
 #include "core/log.h"
 #include "core/thread_context.h"
 
+#include "acceleration_structure.h"
 #include "allocation_callbacks.h"
 #include "device.h"
-#include "ray_tracing.h"
 
 namespace Fly
 {
 namespace RHI
 {
 
-bool CreateAccStructure(
+bool CreateAccelerationStructure(
     Device& device, VkAccelerationStructureTypeKHR type,
     VkBuildAccelerationStructureFlagsKHR flags,
     VkAccelerationStructureGeometryKHR* geometries,
     const VkAccelerationStructureBuildRangeInfoKHR* rangeInfos,
-    u32 geometryCount, AccStructure& accStructure)
+    u32 geometryCount, AccelerationStructure& accelerationStructure)
 {
-    accStructure.type = type;
+    accelerationStructure.type = type;
 
     VkAccelerationStructureBuildGeometryInfoKHR buildGeometryInfo{};
     buildGeometryInfo.sType =
@@ -60,26 +60,26 @@ bool CreateAccStructure(
                       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
                           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                       nullptr, sizeInfo.accelerationStructureSize,
-                      accStructure.buffer))
+                      accelerationStructure.buffer))
     {
         return false;
     }
 
     VkAccelerationStructureCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-    createInfo.buffer = accStructure.buffer.handle;
+    createInfo.buffer = accelerationStructure.buffer.handle;
     createInfo.offset = 0;
     createInfo.size = sizeInfo.accelerationStructureSize;
     createInfo.type = type;
 
-    if (vkCreateAccelerationStructureKHR(device.logicalDevice, &createInfo,
-                                         GetVulkanAllocationCallbacks(),
-                                         &accStructure.handle) != VK_SUCCESS)
+    if (vkCreateAccelerationStructureKHR(
+            device.logicalDevice, &createInfo, GetVulkanAllocationCallbacks(),
+            &accelerationStructure.handle) != VK_SUCCESS)
     {
         return false;
     }
     buildGeometryInfo.scratchData = {scratchBuffer.address};
-    buildGeometryInfo.dstAccelerationStructure = accStructure.handle;
+    buildGeometryInfo.dstAccelerationStructure = accelerationStructure.handle;
 
     if (!(flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR))
     {
@@ -93,12 +93,13 @@ bool CreateAccStructure(
         VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{};
         deviceAddressInfo.sType =
             VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-        deviceAddressInfo.accelerationStructure = accStructure.handle;
-        accStructure.address = vkGetAccelerationStructureDeviceAddressKHR(
-            device.logicalDevice, &deviceAddressInfo);
+        deviceAddressInfo.accelerationStructure = accelerationStructure.handle;
+        accelerationStructure.address =
+            vkGetAccelerationStructureDeviceAddressKHR(device.logicalDevice,
+                                                       &deviceAddressInfo);
 
         FLY_DEBUG_LOG("Acc structure [%lu] created with size %f MB",
-                      accStructure.handle,
+                      accelerationStructure.handle,
                       sizeInfo.accelerationStructureSize / 1024.0f / 1024.0f);
 
         return true;
@@ -129,40 +130,41 @@ bool CreateAccStructure(
             VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1,
             &barrier, 0, nullptr, 0, nullptr);
         vkCmdWriteAccelerationStructuresPropertiesKHR(
-            cmd.handle, 1, &accStructure.handle,
+            cmd.handle, 1, &accelerationStructure.handle,
             VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR,
             compactionQueryPool.handle, 0);
     }
     EndOneTimeSubmit(device);
     DestroyBuffer(device, scratchBuffer);
 
-    u64 compactAccStructureSize = 0;
-    VkAccelerationStructureKHR compactAccStructure;
-    Buffer compactAccStructureBuffer;
+    u64 compactAccelerationStructureSize = 0;
+    VkAccelerationStructureKHR compactAccelerationStructure;
+    Buffer compactAccelerationStructureBuffer;
     {
         GetQueryPoolResults(device, compactionQueryPool, 0, 1,
-                            &compactAccStructureSize, sizeof(u64), sizeof(u64),
-                            VK_QUERY_RESULT_WAIT_BIT);
+                            &compactAccelerationStructureSize, sizeof(u64),
+                            sizeof(u64), VK_QUERY_RESULT_WAIT_BIT);
 
         if (!CreateBuffer(
                 device, false,
                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
                     VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                nullptr, compactAccStructureSize, compactAccStructureBuffer))
+                nullptr, compactAccelerationStructureSize,
+                compactAccelerationStructureBuffer))
         {
             return false;
         }
 
         createInfo.sType =
             VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-        createInfo.buffer = compactAccStructureBuffer.handle;
+        createInfo.buffer = compactAccelerationStructureBuffer.handle;
         createInfo.offset = 0;
-        createInfo.size = compactAccStructureSize;
+        createInfo.size = compactAccelerationStructureSize;
         createInfo.type = type;
 
         if (vkCreateAccelerationStructureKHR(device.logicalDevice, &createInfo,
                                              GetVulkanAllocationCallbacks(),
-                                             &compactAccStructure) !=
+                                             &compactAccelerationStructure) !=
             VK_SUCCESS)
         {
             return false;
@@ -172,45 +174,48 @@ bool CreateAccStructure(
     BeginOneTimeSubmit(device);
     VkCopyAccelerationStructureInfoKHR copyInfo{};
     copyInfo.sType = VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR;
-    copyInfo.src = accStructure.handle;
-    copyInfo.dst = compactAccStructure;
+    copyInfo.src = accelerationStructure.handle;
+    copyInfo.dst = compactAccelerationStructure;
     copyInfo.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
 
     vkCmdCopyAccelerationStructureKHR(cmd.handle, &copyInfo);
     EndOneTimeSubmit(device);
 
     {
-        DestroyBuffer(device, accStructure.buffer);
+        DestroyBuffer(device, accelerationStructure.buffer);
         vkDestroyAccelerationStructureKHR(device.logicalDevice,
-                                          accStructure.handle,
+                                          accelerationStructure.handle,
                                           GetVulkanAllocationCallbacks());
     }
 
-    accStructure.handle = compactAccStructure;
-    accStructure.buffer = compactAccStructureBuffer;
+    accelerationStructure.handle = compactAccelerationStructure;
+    accelerationStructure.buffer = compactAccelerationStructureBuffer;
     DestroyQueryPool(device, compactionQueryPool);
 
     VkAccelerationStructureDeviceAddressInfoKHR deviceAddressInfo{};
     deviceAddressInfo.sType =
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-    deviceAddressInfo.accelerationStructure = accStructure.handle;
-    accStructure.address = vkGetAccelerationStructureDeviceAddressKHR(
+    deviceAddressInfo.accelerationStructure = accelerationStructure.handle;
+    accelerationStructure.address = vkGetAccelerationStructureDeviceAddressKHR(
         device.logicalDevice, &deviceAddressInfo);
 
     FLY_DEBUG_LOG("Acc Structure [%lu] created with size %f MB",
-                  accStructure.handle,
-                  compactAccStructureSize / 1024.0f / 1024.0f);
+                  accelerationStructure.handle,
+                  compactAccelerationStructureSize / 1024.0f / 1024.0f);
 
     return true;
 }
 
-void DestroyAccStructure(Device& device, AccStructure& accStructure)
+void DestroyAccelerationStructure(Device& device,
+                                  AccelerationStructure& accelerationStructure)
 {
-    vkDestroyAccelerationStructureKHR(device.logicalDevice, accStructure.handle,
+    vkDestroyAccelerationStructureKHR(device.logicalDevice,
+                                      accelerationStructure.handle,
                                       GetVulkanAllocationCallbacks());
-    accStructure.handle = VK_NULL_HANDLE;
-    DestroyBuffer(device, accStructure.buffer);
-    FLY_DEBUG_LOG("Acc structure [%lu] destroyed", accStructure.handle);
+    accelerationStructure.handle = VK_NULL_HANDLE;
+    DestroyBuffer(device, accelerationStructure.buffer);
+    FLY_DEBUG_LOG("Acceleration structure [%lu] destroyed",
+                  accelerationStructure.handle);
 }
 
 } // namespace RHI
