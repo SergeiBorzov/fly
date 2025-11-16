@@ -1,7 +1,7 @@
 # About
 
 Personal monorepo, mostly graphics things.
-Vulkan 1.3 bindless renderer and things implemented with it.
+Vulkan 1.3 bindless lib and things implemented with it.
 
 Following platforms are supported:
 - Linux (X11 / Wayland)
