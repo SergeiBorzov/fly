@@ -1,9 +1,21 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
-load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_images")
+load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers")
 
 copy_vulkan_layers()
-copy_molten_vk()
+
+cook_images(
+    name = "cook_skybox",
+    inputs = [
+        "@ambientcg//:DayEnvironmentHDRI020_4K-HDR.exr",
+    ],
+    outputs = [
+        "day.exr",
+    ],
+    generate_mips = False,
+    eq2cube = True,
+)
 
 glsl_shader(
     name = "ray_generation.rgen.spv",
@@ -32,6 +44,9 @@ glsl_shader(
 glsl_shader(
     name = "ray_miss.rmiss.spv",
     src = "ray_miss.rmiss",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
 )
 
 glsl_shader(
@@ -61,6 +76,7 @@ cc_binary(
         "//demos/common:simple_camera_fps",
     ],
     data = [
+        "cook_skybox",
         "ray_generation.rgen.spv",
         "ray_closest_hit.rchit.spv",
         "ray_intersection.rint.spv",
@@ -73,11 +89,6 @@ cc_binary(
         "//conditions:default": [
             ":copy_vulkan_validation_layer",
         ],
-    }) + select({
-        "@platforms//os:osx": [
-            ":copy_molten_vk",
-	],
-        "//conditions:default": [],
-    }),
+    })
 )
 

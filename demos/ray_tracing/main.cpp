@@ -45,6 +45,7 @@ static RHI::Buffer sSphereBuffer;
 static RHI::Buffer sInstanceBuffer;
 static RHI::Buffer sGeometryBuffer;
 static RHI::Texture sOutputTexture;
+static RHI::Texture sSkyboxTexture;
 static RHI::RayTracingPipeline sRayTracingPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 
@@ -290,6 +291,17 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
+    if (!LoadCubemap(device,
+                     VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                     FLY_STRING8_LITERAL("day.exr"),
+                     VK_FORMAT_R16G16B16A16_SFLOAT,
+                     RHI::Sampler::FilterMode::Bilinear, 1, sSkyboxTexture))
+    {
+        FLY_ERROR("Failed to load cubemap");
+        return false;
+    }
+
     return true;
 }
 
@@ -304,6 +316,7 @@ static void DestroyResources(RHI::Device& device)
     {
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
+    RHI::DestroyTexture(device, sSkyboxTexture);
     RHI::DestroyTexture(device, sOutputTexture);
 }
 
@@ -336,12 +349,15 @@ static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
 
     RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
     RHI::Buffer& sphereBuffer = *(bufferInput[1].pBuffer);
-    RHI::Texture& outputTexture = *(textureInput[0].pTexture);
+    RHI::Texture& skyboxTexture = *(textureInput[0].pTexture);
+    RHI::Texture& outputTexture = *(textureInput[1].pTexture);
     RHI::AccelerationStructure& tlas =
         *(static_cast<RHI::AccelerationStructure*>(pUserData));
 
     u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           sphereBuffer.bindlessHandle, tlas.bindlessHandle,
+                           sphereBuffer.bindlessHandle,
+                           tlas.bindlessHandle,
+                           skyboxTexture.bindlessHandle,
                            outputTexture.bindlessStorageHandle,
                            sRayTracingPipeline.sbtStride};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
@@ -358,13 +374,15 @@ static void DrawScene(RHI::Device& device)
         RHI::RecordBufferInput bufferInput[] = {
             {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
             {&sSphereBuffer, VK_ACCESS_2_SHADER_READ_BIT}};
-        RHI::RecordTextureInput textureInput = {&sOutputTexture,
-                                                VK_ACCESS_2_SHADER_WRITE_BIT,
-                                                VK_IMAGE_LAYOUT_GENERAL};
+        RHI::RecordTextureInput textureInput[] = {
+            {&sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
+             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+            {&sOutputTexture, VK_ACCESS_2_SHADER_WRITE_BIT,
+             VK_IMAGE_LAYOUT_GENERAL}};
 
         RHI::ExecuteRayTracing(
             RenderFrameCommandBuffer(device), RecordRayTraceScene, bufferInput,
-            STACK_ARRAY_COUNT(bufferInput), &textureInput, 1, &sTlas);
+            STACK_ARRAY_COUNT(bufferInput), textureInput, 1, &sTlas);
     }
 
     {

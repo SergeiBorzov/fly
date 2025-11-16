@@ -9,6 +9,7 @@ layout(push_constant) uniform PushConstants
     uint cameraBufferIndex;
     uint sphereBufferIndex;
     uint accStructureIndex;
+    uint skyboxTextureIndex;
     uint outputTextureIndex;
     uint sbtStride;
 }
