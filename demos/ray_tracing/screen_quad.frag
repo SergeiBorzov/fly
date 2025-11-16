@@ -20,6 +20,5 @@ void main()
                          inUV)
                      .rgb;
     // vec3 finalColor = Reinhard(color);
-    vec3 finalColor = vec3(inUV, 0.0f);
-    outFragColor = vec4(finalColor, 1.0f);
+    outFragColor = vec4(color, 1.0f);
 }

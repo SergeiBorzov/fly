@@ -277,8 +277,44 @@ static void RecordDrawOutputTexture(RHI::CommandBuffer& cmd,
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
+static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
+                                const RHI::RecordBufferInput* bufferInput,
+                                u32 bufferInputCount,
+                                const RHI::RecordTextureInput* textureInput,
+                                u32 textureInputCount, void* pUserData)
+{
+    RHI::BindRayTracingPipeline(cmd, sRayTracingPipeline);
+
+    RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Texture& outputTexture = *(textureInput[0].pTexture);
+    RHI::AccelerationStructure& tlas =
+        *(static_cast<RHI::AccelerationStructure*>(pUserData));
+
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle, tlas.bindlessHandle,
+                           outputTexture.bindlessStorageHandle,
+                           sRayTracingPipeline.sbtStride};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+
+    RHI::TraceRays(
+        cmd, &sRayTracingPipeline.rayGenRegion, &sRayTracingPipeline.missRegion,
+        &sRayTracingPipeline.hitRegion, &sRayTracingPipeline.callRegion,
+        cmd.device->swapchainWidth, cmd.device->swapchainHeight, 1);
+}
+
 static void DrawScene(RHI::Device& device)
 {
+    {
+        RHI::RecordBufferInput bufferInput = {
+            &sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT};
+        RHI::RecordTextureInput textureInput = {&sOutputTexture,
+                                                VK_ACCESS_2_SHADER_WRITE_BIT,
+                                                VK_IMAGE_LAYOUT_GENERAL};
+
+        RHI::ExecuteRayTracing(RenderFrameCommandBuffer(device),
+                               RecordRayTraceScene, &bufferInput, 1,
+                               &textureInput, 1, &sTlas);
+    }
+
     {
         VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
             RenderFrameSwapchainTexture(device).imageView);

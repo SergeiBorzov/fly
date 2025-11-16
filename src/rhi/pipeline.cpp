@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "core/assert.h"
 #include "core/log.h"
 #include "core/thread_context.h"
@@ -11,6 +13,11 @@ namespace Fly
 {
 namespace RHI
 {
+
+static u64 Align(u64 value, u64 alignment)
+{
+    return (value + alignment - 1) & ~(alignment - 1);
+}
 
 static VkShaderStageFlagBits ShaderTypeToVkShaderStage(Shader::Type shaderType)
 {
@@ -524,6 +531,137 @@ bool CreateRayTracingPipeline(Device& device, u32 maxRecursionDepth,
         return false;
     }
 
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps{};
+    rtProps.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+    VkPhysicalDeviceProperties2 props2{};
+    props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props2.pNext = &rtProps;
+    vkGetPhysicalDeviceProperties2(device.physicalDevice, &props2);
+
+    FLY_ASSERT(maxRecursionDepth <= rtProps.maxRayRecursionDepth);
+
+    u32 groupHandleSize = rtProps.shaderGroupHandleSize;
+    u8* compactSbtData =
+        FLY_PUSH_ARENA(arena, u8, groupCount * groupHandleSize);
+    vkGetRayTracingShaderGroupHandlesKHR(
+        device.logicalDevice, rayTracingPipeline.handle, 0, groupCount,
+        groupCount * groupHandleSize, compactSbtData);
+
+    u32 rayGenCount = 0;
+    u32 missCount = 0;
+    u32 hitCount = 0;
+    u32 callCount = 0;
+
+    for (u32 i = 0; i < groupCount; i++)
+    {
+        if (groups[i].generalShader != VK_SHADER_UNUSED_KHR)
+        {
+            const Shader& shader = shaders[groups[i].generalShader];
+            rayGenCount += shader.type == Shader::Type::RayGeneration;
+            missCount += shader.type == Shader::Type::RayMiss;
+            callCount += shader.type == Shader::Type::RayCall;
+        }
+
+        if (groups[i].closestHitShader != VK_SHADER_UNUSED_KHR)
+        {
+            const Shader& shader = shaders[groups[i].closestHitShader];
+            hitCount += shader.type == Shader::Type::RayClosestHit;
+        }
+
+        if (groups[i].anyHitShader != VK_SHADER_UNUSED_KHR)
+        {
+            const Shader& shader = shaders[groups[i].anyHitShader];
+            hitCount += shader.type == Shader::Type::RayAnyHit;
+        }
+
+        if (groups[i].intersectionShader != VK_SHADER_UNUSED_KHR)
+        {
+            const Shader& shader = shaders[groups[i].intersectionShader];
+            hitCount += shader.type == Shader::Type::RayIntersection;
+        }
+    }
+
+    u32 groupHandleSizeAligned =
+        Align(groupHandleSize, rtProps.shaderGroupHandleAlignment);
+
+    u64 rayGenSize = rayGenCount * groupHandleSizeAligned;
+    u64 missSize = missCount * groupHandleSizeAligned;
+    u64 hitSize = hitCount * groupHandleSizeAligned;
+    u64 callSize = callCount * groupHandleSizeAligned;
+
+    u64 rayGenOffset = Align(0, rtProps.shaderGroupBaseAlignment);
+    u64 missOffset =
+        Align(rayGenOffset + rayGenSize, rtProps.shaderGroupBaseAlignment);
+    u64 hitOffset =
+        Align(missOffset + missSize, rtProps.shaderGroupBaseAlignment);
+    u64 callOffset =
+        Align(hitOffset + hitSize, rtProps.shaderGroupBaseAlignment);
+    u64 totalSbtSize = callOffset + callSize;
+
+    u8* sbtData = FLY_PUSH_ARENA(arena, u8, totalSbtSize);
+    memset(sbtData, 0, totalSbtSize);
+
+    for (u32 i = 0; i < rayGenCount; i++)
+    {
+        memcpy(sbtData + rayGenOffset + i * groupHandleSizeAligned,
+               compactSbtData + i * groupHandleSize, groupHandleSize);
+    }
+
+    for (u32 i = 0; i < missCount; i++)
+    {
+        memcpy(sbtData + missOffset + i * groupHandleSizeAligned,
+               compactSbtData + (rayGenCount + i) * groupHandleSize,
+               groupHandleSize);
+    }
+
+    for (u32 i = 0; i < hitCount; i++)
+    {
+        memcpy(sbtData + hitOffset + i * groupHandleSizeAligned,
+               compactSbtData + (rayGenCount + missCount + i) * groupHandleSize,
+               groupHandleSize);
+    }
+
+    for (u32 i = 0; i < callCount; i++)
+    {
+        memcpy(sbtData + callOffset + i * groupHandleSizeAligned,
+               compactSbtData +
+                   (rayGenCount + missCount + hitCount + i) * groupHandleSize,
+               groupHandleSize);
+    }
+
+    if (!CreateBuffer(device, false,
+                      VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+                          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                      sbtData, totalSbtSize, rayTracingPipeline.sbtBuffer))
+    {
+        return false;
+    }
+
+    rayTracingPipeline.rayGenRegion.deviceAddress =
+        rayTracingPipeline.sbtBuffer.address + rayGenOffset;
+    rayTracingPipeline.rayGenRegion.stride = groupHandleSizeAligned;
+    rayTracingPipeline.rayGenRegion.size = rayGenSize;
+
+    rayTracingPipeline.missRegion.deviceAddress =
+        rayTracingPipeline.sbtBuffer.address + missOffset;
+    rayTracingPipeline.missRegion.stride = groupHandleSizeAligned;
+    rayTracingPipeline.missRegion.size = missSize;
+
+    rayTracingPipeline.hitRegion.deviceAddress =
+        rayTracingPipeline.sbtBuffer.address + hitOffset;
+    rayTracingPipeline.hitRegion.stride = groupHandleSizeAligned;
+    rayTracingPipeline.hitRegion.size = hitSize;
+
+    rayTracingPipeline.callRegion.deviceAddress =
+        rayTracingPipeline.sbtBuffer.address + callOffset;
+    rayTracingPipeline.callRegion.stride = groupHandleSizeAligned;
+    rayTracingPipeline.callRegion.size = callSize;
+
+    rayTracingPipeline.sbtStride = groupHandleSizeAligned;
+
     ArenaPopToMarker(arena, marker);
     return true;
 }
@@ -534,11 +672,18 @@ void DestroyRayTracingPipeline(Device& device,
     FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
     FLY_ASSERT(rayTracingPipeline.layout != VK_NULL_HANDLE);
     FLY_ASSERT(rayTracingPipeline.handle != VK_NULL_HANDLE);
+    FLY_ASSERT(rayTracingPipeline.sbtBuffer.handle != VK_NULL_HANDLE);
 
+    DestroyBuffer(device, rayTracingPipeline.sbtBuffer);
     vkDestroyPipeline(device.logicalDevice, rayTracingPipeline.handle,
                       GetVulkanAllocationCallbacks());
     rayTracingPipeline.handle = VK_NULL_HANDLE;
     rayTracingPipeline.layout = VK_NULL_HANDLE;
+    rayTracingPipeline.rayGenRegion = {};
+    rayTracingPipeline.missRegion = {};
+    rayTracingPipeline.hitRegion = {};
+    rayTracingPipeline.callRegion = {};
+    rayTracingPipeline.sbtStride = 0;
 }
 
 } // namespace RHI

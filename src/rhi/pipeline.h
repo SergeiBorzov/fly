@@ -3,6 +3,7 @@
 
 #include <volk.h>
 
+#include "buffer.h"
 #include "core/types.h"
 
 #define FLY_GRAPHICS_PIPELINE_COLOR_ATTACHMENT_MAX_COUNT 8
@@ -114,8 +115,14 @@ RayTracingGroup TriangleHitGroup(u32 closestHitShaderIndex,
 
 struct RayTracingPipeline
 {
+    Buffer sbtBuffer;
+    VkStridedDeviceAddressRegionKHR rayGenRegion{};
+    VkStridedDeviceAddressRegionKHR missRegion{};
+    VkStridedDeviceAddressRegionKHR hitRegion{};
+    VkStridedDeviceAddressRegionKHR callRegion{};
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline handle = VK_NULL_HANDLE;
+    u32 sbtStride = 0;
 };
 bool CreateRayTracingPipeline(Device& device, u32 maxRecursionDepth,
                               const Shader* shaders, u32 shaderCount,
