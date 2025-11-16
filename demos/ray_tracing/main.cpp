@@ -29,9 +29,19 @@ struct CameraData
     Math::Mat4 view;
 };
 
+struct SphereData
+{
+    Math::Vec3 center;
+    f32 radius;
+    Math::Vec3 albedo;
+    f32 reflectionCoeff;
+};
+
+static u32 sInstanceCount = 500;
 static RHI::AccelerationStructure sBlas;
 static RHI::AccelerationStructure sTlas;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Buffer sSphereBuffer;
 static RHI::Buffer sInstanceBuffer;
 static RHI::Buffer sGeometryBuffer;
 static RHI::Texture sOutputTexture;
@@ -39,7 +49,7 @@ static RHI::RayTracingPipeline sRayTracingPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 0.0f, -5.0f));
+                                    Math::Vec3(0.0f, 10.0f, 25.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -175,44 +185,82 @@ static bool CreateResources(RHI::Device& device)
         return false;
     }
 
-    f32 instanceMatrix[3][4] = {{1.0f, 0.0f, 0.0f, 0.0f},
-                                {0.0f, 1.0f, 0.0f, 0.0f},
-                                {0.0f, 0.0f, 1.0f, 0.0f}};
-    VkTransformMatrixKHR instanceTransform;
-    memcpy(instanceTransform.matrix, instanceMatrix, sizeof(instanceMatrix));
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+    SphereData* sphereData = FLY_PUSH_ARENA(arena, SphereData, sInstanceCount);
+    VkAccelerationStructureInstanceKHR* instances = FLY_PUSH_ARENA(
+        arena, VkAccelerationStructureInstanceKHR, sInstanceCount);
 
-    VkAccelerationStructureInstanceKHR instance;
-    instance.transform = instanceTransform;
-    instance.instanceCustomIndex = 0;
-    instance.mask = 0xFF;
-    instance.instanceShaderBindingTableRecordOffset = 0;
-    instance.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-    instance.accelerationStructureReference = {sBlas.address};
+    sphereData[0].center = Math::Vec3(0.0f, -348500.0f, 0.0f);
+    sphereData[0].radius = 348500.0f;
+    sphereData[0].albedo = Math::Vec3(0.8f);
+    sphereData[0].reflectionCoeff = 0.0f;
+
+    for (u32 i = 1; i < sInstanceCount; i++)
+    {
+        sphereData[i].center = Math::Vec3(Math::RandomF32(-100.0f, 100.0f),
+                                          Math::RandomF32(0.0f, 50.0f),
+                                          Math::RandomF32(-100.0f, 100.0f));
+        sphereData[i].radius = Math::RandomF32(0.25f, 8.0f);
+        sphereData[i].albedo =
+            Math::Vec3(Math::RandomF32(0.0f, 1.0f), Math::RandomF32(0.0f, 1.0f),
+                       Math::RandomF32(0.0f, 1.0f));
+        sphereData[i].reflectionCoeff = Math::RandomF32(0.0f, 1.0f);
+    }
+
+    for (u32 i = 0; i < sInstanceCount; i++)
+    {
+
+        f32 instanceMatrix[3][4] = {
+            {sphereData[i].radius, 0.0f, 0.0f, sphereData[i].center.x},
+            {0.0f, sphereData[i].radius, 0.0f, sphereData[i].center.y},
+            {0.0f, 0.0f, sphereData[i].radius, sphereData[i].center.z}};
+        memcpy(instances[i].transform.matrix, instanceMatrix,
+               sizeof(instanceMatrix));
+        instances[i].instanceCustomIndex = i;
+        instances[i].mask = 0xFF;
+        instances[i].instanceShaderBindingTableRecordOffset = 0;
+        instances[i].flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+        instances[i].accelerationStructureReference = {sBlas.address};
+    }
+
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                               VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           sphereData, sizeof(SphereData) * sInstanceCount,
+                           sSphereBuffer))
+    {
+        return false;
+    }
 
     if (!RHI::CreateBuffer(
             device, false,
             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
                 VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-                VK_BUFFER_USAGE_2_TRANSFER_DST_BIT,
-            &instance, sizeof(instance), sInstanceBuffer))
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            instances,
+            sizeof(VkAccelerationStructureInstanceKHR) * sInstanceCount,
+            sInstanceBuffer))
     {
         return false;
     }
 
-    VkAccelerationStructureGeometryInstancesDataKHR instances{};
-    instances.sType =
+    ArenaPopToMarker(arena, marker);
+
+    VkAccelerationStructureGeometryInstancesDataKHR instancesGeometry{};
+    instancesGeometry.sType =
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-    instances.arrayOfPointers = false;
-    instances.data = {sInstanceBuffer.address};
+    instancesGeometry.arrayOfPointers = false;
+    instancesGeometry.data = {sInstanceBuffer.address};
 
     VkAccelerationStructureGeometryKHR tlasGeometry{};
     tlasGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
     tlasGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-    tlasGeometry.geometry.instances = instances;
+    tlasGeometry.geometry.instances = instancesGeometry;
     tlasGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 
     VkAccelerationStructureBuildRangeInfoKHR tlasRangeInfo{};
-    tlasRangeInfo.primitiveCount = 1;
+    tlasRangeInfo.primitiveCount = sInstanceCount;
     tlasRangeInfo.primitiveOffset = 0;
 
     if (!RHI::CreateAccelerationStructure(
@@ -249,6 +297,7 @@ static void DestroyResources(RHI::Device& device)
 {
     RHI::DestroyAccelerationStructure(device, sTlas);
     RHI::DestroyAccelerationStructure(device, sBlas);
+    RHI::DestroyBuffer(device, sSphereBuffer);
     RHI::DestroyBuffer(device, sInstanceBuffer);
     RHI::DestroyBuffer(device, sGeometryBuffer);
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
@@ -286,11 +335,13 @@ static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
     RHI::BindRayTracingPipeline(cmd, sRayTracingPipeline);
 
     RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    RHI::Buffer& sphereBuffer = *(bufferInput[1].pBuffer);
     RHI::Texture& outputTexture = *(textureInput[0].pTexture);
     RHI::AccelerationStructure& tlas =
         *(static_cast<RHI::AccelerationStructure*>(pUserData));
 
-    u32 pushConstants[] = {cameraBuffer.bindlessHandle, tlas.bindlessHandle,
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
+                           sphereBuffer.bindlessHandle, tlas.bindlessHandle,
                            outputTexture.bindlessStorageHandle,
                            sRayTracingPipeline.sbtStride};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
@@ -304,15 +355,16 @@ static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
 static void DrawScene(RHI::Device& device)
 {
     {
-        RHI::RecordBufferInput bufferInput = {
-            &sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT};
+        RHI::RecordBufferInput bufferInput[] = {
+            {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
+            {&sSphereBuffer, VK_ACCESS_2_SHADER_READ_BIT}};
         RHI::RecordTextureInput textureInput = {&sOutputTexture,
                                                 VK_ACCESS_2_SHADER_WRITE_BIT,
                                                 VK_IMAGE_LAYOUT_GENERAL};
 
-        RHI::ExecuteRayTracing(RenderFrameCommandBuffer(device),
-                               RecordRayTraceScene, &bufferInput, 1,
-                               &textureInput, 1, &sTlas);
+        RHI::ExecuteRayTracing(
+            RenderFrameCommandBuffer(device), RecordRayTraceScene, bufferInput,
+            STACK_ARRAY_COUNT(bufferInput), &textureInput, 1, &sTlas);
     }
 
     {

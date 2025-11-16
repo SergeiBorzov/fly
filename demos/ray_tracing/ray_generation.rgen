@@ -9,6 +9,7 @@ layout(location = 0) rayPayloadEXT vec4 hitValue;
 layout(push_constant) uniform PushConstants
 {
     uint cameraBufferIndex;
+    uint sphereBufferIndex;
     uint accStructureIndex;
     uint outputTextureIndex;
     uint sbtStride;
@@ -46,7 +47,7 @@ void main()
     traceRayEXT(FLY_ACCESS_ACCELERATION_STRUCTURE_BUFFER(
                     AccStructures, gPushConstants.accStructureIndex),
                 gl_RayFlagsOpaqueEXT, 0xff, 0, gPushConstants.sbtStride, 0, rayOriginWS, 0.001f,
-                rayDirWS, 100.0f, 0);
+                rayDirWS, 1000.0f, 0);
 
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
                    StorageTexturesRGBA8, gPushConstants.outputTextureIndex),
