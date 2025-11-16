@@ -16,6 +16,7 @@ struct AccelerationStructure
     VkDeviceAddress address;
     VkAccelerationStructureTypeKHR type;
     VkAccelerationStructureKHR handle;
+    u32 bindlessHandle;
 };
 
 bool CreateAccelerationStructure(

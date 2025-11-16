@@ -12,6 +12,7 @@
 #define FLY_STORAGE_BUFFER_BINDING_INDEX 1
 #define FLY_TEXTURE_BINDING_INDEX 2
 #define FLY_STORAGE_TEXTURE_BINDING_INDEX 3
+#define FLY_ACCELERATION_STRUCTURE_BINDING_INDEX 4
 
 namespace Fly
 {
@@ -87,6 +88,7 @@ struct Device
     u32 bindlessStorageBufferHandleCount = 0;
     u32 bindlessTextureHandleCount = 0;
     u32 bindlessWriteTextureHandleCount = 0;
+    u32 bindlessAccelerationStructureHandleCount = 0;
     u32 swapchainTextureCount = 0;
     u32 swapchainTextureIndex = 0;
     u32 swapchainWidth = 0;

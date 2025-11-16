@@ -31,10 +31,12 @@ struct CameraData
 
 static RHI::AccelerationStructure sBlas;
 static RHI::AccelerationStructure sTlas;
+static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Buffer sInstanceBuffer;
 static RHI::Buffer sGeometryBuffer;
-static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
+static RHI::Texture sOutputTexture;
 static RHI::RayTracingPipeline sRayTracingPipeline;
+static RHI::GraphicsPipeline sGraphicsPipeline;
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
                                     Math::Vec3(0.0f, 0.0f, 5.0f));
@@ -55,34 +57,69 @@ static void ErrorCallbackGLFW(int error, const char* description)
 
 static bool CreatePipelines(RHI::Device& device)
 {
-    RHI::Shader shaders[4];
-    String8 shaderPaths[4] = {FLY_STRING8_LITERAL("ray_generation.rgen.spv"),
-                              FLY_STRING8_LITERAL("ray_miss.rmiss.spv"),
-                              FLY_STRING8_LITERAL("ray_intersection.rint.spv"),
-                              FLY_STRING8_LITERAL("ray_closest_hit.rchit.spv")};
-
-    for (u32 i = 0; i < 4; i++)
     {
-        if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+        RHI::Shader shaders[4];
+        String8 shaderPaths[4] = {
+            FLY_STRING8_LITERAL("ray_generation.rgen.spv"),
+            FLY_STRING8_LITERAL("ray_miss.rmiss.spv"),
+            FLY_STRING8_LITERAL("ray_intersection.rint.spv"),
+            FLY_STRING8_LITERAL("ray_closest_hit.rchit.spv")};
+
+        for (u32 i = 0; i < 4; i++)
         {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
+
+        RHI::RayTracingGroup groups[3] = {
+            RHI::GeneralRayTracingGroup(0), RHI::GeneralRayTracingGroup(1),
+            RHI::ProceduralHitRayTracingGroup(2, 3)};
+
+        if (!RHI::CreateRayTracingPipeline(device, 3, shaders, 4, groups, 3,
+                                           sRayTracingPipeline))
+        {
+            FLY_ERROR("Failed to create ray tracing pipeline");
             return false;
+        }
+
+        for (u32 i = 0; i < 4; i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
         }
     }
 
-    RHI::RayTracingGroup groups[3] = {RHI::GeneralRayTracingGroup(0),
-                                      RHI::GeneralRayTracingGroup(1),
-                                      RHI::ProceduralHitRayTracingGroup(2, 3)};
-
-    if (!RHI::CreateRayTracingPipeline(device, 3, shaders, 4, groups, 3,
-                                       sRayTracingPipeline))
     {
-        FLY_ERROR("Failed to create ray tracing pipeline");
-        return false;
-    }
+        RHI::ShaderProgram shaderProgram;
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("screen_quad.vert.spv"),
+                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        {
+            return false;
+        }
+        if (!Fly::LoadShaderFromSpv(device,
+                                    FLY_STRING8_LITERAL("screen_quad.frag.spv"),
+                                    shaderProgram[RHI::Shader::Type::Fragment]))
+        {
+            return false;
+        }
 
-    for (u32 i = 0; i < 4; i++)
-    {
-        RHI::DestroyShader(device, shaders[i]);
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachments[0] =
+            device.surfaceFormat.format;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+                                         sGraphicsPipeline))
+        {
+            return false;
+        }
+
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
     }
     return true;
 }
@@ -90,6 +127,7 @@ static bool CreatePipelines(RHI::Device& device)
 static void DestroyPipelines(RHI::Device& device)
 {
     RHI::DestroyRayTracingPipeline(device, sRayTracingPipeline);
+    RHI::DestroyGraphicsPipeline(device, sGraphicsPipeline);
 }
 
 static bool CreateResources(RHI::Device& device)
@@ -195,6 +233,15 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
+    if (!RHI::CreateTexture2D(
+            device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            nullptr, device.swapchainWidth, device.swapchainHeight,
+            VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Clamp, 1, sOutputTexture))
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -208,15 +255,44 @@ static void DestroyResources(RHI::Device& device)
     {
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
     }
+    RHI::DestroyTexture(device, sOutputTexture);
+}
+
+static void RecordDrawOutputTexture(RHI::CommandBuffer& cmd,
+                                    const RHI::RecordBufferInput* bufferInput,
+                                    u32 bufferInputCount,
+                                    const RHI::RecordTextureInput* textureInput,
+                                    u32 textureInputCount, void* pUserData)
+{
+    RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
+                     static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
+    RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
+                    cmd.device->swapchainHeight);
+    RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
+
+    RHI::Texture& outputTexture = *(textureInput[0].pTexture);
+
+    u32 pushConstants[] = {outputTexture.bindlessHandle};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
+    RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
 static void DrawScene(RHI::Device& device)
 {
-    VkRenderingAttachmentInfo colorAttachment =
-        RHI::ColorAttachmentInfo(RenderFrameSwapchainTexture(device).imageView);
-    VkRenderingInfo renderingInfo = RHI::RenderingInfo(
-        {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
-        &colorAttachment, 1, nullptr, nullptr, 1, 0);
+    {
+        VkRenderingAttachmentInfo colorAttachment = RHI::ColorAttachmentInfo(
+            RenderFrameSwapchainTexture(device).imageView);
+        VkRenderingInfo renderingInfo = RHI::RenderingInfo(
+            {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
+            &colorAttachment, 1, nullptr, nullptr, 1, 0);
+
+        RHI::RecordTextureInput textureInput = {
+            &sOutputTexture, VK_ACCESS_2_SHADER_READ_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
+                             RecordDrawOutputTexture, nullptr, 0, &textureInput,
+                             1);
+    }
 }
 
 static bool IsPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice,
@@ -359,6 +435,7 @@ int main(int argc, char* argv[])
         }
 
         RHI::BeginRenderFrame(device);
+        DrawScene(device);
         RHI::EndRenderFrame(device);
     }
 

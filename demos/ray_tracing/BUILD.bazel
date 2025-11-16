@@ -34,6 +34,22 @@ glsl_shader(
     src = "ray_miss.rmiss",
 )
 
+glsl_shader(
+    name = "screen_quad.vert.spv",
+    src = "screen_quad.vert",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
+glsl_shader(
+    name = "screen_quad.frag.spv",
+    src = "screen_quad.frag",
+    deps = [
+        "//demos/common:glsl_bindless",
+    ],
+)
+
 cc_binary(
     name = "app",
     srcs = [
@@ -49,6 +65,8 @@ cc_binary(
         "ray_closest_hit.rchit.spv",
         "ray_intersection.rint.spv",
         "ray_miss.rmiss.spv",
+        "screen_quad.vert.spv",
+        "screen_quad.frag.spv",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],
