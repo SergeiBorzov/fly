@@ -6,7 +6,7 @@
 namespace Fly
 {
 
-u64 Hash64(void* data, u64 size)
+u64 Hash64(const void* data, u64 size)
 {
     FLY_ASSERT(data);
     FLY_ASSERT(size > 0);

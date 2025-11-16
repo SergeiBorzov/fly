@@ -4,7 +4,6 @@
 #include "assert.h"
 #include "hash.h"
 
-
 namespace Fly
 {
 struct Arena;
@@ -59,7 +58,7 @@ private:
 template <>
 struct Hash<String8>
 {
-    u64 operator()(String8 key);
+    u64 operator()(String8 key) { return Hash64(key.Data(), key.Size()); }
 };
 
 struct String8CutPair

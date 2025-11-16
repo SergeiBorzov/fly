@@ -6,7 +6,7 @@
 namespace Fly
 {
 
-u64 Hash64(void* data, u64 size);
+u64 Hash64(const void* data, u64 size);
 
 template <typename T>
 struct Hash;
