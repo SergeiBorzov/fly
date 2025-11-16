@@ -217,6 +217,19 @@ void BindComputePipeline(CommandBuffer& cmd,
                             &(cmd.device->bindlessDescriptorSet), 0, nullptr);
 }
 
+void BindRayTracingPipeline(CommandBuffer& cmd,
+                            const RayTracingPipeline& rayTracingPipeline)
+{
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(rayTracingPipeline.handle != VK_NULL_HANDLE);
+
+    vkCmdBindPipeline(cmd.handle, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                      rayTracingPipeline.handle);
+    vkCmdBindDescriptorSets(cmd.handle, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                            cmd.device->pipelineLayout, 0, 1,
+                            &(cmd.device->bindlessDescriptorSet), 0, nullptr);
+}
+
 void BindIndexBuffer(CommandBuffer& cmd, Buffer& buffer, VkIndexType indexType,
                      u64 offset)
 {
@@ -299,6 +312,21 @@ void DispatchIndirect(CommandBuffer& cmd, const Buffer& buffer, u64 offset)
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
 
     vkCmdDispatchIndirect(cmd.handle, buffer.handle, offset);
+}
+
+void TraceRays(CommandBuffer& cmd,
+               const VkStridedDeviceAddressRegionKHR* rayGenRegion,
+               const VkStridedDeviceAddressRegionKHR* missRegion,
+               const VkStridedDeviceAddressRegionKHR* hitRegion,
+               const VkStridedDeviceAddressRegionKHR* callableRegion, u32 width,
+               u32 height, u32 depth)
+{
+    FLY_ASSERT(cmd.device);
+    FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
+    FLY_ASSERT(rayGenRegion);
+
+    vkCmdTraceRaysKHR(cmd.handle, rayGenRegion, missRegion, hitRegion,
+                      callableRegion, width, height, depth);
 }
 
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,

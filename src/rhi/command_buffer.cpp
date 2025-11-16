@@ -528,6 +528,19 @@ void ExecuteComputeIndirect(RHI::CommandBuffer& cmd,
                    textureInputCount, userData);
 }
 
+void ExecuteRayTracing(RHI::CommandBuffer& cmd, RecordCallback recordCallback,
+                       const RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
+                       const RecordTextureInput* textureInput,
+                       u32 textureInputCount, void* userData)
+{
+    InsertBarriers(cmd, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                   bufferInput, bufferInputCount, textureInput,
+                   textureInputCount);
+    recordCallback(cmd, bufferInput, bufferInputCount, textureInput,
+                   textureInputCount, userData);
+}
+
 void ExecuteTransfer(RHI::CommandBuffer& cmd, RecordCallback recordCallback,
                      const RecordBufferInput* bufferInput, u32 bufferInputCount,
                      const RecordTextureInput* textureInput,

@@ -16,6 +16,7 @@ struct Buffer;
 struct Texture;
 struct GraphicsPipeline;
 struct ComputePipeline;
+struct RayTracingPipeline;
 
 struct CommandBuffer
 {
@@ -82,6 +83,8 @@ void BindGraphicsPipeline(CommandBuffer& cmd,
                           const GraphicsPipeline& graphicsPipeline);
 void BindComputePipeline(CommandBuffer& cmd,
                          const ComputePipeline& computePipeline);
+void BindRayTracingPipeline(CommandBuffer& cmd,
+                            const RayTracingPipeline& rayTracingPipeline);
 void BindIndexBuffer(CommandBuffer& cmd, Buffer& buffer, VkIndexType indexType,
                      u64 offset = 0);
 void SetViewport(CommandBuffer& cmd, f32 x, f32 y, f32 w, f32 h, f32 minDepth,
@@ -94,6 +97,12 @@ void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
 void Dispatch(CommandBuffer& cmd, u32 groupCountX, u32 groupCountY,
               u32 groupCountZ);
 void DispatchIndirect(CommandBuffer& cmd, const Buffer& buffer, u64 offset = 0);
+void TraceRays(CommandBuffer& cmd,
+               const VkStridedDeviceAddressRegionKHR* rayGenRegion,
+               const VkStridedDeviceAddressRegionKHR* missRegion,
+               const VkStridedDeviceAddressRegionKHR* hitRegions,
+               const VkStridedDeviceAddressRegionKHR* callableRegion, u32 width,
+               u32 height, u32 depth);
 void Draw(CommandBuffer& cmd, u32 vertexCount, u32 instanceCount,
           u32 firstVertex, u32 firstInstance);
 void DrawIndexed(CommandBuffer& cmd, u32 indexCount, u32 instanceCount,
@@ -165,6 +174,11 @@ void ExecuteGraphics(CommandBuffer& cmd, const VkRenderingInfo& renderingInfo,
                      u32 bufferInputCount = 0,
                      const RecordTextureInput* textureInput = nullptr,
                      u32 textureInputCount = 0, void* userData = nullptr);
+void ExecuteRayTracing(RHI::CommandBuffer& cmd, RecordCallback recordCallback,
+                       const RecordBufferInput* bufferInput,
+                       u32 bufferInputCount,
+                       const RecordTextureInput* textureInput,
+                       u32 textureInputCount, void* userData);
 void ExecuteCompute(CommandBuffer& cmd, RecordCallback recordCallback,
                     const RecordBufferInput* bufferInput = nullptr,
                     u32 bufferInputCount = 0,
