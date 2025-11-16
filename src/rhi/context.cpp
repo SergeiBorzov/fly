@@ -2,8 +2,10 @@
 #include <string.h>
 
 #include "core/assert.h"
+#include "core/hash_set.h"
 #include "core/log.h"
 #include "core/platform.h"
+#include "core/string8.h"
 #include "core/thread_context.h"
 
 #include "allocation_callbacks.h"
@@ -804,6 +806,31 @@ FindPhysicalDevices(const char** deviceExtensions, u32 deviceExtensionCount,
         FLY_PUSH_ARENA(arena, VkPhysicalDevice, physicalDeviceCount);
     vkEnumeratePhysicalDevices(context.instance, &physicalDeviceCount,
                                physicalDevices);
+    u32 uniquePhysicalDeviceCount = 0;
+    HashSet<String8> seenDeviceUUIDs;
+    for (u32 i = 0; i < physicalDeviceCount; i++)
+    {
+        VkPhysicalDeviceIDProperties idProps{};
+        idProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+
+        VkPhysicalDeviceProperties2 props2{};
+        props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+        props2.pNext = &idProps;
+
+        vkGetPhysicalDeviceProperties2(physicalDevices[i], &props2);
+        String8 uuid = String8(
+            reinterpret_cast<const char*>(idProps.deviceUUID), VK_UUID_SIZE);
+        if (!seenDeviceUUIDs.Find(uuid))
+        {
+            seenDeviceUUIDs.Insert(arena, uuid);
+            physicalDevices[uniquePhysicalDeviceCount++] = physicalDevices[i];
+        }
+    }
+    physicalDeviceCount = uniquePhysicalDeviceCount;
+
+    // Note: Some weird ubuntu driver bug returns same device twice, so check
+    // for duplicates here
+
     const PhysicalDeviceInfo* physicalDeviceInfos =
         QueryPhysicalDevicesInformation(arena, context, physicalDevices,
                                         physicalDeviceCount);
