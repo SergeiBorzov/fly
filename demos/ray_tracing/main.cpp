@@ -39,7 +39,7 @@ static RHI::RayTracingPipeline sRayTracingPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 0.0f, 5.0f));
+                                    Math::Vec3(0.0f, 0.0f, -5.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -133,12 +133,12 @@ static void DestroyPipelines(RHI::Device& device)
 static bool CreateResources(RHI::Device& device)
 {
     VkAabbPositionsKHR aabb;
-    aabb.minX = 0.0f;
-    aabb.minY = 0.0f;
-    aabb.minZ = 0.0f;
-    aabb.maxX = 2.0f;
-    aabb.maxY = 2.0f;
-    aabb.maxZ = 2.0f;
+    aabb.minX = -1.0f;
+    aabb.minY = -1.0f;
+    aabb.minZ = -1.0f;
+    aabb.maxX = 1.0f;
+    aabb.maxY = 1.0f;
+    aabb.maxZ = 1.0f;
 
     if (!RHI::CreateBuffer(
             device, false,
@@ -177,7 +177,7 @@ static bool CreateResources(RHI::Device& device)
 
     f32 instanceMatrix[3][4] = {{1.0f, 0.0f, 0.0f, 0.0f},
                                 {0.0f, 1.0f, 0.0f, 0.0f},
-                                {0.0f, 0.0f, 0.0f, 1.0f}};
+                                {0.0f, 0.0f, 1.0f, 0.0f}};
     VkTransformMatrixKHR instanceTransform;
     memcpy(instanceTransform.matrix, instanceMatrix, sizeof(instanceMatrix));
 
