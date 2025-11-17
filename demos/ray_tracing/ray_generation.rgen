@@ -16,6 +16,41 @@ FLY_REGISTER_STORAGE_TEXTURE_BUFFER(, StorageTexturesRGBA16F, image2D, rgba16f)
 
 FLY_REGISTER_ACCELERATION_STRUCTURE_BUFFER(AccStructures)
 
+uint Xorshift32(inout uint seed)
+{
+    seed = seed ^ 61u ^ (seed >> 16);
+    seed *= 9u;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2du;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+float RandomFloat(inout uint seed)
+{
+    return float(Xorshift32(seed)) / 4294967296.0;
+}
+
+vec3 SampleHemisphere(vec2 p, vec3 n)
+{
+    float phi = 2.0f * PI * p.x;
+    float cosTheta = sqrt((1.0f - p.y));
+    float sinTheta = sqrt(p.y);
+
+    vec3 h;
+    h.x = cos(phi) * sinTheta;
+    h.y = cosTheta;
+    h.z = sin(phi) * sinTheta;
+
+    vec3 up =
+        abs(n.y) < 0.999f ? vec3(0.0f, 1.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
+    vec3 tangent = normalize(cross(up, n));
+    vec3 bitangent = cross(n, tangent);
+
+    vec3 sampleVec = tangent * h.x + n * h.y + bitangent * h.z;
+    return normalize(sampleVec);
+}
+
 void main()
 {
     vec2 uv = (vec2(gl_LaunchIDEXT.xy) + 0.5f) / gl_LaunchSizeEXT.xy;
@@ -41,8 +76,8 @@ void main()
 
     payload.maxSamples = gPushConstants.sampleCount;
     payload.depth = 0;
-    payload.newOrigin = vec3(0.0f);
-    payload.newDir = vec3(0.0f);
+    payload.p = vec3(0.0f);
+    payload.n = vec3(0.0f);
 
     for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
     {
@@ -55,8 +90,19 @@ void main()
         {
             break;
         }
-        rayOriginWS = payload.newOrigin;
-        rayDirWS = payload.newDir;
+
+        rayOriginWS = payload.p + payload.n * EPS;
+        float alpha = RandomFloat(payload.seed);
+        if (alpha < payload.reflectionCoeff)
+        {
+            rayDirWS = normalize(reflect(rayDirWS, payload.n));
+        }
+        else
+        {
+            rayDirWS = SampleHemisphere(
+                vec2(RandomFloat(payload.seed), RandomFloat(payload.seed)),
+                payload.n);
+        }
     }
 
     vec3 accLuminance = imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(

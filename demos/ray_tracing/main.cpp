@@ -40,6 +40,7 @@ struct SphereData
 static u32 sInstanceCount = 500;
 static u32 sCurrentSample = 0;
 static u32 sSampleCount = 16384;
+static bool sWindowResized = false;
 static RHI::AccelerationStructure sBlas;
 static RHI::AccelerationStructure sTlas;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
@@ -52,7 +53,7 @@ static RHI::RayTracingPipeline sRayTracingPipeline;
 static RHI::GraphicsPipeline sGraphicsPipeline;
 
 static Fly::SimpleCameraFPS sCamera(90.0f, 1280.0f / 720.0f, 0.01f, 1000.0f,
-                                    Math::Vec3(0.0f, 10.0f, 25.0f));
+                                    Math::Vec3(0.0f, 10.0f, 35.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -66,6 +67,20 @@ static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
 static void ErrorCallbackGLFW(int error, const char* description)
 {
     FLY_ERROR("GLFW - error: %s", description);
+}
+
+static void OnFramebufferResize(RHI::Device& device, u32 width, u32 height,
+                                void*)
+{
+    RHI::DestroyTexture(device, sOutputTexture);
+    RHI::CreateTexture2D(
+        device,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        nullptr, device.swapchainWidth, device.swapchainHeight,
+        VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
+        RHI::Sampler::WrapMode::Clamp, 1, sOutputTexture);
+    sWindowResized = true;
 }
 
 static bool CreatePipelines(RHI::Device& device)
@@ -197,7 +212,7 @@ static bool CreateResources(RHI::Device& device)
     sphereData[0].center = Math::Vec3(0.0f, -348500.0f, 0.0f);
     sphereData[0].radius = 348500.0f;
     sphereData[0].albedo = Math::Vec3(0.8f);
-    sphereData[0].reflectionCoeff = 0.0f;
+    sphereData[0].reflectionCoeff = Math::RandomF32(0.0f, 1.0f);
 
     for (u32 i = 1; i < sInstanceCount; i++)
     {
@@ -387,7 +402,7 @@ static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
 
 static void DrawScene(RHI::Device& device, bool cameraMoved)
 {
-    if (cameraMoved)
+    if (cameraMoved || sWindowResized)
     {
         sCurrentSample = 0;
         RHI::RecordTextureInput textureInput[] = {
@@ -395,6 +410,7 @@ static void DrawScene(RHI::Device& device, bool cameraMoved)
              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL}};
         RHI::ExecuteTransfer(RenderFrameCommandBuffer(device),
                              RecordClearOutput, nullptr, 0, textureInput, 1);
+        sWindowResized = false;
     }
 
     if (sCurrentSample < sSampleCount)
@@ -536,6 +552,7 @@ int main(int argc, char* argv[])
     }
 
     RHI::Device& device = context.devices[0];
+    device.swapchainRecreatedCallback.func = OnFramebufferResize;
 
     if (!CreateResources(device))
     {

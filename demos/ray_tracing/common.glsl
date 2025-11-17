@@ -1,5 +1,6 @@
 #define MAX_BOUNCES 3
 #define PI 3.14159265359f
+#define EPS 0.05f
 
 layout(push_constant) uniform PushConstants
 {
@@ -18,8 +19,9 @@ struct Payload
 {
     vec3 throughput;
     vec3 luminance;
-    vec3 newOrigin;
-    vec3 newDir;
+    vec3 p;
+    vec3 n;
+    float reflectionCoeff;
     uint seed;
     uint maxSamples;
     int done;
