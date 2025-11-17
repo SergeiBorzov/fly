@@ -38,6 +38,8 @@ struct SphereData
 };
 
 static u32 sInstanceCount = 500;
+static u32 sCurrentSample = 0;
+static u32 sSampleCount = 16384;
 static RHI::AccelerationStructure sBlas;
 static RHI::AccelerationStructure sTlas;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
@@ -283,7 +285,9 @@ static bool CreateResources(RHI::Device& device)
     }
 
     if (!RHI::CreateTexture2D(
-            device, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            device,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT |
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             nullptr, device.swapchainWidth, device.swapchainHeight,
             VK_FORMAT_R16G16B16A16_SFLOAT, RHI::Sampler::FilterMode::Nearest,
             RHI::Sampler::WrapMode::Clamp, 1, sOutputTexture))
@@ -339,6 +343,16 @@ static void RecordDrawOutputTexture(RHI::CommandBuffer& cmd,
     RHI::Draw(cmd, 6, 1, 0, 0);
 }
 
+static void RecordClearOutput(RHI::CommandBuffer& cmd,
+                              const RHI::RecordBufferInput* bufferInput,
+                              u32 bufferInputCount,
+                              const RHI::RecordTextureInput* textureInput,
+                              u32 textureInputCount, void* pUserData)
+{
+    RHI::Texture& outputTexture = *(textureInput[0].pTexture);
+    RHI::ClearColor(cmd, outputTexture, 0.0f, 0.0f, 0.0f, 1.0f);
+}
+
 static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
                                 const RHI::RecordBufferInput* bufferInput,
                                 u32 bufferInputCount,
@@ -347,19 +361,22 @@ static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
 {
     RHI::BindRayTracingPipeline(cmd, sRayTracingPipeline);
 
+    RHI::AccelerationStructure& tlas =
+        *(static_cast<RHI::AccelerationStructure*>(pUserData));
+
     RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
     RHI::Buffer& sphereBuffer = *(bufferInput[1].pBuffer);
     RHI::Texture& skyboxTexture = *(textureInput[0].pTexture);
     RHI::Texture& outputTexture = *(textureInput[1].pTexture);
-    RHI::AccelerationStructure& tlas =
-        *(static_cast<RHI::AccelerationStructure*>(pUserData));
 
     u32 pushConstants[] = {cameraBuffer.bindlessHandle,
                            sphereBuffer.bindlessHandle,
                            tlas.bindlessHandle,
                            skyboxTexture.bindlessHandle,
                            outputTexture.bindlessStorageHandle,
-                           sRayTracingPipeline.sbtStride};
+                           sRayTracingPipeline.sbtStride,
+                           sCurrentSample,
+                           sSampleCount};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
     RHI::TraceRays(
@@ -368,8 +385,19 @@ static void RecordRayTraceScene(RHI::CommandBuffer& cmd,
         cmd.device->swapchainWidth, cmd.device->swapchainHeight, 1);
 }
 
-static void DrawScene(RHI::Device& device)
+static void DrawScene(RHI::Device& device, bool cameraMoved)
 {
+    if (cameraMoved)
+    {
+        sCurrentSample = 0;
+        RHI::RecordTextureInput textureInput[] = {
+            {&sOutputTexture, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL}};
+        RHI::ExecuteTransfer(RenderFrameCommandBuffer(device),
+                             RecordClearOutput, nullptr, 0, textureInput, 1);
+    }
+
+    if (sCurrentSample < sSampleCount)
     {
         RHI::RecordBufferInput bufferInput[] = {
             {&sCameraBuffers[device.frameIndex], VK_ACCESS_2_SHADER_READ_BIT},
@@ -377,12 +405,14 @@ static void DrawScene(RHI::Device& device)
         RHI::RecordTextureInput textureInput[] = {
             {&sSkyboxTexture, VK_ACCESS_2_SHADER_READ_BIT,
              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-            {&sOutputTexture, VK_ACCESS_2_SHADER_WRITE_BIT,
+            {&sOutputTexture,
+             VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
              VK_IMAGE_LAYOUT_GENERAL}};
 
         RHI::ExecuteRayTracing(
             RenderFrameCommandBuffer(device), RecordRayTraceScene, bufferInput,
             STACK_ARRAY_COUNT(bufferInput), textureInput, 1, &sTlas);
+        sCurrentSample++;
     }
 
     {
@@ -531,17 +561,14 @@ int main(int argc, char* argv[])
 
         glfwPollEvents();
 
-        {
-            sCamera.Update(window, deltaTime);
-            CameraData cameraData = {sCamera.GetProjection(),
-                                     sCamera.GetView()};
-            RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
-            RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
-                                  cameraBuffer);
-        }
+        bool cameraMoved = sCamera.Update(window, deltaTime);
+        CameraData cameraData = {sCamera.GetProjection(), sCamera.GetView()};
+        RHI::Buffer& cameraBuffer = sCameraBuffers[device.frameIndex];
+        RHI::CopyDataToBuffer(device, &cameraData, sizeof(CameraData), 0,
+                              cameraBuffer);
 
         RHI::BeginRenderFrame(device);
-        DrawScene(device);
+        DrawScene(device, cameraMoved);
         RHI::EndRenderFrame(device);
     }
 

@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
-load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader", "glsl_library")
 load("@fly//scripts/bazel/rules:cook.bzl", "cook_images")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers")
 
@@ -17,11 +17,19 @@ cook_images(
     eq2cube = True,
 )
 
+glsl_library(
+    name = "rt_common",
+    hdrs = [
+        "common.glsl",
+    ],
+)
+
 glsl_shader(
     name = "ray_generation.rgen.spv",
     src = "ray_generation.rgen",
     deps = [
         "//demos/common:glsl_bindless",
+        ":rt_common",
     ],
 )
 
@@ -29,7 +37,8 @@ glsl_shader(
     name = "ray_closest_hit.rchit.spv",
     src = "ray_closest_hit.rchit",
     deps = [
-        "//demos/common:glsl_bindless"
+        "//demos/common:glsl_bindless",
+        ":rt_common",
     ],
 )
 
@@ -38,6 +47,7 @@ glsl_shader(
     src = "ray_intersection.rint",
     deps = [
         "//demos/common:glsl_bindless",
+        ":rt_common",
     ],
 )
 
@@ -46,6 +56,7 @@ glsl_shader(
     src = "ray_miss.rmiss",
     deps = [
         "//demos/common:glsl_bindless",
+        ":rt_common",
     ],
 )
 
@@ -54,6 +65,7 @@ glsl_shader(
     src = "screen_quad.vert",
     deps = [
         "//demos/common:glsl_bindless",
+        ":rt_common",
     ],
 )
 
@@ -62,6 +74,7 @@ glsl_shader(
     src = "screen_quad.frag",
     deps = [
         "//demos/common:glsl_bindless",
+        ":rt_common",
     ],
 )
 

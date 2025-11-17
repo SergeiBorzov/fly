@@ -3,27 +3,16 @@
 #extension GL_EXT_ray_tracing : require
 
 #include "bindless.glsl"
+#include "common.glsl"
 
-layout(location = 0) rayPayloadEXT vec4 hitValue;
-
-layout(push_constant) uniform PushConstants
-{
-    uint cameraBufferIndex;
-    uint sphereBufferIndex;
-    uint accStructureIndex;
-    uint skyboxTextureIndex;
-    uint outputTextureIndex;
-    uint sbtStride;
-}
-gPushConstants;
+layout(location = 0) rayPayloadEXT Payload payload;
 
 FLY_REGISTER_UNIFORM_BUFFER(Camera, {
     mat4 projection;
     mat4 view;
 })
 
-FLY_REGISTER_STORAGE_TEXTURE_BUFFER(writeonly, StorageTexturesRGBA8, image2D,
-                                    rgba8)
+FLY_REGISTER_STORAGE_TEXTURE_BUFFER(, StorageTexturesRGBA16F, image2D, rgba16f)
 
 FLY_REGISTER_ACCELERATION_STRUCTURE_BUFFER(AccStructures)
 
@@ -44,13 +33,41 @@ void main()
 
     vec3 rayOriginWS = inverseView[3].xyz;
 
-    hitValue = vec4(0.0f);
-    traceRayEXT(FLY_ACCESS_ACCELERATION_STRUCTURE_BUFFER(
-                    AccStructures, gPushConstants.accStructureIndex),
-                gl_RayFlagsOpaqueEXT, 0xff, 0, gPushConstants.sbtStride, 0, rayOriginWS, 0.001f,
-                rayDirWS, 1000.0f, 0);
+    payload.throughput = vec3(1.0f);
+    payload.luminance = vec3(0.0f);
+    payload.seed = uint(gl_LaunchIDEXT.x) * 1973u +
+                   uint(gl_LaunchIDEXT.y) * 9277u +
+                   gPushConstants.currentSample * 1013u + 1u;
 
+    payload.maxSamples = gPushConstants.sampleCount;
+    payload.depth = 0;
+    payload.newOrigin = vec3(0.0f);
+    payload.newDir = vec3(0.0f);
+
+    for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
+    {
+        traceRayEXT(FLY_ACCESS_ACCELERATION_STRUCTURE_BUFFER(
+                        AccStructures, gPushConstants.accStructureIndex),
+                    gl_RayFlagsOpaqueEXT, 0xFF, 0, gPushConstants.sbtStride, 0,
+                    rayOriginWS, 0.0f, rayDirWS, 1000.0f, 0);
+
+        if (payload.done == 1)
+        {
+            break;
+        }
+        rayOriginWS = payload.newOrigin;
+        rayDirWS = payload.newDir;
+    }
+
+    vec3 accLuminance = imageLoad(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
+                                      StorageTexturesRGBA16F,
+                                      gPushConstants.outputTextureIndex),
+                                  ivec2(gl_LaunchIDEXT.xy))
+                            .rgb;
+    vec3 luminance =
+        (accLuminance * gPushConstants.currentSample + payload.luminance) /
+        (gPushConstants.currentSample + 1);
     imageStore(FLY_ACCESS_STORAGE_TEXTURE_BUFFER(
-                   StorageTexturesRGBA8, gPushConstants.outputTextureIndex),
-               ivec2(gl_LaunchIDEXT.xy), hitValue);
+                   StorageTexturesRGBA16F, gPushConstants.outputTextureIndex),
+               ivec2(gl_LaunchIDEXT.xy), vec4(luminance, 1.0f));
 }

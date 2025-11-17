@@ -29,7 +29,7 @@ public:
     inline f32 GetFar() const { return far_; }
 
     void SetPitch(f32 pitch);
-    void Update(GLFWwindow* window, double deltaTime);
+    bool Update(GLFWwindow* window, double deltaTime);
 
 private:
     void UpdateRotation(GLFWwindow* window, double deltaTime);

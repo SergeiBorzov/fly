@@ -107,7 +107,7 @@ void SimpleCameraFPS::UpdateRotation(GLFWwindow* window, double deltaTime)
                          Math::Vec3(0.0f, 1.0f, 0.0f));
 }
 
-void SimpleCameraFPS::Update(GLFWwindow* window, double deltaTime)
+bool SimpleCameraFPS::Update(GLFWwindow* window, double deltaTime)
 {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
     {
@@ -115,12 +115,12 @@ void SimpleCameraFPS::Update(GLFWwindow* window, double deltaTime)
 
         UpdateRotation(window, deltaTime);
         UpdatePosition(window, deltaTime);
+        return true;
     }
-    else
-    {
-        firstFrame_ = true;
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
+
+    firstFrame_ = true;
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    return false;
 }
 
 } // namespace Fly

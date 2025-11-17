@@ -19,6 +19,5 @@ void main()
                              Textures, gPushConstants.outputTextureIndex),
                          inUV)
                      .rgb;
-    // vec3 finalColor = Reinhard(color);
-    outFragColor = vec4(color, 1.0f);
+    outFragColor = vec4(Reinhard(color), 1.0f);
 }
