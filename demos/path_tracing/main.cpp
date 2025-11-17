@@ -503,7 +503,7 @@ int main(int argc, char* argv[])
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window =
-        glfwCreateWindow(1280, 720, "Ray tracing", nullptr, nullptr);
+        glfwCreateWindow(1280, 720, "Path tracing", nullptr, nullptr);
 
     if (!window)
     {
