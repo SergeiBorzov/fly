@@ -8,7 +8,7 @@ copy_vulkan_layers()
 cook_images(
     name = "cook_skybox",
     inputs = [
-        "@ambientcg//:DayEnvironmentHDRI020_4K-HDR.exr",
+        "@ambientcg//:DaySkyHDRI052A_4K/DaySkyHDRI052A_4K_HDR.exr",
     ],
     outputs = [
         "day.exr",

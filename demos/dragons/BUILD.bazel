@@ -9,7 +9,7 @@ copy_molten_vk()
 cook_images(
     name = "cook_skybox",
     inputs = [
-        "@ambientcg//:DayEnvironmentHDRI020_4K-HDR.exr",
+        "@ambientcg//:DayEnvironmentHDRI020_4K/DayEnvironmentHDRI020_4K_HDR.exr",
     ],
     outputs = [
         "day.exr",

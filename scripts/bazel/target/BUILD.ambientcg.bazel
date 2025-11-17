@@ -1,10 +1,7 @@
 exports_files([
-    "DaySkyHDRI051B_4K-TONEMAPPED.jpg",
-    "DayEnvironmentHDRI052_4K-TONEMAPPED.jpg",
-    "IndoorEnvironmentHDRI016_4K-TONEMAPPED.jpg",
-    "DayEnvironmentHDRI078_4K-TONEMAPPED.jpg",
-    "NightEnvironmentHDRI009_4K-HDR.exr",
-    "DayEnvironmentHDRI020_4K-HDR.exr",
-    "DayEnvironmentHDRI014_4K-HDR.exr",
-    "NightEnvironmentHDRI008_4K-HDR.exr",
+    "DaySkyHDRI051B_4K/DaySkyHDRI051B_4K_TONEMAPPED.jpg",
+    "DaySkyHDRI052A_4K/DaySkyHDRI052A_4K_HDR.exr",
+    "DayEnvironmentHDRI052_4K/DayEnvironmentHDRI052_4K_HDR.exr",
+    "DayEnvironmentHDRI020_4K/DayEnvironmentHDRI020_4K_HDR.exr",
+    "NightEnvironmentHDRI009_4K/NightEnvironmentHDRI009_4K_HDR.exr",
 ])

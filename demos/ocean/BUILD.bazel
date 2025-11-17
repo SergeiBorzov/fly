@@ -10,7 +10,7 @@ copy_molten_vk()
 cook_images(
     name = "cook_skybox",
     inputs = [
-        "@ambientcg//:DaySkyHDRI051B_4K-TONEMAPPED.jpg",
+        "@ambientcg//:DaySkyHDRI051B_4K/DaySkyHDRI051B_4K_TONEMAPPED.jpg",
     ],
     outputs = [
         "DaySkyHDRI051B_4K-TONEMAPPED.fbc1",
