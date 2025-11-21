@@ -9,7 +9,6 @@
 #include "rhi/command_buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "assets/geometry/mesh.h"
 
@@ -263,6 +262,13 @@ static bool CreatePipelines(RHI::Device& device)
 
     // Prepass pipeline
     {
+        RHI::Shader shader = {};
+        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
+                                    shader))
+        {
+            return false;
+        }
+
         RHI::GraphicsPipelineFixedStateStage fixedState{};
         fixedState.pipelineRendering.colorAttachmentCount = 0;
         fixedState.colorBlendState.attachmentCount = 0;
@@ -272,24 +278,29 @@ static bool CreatePipelines(RHI::Device& device)
             VK_FORMAT_D32_SFLOAT;
         fixedState.depthStencilState.depthTestEnable = true;
 
-        RHI::ShaderProgram shaderProgram{};
-        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
-                                    shaderProgram[RHI::Shader::Type::Vertex]))
-        {
-            return false;
-        }
-
-        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, &shader, 1,
                                          sPrepassPipeline))
         {
             return false;
         }
 
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
+        RHI::DestroyShader(device, shader);
     }
 
     // Lit pass
     {
+        RHI::Shader shaders[2];
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("lit.vert.spv"),
+                                  FLY_STRING8_LITERAL("lit.frag.spv")};
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
+
         RHI::GraphicsPipelineFixedStateStage fixedState{};
         fixedState.pipelineRendering.colorAttachments[0] =
             device.surfaceFormat.format;
@@ -304,30 +315,32 @@ static bool CreatePipelines(RHI::Device& device)
         fixedState.depthStencilState.depthCompareOp =
             VK_COMPARE_OP_GREATER_OR_EQUAL;
 
-        RHI::ShaderProgram shaderProgram{};
-        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.vert.spv"),
-                                    shaderProgram[RHI::Shader::Type::Vertex]))
-        {
-            return false;
-        }
-
-        if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("lit.frag.spv"),
-                                    shaderProgram[RHI::Shader::Type::Fragment]))
-        {
-            return false;
-        }
-
-        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
                                          sGraphicsPipeline))
         {
             return false;
         }
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
 
     // Prefilter
     {
+        RHI::Shader shaders[2];
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("prefilter.vert.spv"),
+                                  FLY_STRING8_LITERAL("prefilter.frag.spv")};
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
+
         RHI::GraphicsPipelineFixedStateStage fixedState{};
         fixedState.pipelineRendering.colorAttachments[0] =
             VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -336,33 +349,34 @@ static bool CreatePipelines(RHI::Device& device)
         fixedState.colorBlendState.attachmentCount = 1;
         fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-        RHI::ShaderProgram shaderProgram{};
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("prefilter.vert.spv"),
-                                    shaderProgram[RHI::Shader::Type::Vertex]))
-        {
-            return false;
-        }
-
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("prefilter.frag.spv"),
-                                    shaderProgram[RHI::Shader::Type::Fragment]))
-        {
-            return false;
-        }
-
-        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
                                          sPrefilterPipeline))
         {
             return false;
         }
 
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
 
     // Hzb downsample pipeline
     {
+        RHI::Shader shaders[2] = {};
+        String8 shaderPaths[2] = {
+            FLY_STRING8_LITERAL("prefilter.vert.spv"),
+            FLY_STRING8_LITERAL("hzb_downsample.frag.spv")};
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
+
         RHI::GraphicsPipelineFixedStateStage fixedState{};
 
         fixedState.pipelineRendering.colorAttachments[0] = VK_FORMAT_R16_SFLOAT;
@@ -371,33 +385,33 @@ static bool CreatePipelines(RHI::Device& device)
         fixedState.colorBlendState.attachmentCount = 1;
         fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-        RHI::ShaderProgram shaderProgram{};
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("prefilter.vert.spv"),
-                                    shaderProgram[RHI::Shader::Type::Vertex]))
-        {
-            return false;
-        }
-
-        if (!Fly::LoadShaderFromSpv(
-                device, FLY_STRING8_LITERAL("hzb_downsample.frag.spv"),
-                shaderProgram[RHI::Shader::Type::Fragment]))
-        {
-            return false;
-        }
-
-        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
                                          sHzbDownsamplePipeline))
         {
             return false;
         }
 
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
 
     // Skybox pipeline
     {
+        RHI::Shader shaders[2];
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("skybox.vert.spv"),
+                                  FLY_STRING8_LITERAL("skybox.frag.spv")};
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
+
         RHI::GraphicsPipelineFixedStateStage fixedState{};
 
         fixedState.pipelineRendering.colorAttachments[0] =
@@ -413,28 +427,17 @@ static bool CreatePipelines(RHI::Device& device)
         fixedState.depthStencilState.depthCompareOp =
             VK_COMPARE_OP_GREATER_OR_EQUAL;
 
-        RHI::ShaderProgram shaderProgram{};
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("skybox.vert.spv"),
-                                    shaderProgram[RHI::Shader::Type::Vertex]))
-        {
-            return false;
-        }
-
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("skybox.frag.spv"),
-                                    shaderProgram[RHI::Shader::Type::Fragment]))
-        {
-            return false;
-        }
-
-        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
                                          sSkyboxPipeline))
         {
             return false;
         }
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
 
     return true;

@@ -13,7 +13,6 @@
 #include "rhi/command_buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "utils/utils.h"
 
@@ -119,18 +118,16 @@ static bool CreatePipelines(RHI::Device& device)
     }
 
     {
-        RHI::ShaderProgram shaderProgram;
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("screen_quad.vert.spv"),
-                                    shaderProgram[RHI::Shader::Type::Vertex]))
+        RHI::Shader shaders[2];
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("screen_quad.vert.spv"),
+                                  FLY_STRING8_LITERAL("screen_quad.frag.spv")};
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
         {
-            return false;
-        }
-        if (!Fly::LoadShaderFromSpv(device,
-                                    FLY_STRING8_LITERAL("screen_quad.frag.spv"),
-                                    shaderProgram[RHI::Shader::Type::Fragment]))
-        {
-            return false;
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
         }
 
         RHI::GraphicsPipelineFixedStateStage fixedState{};
@@ -140,14 +137,17 @@ static bool CreatePipelines(RHI::Device& device)
         fixedState.colorBlendState.attachmentCount = 1;
         fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
                                          sGraphicsPipeline))
         {
             return false;
         }
 
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-        RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
     return true;
 }

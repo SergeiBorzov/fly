@@ -7,7 +7,6 @@
 #include "allocation_callbacks.h"
 #include "device.h"
 #include "pipeline.h"
-#include "shader_program.h"
 
 namespace Fly
 {
@@ -30,6 +29,14 @@ static VkShaderStageFlagBits ShaderTypeToVkShaderStage(Shader::Type shaderType)
         case Shader::Type::Fragment:
         {
             return VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
+        case Shader::Type::TesselationControl:
+        {
+            return VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+        }
+        case Shader::Type::TesselationEvaluation:
+        {
+            return VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
         }
         case Shader::Type::Geometry:
         {
@@ -262,9 +269,41 @@ PipelineRenderingCreateInfo(const VkFormat* colorAttachments,
     return pipelineRendering;
 }
 
+bool CreateShader(Device& device, Shader::Type type, const char* spvSource,
+                  u64 codeSize, Shader& shader)
+{
+    FLY_ASSERT(spvSource);
+    FLY_ASSERT((reinterpret_cast<uintptr_t>(spvSource) % 4) == 0);
+
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = codeSize;
+    createInfo.pCode = reinterpret_cast<const u32*>(spvSource);
+
+    if (vkCreateShaderModule(device.logicalDevice, &createInfo,
+                             GetVulkanAllocationCallbacks(),
+                             &shader.handle) != VK_SUCCESS)
+    {
+        return false;
+    }
+
+    shader.type = type;
+
+    return true;
+}
+
+void DestroyShader(Device& device, Shader& shader)
+{
+    FLY_ASSERT(shader.handle != VK_NULL_HANDLE);
+    vkDestroyShaderModule(device.logicalDevice, shader.handle,
+                          GetVulkanAllocationCallbacks());
+    shader.handle = VK_NULL_HANDLE;
+    shader.type = Shader::Type::Invalid;
+}
+
 bool CreateGraphicsPipeline(Device& device,
                             const GraphicsPipelineFixedStateStage& fixedState,
-                            const ShaderProgram& shaderProgram,
+                            const Shader* shaders, u32 shaderCount,
                             GraphicsPipeline& graphicsPipeline)
 {
     FLY_ASSERT(device.logicalDevice != VK_NULL_HANDLE);
@@ -274,30 +313,32 @@ bool CreateGraphicsPipeline(Device& device,
     graphicsPipeline.layout = device.pipelineLayout;
 
     // Programmable state
-    u32 stageCount = 0;
     VkPipelineShaderStageCreateInfo
-        stages[static_cast<u32>(Shader::Type::Count)];
+        stages[static_cast<u32>(Shader::Type::Count)] = {};
 
-    for (u32 i = 0; i < static_cast<u32>(Shader::Type::Count); i++)
+    for (u32 i = 0; i < shaderCount; i++)
     {
-        Shader::Type shaderType = static_cast<Shader::Type>(i);
-        VkShaderModule shaderModule = shaderProgram[shaderType].handle;
+        VkShaderModule shaderModule = shaders[i].handle;
+        Shader::Type shaderType = shaders[i].type;
+        FLY_ASSERT(shaderType == Shader::Type::Vertex ||
+                   shaderType == Shader::Type::Fragment ||
+                   shaderType == Shader::Type::Geometry ||
+                   shaderType == Shader::Type::TesselationControl ||
+                   shaderType == Shader::Type::TesselationEvaluation);
+
         if (shaderModule == VK_NULL_HANDLE)
         {
             continue;
         }
 
-        stages[stageCount].sType =
-            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        stages[stageCount].pNext = nullptr;
-        stages[stageCount].flags = 0;
-        stages[stageCount].stage = ShaderTypeToVkShaderStage(shaderType);
-        stages[stageCount].module = shaderModule;
-        stages[stageCount].pName = "main";
-        stages[stageCount].pSpecializationInfo = nullptr;
-        stageCount++;
+        stages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[i].pNext = nullptr;
+        stages[i].flags = 0;
+        stages[i].stage = ShaderTypeToVkShaderStage(shaderType);
+        stages[i].module = shaderModule;
+        stages[i].pName = "main";
+        stages[i].pSpecializationInfo = nullptr;
     }
-    FLY_ASSERT(stageCount > 0);
 
     // Fixed state
     VkPipelineViewportStateCreateInfo viewportState =
@@ -352,7 +393,7 @@ bool CreateGraphicsPipeline(Device& device,
     createInfo.pNext = &pipelineRenderingCreateInfo;
     createInfo.flags = 0;
 
-    createInfo.stageCount = stageCount;
+    createInfo.stageCount = shaderCount;
     createInfo.pStages = stages;
 
     createInfo.pVertexInputState = &vertexInputState;

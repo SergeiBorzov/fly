@@ -6,7 +6,6 @@
 
 #include "rhi/device.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "assets/image/image.h"
 #include "assets/image/import_image.h"
@@ -170,6 +169,14 @@ static RHI::Shader::Type GetShaderType(String8 path)
     else if (path.EndsWith(FLY_STRING8_LITERAL(".frag.spv")))
     {
         return RHI::Shader::Type::Fragment;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".tesc.spv")))
+    {
+        return RHI::Shader::Type::TesselationControl;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".tese.spv")))
+    {
+        return RHI::Shader::Type::TesselationEvaluation;
     }
     else if (path.EndsWith(FLY_STRING8_LITERAL(".task.spv")))
     {

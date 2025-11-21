@@ -5,7 +5,6 @@
 #include "core/thread_context.h"
 
 #include "rhi/device.h"
-#include "rhi/shader_program.h"
 
 #include "assets/import_gltf.h"
 #include "utils/utils.h"

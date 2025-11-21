@@ -7,7 +7,6 @@
 #include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 #include "rhi/texture.h"
 
 #include "demos/common/simple_camera_fps.h"
@@ -307,59 +306,85 @@ static bool CreatePipelines(RHI::Device& device)
         RHI::DestroyShader(device, shader);
     }
 
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.depthStencilState.depthTestEnable = false;
-    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
-    fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-    fixedState.inputAssemblyState.topology =
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    {
+        RHI::Shader shaders[2] = {};
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("sky.vert.spv"),
+                                  FLY_STRING8_LITERAL("sky.frag.spv")};
 
-    RHI::ShaderProgram shaderProgram{};
-    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("sky.vert.spv"),
-                           shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("sky.frag.spv"),
-                           shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sSkyPipeline))
-    {
-        return false;
-    }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachments[0] =
+            device.surfaceFormat.format;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.depthStencilState.depthTestEnable = false;
+        fixedState.pipelineRendering.depthAttachmentFormat =
+            VK_FORMAT_UNDEFINED;
+        fixedState.rasterizationState.frontFace =
+            VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+        fixedState.inputAssemblyState.topology =
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("ocean.vert.spv"),
-                           shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-    if (!LoadShaderFromSpv(device, FLY_STRING8_LITERAL("ocean.frag.spv"),
-                           shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
-    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
-    fixedState.depthStencilState.depthTestEnable = true;
-    // fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_LINE;
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sOceanPipeline))
-    {
-        return false;
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
+                                             sSkyPipeline))
+        {
+            return false;
+        }
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
 
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+    {
+        RHI::Shader shaders[2] = {};
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("ocean.vert.spv"),
+                                  FLY_STRING8_LITERAL("ocean.frag.spv")};
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
+
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachments[0] =
+            device.surfaceFormat.format;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.rasterizationState.frontFace =
+            VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        fixedState.rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+        fixedState.inputAssemblyState.topology =
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        fixedState.pipelineRendering.depthAttachmentFormat =
+            VK_FORMAT_D32_SFLOAT;
+        fixedState.depthStencilState.depthTestEnable = true;
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
+                                             sOceanPipeline))
+        {
+            return false;
+        }
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
+    }
 
     return true;
 }

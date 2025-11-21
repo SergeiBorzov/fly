@@ -5,7 +5,6 @@
 #include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "utils/utils.h"
 
@@ -55,39 +54,40 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 
 static bool CreatePipeline(RHI::Device& device)
 {
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("unlit.vert.spv"),
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    RHI::Shader shaders[2];
+    String8 shaderPaths[2] = {FLY_STRING8_LITERAL("unlit.vert.spv"),
+                              FLY_STRING8_LITERAL("unlit.frag.spv")};
+
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
     {
-        FLY_ERROR("Failed to load vertex shader");
-        return false;
-    }
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("unlit.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        FLY_ERROR("Failed to load fragment shader");
-        return false;
+        if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+        {
+            return false;
+        }
     }
 
     RHI::GraphicsPipelineFixedStateStage fixedState{};
     fixedState.pipelineRendering.colorAttachments[0] =
         device.surfaceFormat.format;
-    fixedState.pipelineRendering.depthAttachmentFormat =
-        VK_FORMAT_D32_SFLOAT;
+    fixedState.pipelineRendering.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
     fixedState.pipelineRendering.colorAttachmentCount = 1;
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
     fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                     STACK_ARRAY_COUNT(shaders),
                                      sGraphicsPipeline))
     {
         FLY_ERROR("Failed to create graphics pipeline");
         return false;
     }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+    {
+        RHI::DestroyShader(device, shaders[i]);
+    }
 
     return true;
 }
@@ -101,9 +101,9 @@ static bool CreateResources(RHI::Device& device)
 {
     if (!RHI::CreateTexture2D(
             device, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, nullptr,
-            device.swapchainWidth, device.swapchainHeight,
-            VK_FORMAT_D32_SFLOAT, RHI::Sampler::FilterMode::Nearest,
-            RHI::Sampler::WrapMode::Repeat, 1, sDepthTexture))
+            device.swapchainWidth, device.swapchainHeight, VK_FORMAT_D32_SFLOAT,
+            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
+            1, sDepthTexture))
     {
         FLY_ERROR("Failed to create depth texture");
         return false;

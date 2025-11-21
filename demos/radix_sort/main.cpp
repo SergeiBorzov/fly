@@ -9,7 +9,6 @@
 #include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "utils/utils.h"
 

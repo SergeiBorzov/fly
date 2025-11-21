@@ -7,7 +7,6 @@
 #include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 #include "rhi/texture.h"
 
 #include "utils/utils.h"
@@ -60,16 +59,16 @@ static void ErrorCallbackGLFW(i32 error, const char* description)
 
 static bool CreatePipeline(RHI::Device& device)
 {
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("cubes.vert.spv"),
-                                shaderProgram[RHI::Shader::Type::Vertex]))
+    RHI::Shader shaders[2];
+    String8 shaderPaths[2] = {FLY_STRING8_LITERAL("cubes.vert.spv"),
+                              FLY_STRING8_LITERAL("cubes.frag.spv")};
+
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
     {
-        return false;
-    }
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("cubes.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
+        if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+        {
+            return false;
+        }
     }
 
     RHI::GraphicsPipelineFixedStateStage fixedState{};
@@ -81,13 +80,16 @@ static bool CreatePipeline(RHI::Device& device)
     fixedState.depthStencilState.depthTestEnable = true;
     fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                     STACK_ARRAY_COUNT(shaders),
                                      sGraphicsPipeline))
     {
         return false;
     }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+    {
+        RHI::DestroyShader(device, shaders[i]);
+    }
 
     return true;
 }

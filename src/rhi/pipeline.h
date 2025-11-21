@@ -14,8 +14,35 @@ namespace RHI
 {
 
 struct Device;
-struct Shader;
-struct ShaderProgram;
+
+struct Shader
+{
+    enum class Type
+    {
+        Vertex = 0,
+        Fragment = 1,
+        TesselationControl = 2,
+        TesselationEvaluation = 3,
+        Geometry = 4,
+        Task = 5,
+        Mesh = 6,
+        Compute = 7,
+        RayGeneration = 8,
+        RayIntersection = 9,
+        RayAnyHit = 10,
+        RayClosestHit = 11,
+        RayMiss = 12,
+        RayCall = 13,
+        Count,
+        Invalid,
+    };
+
+    Type type = Type::Invalid;
+    VkShaderModule handle = VK_NULL_HANDLE;
+};
+bool CreateShader(Device& device, Shader::Type type, const char* spvSource,
+                  u64 codeSize, Shader& shaderModule);
+void DestroyShader(Device& device, Shader& shaderModule);
 
 struct GraphicsPipelineFixedStateStage
 {
@@ -81,7 +108,7 @@ struct GraphicsPipeline
 
 bool CreateGraphicsPipeline(
     Device& device, const GraphicsPipelineFixedStateStage& fixedStateStage,
-    const ShaderProgram& shaderProgram, GraphicsPipeline& graphicsPipeline);
+    const Shader* shaders, u32 shaderCount, GraphicsPipeline& graphicsPipeline);
 
 void DestroyGraphicsPipeline(Device& device,
                              GraphicsPipeline& graphicsPipeline);

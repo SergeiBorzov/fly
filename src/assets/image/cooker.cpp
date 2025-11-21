@@ -8,7 +8,6 @@
 
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "export_image.h"
 #include "image.h"
@@ -712,29 +711,34 @@ static bool CreateEq2CubePipeline(RHI::Device& device,
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.pipelineRendering.viewMask = 0x3F;
 
-    RHI::ShaderProgram shaderProgram{};
-    if (!RHI::CreateShader(device, RHI::Shader::Type::Vertex,
-                           reinterpret_cast<const char*>(screenQuadVertSpv),
-                           SCREEN_QUAD_VERT_SPV_SIZE,
-                           shaderProgram[RHI::Shader::Type::Vertex]))
+    RHI::Shader shaders[2] = {};
+    const char* shaderSources[2] = {
+        reinterpret_cast<const char*>(screenQuadVertSpv),
+        reinterpret_cast<const char*>(screenQuadFragSpv),
+    };
+    u64 shaderSizes[2] = {SCREEN_QUAD_VERT_SPV_SIZE, SCREEN_QUAD_FRAG_SPV_SIZE};
+    RHI::Shader::Type shaderTypes[2] = {RHI::Shader::Type::Vertex,
+                                        RHI::Shader::Type::Fragment};
+
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
     {
-        return false;
+        if (!RHI::CreateShader(device, shaderTypes[i], shaderSources[i],
+                               shaderSizes[i], shaders[i]))
+        {
+            return false;
+        }
     }
-    if (!RHI::CreateShader(device, RHI::Shader::Type::Fragment,
-                           reinterpret_cast<const char*>(screenQuadFragSpv),
-                           SCREEN_QUAD_FRAG_SPV_SIZE,
-                           shaderProgram[RHI::Shader::Type::Fragment]))
+
+    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                     STACK_ARRAY_COUNT(shaders), pipeline))
     {
         return false;
     }
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     pipeline))
+    for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
     {
-        return false;
+        RHI::DestroyShader(device, shaders[i]);
     }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     return true;
 }

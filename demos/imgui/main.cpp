@@ -7,7 +7,6 @@
 #include "rhi/allocation_callbacks.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>

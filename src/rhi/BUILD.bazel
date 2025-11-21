@@ -12,7 +12,6 @@ cc_library(
         "pipeline.h",
         "texture.h",
         "vma.h",
-        "shader_program.h",
         "acceleration_structure.h",
     ],
     srcs = [
@@ -25,7 +24,6 @@ cc_library(
         "command_buffer.cpp",
         "pipeline.cpp",
         "texture.cpp",
-        "shader_program.cpp",
         "acceleration_structure.cpp",
     ],
     includes = [".."],

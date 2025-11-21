@@ -7,6 +7,11 @@
 namespace Fly
 {
 
+namespace RHI
+{
+struct Shader;
+}
+
 bool LoadTexture2DFromFile(RHI::Device& device, VkImageUsageFlags flags,
                            String8 path, VkFormat format,
                            RHI::Sampler::FilterMode filterMode,

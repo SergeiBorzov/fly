@@ -8,7 +8,6 @@
 #include "rhi/buffer.h"
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
-#include "rhi/shader_program.h"
 
 #include "utils/utils.h"
 
@@ -146,45 +145,53 @@ static bool CreatePipelines(RHI::Device& device)
         RHI::DestroyShader(device, shader);
     }
 
-    RHI::GraphicsPipelineFixedStateStage fixedState{};
-    fixedState.pipelineRendering.colorAttachments[0] =
-        device.surfaceFormat.format;
-    fixedState.pipelineRendering.colorAttachmentCount = 1;
-    fixedState.colorBlendState.attachmentCount = 1;
-    fixedState.colorBlendState.attachments[0].blendEnable = true;
-    fixedState.colorBlendState.attachments[0].srcColorBlendFactor =
-        VK_BLEND_FACTOR_SRC_ALPHA;
-    fixedState.colorBlendState.attachments[0].dstColorBlendFactor =
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    fixedState.colorBlendState.attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
-    fixedState.colorBlendState.attachments[0].srcAlphaBlendFactor =
-        VK_BLEND_FACTOR_ZERO;
-    fixedState.colorBlendState.attachments[0].dstAlphaBlendFactor =
-        VK_BLEND_FACTOR_ONE;
-    fixedState.colorBlendState.attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
-    fixedState.depthStencilState.depthTestEnable = false;
-    fixedState.inputAssemblyState.topology =
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    {
+        RHI::Shader shaders[2] = {};
+        String8 shaderPaths[2] = {FLY_STRING8_LITERAL("splat.vert.spv"),
+                                  FLY_STRING8_LITERAL("splat.frag.spv")};
 
-    RHI::ShaderProgram shaderProgram{};
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("splat.vert.spv"),
-                                shaderProgram[RHI::Shader::Type::Vertex]))
-    {
-        return false;
-    }
-    if (!Fly::LoadShaderFromSpv(device, FLY_STRING8_LITERAL("splat.frag.spv"),
-                                shaderProgram[RHI::Shader::Type::Fragment]))
-    {
-        return false;
-    }
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            if (!Fly::LoadShaderFromSpv(device, shaderPaths[i], shaders[i]))
+            {
+                return false;
+            }
+        }
 
-    if (!RHI::CreateGraphicsPipeline(device, fixedState, shaderProgram,
-                                     sGraphicsPipeline))
-    {
-        return false;
+        RHI::GraphicsPipelineFixedStateStage fixedState{};
+        fixedState.pipelineRendering.colorAttachments[0] =
+            device.surfaceFormat.format;
+        fixedState.pipelineRendering.colorAttachmentCount = 1;
+        fixedState.colorBlendState.attachmentCount = 1;
+        fixedState.colorBlendState.attachments[0].blendEnable = true;
+        fixedState.colorBlendState.attachments[0].srcColorBlendFactor =
+            VK_BLEND_FACTOR_SRC_ALPHA;
+        fixedState.colorBlendState.attachments[0].dstColorBlendFactor =
+            VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        fixedState.colorBlendState.attachments[0].colorBlendOp =
+            VK_BLEND_OP_ADD;
+        fixedState.colorBlendState.attachments[0].srcAlphaBlendFactor =
+            VK_BLEND_FACTOR_ZERO;
+        fixedState.colorBlendState.attachments[0].dstAlphaBlendFactor =
+            VK_BLEND_FACTOR_ONE;
+        fixedState.colorBlendState.attachments[0].alphaBlendOp =
+            VK_BLEND_OP_ADD;
+        fixedState.depthStencilState.depthTestEnable = false;
+        fixedState.inputAssemblyState.topology =
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
+                                         STACK_ARRAY_COUNT(shaders),
+                                         sGraphicsPipeline))
+        {
+            return false;
+        }
+
+        for (u32 i = 0; i < STACK_ARRAY_COUNT(shaders); i++)
+        {
+            RHI::DestroyShader(device, shaders[i]);
+        }
     }
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Vertex]);
-    RHI::DestroyShader(device, shaderProgram[RHI::Shader::Type::Fragment]);
 
     return true;
 }
