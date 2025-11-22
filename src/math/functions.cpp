@@ -41,6 +41,7 @@ f32 InvSqrt(f32 value)
     return i.f;
 }
 
+f32 Log2(f32 value) { return log2f(value); }
 f32 Exp(f32 value) { return expf(value); }
 f32 Pow(f32 value, f32 exponent) { return powf(value, exponent); }
 f32 Sin(f32 radians) { return sinf(radians); }

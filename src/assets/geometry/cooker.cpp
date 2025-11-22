@@ -181,29 +181,34 @@ static void ProcessInput(Input& input)
 {
     for (u32 i = 0; i < input.inputCount; i++)
     {
-        Geometry geometry;
-        if (!ImportGeometry(input.inputs[i], geometry))
+        Geometry* geometries = nullptr;
+        u32 geometryCount = 0;
+
+        if (!ImportGeometries(input.inputs[i], &geometries, geometryCount))
         {
             fprintf(stderr, "Failed to import geometry %s\n",
                     input.inputs[i].Data());
             exit(-5);
         }
 
-        if (input.scale != 1.0f || input.coordSystem != CoordSystem::XYZ ||
-            input.flipForward)
+        for (u32 i = 0; i < geometryCount; i++)
         {
-            TransformGeometry(input.scale, input.coordSystem, input.flipForward,
-                              geometry);
+            if (input.scale != 1.0f || input.coordSystem != CoordSystem::XYZ ||
+                input.flipForward)
+            {
+                TransformGeometry(input.scale, input.coordSystem,
+                                  input.flipForward, geometries[i]);
+            }
+
+            if (input.flipWindingOrder)
+            {
+                FlipGeometryWindingOrder(geometries[i]);
+            }
+
+            CookGeometry(geometries[i]);
         }
 
-        if (input.flipWindingOrder)
-        {
-            FlipGeometryWindingOrder(geometry);
-        }
-
-        CookGeometry(geometry);
-
-        if (!ExportGeometry(input.outputs[i], geometry))
+        if (!ExportGeometries(input.outputs[i], geometries, geometryCount))
         {
             fprintf(stderr, "Failed to export geometry %s\n",
                     input.outputs[i].Data());

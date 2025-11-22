@@ -44,6 +44,7 @@ f32 Abs(f32 value);
 f32 Sqrt(f32 value);
 f32 InvSqrt(f32 value);
 
+f32 Log2(f32 value);
 f32 Exp(f32 value);
 f32 Pow(f32 value, f32 exponent);
 f32 Sin(f32 radians);

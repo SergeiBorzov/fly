@@ -3,6 +3,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "geometry",
     hdrs = [
+        "vertex_layout.h",
         "geometry.h",
     ],
     srcs = [
@@ -23,6 +24,7 @@ cc_library(
 cc_library(
     name = "mesh",
     hdrs = [
+        "vertex_layout.h",
         "mesh.h",
     ],
     srcs = [

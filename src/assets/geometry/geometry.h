@@ -1,22 +1,13 @@
-#ifndef FLY_GEOMETRY_H
-#define FLY_GEOMETRY_H
+#ifndef FLY_ASSETS_GEOMETRY_H
+#define FLY_ASSETS_GEOMETRY_H
 
 #include "core/string8.h"
 #include "math/vec.h"
 
-#define FLY_MAX_LOD_COUNT 8
+#include "vertex_layout.h"
 
 namespace Fly
 {
-
-enum VertexFlags
-{
-    FLY_VERTEX_NONE_BIT = 0,
-    FLY_VERTEX_POSITION_BIT = 1 << 0,
-    FLY_VERTEX_NORMAL_BIT = 1 << 1,
-    FLY_VERTEX_TANGENT_BIT = 1 << 2,
-    FLY_VERTEX_TEXCOORD_BIT = 1 << 3
-};
 
 enum class CoordSystem : u8
 {
@@ -28,45 +19,38 @@ enum class CoordSystem : u8
     ZYX = 5
 };
 
-struct GeometryLOD
+struct Subgeometry
 {
-    u32 firstIndex;
-    u32 indexCount;
+    LOD lods[FLY_MAX_LOD_COUNT];
 };
 
 struct Geometry
 {
-    GeometryLOD lods[FLY_MAX_LOD_COUNT];
     Math::Vec3 sphereCenter;
-    u8* vertices = nullptr;
-    unsigned int* indices = nullptr;
+    Subgeometry* subgeometries = nullptr;
+    union
+    {
+        Vertex* vertices = nullptr;
+        QVertex* qvertices;
+    };
+    u32* indices = nullptr;
     f32 sphereRadius = 0.0f;
-    u32 vertexCount = 0;
     u32 indexCount = 0;
-    u16 vertexSize = 0;
-    u8 lodCount = 0;
+    u32 vertexCount = 0;
+    u32 subgeometryCount = 0;
     u8 vertexMask = FLY_VERTEX_NONE_BIT;
+    u8 lodCount = 0;
 };
 
-bool ImportGeometry(String8 path, Geometry& geometry);
-bool ExportGeometry(String8 path, Geometry& geometry);
-void DestroyGeometry(Geometry& geometry);
+bool ImportGeometries(String8 path, Geometry** geometries, u32& geometryCount);
+bool ExportGeometries(String8 path, const Geometry* geometries,
+                      u32 geometryCount);
 void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
                        Geometry& geometry);
 void FlipGeometryWindingOrder(Geometry& geometry);
-void ReindexGeometry(Geometry& geometry);
-void OptimizeGeometryVertexCache(Geometry& geometry);
-void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold);
-void OptimizeGeometryVertexFetch(Geometry& geometry);
-void QuantizeGeometry(Geometry& geometry);
-void GenerateGeometryLODs(Geometry& geometry);
 void CookGeometry(Geometry& geometry);
-void CalculateBoundingSphere(Geometry& geometry);
-
-void TriangulateGeometry(Geometry& geometry);
-void GenerateGeometryNormals(Geometry& geometry);
-void GenerateGeometryTangents(Geometry& geometry);
+void DestroyGeometry(Geometry& geometry);
 
 } // namespace Fly
 
-#endif /* FLY_GEOMETRY_H */
+#endif /* FLY_ASSETS_GEOMETRY_H */

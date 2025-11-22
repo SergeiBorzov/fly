@@ -1,6 +1,8 @@
-#include "geometry.h"
+#include <stdio.h>
+
 #include "core/filesystem.h"
 #include "core/memory.h"
+#include "geometry.h"
 
 #define FAST_OBJ_REALLOC Fly::Realloc
 #define FAST_OBJ_FREE Fly::Free
@@ -12,63 +14,80 @@
 namespace Fly
 {
 
-typedef void (*VertexTransformFunc)(void* vertex, void* userData);
-
-struct Vertex
+template <typename T>
+struct DynamicArray
 {
-    Math::Vec3 position;
-    f32 pad0;
-    Math::Vec3 normal;
-    f32 pad1;
+public:
+    inline u64 Count() const { return count; }
+    inline u64 Capacity() const { return capacity; }
+
+    DynamicArray()
+    {
+        count = 0;
+        capacity = 0;
+        data = nullptr;
+    }
+
+    void Add(const T& value)
+    {
+        if (count + 1 > capacity)
+        {
+            if (capacity == 0)
+            {
+                capacity = 1;
+            }
+            else
+            {
+                capacity *= 2;
+            }
+            data = static_cast<T*>(Realloc(data, sizeof(T) * capacity));
+        }
+        data[count++] = value;
+    }
+
+    void Clear() { count = 0; }
+
+    T* Last()
+    {
+        if (!data || count == 0)
+        {
+            return nullptr;
+        }
+        return &data[count - 1];
+    }
+
+    const T* Last() const
+    {
+        if (!data || count == 0)
+        {
+            return nullptr;
+        }
+        return &data[count - 1];
+    }
+
+    inline T* Data() { return data; }
+    inline const T* Data() const { return data; }
+    inline T& operator[](u64 index) { return data[index]; }
+    inline const T& operator[](u64 index) const { return data[index]; }
+
+    ~DynamicArray()
+    {
+        if (data)
+        {
+            Free(data);
+            count = 0;
+            capacity = 0;
+            data = nullptr;
+        }
+    }
+
+private:
+    u64 count;
+    u64 capacity;
+    T* data;
 };
 
-struct QuantizedVertex
-{
-    f16 positionX;
-    f16 positionY;
-    f16 positionZ;
-    u16 pad0;
-    u32 normal;
-    u32 pad1;
-};
-
-struct VertexTexCoord
-{
-    Math::Vec3 position;
-    f32 u;
-    Math::Vec3 normal;
-    f32 v;
-};
-
-struct MeshHeader
-{
-    GeometryLOD lods[FLY_MAX_LOD_COUNT];
-    Math::Vec3 sphereCenter;
-    u64 vertexCount;
-    u64 vertexOffset;
-    u64 indexCount;
-    u64 indexOffset;
-    f32 sphereRadius;
-    u8 indexSize;
-    u8 vertexSize;
-    u8 vertexMask;
-    u8 lodCount;
-};
-
-// struct QuantizedVertex
-// {
-//     f16 posX;
-//     f16 posY;
-//     f16 posZ;
-//     u8 normalX;
-//     u8 normalY;
-//     u8 normalZ;
-//     u8 tangentX;
-//     u8 tangentY;
-//     u8 tangentZ;
-//     u16 u;
-//     u16 v;
-// };
+typedef void (*VertexTransformFunc)(Vertex& vertex, void* userData);
 
 struct TransformData
 {
@@ -77,102 +96,78 @@ struct TransformData
     bool flipForward;
 };
 
-static void CopyVertices(const fastObjMesh* mesh, Geometry& geometry)
+static void TransformVertex(Vertex& vertex, void* userData)
 {
+    FLY_ASSERT(userData);
 
-    geometry.vertexCount = mesh->index_count;
-    geometry.indexCount = mesh->index_count;
-    geometry.lodCount = 1;
+    const TransformData& transformData =
+        *static_cast<const TransformData*>(userData);
 
-    if (!(geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT))
+    switch (transformData.coordSystem)
     {
-        geometry.vertices =
-            static_cast<u8*>(Fly::Alloc(sizeof(Vertex) * mesh->index_count));
-        geometry.indices =
-            static_cast<u32*>(Fly::Alloc(sizeof(u32) * mesh->index_count));
-
-        for (u32 i = 0; i < mesh->index_count; i++)
+        case CoordSystem::XZY:
         {
-            geometry.indices[i] = i;
-            fastObjIndex index = mesh->indices[i];
-
-            Vertex vertex{};
-            vertex.position =
-                *reinterpret_cast<Math::Vec3*>(&(mesh->positions[3 * index.p]));
+            vertex.position = Math::Vec3(vertex.position.x, vertex.position.z,
+                                         vertex.position.y);
             vertex.normal =
-                *reinterpret_cast<Math::Vec3*>(&(mesh->normals[3 * index.n]));
-            memcpy(geometry.vertices + sizeof(Vertex) * i, &vertex,
-                   sizeof(Vertex));
+                Math::Vec3(vertex.normal.x, vertex.normal.z, vertex.normal.y);
+            vertex.tangent = Math::Vec3(vertex.tangent.x, vertex.tangent.z,
+                                        vertex.tangent.y);
+            break;
         }
-    }
-    else
-    {
-        geometry.vertices = static_cast<u8*>(
-            Fly::Alloc(sizeof(VertexTexCoord) * mesh->index_count));
-        geometry.indices =
-            static_cast<u32*>(Fly::Alloc(sizeof(u32) * mesh->index_count));
-
-        for (u32 i = 0; i < mesh->index_count; i++)
+        case CoordSystem::YXZ:
         {
-            geometry.indices[i] = i;
-            fastObjIndex index = mesh->indices[i];
-            VertexTexCoord vertex{};
-            vertex.position =
-                *reinterpret_cast<Math::Vec3*>(&(mesh->positions[3 * index.p]));
+            vertex.position = Math::Vec3(vertex.position.y, vertex.position.x,
+                                         vertex.position.z);
             vertex.normal =
-                *reinterpret_cast<Math::Vec3*>(&(mesh->normals[3 * index.n]));
-            vertex.u = mesh->texcoords[2 * index.t];
-            vertex.v = mesh->texcoords[2 * index.t + 1];
-            memcpy(geometry.vertices + sizeof(VertexTexCoord) * i, &vertex,
-                   sizeof(VertexTexCoord));
+                Math::Vec3(vertex.normal.y, vertex.normal.x, vertex.normal.z);
+            vertex.tangent = Math::Vec3(vertex.tangent.y, vertex.tangent.x,
+                                        vertex.tangent.z);
+            break;
         }
-    }
-}
-
-static bool ImportGeometryObj(String8 path, Geometry& geometry)
-{
-    FLY_ASSERT(path);
-
-    fastObjMesh* mesh = fast_obj_read(path.Data());
-    if (!mesh)
-    {
-        return false;
-    }
-    FLY_ASSERT(mesh.object_count == 1);
-
-    geometry.vertexSize = 0;
-    geometry.vertexMask = FLY_VERTEX_NONE_BIT;
-
-    if (mesh->position_count <= 1)
-    {
-        return false;
-    }
-
-    geometry.vertexMask = FLY_VERTEX_POSITION_BIT | FLY_VERTEX_NORMAL_BIT;
-    geometry.vertexSize = sizeof(Vertex);
-
-    // TODO: Normal generation
-
-    if (mesh->texcoord_count > 1)
-    {
-        geometry.vertexMask |= FLY_VERTEX_TEXCOORD_BIT;
-        geometry.vertexSize = sizeof(VertexTexCoord);
-    }
-
-    for (u32 i = 0; i < mesh->face_count; i++)
-    {
-        // TODO: triangulation
-        if (mesh->face_vertices[i] != 3)
+        case CoordSystem::YZX:
         {
-            return false;
+            vertex.position = Math::Vec3(vertex.position.y, vertex.position.z,
+                                         vertex.position.x);
+            vertex.normal =
+                Math::Vec3(vertex.normal.y, vertex.normal.z, vertex.normal.x);
+            vertex.tangent = Math::Vec3(vertex.tangent.y, vertex.tangent.z,
+                                        vertex.tangent.x);
+            break;
+        }
+        case CoordSystem::ZXY:
+        {
+            vertex.position = Math::Vec3(vertex.position.z, vertex.position.x,
+                                         vertex.position.y);
+            vertex.normal =
+                Math::Vec3(vertex.normal.z, vertex.normal.x, vertex.normal.y);
+            vertex.tangent = Math::Vec3(vertex.tangent.z, vertex.tangent.x,
+                                        vertex.tangent.y);
+            break;
+        }
+        case CoordSystem::ZYX:
+        {
+            vertex.position = Math::Vec3(vertex.position.z, vertex.position.y,
+                                         vertex.position.x);
+            vertex.normal =
+                Math::Vec3(vertex.normal.z, vertex.normal.y, vertex.normal.x);
+            vertex.tangent = Math::Vec3(vertex.tangent.z, vertex.tangent.y,
+                                        vertex.tangent.x);
+            break;
+        }
+        default:
+        {
+            break;
         }
     }
 
-    CopyVertices(mesh, geometry);
-
-    fast_obj_destroy(mesh);
-
-    return true;
+    vertex.position *= transformData.scale;
+    if (transformData.flipForward)
+    {
+        vertex.position.z *= -1.0f;
+        vertex.normal.z *= -1.0f;
+        vertex.tangent.z *= -1.0f;
+    }
 }
 
 static void ApplyVertexTransformToGeometry(
@@ -181,163 +176,7 @@ static void ApplyVertexTransformToGeometry(
     FLY_ASSERT(vertexTransformFunc);
     for (u32 i = 0; i < geometry.vertexCount; i++)
     {
-        vertexTransformFunc(geometry.vertices + i * geometry.vertexSize,
-                            userData);
-    }
-}
-
-static void TransformVertexTexCoord(void* pVertex, void* userData)
-{
-    FLY_ASSERT(pVertex);
-    FLY_ASSERT(userData);
-
-    const TransformData& transformData =
-        *static_cast<const TransformData*>(userData);
-
-    VertexTexCoord& vertex = *static_cast<VertexTexCoord*>(pVertex);
-    switch (transformData.coordSystem)
-    {
-        case CoordSystem::XZY:
-        {
-            vertex.position = Math::Vec3(vertex.position.x, vertex.position.z,
-                                         vertex.position.y);
-            vertex.normal =
-                Math::Vec3(vertex.normal.x, vertex.normal.z, vertex.normal.y);
-            break;
-        }
-        case CoordSystem::YXZ:
-        {
-            vertex.position = Math::Vec3(vertex.position.y, vertex.position.x,
-                                         vertex.position.z);
-            vertex.normal =
-                Math::Vec3(vertex.normal.y, vertex.normal.x, vertex.normal.z);
-            break;
-        }
-        case CoordSystem::YZX:
-        {
-            vertex.position = Math::Vec3(vertex.position.y, vertex.position.z,
-                                         vertex.position.x);
-            vertex.normal =
-                Math::Vec3(vertex.normal.y, vertex.normal.z, vertex.normal.x);
-            break;
-        }
-        case CoordSystem::ZXY:
-        {
-            vertex.position = Math::Vec3(vertex.position.z, vertex.position.x,
-                                         vertex.position.y);
-            vertex.normal =
-                Math::Vec3(vertex.normal.z, vertex.normal.x, vertex.normal.y);
-            break;
-        }
-        case CoordSystem::ZYX:
-        {
-            vertex.position = Math::Vec3(vertex.position.z, vertex.position.y,
-                                         vertex.position.x);
-            vertex.normal =
-                Math::Vec3(vertex.normal.z, vertex.normal.y, vertex.normal.x);
-            break;
-        }
-        default:
-        {
-            break;
-        }
-    }
-
-    vertex.position *= transformData.scale;
-    if (transformData.flipForward)
-    {
-        vertex.position.z *= -1.0f;
-        vertex.normal.z *= -1.0f;
-    }
-}
-
-static void TransformVertex(void* pVertex, void* userData)
-{
-    FLY_ASSERT(vertex);
-    FLY_ASSERT(userData);
-
-    const TransformData& transformData =
-        *static_cast<const TransformData*>(userData);
-
-    Vertex& vertex = *static_cast<Vertex*>(pVertex);
-    switch (transformData.coordSystem)
-    {
-        case CoordSystem::XZY:
-        {
-            vertex.position = Math::Vec3(vertex.position.x, vertex.position.z,
-                                         vertex.position.y);
-            vertex.normal =
-                Math::Vec3(vertex.normal.x, vertex.normal.z, vertex.normal.y);
-            break;
-        }
-        case CoordSystem::YXZ:
-        {
-            vertex.position = Math::Vec3(vertex.position.y, vertex.position.x,
-                                         vertex.position.z);
-            vertex.normal =
-                Math::Vec3(vertex.normal.y, vertex.normal.x, vertex.normal.z);
-            break;
-        }
-        case CoordSystem::YZX:
-        {
-            vertex.position = Math::Vec3(vertex.position.y, vertex.position.z,
-                                         vertex.position.x);
-            vertex.normal =
-                Math::Vec3(vertex.normal.y, vertex.normal.z, vertex.normal.x);
-            break;
-        }
-        case CoordSystem::ZXY:
-        {
-            vertex.position = Math::Vec3(vertex.position.z, vertex.position.x,
-                                         vertex.position.y);
-            vertex.normal =
-                Math::Vec3(vertex.normal.z, vertex.normal.x, vertex.normal.y);
-            break;
-        }
-        case CoordSystem::ZYX:
-        {
-            vertex.position = Math::Vec3(vertex.position.z, vertex.position.y,
-                                         vertex.position.x);
-            vertex.normal =
-                Math::Vec3(vertex.normal.z, vertex.normal.y, vertex.normal.x);
-            break;
-        }
-        default:
-        {
-            break;
-        }
-    }
-
-    vertex.position *= transformData.scale;
-    if (transformData.flipForward)
-    {
-        vertex.position.z *= -1.0f;
-        vertex.normal.z *= -1.0f;
-    }
-}
-
-bool ImportGeometry(String8 path, Geometry& geometry)
-{
-    String8 extension = String8::FindLast(path, '.');
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".obj")) ||
-        extension.StartsWith(FLY_STRING8_LITERAL(".OBJ")))
-    {
-        return ImportGeometryObj(path, geometry);
-    }
-    return false;
-}
-
-void DestroyGeometry(Geometry& geometry)
-{
-    if (geometry.vertices)
-    {
-        Fly::Free(geometry.vertices);
-        geometry.vertices = nullptr;
-    }
-    if (geometry.indices)
-    {
-        Fly::Free(geometry.indices);
-        geometry.indices = nullptr;
+        vertexTransformFunc(geometry.vertices[i], userData);
     }
 }
 
@@ -349,213 +188,404 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
     transformData.coordSystem = coordSystem;
     transformData.flipForward = flipForward;
 
-    if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
+    ApplyVertexTransformToGeometry(geometry, TransformVertex, &transformData);
+    printf("Transformed geometry!\n");
+}
+
+static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
+                                       const fastObjGroup& object,
+                                       Geometry& geometry)
+{
+    geometry = {};
+    geometry.lodCount = 1;
+
+    DynamicArray<Subgeometry> subgeometries;
+    DynamicArray<Vertex> vertices;
+    DynamicArray<u32> indices;
+
+    i32 currMaterialIndex = -1;
+    u32 subgeometryIndexCount = 0;
+    for (u32 i = 0; i < object.face_count; i++)
     {
-        ApplyVertexTransformToGeometry(geometry, TransformVertexTexCoord,
-                                       &transformData);
+        i32 materialIndex =
+            static_cast<i32>(mesh.face_materials[object.face_offset + i]);
+        if (materialIndex != currMaterialIndex)
+        {
+            if (i != 0 && subgeometryIndexCount > 0)
+            {
+                Subgeometry& last = *(subgeometries.Last());
+                last.lods[0].indexCount = subgeometryIndexCount;
+                subgeometryIndexCount = 0;
+            }
+
+            Subgeometry subgeometry{};
+            subgeometry.lods[0].indexOffset = 3 * i;
+            subgeometries.Add(subgeometry);
+            currMaterialIndex = materialIndex;
+        }
+
+        for (u32 j = 0; j < 3; j++)
+        {
+            fastObjIndex index = mesh.indices[object.index_offset + 3 * i + j];
+            Vertex vertex{};
+            vertex.position =
+                *reinterpret_cast<Math::Vec3*>(&(mesh.positions[3 * index.p]));
+            if (geometry.vertexMask & FLY_VERTEX_NORMAL_BIT)
+            {
+                vertex.normal = *reinterpret_cast<Math::Vec3*>(
+                    &(mesh.normals[3 * index.n]));
+            }
+            if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
+            {
+                vertex.u = mesh.texcoords[2 * index.t];
+                vertex.v = mesh.texcoords[2 * index.t + 1];
+            }
+            vertices.Add(vertex);
+            indices.Add(3 * i + j);
+            subgeometryIndexCount++;
+        }
     }
-    else
+
+    if (subgeometryIndexCount > 0)
     {
-        ApplyVertexTransformToGeometry(geometry, TransformVertex,
-                                       &transformData);
+        Subgeometry& last = *(subgeometries.Last());
+        last.lods[0].indexCount = subgeometryIndexCount;
     }
+
+    {
+        geometry.subgeometries = static_cast<Subgeometry*>(
+            Alloc(sizeof(Subgeometry) * subgeometries.Count()));
+        geometry.subgeometryCount = subgeometries.Count();
+        memcpy(geometry.subgeometries, subgeometries.Data(),
+               sizeof(Subgeometry) * subgeometries.Count());
+    }
+    {
+        geometry.vertices =
+            static_cast<Vertex*>(Alloc(sizeof(Vertex) * vertices.Count()));
+        memcpy(geometry.vertices, vertices.Data(),
+               sizeof(Vertex) * vertices.Count());
+        geometry.vertexCount = vertices.Count();
+    }
+    {
+        geometry.indices =
+            static_cast<u32*>(Alloc(sizeof(u32) * indices.Count()));
+        memcpy(geometry.indices, indices.Data(), sizeof(u32) * indices.Count());
+        geometry.indexCount = indices.Count();
+    }
+}
+
+static bool ImportGeometriesObj(String8 path, Geometry** ppGeometries,
+                                u32& geometryCount)
+{
+    FLY_ASSERT(path);
+    FLY_ASSERT(ppGeometries);
+    geometryCount = 0;
+
+    fastObjMesh* mesh = fast_obj_read(path.Data());
+    if (!mesh || mesh->object_count == 0)
+    {
+        return false;
+    }
+
+    if (mesh->position_count < 3)
+    {
+        return false;
+    }
+    u8 vertexMask = FLY_VERTEX_POSITION_BIT;
+
+    if (mesh->normal_count > 0)
+    {
+        vertexMask |= FLY_VERTEX_NORMAL_BIT;
+    }
+
+    if (mesh->texcoord_count > 0)
+    {
+        vertexMask |= FLY_VERTEX_TEXCOORD_BIT;
+    }
+
+    // Check triangulation
+    for (u32 i = 0; i < mesh->face_count; i++)
+    {
+        // TODO: triangulation
+        if (mesh->face_vertices[i] != 3)
+        {
+            FLY_ASSERT(false);
+            return false;
+        }
+    }
+
+    geometryCount = mesh->object_count;
+    *ppGeometries =
+        static_cast<Geometry*>(Alloc(sizeof(Geometry) * geometryCount));
+    Geometry* pGeometries = *ppGeometries;
+
+    for (u32 i = 0; i < mesh->object_count; i++)
+    {
+        ExtractGeometryDataFromObj(*mesh, mesh->objects[i], pGeometries[i]);
+        printf("Geometry %u has %u vertices and %u subgeometries\n", i,
+               pGeometries[i].vertexCount, pGeometries[i].subgeometryCount);
+        for (u32 j = 0; j < pGeometries[i].subgeometryCount; j++)
+        {
+            printf("Subgeometry %u has %u indices\n", j,
+                   pGeometries[i].subgeometries[j].lods[0].indexCount);
+        }
+    }
+
+    return true;
+}
+
+bool ImportGeometries(String8 path, Geometry** geometries, u32& geometryCount)
+{
+    String8 extension = String8::FindLast(path, '.');
+    if (extension.StartsWith(FLY_STRING8_LITERAL(".obj")) ||
+        extension.StartsWith(FLY_STRING8_LITERAL(".OBJ")))
+    {
+        return ImportGeometriesObj(path, geometries, geometryCount);
+    }
+    return false;
 }
 
 void FlipGeometryWindingOrder(Geometry& geometry)
 {
-    for (u32 i = 0; i < geometry.vertexCount; i += 3)
+    for (u32 i = 0; i < geometry.vertexCount / 3; i++)
     {
-        if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
-        {
-            VertexTexCoord& v0 = *reinterpret_cast<VertexTexCoord*>(
-                geometry.vertices + 3 * i * geometry.vertexSize);
-            VertexTexCoord& v1 = *reinterpret_cast<VertexTexCoord*>(
-                geometry.vertices + (3 * i + 1) * geometry.vertexSize);
-
-            VertexTexCoord tmp = v0;
-            v0 = v1;
-            v1 = tmp;
-        }
-        else
-        {
-            Vertex& v0 = *reinterpret_cast<Vertex*>(geometry.vertices +
-                                                    i * geometry.vertexSize);
-            Vertex& v1 = *reinterpret_cast<Vertex*>(
-                geometry.vertices + (i + 1) * geometry.vertexSize);
-
-            Vertex tmp = v0;
-            v0 = v1;
-            v1 = tmp;
-        }
+        Vertex& v0 = geometry.vertices[3 * i];
+        Vertex& v1 = geometry.vertices[3 * i + 1];
+        Vertex tmp = v0;
+        v0 = v1;
+        v1 = tmp;
     }
 }
 
-void ReindexGeometry(Geometry& geometry)
+static void VertexDeduplication(Geometry& geometry)
 {
-    unsigned int* remap = static_cast<unsigned int*>(
-        Fly::Alloc(sizeof(unsigned int) * geometry.vertexCount));
-    size_t newVertexCount = meshopt_generateVertexRemap(
+    u32* remap = static_cast<u32*>(Alloc(sizeof(u32) * geometry.indexCount));
+
+    size_t newVertexCount = meshopt_generateVertexRemap<u32>(
         remap, geometry.indices, geometry.indexCount, geometry.vertices,
-        geometry.vertexCount, geometry.vertexSize);
+        geometry.vertexCount, sizeof(Vertex));
 
-    void* newVertices = Fly::Alloc(geometry.vertexSize * newVertexCount);
-    unsigned int* newIndices = static_cast<unsigned int*>(
-        Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
+    {
+        Vertex* newVertices =
+            static_cast<Vertex*>(Alloc(sizeof(Vertex) * newVertexCount));
+        meshopt_remapVertexBuffer(newVertices, geometry.vertices,
+                                  geometry.vertexCount, sizeof(Vertex), remap);
+        Fly::Free(geometry.vertices);
+        geometry.vertices = newVertices;
+        geometry.vertexCount = newVertexCount;
+    }
 
-    meshopt_remapVertexBuffer(newVertices, geometry.vertices,
-                              geometry.vertexCount, geometry.vertexSize, remap);
-    meshopt_remapIndexBuffer(newIndices, geometry.indices, geometry.indexCount,
-                             remap);
+    {
+        u32* newIndices =
+            static_cast<u32*>(Alloc(sizeof(u32) * geometry.indexCount));
+        meshopt_remapIndexBuffer<u32>(newIndices, geometry.indices,
+                                      geometry.indexCount, remap);
+        Fly::Free(geometry.indices);
+        geometry.indices = newIndices;
+    }
 
-    Fly::Free(geometry.vertices);
-    Fly::Free(geometry.indices);
     Fly::Free(remap);
-    geometry.vertices = static_cast<u8*>(newVertices);
-    geometry.indices = newIndices;
-    geometry.vertexCount = newVertexCount;
+
+    printf("After vertex deduplication geometry has %u vertex count and %u "
+           "subgeometries\n",
+           geometry.vertexCount, geometry.subgeometryCount);
 }
 
-void OptimizeGeometryVertexCache(Geometry& geometry)
+static void OptimizeGeometryVertexCache(Geometry& geometry)
 {
-    // Note: If index buffer contains multiple ranges for multiple draw calls,
-    // this function needs to be called on each range individually
-    unsigned int* newIndices = static_cast<unsigned int*>(
-        Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
+    for (u32 i = 0; i < geometry.subgeometryCount; i++)
+    {
+        u32* newIndices = static_cast<u32*>(
+            Alloc(sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount));
 
-    meshopt_optimizeVertexCache(newIndices, geometry.indices,
-                                geometry.indexCount, geometry.vertexCount);
-    Fly::Free(geometry.indices);
-    geometry.indices = newIndices;
+        meshopt_optimizeVertexCache<u32>(
+            newIndices,
+            geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+            geometry.subgeometries[i].lods[0].indexCount, geometry.vertexCount);
+
+        memcpy(geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+               newIndices,
+               sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount);
+        Fly::Free(newIndices);
+        printf("Vertex cache optimized for %u subgeometry\n", i);
+    }
 }
 
 void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold)
 {
-    unsigned int* newIndices = static_cast<unsigned int*>(
-        Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
-    meshopt_optimizeOverdraw(newIndices, geometry.indices, geometry.indexCount,
-                             reinterpret_cast<const f32*>(geometry.vertices),
-                             geometry.vertexCount, geometry.vertexSize,
-                             threshold);
-    Fly::Free(geometry.indices);
-    geometry.indices = newIndices;
+    for (u32 i = 0; i < geometry.subgeometryCount; i++)
+    {
+        u32* newIndices =
+            static_cast<u32*>(Alloc(sizeof(u32) * geometry.indexCount));
+        meshopt_optimizeOverdraw<u32>(
+            newIndices,
+            geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+            geometry.subgeometries[i].lods[0].indexCount,
+            reinterpret_cast<const f32*>(geometry.vertices),
+            geometry.vertexCount, sizeof(Vertex), threshold);
+        memcpy(geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+               newIndices,
+               sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount);
+        Fly::Free(newIndices);
+        printf("Vertex overdraw optimized for %u subgeometry\n", i);
+    }
 }
 
-void OptimizeGeometryVertexFetch(Geometry& geometry)
+void DestroyGeometry(Geometry& geometry)
 {
-    void* newVertices = Fly::Alloc(geometry.vertexSize * geometry.vertexCount);
-    size_t newVertexCount = meshopt_optimizeVertexFetch(
-        newVertices, geometry.indices, geometry.indexCount, geometry.vertices,
-        geometry.vertexCount, geometry.vertexSize);
-    Fly::Free(geometry.vertices);
-    geometry.vertices = static_cast<u8*>(newVertices);
-    geometry.vertexCount = newVertexCount;
+    if (geometry.vertices)
+    {
+        Fly::Free(geometry.vertices);
+    }
+    if (geometry.indices)
+    {
+        Fly::Free(geometry.indices);
+    }
+    if (geometry.subgeometries)
+    {
+        Fly::Free(geometry.subgeometries);
+    }
+    geometry = {};
 }
 
-void QuantizeGeometry(Geometry& geometry)
+static u32 HeuristicDetermineLODCount(Geometry& geometry)
 {
-    if (geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT)
-    {
-        return;
-    }
-
-    QuantizedVertex* newVertices = static_cast<QuantizedVertex*>(
-        Fly::Alloc(sizeof(QuantizedVertex) * geometry.vertexCount));
-    for (u32 i = 0; i < geometry.vertexCount; i++)
-    {
-        QuantizedVertex& quantized = newVertices[i];
-        Vertex& vertex = reinterpret_cast<Vertex*>(geometry.vertices)[i];
-        quantized.positionX = vertex.position.x;
-        quantized.positionY = vertex.position.y;
-        quantized.positionZ = vertex.position.z;
-        quantized.normal =
-            (meshopt_quantizeUnorm((vertex.normal.x + 1.0f) / 2.0f, 10) << 20) |
-            (meshopt_quantizeUnorm((vertex.normal.y + 1.0f) / 2.0f, 10) << 10) |
-            meshopt_quantizeUnorm((vertex.normal.z + 1.0f) / 2.0f, 10);
-    }
-
-    Fly::Free(geometry.vertices);
-    geometry.vertices = reinterpret_cast<u8*>(newVertices);
-    geometry.vertexSize = sizeof(QuantizedVertex);
+    return Math::Clamp(static_cast<u32>(Math::Ceil(
+                           Math::Log2((geometry.indexCount / 3) / 4000.0f))),
+                       0u, FLY_MAX_LOD_COUNT - 1) +
+           1;
 }
 
 void GenerateGeometryLODs(Geometry& geometry)
 {
-    const f32 minError = 0.001f;
-    const f32 maxError = 0.05f;
-    f32 targetErrors[FLY_MAX_LOD_COUNT - 1];
-    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; ++i)
+    u32 lodCount = HeuristicDetermineLODCount(geometry);
+    geometry.lodCount = lodCount;
+    printf("Geometry will have %u lods\n", geometry.lodCount);
+    if (lodCount == 1)
     {
-        float t = float(i) / float(FLY_MAX_LOD_COUNT - 1);
-        targetErrors[i] = minError * Math::Pow(maxError / minError, t);
+        return;
     }
 
-    unsigned int* lodIndices[FLY_MAX_LOD_COUNT - 1];
-    size_t lodIndexCount[FLY_MAX_LOD_COUNT - 1];
-    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
+    u32* totalIndices =
+        static_cast<u32*>(Alloc(sizeof(u32) * geometry.indexCount));
+    u32 totalIndexCount = 0;
+
+    for (u32 i = 0; i < geometry.subgeometryCount; i++)
     {
-        lodIndices[i] = static_cast<unsigned int*>(
-            Fly::Alloc(sizeof(unsigned int) * geometry.indexCount));
-        lodIndexCount[i] = meshopt_simplify(
-            lodIndices[i], geometry.indices, geometry.indexCount,
-            reinterpret_cast<const float*>(geometry.vertices),
-            geometry.vertexCount, geometry.vertexSize, 0, targetErrors[i], 0,
-            nullptr);
+        Subgeometry& sg = geometry.subgeometries[i];
+        const u32 minSgIndexCount = Math::Min(sg.lods[0].indexCount, 256u * 3u);
+        f32 targetError = 0.0001f;
+
+        u32* sgLodIndices[FLY_MAX_LOD_COUNT] = {nullptr};
+        sgLodIndices[0] = geometry.indices + sg.lods[0].indexOffset;
+
+        sg.lods[0].indexOffset = totalIndexCount;
+        totalIndexCount += sg.lods[0].indexCount;
+
+        for (u32 j = 1; j < lodCount; j++)
+        {
+            sgLodIndices[j] =
+                static_cast<u32*>(Alloc(sizeof(u32) * sg.lods[0].indexCount));
+        }
+
+        for (u32 j = 1; j < lodCount; j++)
+        {
+            u32 lodIndexCount = 0;
+            u32 lodIndexOffset = totalIndexCount;
+
+            if (sg.lods[j - 1].indexCount == minSgIndexCount)
+            {
+                memcpy(sgLodIndices[j], sgLodIndices[j - 1],
+                       sizeof(u32) * sg.lods[j - 1].indexCount);
+                lodIndexCount = sg.lods[j - 1].indexCount;
+            }
+            else
+            {
+                u32 targetIndexCount = Math::Max(
+                    static_cast<u32>(Math::Ceil((sg.lods[0].indexCount / 3) *
+                                                Math::Pow(0.5f, j))) *
+                        3,
+                    minSgIndexCount);
+
+                targetError *= Math::Pow(2.0f, j);
+
+                for (u32 k = 0; k < 5; k++)
+                {
+                    f32 resultError = 0.0f;
+                    lodIndexCount = meshopt_simplify<u32>(
+                        sgLodIndices[j], sgLodIndices[0], sg.lods[0].indexCount,
+                        reinterpret_cast<const float*>(geometry.vertices),
+                        geometry.vertexCount, sizeof(Vertex), targetIndexCount,
+                        targetError, 0, &resultError);
+                    if (lodIndexCount <= targetIndexCount)
+                    {
+                        break;
+                    }
+                    targetError *= 1.5f;
+                    printf("Warning: simplifier failed to reach target index "
+                           "count, subgeometry index %u\n",
+                           i);
+                }
+            }
+            sg.lods[j] = {lodIndexOffset, lodIndexCount};
+            totalIndexCount += lodIndexCount;
+        }
+        totalIndices = static_cast<u32*>(
+            Realloc(totalIndices, sizeof(u32) * totalIndexCount));
+
+        for (u32 j = 0; j < lodCount; j++)
+        {
+            memcpy(totalIndices + sg.lods[j].indexOffset, sgLodIndices[j],
+                   sizeof(u32) * sg.lods[j].indexCount);
+        }
+
+        for (u32 j = 1; j < lodCount; j++)
+        {
+            Free(sgLodIndices[j]);
+        }
     }
-
-    unsigned int* optimizedLodIndices[FLY_MAX_LOD_COUNT - 1];
-    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
-    {
-        optimizedLodIndices[i] = static_cast<unsigned int*>(
-            Fly::Alloc(sizeof(unsigned int) * lodIndexCount[i]));
-        meshopt_optimizeVertexCache(optimizedLodIndices[i], lodIndices[i],
-                                    lodIndexCount[i], geometry.vertexCount);
-        Fly::Free(lodIndices[i]);
-    }
-
-    u64 totalCount = geometry.indexCount;
-    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
-    {
-        totalCount += lodIndexCount[i];
-    }
-
-    unsigned int* newIndices = static_cast<unsigned int*>(
-        Fly::Alloc(sizeof(unsigned int) * totalCount));
-
-    memcpy(newIndices, geometry.indices,
-           sizeof(unsigned int) * geometry.indexCount);
-    geometry.lods[0].indexCount = geometry.indexCount;
-    geometry.lods[0].firstIndex = 0;
-
-    u64 offset = geometry.indexCount;
-    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
-    {
-        geometry.lods[i + 1].indexCount = lodIndexCount[i];
-        geometry.lods[i + 1].firstIndex = offset;
-        memcpy(newIndices + offset, optimizedLodIndices[i],
-               lodIndexCount[i] * sizeof(unsigned int));
-        offset += lodIndexCount[i];
-    }
-
-    Fly::Free(geometry.indices);
-    geometry.indices = newIndices;
-    geometry.indexCount = totalCount;
-    geometry.lodCount = FLY_MAX_LOD_COUNT;
-
-    for (u32 i = 0; i < FLY_MAX_LOD_COUNT - 1; i++)
-    {
-        Fly::Free(optimizedLodIndices[i]);
-    }
+    Free(geometry.indices);
+    geometry.indices = totalIndices;
+    geometry.indexCount = totalIndexCount;
 }
 
-void CalculateBoundingSphere(Geometry& geometry)
+void QuantizeGeometry(Geometry& geometry)
+{
+    QVertex* qvertices =
+        static_cast<QVertex*>(Alloc(sizeof(QVertex) * geometry.vertexCount));
+    for (u32 i = 0; i < geometry.vertexCount; i++)
+    {
+        const Vertex& vertex = geometry.vertices[i];
+        QVertex& qvertex = qvertices[i];
+        qvertex = {};
+        qvertex.positionX = vertex.position.x;
+        qvertex.positionY = vertex.position.y;
+        qvertex.positionZ = vertex.position.z;
+        qvertex.normal =
+            (meshopt_quantizeUnorm((vertex.normal.x + 1.0f) / 2.0f, 10) << 20) |
+            (meshopt_quantizeUnorm((vertex.normal.y + 1.0f) / 2.0f, 10) << 10) |
+            meshopt_quantizeUnorm((vertex.normal.z + 1.0f) / 2.0f, 10);
+        qvertex.tangent =
+            (meshopt_quantizeUnorm((vertex.tangent.x + 1.0f) / 2.0f, 10)
+             << 20) |
+            (meshopt_quantizeUnorm((vertex.tangent.y + 1.0f) / 2.0f, 10)
+             << 10) |
+            meshopt_quantizeUnorm((vertex.tangent.z + 1.0f) / 2.0f, 10);
+        qvertex.u = vertex.u;
+        qvertex.v = vertex.v;
+    }
+    Free(geometry.vertices);
+    geometry.qvertices = qvertices;
+}
+
+static void CalculateBoundingSphere(Geometry& geometry)
 {
     Math::Vec3 min = Math::Vec3(MaxF32());
     Math::Vec3 max = Math::Vec3(MinF32());
 
     for (u32 i = 0; i < geometry.vertexCount; i++)
     {
-        const Math::Vec3& pos = *reinterpret_cast<const Math::Vec3*>(
-            geometry.vertices + geometry.vertexSize * i);
+        const Math::Vec3& pos = geometry.vertices[i].position;
 
         if (pos.x < min.x)
         {
@@ -586,55 +616,120 @@ void CalculateBoundingSphere(Geometry& geometry)
 
     geometry.sphereCenter = 0.5f * (max + min);
     geometry.sphereRadius = Math::Length(max - min) * 0.5f;
+
+    printf("Geometry's bounding sphere: (%f, %f %f), radius - %f\n",
+           geometry.sphereCenter.x, geometry.sphereCenter.y,
+           geometry.sphereCenter.z, geometry.sphereRadius);
 }
 
 void CookGeometry(Geometry& geometry)
 {
-    ReindexGeometry(geometry);
+    VertexDeduplication(geometry);
     OptimizeGeometryVertexCache(geometry);
     OptimizeGeometryOverdraw(geometry, 1.05f);
-    GenerateGeometryLODs(geometry);
     CalculateBoundingSphere(geometry);
+    GenerateGeometryLODs(geometry);
     QuantizeGeometry(geometry);
 }
 
-bool ExportGeometry(String8 path, Geometry& geometry)
+bool ExportGeometries(String8 path, const Geometry* geometries,
+                      u32 geometryCount)
 {
-    u64 totalSize = sizeof(MeshHeader) +
-                    geometry.vertexSize * geometry.vertexCount +
-                    sizeof(u32) * geometry.indexCount;
-    u8* data = static_cast<u8*>(Fly::Alloc(totalSize));
+    if (!geometries || geometryCount == 0)
+    {
+        return false;
+    }
 
-    MeshHeader* header = reinterpret_cast<MeshHeader*>(data);
-    header->sphereCenter = geometry.sphereCenter;
-    header->sphereRadius = geometry.sphereRadius;
-    header->vertexCount = geometry.vertexCount;
-    header->vertexOffset = sizeof(MeshHeader);
-    header->vertexMask = geometry.vertexMask;
-    header->vertexSize = geometry.vertexSize;
-    header->indexCount = geometry.indexCount;
-    header->indexOffset =
-        sizeof(MeshHeader) + geometry.vertexSize * geometry.vertexCount;
-    header->indexSize = sizeof(unsigned int);
+    u32 totalIndexCount = 0;
+    u32 totalVertexCount = 0;
+    u32 totalLodCount = 0;
+    for (u32 i = 0; i < geometryCount; i++)
+    {
+        totalVertexCount += geometries[i].vertexCount;
+        totalIndexCount += geometries[i].indexCount;
+        totalLodCount +=
+            geometries[i].lodCount * geometries[i].subgeometryCount;
+    }
 
-    header->lodCount = geometry.lodCount;
-    memset(header->lods, 0, sizeof(GeometryLOD) * FLY_MAX_LOD_COUNT);
-    memcpy(header->lods, geometry.lods,
-           sizeof(GeometryLOD) * geometry.lodCount);
+    u64 totalSize =
+        sizeof(MeshFileHeader) + sizeof(MeshHeader) * geometryCount +
+        sizeof(LOD) * totalLodCount + sizeof(QVertex) * totalVertexCount +
+        sizeof(u32) * totalIndexCount;
 
-    memcpy(data + header->vertexOffset, geometry.vertices,
-           geometry.vertexSize * geometry.vertexCount);
-    memcpy(data + header->indexOffset, geometry.indices,
-           sizeof(unsigned int) * geometry.indexCount);
+    u64 offset = 0;
+    u8* data = static_cast<u8*>(Alloc(totalSize));
+
+    MeshFileHeader* fileHeader = reinterpret_cast<MeshFileHeader*>(data);
+    offset += sizeof(MeshFileHeader);
+
+    MeshHeader* meshHeaderStart = reinterpret_cast<MeshHeader*>(data + offset);
+    offset += sizeof(MeshHeader) * geometryCount;
+
+    LOD* lodStart = reinterpret_cast<LOD*>(data + offset);
+    offset += sizeof(LOD) * totalLodCount;
+
+    QVertex* vertexStart = reinterpret_cast<QVertex*>(data + offset);
+    offset += sizeof(QVertex) * totalVertexCount;
+
+    u32* indexStart = reinterpret_cast<u32*>(data + offset);
+
+    fileHeader->version = {1, 0, 0};
+    fileHeader->meshCount = geometryCount;
+    fileHeader->totalLodCount = totalLodCount;
+    fileHeader->totalVertexCount = totalVertexCount;
+    fileHeader->totalIndexCount = totalIndexCount;
+
+    u64 vertexOffset = 0;
+    u64 indexOffset = 0;
+    u32 lodsOffset = 0;
+    for (u32 i = 0; i < geometryCount; i++)
+    {
+        const Geometry& geometry = geometries[i];
+
+        MeshHeader& meshHeader = *(meshHeaderStart + i);
+        meshHeader.sphereCenter = geometry.sphereCenter;
+        meshHeader.submeshCount = geometry.subgeometryCount;
+        meshHeader.vertexCount = geometry.vertexCount;
+        meshHeader.indexCount = geometry.indexCount;
+        meshHeader.lodCount = geometry.lodCount;
+        meshHeader.sphereRadius = geometry.sphereRadius;
+        meshHeader.lodsOffset = lodsOffset;
+        meshHeader.vertexOffset = vertexOffset;
+        meshHeader.indexOffset = indexOffset;
+
+        LOD* lodData = lodStart + lodsOffset;
+        QVertex* vertexData = vertexStart + vertexOffset;
+        u32* indexData = indexStart + indexOffset;
+
+        for (u32 j = 0; j < geometry.subgeometryCount; j++)
+        {
+            const Subgeometry& sg = geometry.subgeometries[j];
+            memcpy(lodData + j * geometry.lodCount, sg.lods,
+                   sizeof(LOD) * geometry.lodCount);
+            for (u32 k = 0; k < geometry.lodCount; k++)
+            {
+                LOD* lod = lodData + j * geometry.lodCount + k;
+                lod->indexOffset += indexOffset;
+            }
+        }
+
+        memcpy(vertexData, geometry.qvertices,
+               sizeof(QVertex) * geometry.vertexCount);
+        memcpy(indexData, geometry.indices, sizeof(u32) * geometry.indexCount);
+
+        lodsOffset += geometry.subgeometryCount * geometry.lodCount;
+        vertexOffset += geometry.vertexCount;
+        indexOffset += geometry.indexCount;
+    }
 
     String8 str(reinterpret_cast<char*>(data), totalSize);
     if (!WriteStringToFile(str, path))
     {
-        Fly::Free(data);
+        Free(data);
         return false;
     }
 
-    Fly::Free(data);
+    Free(data);
     return true;
 }
 
