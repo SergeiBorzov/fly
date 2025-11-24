@@ -7,8 +7,6 @@ bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "rules_python", version = "1.2.0")
 bazel_dep(name = "googletest", version = "1.16.0")
 
-include("//:assets.MODULE.bazel")
-
 python = use_extension(
     "@rules_python//python/extensions:python.bzl",
     "python",
@@ -34,6 +32,11 @@ use_repo(pip, "pip")
 external_git_repository = use_extension(
     "//scripts/bazel/extensions:external_git_repository.bzl",
     "external_git_repository",
+)
+
+external_assets = use_extension(
+    "//scripts/bazel/extensions:external_assets.bzl",
+    "external_assets",
 )
 
 external_archive = use_extension(
@@ -228,3 +231,91 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "tinyobjloader")
 
+################################################################
+# SCENES / DATA
+################################################################
+
+external_git_repository.base(
+    name = "gltf_sample_models",
+    build_file = "//scripts/bazel/target:BUILD.gltf_sample_models.bazel",
+    commit = "d7a3cc8e51d7c573771ae77a57f16b0662a905c6",
+    remote = "https://github.com/KhronosGroup/glTF-Sample-Models.git",
+)
+use_repo(external_git_repository, "gltf_sample_models")
+
+external_git_repository.base(
+    name = "splat_sample_scenes",
+    build_file = "//scripts/bazel/target:BUILD.splat_sample_scenes.bazel",
+    commit = "2c9796f59101d77d23f6eee53baa5018c9a6fcdc",
+    remote = "https://huggingface.co/cakewalk/splat-data.git",
+)
+use_repo(external_git_repository, "splat_sample_scenes")
+
+################################################################
+# AMBIENTCG
+################################################################
+
+external_assets.base(
+    name = "ambientcg",
+    urls = [
+        "https://ambientcg.com/get?file=DayEnvironmentHDRI014_4K.zip",
+        "https://ambientcg.com/get?file=DayEnvironmentHDRI020_4K.zip",
+        "https://ambientcg.com/get?file=DayEnvironmentHDRI052_4K.zip",
+        "https://ambientcg.com/get?file=DayEnvironmentHDRI078_4K.zip",
+        "https://ambientcg.com/get?file=DaySkyHDRI051B_4K.zip",
+        "https://ambientcg.com/get?file=DaySkyHDRI052A_4K.zip",
+        "https://ambientcg.com/get?file=NightEnvironmentHDRI008_4K.zip",
+        "https://ambientcg.com/get?file=NightEnvironmentHDRI009_4K.zip",
+        "https://ambientcg.com/get?file=IndoorEnvironmentHDRI016_4K.zip",
+    ],
+    sha256 = [
+        "df56a1046d059392a15baa4bc629dc5286cc83c17d8b94fb106c753f9213f418",
+        "46e70ba34b76c32aaf461f5dfe0dfcfa2817649afe75d828387ad24c7571d76c",
+        "bbd7f7c6cc171fc81f2540877069138fe9b18101d7ff0c74b41abee02367e4b4",
+        "c8bc3794c296a01b14a3cf4f0d474ffe6735ad501e0fd08217890de15ce839ce",
+        "faf80ec342bf50a320d084b9128dbc0a42a310e7821fd3b44d3ef2bc49784bb4",
+        "19c589e06e555b06fef63c56fcfabcdfdf32335eb7defab274738edad070d04f",
+        "15387bab507af13fe99eed361fec8f313b1bebd6d7614f8ac21c05707e7b9b00",
+        "c584f04ef74812df5e38d2f0aadb2a17f6ff33268909dc7e4a3d571604458d3e",
+        "5c9e4f0c209d4dcb42848d4ec676b80a76115395fc7bea61b0eff9fc37eaaf81",
+    ],
+    build_file = "//scripts/bazel/target:BUILD.ambientcg.bazel",
+)
+use_repo(external_assets, "ambientcg")
+
+################################################################
+# MORGAN MCGUIRE ARCHIVE
+################################################################
+external_assets.base(
+    name = "casual_effects",
+    urls = [
+        "https://casual-effects.com/g3d/data10/research/model/dragon/dragon.zip",
+    ],
+    sha256 = [
+        "111124359a31e4d6b2eeb5398e5bc96a5d9e2d2a130afb10bb4cfbc011bdb797",
+    ],
+    build_file = "//scripts/bazel/target:BUILD.casual_effects.bazel",
+)
+use_repo(external_assets, "casual_effects")
+
+################################################################
+# PAUL DEBEVEC PROBE GALLERY
+################################################################
+
+external_assets.base(
+    name = "debevec",
+    urls = [
+        "https://pauldebevec.com/Probes/new/grace_probe_latlong.hdr",
+        "https://pauldebevec.com/Probes/new/rnl_probe_latlong.hdr",
+        "https://pauldebevec.com/Probes/new/uffizi_probe_latlong.hdr",
+        "https://pauldebevec.com/Probes/new/stpeters_probe_latlong.hdr",
+    ],
+    sha256 = [
+        "64aaf9eb96bb4aa597cf52849fbb6724e51250d7fa03e4deebe941d66bae9643",
+        "f73c80a429cc549278bc03e87456a42ff21747ff5ef232a91d5cf6346608b9d0",
+        "fcaebaca7ec26a6eeb5631e65f9e43a469b2be0529ec760b6d8fad7277a31fd7",
+        "603fd0811cabc5310ba723162636e6d732d826c15731ab7414baa2855789c67e",
+    ],
+    build_file = "//scripts/bazel/target:BUILD.debevec.bazel",
+)
+use_repo(external_assets, "debevec")
