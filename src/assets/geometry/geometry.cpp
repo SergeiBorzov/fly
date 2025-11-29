@@ -466,54 +466,44 @@ void GenerateGeometryLODs(Geometry& geometry)
         return;
     }
 
-    u32* totalIndices =
-        static_cast<u32*>(Alloc(sizeof(u32) * geometry.indexCount));
-    u32 totalIndexCount = 0;
+    u32 totalIndexCount = geometry.indexCount;
 
-    for (u32 i = 0; i < geometry.subgeometryCount; i++)
+    const f32 baseTargetError = 0.0001f;
+    for (u32 i = 1; i < geometry.lodCount; i++)
     {
-        Subgeometry& sg = geometry.subgeometries[i];
-        const u32 minSgIndexCount = Math::Min(sg.lods[0].indexCount, 256u * 3u);
-        f32 targetError = 0.0001f;
-
-        u32* sgLodIndices[FLY_MAX_LOD_COUNT] = {nullptr};
-        sgLodIndices[0] = geometry.indices + sg.lods[0].indexOffset;
-
-        sg.lods[0].indexOffset = totalIndexCount;
-        totalIndexCount += sg.lods[0].indexCount;
-
-        for (u32 j = 1; j < lodCount; j++)
+        geometry.indices = static_cast<u32*>(
+            Realloc(geometry.indices,
+                    sizeof(u32) * (totalIndexCount + geometry.indexCount)));
+        for (u32 j = 0; j < geometry.subgeometryCount; j++)
         {
-            sgLodIndices[j] =
-                static_cast<u32*>(Alloc(sizeof(u32) * sg.lods[0].indexCount));
-        }
+            Subgeometry& sg = geometry.subgeometries[j];
+            const u32 minSgIndexCount =
+                Math::Min(sg.lods[i - 1].indexCount, 256u * 3u);
 
-        for (u32 j = 1; j < lodCount; j++)
-        {
-            u32 lodIndexCount = 0;
-            u32 lodIndexOffset = totalIndexCount;
-
-            if (sg.lods[j - 1].indexCount == minSgIndexCount)
+            if (sg.lods[i - 1].indexCount == minSgIndexCount)
             {
-                memcpy(sgLodIndices[j], sgLodIndices[j - 1],
-                       sizeof(u32) * sg.lods[j - 1].indexCount);
-                lodIndexCount = sg.lods[j - 1].indexCount;
+                memcpy(geometry.indices + totalIndexCount,
+                       geometry.indices + sg.lods[i - 1].indexOffset,
+                       sizeof(u32) * sg.lods[i - 1].indexCount);
+                sg.lods[i] = {totalIndexCount, sg.lods[i - 1].indexCount};
             }
             else
             {
                 u32 targetIndexCount = Math::Max(
                     static_cast<u32>(Math::Ceil((sg.lods[0].indexCount / 3) *
-                                                Math::Pow(0.5f, j))) *
+                                                Math::Pow(0.5f, i))) *
                         3,
                     minSgIndexCount);
+                f32 targetError = baseTargetError * Math::Pow(2.0f, i);
 
-                targetError *= Math::Pow(2.0f, j);
-
+                u32 lodIndexCount = 0;
                 for (u32 k = 0; k < 5; k++)
                 {
                     f32 resultError = 0.0f;
                     lodIndexCount = meshopt_simplify<u32>(
-                        sgLodIndices[j], sgLodIndices[0], sg.lods[0].indexCount,
+                        geometry.indices + totalIndexCount,
+                        geometry.indices + sg.lods[0].indexOffset,
+                        sg.lods[0].indexCount,
                         reinterpret_cast<const float*>(geometry.vertices),
                         geometry.vertexCount, sizeof(Vertex), targetIndexCount,
                         targetError, 0, &resultError);
@@ -522,30 +512,21 @@ void GenerateGeometryLODs(Geometry& geometry)
                         break;
                     }
                     targetError *= 1.5f;
-                    printf("Warning: simplifier failed to reach target index "
-                           "count, subgeometry index %u\n",
-                           i);
+                    if (k == 4)
+                    {
+                        printf(
+                            "Warning: simplifier failed to reach target index "
+                            "count, subgeometry index %u\n",
+                            i);
+                    }
                 }
+                sg.lods[i] = {totalIndexCount, lodIndexCount};
             }
-            sg.lods[j] = {lodIndexOffset, lodIndexCount};
-            totalIndexCount += lodIndexCount;
-        }
-        totalIndices = static_cast<u32*>(
-            Realloc(totalIndices, sizeof(u32) * totalIndexCount));
-
-        for (u32 j = 0; j < lodCount; j++)
-        {
-            memcpy(totalIndices + sg.lods[j].indexOffset, sgLodIndices[j],
-                   sizeof(u32) * sg.lods[j].indexCount);
-        }
-
-        for (u32 j = 1; j < lodCount; j++)
-        {
-            Free(sgLodIndices[j]);
+            totalIndexCount += sg.lods[i].indexCount;
         }
     }
-    Free(geometry.indices);
-    geometry.indices = totalIndices;
+    geometry.indices = static_cast<u32*>(
+        Realloc(geometry.indices, sizeof(u32) * totalIndexCount));
     geometry.indexCount = totalIndexCount;
 }
 
