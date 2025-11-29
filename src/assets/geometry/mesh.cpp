@@ -42,6 +42,7 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
     *meshes = static_cast<Mesh*>(Alloc(sizeof(Mesh) * fileHeader->meshCount));
 
     u32 lodOffset = 0;
+    meshCount = fileHeader->meshCount;
     for (u32 i = 0; i < fileHeader->meshCount; i++)
     {
         MeshHeader& meshHeader = *(meshHeaderStart + i);
@@ -76,70 +77,22 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
             return false;
         }
 
-        mesh.submeshes =
-            static_cast<Submesh*>(sizeof(Submesh) * meshHeader.submeshCount);
+        mesh.submeshes = static_cast<Submesh*>(
+            Alloc(sizeof(Submesh) * meshHeader.submeshCount));
 
         for (u32 j = 0; j < meshHeader.submeshCount; j++)
         {
-            memset(mesh.submeshes.lods, 0, sizeof(LOD) * FLY_MAX_LOD_COUNT);
-            memcpy(mesh.submeshes.lods, lodStart + lodOffset,
+            for (u32 k = 0; k < FLY_MAX_LOD_COUNT; k++)
+            {
+                mesh.submeshes[j].lods[k] = {};
+            }
+            memcpy(mesh.submeshes[j].lods, lodStart + lodOffset,
                    meshHeader.lodCount * sizeof(LOD));
             lodOffset += meshHeader.lodCount;
         }
     }
 
     Free(data);
-    return true;
-}
-
-bool ImportMesh(String8 path, RHI::Device& device, Mesh& mesh)
-{
-    String8 extension = String8::FindLast(path, '.');
-    if (!extension.StartsWith(FLY_STRING8_LITERAL(".fmesh")))
-    {
-        return false;
-    }
-
-    u64 size = 0;
-    u8* data = ReadFileToByteArray(path, size);
-    if (!data)
-    {
-        return false;
-    }
-
-    const MeshHeader* header = reinterpret_cast<const MeshHeader*>(data);
-    mesh.sphereCenter = header->sphereCenter;
-    mesh.sphereRadius = header->sphereRadius;
-    mesh.vertexCount = header->vertexCount;
-    mesh.indexCount = header->indexCount;
-    mesh.vertexSize = header->vertexSize;
-    mesh.indexSize = header->indexSize;
-    mesh.vertexMask = header->vertexMask;
-    mesh.lodCount = header->lodCount;
-    memcpy(mesh.lods, header->lods, sizeof(GeometryLOD) * header->lodCount);
-
-    if (!RHI::CreateBuffer(device, false,
-                           VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                           data + header->vertexOffset,
-                           header->vertexSize * header->vertexCount,
-                           mesh.vertexBuffer))
-    {
-        Fly::Free(data);
-        return false;
-    }
-
-    if (!RHI::CreateBuffer(
-            device, false,
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            data + header->indexOffset, header->indexSize * header->indexCount,
-            mesh.indexBuffer))
-    {
-        Fly::Free(data);
-        return false;
-    }
-
-    Fly::Free(data);
     return true;
 }
 
@@ -155,11 +108,12 @@ void DestroyMesh(RHI::Device& device, Mesh& mesh)
         RHI::DestroyBuffer(device, mesh.indexBuffer);
     }
 
-    mesh.vertexCount = 0;
-    mesh.indexCount = 0;
-    mesh.vertexSize = 0;
-    mesh.indexSize = 0;
-    mesh.vertexMask = FLY_VERTEX_NONE_BIT;
+    if (mesh.submeshes && mesh.submeshCount)
+    {
+        Free(mesh.submeshes);
+    }
+
+    mesh = {};
 }
 
 } // namespace Fly

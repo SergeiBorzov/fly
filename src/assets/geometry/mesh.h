@@ -7,8 +7,6 @@
 #include "rhi/buffer.h"
 #include "vertex_layout.h"
 
-#define FLY_MAX_LOD_COUNT 8
-
 namespace Fly
 {
 
