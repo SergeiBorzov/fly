@@ -194,10 +194,11 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
 
 static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
                                        const fastObjGroup& object,
-                                       Geometry& geometry)
+                                       Geometry& geometry, u8 vertexMask)
 {
     geometry = {};
     geometry.lodCount = 1;
+    geometry.vertexMask = vertexMask;
 
     DynamicArray<Subgeometry> subgeometries;
     DynamicArray<Vertex> vertices;
@@ -321,7 +322,8 @@ static bool ImportGeometriesObj(String8 path, Geometry** ppGeometries,
 
     for (u32 i = 0; i < mesh->object_count; i++)
     {
-        ExtractGeometryDataFromObj(*mesh, mesh->objects[i], pGeometries[i]);
+        ExtractGeometryDataFromObj(*mesh, mesh->objects[i], pGeometries[i],
+                                   vertexMask);
         printf("Geometry %u has %u vertices and %u subgeometries\n", i,
                pGeometries[i].vertexCount, pGeometries[i].subgeometryCount);
         for (u32 j = 0; j < pGeometries[i].subgeometryCount; j++)
