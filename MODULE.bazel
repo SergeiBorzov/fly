@@ -291,10 +291,12 @@ external_assets.base(
     urls = [
         "https://casual-effects.com/g3d/data10/research/model/dragon/dragon.zip",
         "https://casual-effects.com/g3d/data10/common/model/mori_knob/mori_knob.zip",
+        "https://casual-effects.com/g3d/data10/common/model/cube/cube.zip",
     ],
     sha256 = [
         "111124359a31e4d6b2eeb5398e5bc96a5d9e2d2a130afb10bb4cfbc011bdb797",
         "7ef9d756891dc9df972109d7767105d7dea8d8c55171a6462033ae36e257238b",
+        "4d5eb265ec88d34119af155ccfa2013ba96135e161cc7661c709d3df88a49d82",
     ],
     build_file = "//scripts/bazel/target:BUILD.casual_effects.bazel",
 )

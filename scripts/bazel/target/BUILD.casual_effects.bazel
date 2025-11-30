@@ -1,5 +1,5 @@
 exports_files([
     "dragon/dragon.obj",
     "mori_knob/testObj.obj",
-    "bmw/bmw.obj",
+    "cube/cube.obj",
 ])
