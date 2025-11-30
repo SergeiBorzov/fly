@@ -6,17 +6,17 @@ exports_files([
     "NightEnvironmentHDRI009_4K/NightEnvironmentHDRI009_4K_HDR.exr",
 
     "PavingStones150_4K-JPG/PavingStones150_4K-JPG_Color.jpg",
-    "PavingStones150_4K-JPG/PavingStones150_4K-JPG_NormalGL.jpg",
+    "PavingStones150_4K-JPG/PavingStones150_4K-JPG_NormalDX.jpg",
 
     "Grass004_4K-JPG/Grass004_4K-JPG_Color.jpg",
-    "Grass004_4K-JPG/Grass004_4K-JPG_NormalGL.jpg",
+    "Grass004_4K-JPG/Grass004_4K-JPG_NormalDX.jpg",
 
     "Wood049_4K-JPG/Wood049_4K-JPG_Color.jpg",
-    "Wood049_4K-JPG/Wood049_4K-JPG_NormalGL.jpg",
+    "Wood049_4K-JPG/Wood049_4K-JPG_NormalDX.jpg",
 
     "Bricks059_4K-JPG/Bricks059_4K-JPG_Color.jpg",
-    "Bricks059_4K-JPG/Bricks059_4K-JPG_NormalGL.jpg",
+    "Bricks059_4K-JPG/Bricks059_4K-JPG_NormalDX.jpg",
 
     "Fabric048_4K-JPG/Fabric048_4K-JPG_Color.jpg",
-    "Fabric048_4K-JPG/Fabric048_4K-JPG_NormalGL.jpg",
+    "Fabric048_4K-JPG/Fabric048_4K-JPG_NormalDX.jpg",
 ])
