@@ -267,6 +267,12 @@ external_assets.base(
         "https://ambientcg.com/get?file=NightEnvironmentHDRI008_4K.zip",
         "https://ambientcg.com/get?file=NightEnvironmentHDRI009_4K.zip",
         "https://ambientcg.com/get?file=IndoorEnvironmentHDRI016_4K.zip",
+        
+        "https://ambientcg.com/get?file=PavingStones150_4K-JPG.zip",
+        "https://ambientcg.com/get?file=Grass004_4K-JPG.zip",
+        "https://ambientcg.com/get?file=Wood049_4K-JPG.zip",
+        "https://ambientcg.com/get?file=Bricks059_4K-JPG.zip",
+        "https://ambientcg.com/get?file=Fabric048_4K-JPG.zip",
     ],
     sha256 = [
         "df56a1046d059392a15baa4bc629dc5286cc83c17d8b94fb106c753f9213f418",
@@ -278,6 +284,11 @@ external_assets.base(
         "15387bab507af13fe99eed361fec8f313b1bebd6d7614f8ac21c05707e7b9b00",
         "c584f04ef74812df5e38d2f0aadb2a17f6ff33268909dc7e4a3d571604458d3e",
         "5c9e4f0c209d4dcb42848d4ec676b80a76115395fc7bea61b0eff9fc37eaaf81",
+        "7a62c3c28d2f4de6a7bd0cf749c435f7e40f03e3d47104fa09aa925a393a2b68",
+        "8b32b61b592b5b60558f76eedfc9adcb1787963dce2e679bdb9ee324c9d0e422",
+        "6e65ba2b952d37cd88c2e01ef987ee2e4526abf191ea0a97f453678088ed9e08",
+        "9a106e5b37b6df371be1583236f618b13438aecc117eab35bc5710cc3e5d7a50",
+        "8a031786cfb59659ca3a2a0ecdc20fae0939ea54d5759be35e0cf7587b4d3ea4",
     ],
     build_file = "//scripts/bazel/target:BUILD.ambientcg.bazel",
 )
