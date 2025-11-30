@@ -23,8 +23,8 @@ static void CopyImageBlock1Byte(u8 block[16], const u8* data, u32 width,
     {
         for (u32 j = 0; j < 4; j++)
         {
-            u32 kh = MIN(y + i, height - 1);
-            u32 kw = MAX(x + j, width - 1);
+            u32 kh = MIN(y * 4 + i, height - 1);
+            u32 kw = MAX(x * 4 + j, width - 1);
 
             block[4 * i + j] = data[width * kh + kw];
         }
@@ -38,8 +38,8 @@ static void CopyImageBlock2Bytes(u16 block[16], const u16* data, u32 width,
     {
         for (u32 j = 0; j < 4; j++)
         {
-            u32 kh = MIN(y * 2 + i, height - 1);
-            u32 kw = MIN(x * 2 + j, width - 1);
+            u32 kh = MIN(y * 4 + i, height - 1);
+            u32 kw = MIN(x * 4 + j, width - 1);
 
             block[4 * i + j] = data[width * kh + kw];
         }
@@ -120,7 +120,7 @@ static bool CompressImageBC3(u8* dst, u64 dstSize, const Image& image)
         {
             CopyImageBlock4Bytes(block, reinterpret_cast<const u32*>(srcData),
                                  image.width, image.height, j, i);
-            stb_compress_dxt_block(dst + i * blockWidth * 16 + j * 16,
+            stb_compress_dxt_block(dst + (i * blockWidth + j) * 16,
                                    reinterpret_cast<unsigned char*>(block), 1,
                                    STB_DXT_NORMAL);
         }
@@ -149,7 +149,7 @@ static bool CompressImageBC4(u8* dst, u64 dstSize, const Image& image)
         {
             CopyImageBlock1Byte(block, srcData, image.width, image.height, j,
                                 i);
-            stb_compress_bc4_block(dst + i * blockWidth * 8 + j * 8,
+            stb_compress_bc4_block(dst + (i * blockWidth + j) * 8,
                                    reinterpret_cast<unsigned char*>(block));
         }
     }
@@ -176,7 +176,7 @@ static bool CompressImageBC5(u8* dst, u64 dstSize, const Image& image)
         {
             CopyImageBlock2Bytes(block, reinterpret_cast<const u16*>(srcData),
                                  image.width, image.height, j, i);
-            stb_compress_bc5_block(dst + i * blockWidth * 16 + j * 16,
+            stb_compress_bc5_block(dst + (i * blockWidth + j) * 16,
                                    reinterpret_cast<unsigned char*>(block));
         }
     }
