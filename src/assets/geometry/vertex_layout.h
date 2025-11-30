@@ -30,10 +30,9 @@ struct QVertex
     f16 positionY;
     f16 positionZ;
     f16 u;
+    f16 v;
     u32 normal;
     u32 tangent;
-    f16 v;
-    f16 pad;
 };
 
 struct LOD
