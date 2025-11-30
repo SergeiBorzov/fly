@@ -265,8 +265,7 @@ void SetScissor(CommandBuffer& cmd, i32 x, i32 y, u32 w, u32 h)
     vkCmdSetScissor(cmd.handle, 0, 1, &scissorRect);
 }
 
-void ClearColor(CommandBuffer& cmd, Texture& texture, f32 r, f32 g, f32 b,
-                f32 a)
+void ClearColor(CommandBuffer& cmd, VkImage image, f32 r, f32 g, f32 b, f32 a)
 {
     FLY_ASSERT(cmd.device);
     FLY_ASSERT(cmd.state == CommandBuffer::State::Recording);
@@ -281,9 +280,15 @@ void ClearColor(CommandBuffer& cmd, Texture& texture, f32 r, f32 g, f32 b,
     clearRange.baseArrayLayer = 0;
     clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
-    vkCmdClearColorImage(cmd.handle, texture.image,
+    vkCmdClearColorImage(cmd.handle, image,
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1,
                          &clearRange);
+}
+
+void ClearColor(CommandBuffer& cmd, Texture& texture, f32 r, f32 g, f32 b,
+                f32 a)
+{
+    ClearColor(cmd, texture.image, r, g, b, a);
 }
 
 void PushConstants(CommandBuffer& cmd, const void* pushConstants,

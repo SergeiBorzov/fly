@@ -90,6 +90,7 @@ void BindIndexBuffer(CommandBuffer& cmd, Buffer& buffer, VkIndexType indexType,
 void SetViewport(CommandBuffer& cmd, f32 x, f32 y, f32 w, f32 h, f32 minDepth,
                  f32 maxDepth);
 void SetScissor(CommandBuffer& cmd, i32 x, i32 y, u32 w, u32 h);
+void ClearColor(CommandBuffer& cmd, VkImage image, f32 r, f32 g, f32 b, f32 a);
 void ClearColor(CommandBuffer& cmd, Texture& texture, f32 r, f32 g, f32 b,
                 f32 a);
 void PushConstants(CommandBuffer& commandBuffer, const void* pushConstants,
