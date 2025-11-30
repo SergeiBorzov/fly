@@ -190,7 +190,6 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
     transformData.flipForward = flipForward;
 
     ApplyVertexTransformToGeometry(geometry, TransformVertex, &transformData);
-    printf("Transformed geometry!\n");
 }
 
 static void CalculateTangents(Geometry& geometry)
@@ -381,13 +380,6 @@ static bool ImportGeometriesObj(String8 path, Geometry** ppGeometries,
     {
         ExtractGeometryDataFromObj(*mesh, mesh->objects[i], pGeometries[i],
                                    vertexMask);
-        printf("Geometry %u has %u vertices and %u subgeometries\n", i,
-               pGeometries[i].vertexCount, pGeometries[i].subgeometryCount);
-        for (u32 j = 0; j < pGeometries[i].subgeometryCount; j++)
-        {
-            printf("Subgeometry %u has %u indices\n", j,
-                   pGeometries[i].subgeometries[j].lods[0].indexCount);
-        }
     }
 
     return true;
@@ -444,10 +436,6 @@ static void VertexDeduplication(Geometry& geometry)
     }
 
     Fly::Free(remap);
-
-    printf("After vertex deduplication geometry has %u vertex count and %u "
-           "subgeometries\n",
-           geometry.vertexCount, geometry.subgeometryCount);
 }
 
 static void OptimizeGeometryVertexCache(Geometry& geometry)
@@ -466,7 +454,6 @@ static void OptimizeGeometryVertexCache(Geometry& geometry)
                newIndices,
                sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount);
         Fly::Free(newIndices);
-        printf("Vertex cache optimized for %u subgeometry\n", i);
     }
 }
 
@@ -486,7 +473,6 @@ void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold)
                newIndices,
                sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount);
         Fly::Free(newIndices);
-        printf("Vertex overdraw optimized for %u subgeometry\n", i);
     }
 }
 
@@ -519,7 +505,6 @@ void GenerateGeometryLODs(Geometry& geometry)
 {
     u32 lodCount = HeuristicDetermineLODCount(geometry);
     geometry.lodCount = lodCount;
-    printf("Geometry will have %u lods\n", geometry.lodCount);
     if (lodCount == 1)
     {
         return;
@@ -573,10 +558,11 @@ void GenerateGeometryLODs(Geometry& geometry)
                     targetError *= 1.5f;
                     if (k == 4)
                     {
-                        printf(
-                            "Warning: simplifier failed to reach target index "
-                            "count, subgeometry index %u\n",
-                            i);
+                        fprintf(stderr,
+                                "Warning: mesh simplifier failed to reach "
+                                "target index "
+                                "count, subgeometry index %u\n",
+                                i);
                     }
                 }
                 sg.lods[i] = {totalIndexCount, lodIndexCount};
@@ -658,10 +644,6 @@ static void CalculateBoundingSphere(Geometry& geometry)
 
     geometry.sphereCenter = 0.5f * (max + min);
     geometry.sphereRadius = Math::Length(max - min) * 0.5f;
-
-    printf("Geometry's bounding sphere: (%f, %f %f), radius - %f\n",
-           geometry.sphereCenter.x, geometry.sphereCenter.y,
-           geometry.sphereCenter.z, geometry.sphereRadius);
 }
 
 void CookGeometry(Geometry& geometry)
