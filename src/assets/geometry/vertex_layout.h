@@ -20,8 +20,7 @@ struct Vertex
     f32 u;
     Math::Vec3 normal;
     f32 v;
-    Math::Vec3 tangent;
-    f32 pad;
+    Math::Vec4 tangent;
 };
 
 struct QVertex

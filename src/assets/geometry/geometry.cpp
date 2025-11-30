@@ -111,8 +111,8 @@ static void TransformVertex(Vertex& vertex, void* userData)
                                          vertex.position.y);
             vertex.normal =
                 Math::Vec3(vertex.normal.x, vertex.normal.z, vertex.normal.y);
-            vertex.tangent = Math::Vec3(vertex.tangent.x, vertex.tangent.z,
-                                        vertex.tangent.y);
+            vertex.tangent = Math::Vec4(vertex.tangent.x, vertex.tangent.z,
+                                        vertex.tangent.y, vertex.tangent.w);
             break;
         }
         case CoordSystem::YXZ:
@@ -121,8 +121,8 @@ static void TransformVertex(Vertex& vertex, void* userData)
                                          vertex.position.z);
             vertex.normal =
                 Math::Vec3(vertex.normal.y, vertex.normal.x, vertex.normal.z);
-            vertex.tangent = Math::Vec3(vertex.tangent.y, vertex.tangent.x,
-                                        vertex.tangent.z);
+            vertex.tangent = Math::Vec4(vertex.tangent.y, vertex.tangent.x,
+                                        vertex.tangent.z, vertex.tangent.w);
             break;
         }
         case CoordSystem::YZX:
@@ -131,8 +131,8 @@ static void TransformVertex(Vertex& vertex, void* userData)
                                          vertex.position.x);
             vertex.normal =
                 Math::Vec3(vertex.normal.y, vertex.normal.z, vertex.normal.x);
-            vertex.tangent = Math::Vec3(vertex.tangent.y, vertex.tangent.z,
-                                        vertex.tangent.x);
+            vertex.tangent = Math::Vec4(vertex.tangent.y, vertex.tangent.z,
+                                        vertex.tangent.x, vertex.tangent.w);
             break;
         }
         case CoordSystem::ZXY:
@@ -141,8 +141,8 @@ static void TransformVertex(Vertex& vertex, void* userData)
                                          vertex.position.y);
             vertex.normal =
                 Math::Vec3(vertex.normal.z, vertex.normal.x, vertex.normal.y);
-            vertex.tangent = Math::Vec3(vertex.tangent.z, vertex.tangent.x,
-                                        vertex.tangent.y);
+            vertex.tangent = Math::Vec4(vertex.tangent.z, vertex.tangent.x,
+                                        vertex.tangent.y, vertex.tangent.w);
             break;
         }
         case CoordSystem::ZYX:
@@ -151,8 +151,8 @@ static void TransformVertex(Vertex& vertex, void* userData)
                                          vertex.position.x);
             vertex.normal =
                 Math::Vec3(vertex.normal.z, vertex.normal.y, vertex.normal.x);
-            vertex.tangent = Math::Vec3(vertex.tangent.z, vertex.tangent.y,
-                                        vertex.tangent.x);
+            vertex.tangent = Math::Vec4(vertex.tangent.z, vertex.tangent.y,
+                                        vertex.tangent.x, vertex.tangent.w);
             break;
         }
         default:
@@ -167,6 +167,7 @@ static void TransformVertex(Vertex& vertex, void* userData)
         vertex.position.z *= -1.0f;
         vertex.normal.z *= -1.0f;
         vertex.tangent.z *= -1.0f;
+        vertex.tangent.w *= -1.0f;
     }
 }
 
@@ -190,6 +191,55 @@ void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
 
     ApplyVertexTransformToGeometry(geometry, TransformVertex, &transformData);
     printf("Transformed geometry!\n");
+}
+
+static void CalculateTangents(Geometry& geometry)
+{
+    Math::Vec3* tangents = static_cast<Math::Vec3*>(
+        Alloc(sizeof(Math::Vec3) * geometry.vertexCount * 2));
+    Math::Vec3* bitangents = tangents + geometry.vertexCount;
+
+    for (u32 i = 0; i < geometry.indexCount / 3; i++)
+    {
+        u32 i0 = geometry.indices[3 * i];
+        u32 i1 = geometry.indices[3 * i + 1];
+        u32 i2 = geometry.indices[3 * i + 2];
+
+        Vertex& v0 = geometry.vertices[i0];
+        Vertex& v1 = geometry.vertices[i1];
+        Vertex& v2 = geometry.vertices[i2];
+
+        float x1 = v1.u - v0.u;
+        float x2 = v2.u - v0.u;
+        float y1 = v1.v - v0.v;
+        float y2 = v2.v - v0.v;
+
+        Math::Vec3 e1 = v1.position - v0.position;
+        Math::Vec3 e2 = v2.position - v0.position;
+
+        float invDet = 1.0f / (x1 * y2 - x2 * y1);
+        Math::Vec3 t = (e1 * y2 - e2 * y1) * invDet;
+        Math::Vec3 b = (e2 * x1 - e1 * x2) * invDet;
+
+        tangents[i0] += t;
+        tangents[i1] += t;
+        tangents[i2] += t;
+        bitangents[i0] += b;
+        bitangents[i1] += b;
+        bitangents[i2] += b;
+    }
+
+    for (u32 i = 0; i < geometry.vertexCount; i++)
+    {
+        const Math::Vec3& t = tangents[i];
+        const Math::Vec3& b = bitangents[i];
+        const Math::Vec3& n = geometry.vertices[i].normal;
+
+        f32 w = Math::Dot(Math::Cross(t, b), n) > 0.0f ? 1.0f : -1.0f;
+        geometry.vertices[i].tangent =
+            Math::Vec4(Math::Normalize(t - Math::Dot(t, n) * n), w);
+    }
+    Free(tangents);
 }
 
 static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
@@ -272,6 +322,13 @@ static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
             static_cast<u32*>(Alloc(sizeof(u32) * indices.Count()));
         memcpy(geometry.indices, indices.Data(), sizeof(u32) * indices.Count());
         geometry.indexCount = indices.Count();
+    }
+
+    if ((geometry.vertexMask & FLY_VERTEX_TEXCOORD_BIT) &&
+        (geometry.vertexMask & FLY_VERTEX_NORMAL_BIT))
+    {
+        CalculateTangents(geometry);
+        geometry.vertexMask |= FLY_VERTEX_TANGENT_BIT;
     }
 }
 
@@ -548,7 +605,9 @@ void QuantizeGeometry(Geometry& geometry)
             (meshopt_quantizeUnorm((vertex.normal.x + 1.0f) / 2.0f, 10) << 20) |
             (meshopt_quantizeUnorm((vertex.normal.y + 1.0f) / 2.0f, 10) << 10) |
             meshopt_quantizeUnorm((vertex.normal.z + 1.0f) / 2.0f, 10);
+        u32 handness = (vertex.tangent.w > 0.0f) ? 1 : 0;
         qvertex.tangent =
+            (handness << 21) |
             (meshopt_quantizeUnorm((vertex.tangent.x + 1.0f) / 2.0f, 10)
              << 20) |
             (meshopt_quantizeUnorm((vertex.tangent.y + 1.0f) / 2.0f, 10)
