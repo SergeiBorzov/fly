@@ -172,6 +172,7 @@ bool GenerateMips(const Image& srcImage, Image& dstImage)
         offset += size;
         FreeImage(resized);
     }
+    dstImage.mipCount = mipCount;
     return true;
 }
 
