@@ -28,10 +28,13 @@ FLY_REGISTER_UNIFORM_BUFFER(Camera, {
 })
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
-    f16vec3 position;
-    float16_t pad;
+    float16_t positionX;
+    float16_t positionY;
+    float16_t positionZ;
+    float16_t u;
+    float16_t v;
     uint normal;
-    uint pad1;
+    uint tangent;
 })
 
 FLY_REGISTER_STORAGE_BUFFER(readonly, MeshInstance, {
@@ -74,7 +77,7 @@ void main()
 
     Vertex v = FLY_ACCESS_STORAGE_BUFFER(
         Vertex, gPushConstants.vertexBufferIndex)[gl_VertexIndex];
-    vec3 position = vec3(v.position);
+    vec3 position = vec3(v.positionX, v.positionY, v.positionZ);
 
     uint instanceIndex =
         FLY_ACCESS_STORAGE_BUFFER(

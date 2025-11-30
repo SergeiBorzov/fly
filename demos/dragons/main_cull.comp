@@ -66,8 +66,8 @@ layout(set = 0,
 }
 gDrawCountBuffers[];
 
-const float sizes[MAX_LOD_COUNT] = {
-    0.5f, 0.25f, 0.125f, 0.0625f, 0.03125f, 0.015625f, 0.0078125f, 0.00390625};
+const float sizes[MAX_LOD_COUNT] = {0.70f, 0.50f, 0.30f, 0.2f,
+                                    0.15f, 0.1f,  0.05f, 0.025f};
 
 int SelectLodIndex(float diagonalNDC, uint lodCount)
 {

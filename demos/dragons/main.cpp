@@ -96,7 +96,8 @@ static RHI::Texture sBrdfIntegrationLUT;
 static RHI::Texture sPrefilteredSkyboxTexture;
 static VkImageView* sHzbTextureImageViews;
 static VkImageView* sPrefilteredSkyboxImageViews;
-static Mesh sMesh;
+static Mesh* sMeshes;
+static u32 sMeshCount;
 
 static i32 sInstanceRowCount = 15;
 static bool sIsCullingFixed = false;
@@ -461,25 +462,28 @@ static void DestroyPipelines(RHI::Device& device)
 
 static bool CreateResources(RHI::Device& device)
 {
-    if (!ImportMesh(FLY_STRING8_LITERAL("dragon.fmesh"), device, sMesh))
+    if (!ImportMeshes(FLY_STRING8_LITERAL("dragon.fmesh"), device, &sMeshes,
+                      sMeshCount))
     {
         FLY_ERROR("Failed to import mesh");
         return false;
     }
-    FLY_LOG("Mesh vertex size is %u, lod count is %u", sMesh.vertexSize,
-            sMesh.lodCount);
+    FLY_ASSERT(sMeshCount == 1);
+    FLY_ASSERT(sMeshes[0].submeshCount == 1);
+
     FLY_LOG("Bounding sphere center is %f %f %f and radius %f",
-            sMesh.sphereCenter.x, sMesh.sphereCenter.y, sMesh.sphereCenter.z,
-            sMesh.sphereRadius);
-    for (u32 i = 0; i < sMesh.lodCount; i++)
+            sMeshes[0].sphereCenter.x, sMeshes[0].sphereCenter.y,
+            sMeshes[0].sphereCenter.z, sMeshes[0].sphereRadius);
+    for (u32 i = 0; i < sMeshes[0].lodCount; i++)
     {
-        FLY_LOG("LOD %u: triangle count %u", i, sMesh.lods[i].indexCount / 3);
+        FLY_LOG("LOD %u: triangle count %u", i,
+                sMeshes[0].submeshes[0].lods[i].indexCount / 3);
     }
 
     MeshData meshData;
-    meshData.center = sMesh.sphereCenter;
-    meshData.radius = sMesh.sphereRadius;
-    meshData.lodCount = sMesh.lodCount;
+    meshData.center = sMeshes[0].sphereCenter;
+    meshData.radius = sMeshes[0].sphereRadius;
+    meshData.lodCount = sMeshes[0].lodCount;
 
     if (!RHI::CreateBuffer(device, false,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -498,11 +502,13 @@ static bool CreateResources(RHI::Device& device)
     for (u32 i = 0; i < FLY_MAX_LOD_COUNT; i++)
     {
         drawCommands[i] = {};
-        if (i < sMesh.lodCount)
+        if (i < sMeshes[0].lodCount)
         {
-            drawCommands[i].indexCount = sMesh.lods[i].indexCount;
+            drawCommands[i].indexCount =
+                sMeshes[0].submeshes[0].lods[i].indexCount;
             drawCommands[i].instanceCount = 0;
-            drawCommands[i].firstIndex = sMesh.lods[i].firstIndex;
+            drawCommands[i].firstIndex =
+                sMeshes[0].submeshes[0].lods[i].indexOffset;
             drawCommands[i].vertexOffset = 0;
             drawCommands[i].firstInstance = 0;
         }
@@ -694,7 +700,12 @@ static void DestroyResources(RHI::Device& device)
 {
     RHI::DestroyQueryPool(device, sTimestampQueryPool);
 
-    DestroyMesh(device, sMesh);
+    for (u32 i = 0; i < sMeshCount; i++)
+    {
+        DestroyMesh(device, sMeshes[i]);
+    }
+    Free(sMeshes);
+
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
         RHI::DestroyBuffer(device, sCameraBuffers[i]);
@@ -1164,10 +1175,10 @@ static void RecordPrepass(RHI::CommandBuffer& cmd,
     RHI::Buffer& meshInstanceBuffer = *(bufferInput[1].pBuffer);
     RHI::Buffer& remapBuffer = *(bufferInput[2].pBuffer);
 
-    RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
+    RHI::BindIndexBuffer(cmd, sMeshes[0].indexBuffer, VK_INDEX_TYPE_UINT32);
 
     u32 pushConstants[] = {
-        cameraBuffer.bindlessHandle, sMesh.vertexBuffer.bindlessHandle,
+        cameraBuffer.bindlessHandle, sMeshes[0].vertexBuffer.bindlessHandle,
         remapBuffer.bindlessHandle, meshInstanceBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
@@ -1223,10 +1234,10 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
     RHI::Texture& brdfIntegrationLUT = *(textureInput[0].pTexture);
     RHI::Texture& prefilteredMap = *(textureInput[1].pTexture);
 
-    RHI::BindIndexBuffer(cmd, sMesh.indexBuffer, VK_INDEX_TYPE_UINT32);
+    RHI::BindIndexBuffer(cmd, sMeshes[0].indexBuffer, VK_INDEX_TYPE_UINT32);
 
     u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           sMesh.vertexBuffer.bindlessHandle,
+                           sMeshes[0].vertexBuffer.bindlessHandle,
                            remapBuffer.bindlessHandle,
                            meshInstanceBuffer.bindlessHandle,
                            radianceProjectionBuffer.bindlessHandle,
