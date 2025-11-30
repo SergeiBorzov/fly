@@ -660,14 +660,6 @@ static u8 GetImageChannelCount(const char* inputPath, const char* outputPath)
     {
         return 4;
     }
-    else if (inputPathStr.EndsWith(FLY_STRING8_LITERAL(".jpg")))
-    {
-        return 4;
-    }
-    else if (inputPathStr.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
-    {
-        return 4;
-    }
     else if (outputPathStr.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
     {
         return 4;
@@ -679,6 +671,14 @@ static u8 GetImageChannelCount(const char* inputPath, const char* outputPath)
     else if (outputPathStr.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
     {
         return 2;
+    }
+    else if (inputPathStr.EndsWith(FLY_STRING8_LITERAL(".jpg")))
+    {
+        return 4;
+    }
+    else if (inputPathStr.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
+    {
+        return 4;
     }
 
     return 0;
