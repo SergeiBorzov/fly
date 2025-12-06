@@ -1,5 +1,6 @@
 #include "mat.h"
 #include "functions.h"
+#include "quat.h"
 
 namespace Fly
 {
@@ -25,6 +26,39 @@ Mat4::Mat4(const f32* values, u32 valueCount)
     {
         data[i] = values[i];
     }
+}
+
+Mat4::Mat4(Math::Quat quat)
+{
+    f32 xx = quat.x * quat.x;
+    f32 yy = quat.y * quat.y;
+    f32 zz = quat.z * quat.z;
+    f32 xy = quat.x * quat.y;
+    f32 xz = quat.x * quat.z;
+    f32 yz = quat.y * quat.z;
+    f32 wx = quat.w * quat.x;
+    f32 wy = quat.w * quat.y;
+    f32 wz = quat.w * quat.z;
+
+    data[0] = 1.0f - 2.0f * (yy + zz);
+    data[1] = 2.0f * (xy + wz);
+    data[2] = 2.0f * (xz - wy);
+    data[3] = 0.0f;
+
+    data[4] = 2.0f * (xy - wz);
+    data[5] = 1.0f - 2.0f * (xx + zz);
+    data[6] = 2.0f * (yz + wx);
+    data[7] = 0.0f;
+
+    data[8] = 2.0f * (xz + wy);
+    data[9] = 2.0f * (yz - wx);
+    data[10] = 1.0f - 2.0f * (xx + yy);
+    data[11] = 0.0f;
+
+    data[12] = 0.0f;
+    data[13] = 0.0f;
+    data[14] = 0.0f;
+    data[15] = 1.0f;
 }
 
 Mat4& Mat4::operator+=(const Mat4& rhs)
@@ -122,6 +156,24 @@ Mat4 ScaleMatrix(f32 x, f32 y, f32 z)
     return res;
 }
 
+Mat4 ScaleMatrix(Math::Vec3 v)
+{
+    Mat4 res;
+    res.data[0] = v.x;
+    res.data[5] = v.y;
+    res.data[10] = v.z;
+    return res;
+}
+
+Mat4 TranslationMatrix(Math::Vec3 v)
+{
+    Mat4 res;
+    res.data[12] = v.x;
+    res.data[13] = v.y;
+    res.data[14] = v.z;
+    return res;
+}
+
 Mat4 TranslationMatrix(f32 x, f32 y, f32 z)
 {
     Mat4 res;
@@ -174,7 +226,7 @@ Mat4 RotateZ(f32 angle)
     return res;
 }
 
-Mat4 Perspective(f32 fovx_degrees, f32 aspect, float near, float far)
+Mat4 Perspective(f32 fovxDegrees, f32 aspect, float near, float far)
 {
     // Near and far are swapped to create a reverse-z buffer
     float rNear = far;
@@ -182,7 +234,7 @@ Mat4 Perspective(f32 fovx_degrees, f32 aspect, float near, float far)
 
     Mat4 res(0.0f);
 
-    f32 hTanH = Tan(Radians(fovx_degrees) * 0.5f);
+    f32 hTanH = Tan(Radians(fovxDegrees) * 0.5f);
     f32 f = 1.0f / hTanH;
     f32 a = rFar / (rNear - rFar);
 
@@ -222,6 +274,79 @@ Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
     res.data[15] = 1.0f;
 
     return res;
+}
+
+Mat4 Inverse(const Mat4& mat)
+{
+    f32 inv[16];
+    const f32* m = mat.data;
+
+    inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] +
+             m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+
+    inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] +
+             m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] +
+             m[12] * m[7] * m[10];
+
+    inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] +
+             m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+
+    inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] +
+              m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] +
+              m[12] * m[6] * m[9];
+
+    inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] +
+             m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] +
+             m[13] * m[3] * m[10];
+
+    inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] +
+             m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+
+    inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] -
+             m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+
+    inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] +
+              m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+
+    inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] +
+             m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+
+    inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] -
+             m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+
+    inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] +
+              m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+
+    inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] -
+              m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+
+    inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] -
+             m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+
+    inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] +
+             m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+
+    inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] -
+              m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+
+    inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] +
+              m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+
+    f32 det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+
+    if (det == 0)
+    {
+        return false;
+    }
+
+    det = 1.0f / det;
+
+    for (int i = 0; i < 16; i++)
+    {
+        inv[i] *= det;
+    }
+
+    return Mat4(inv, 16);
 }
 
 } // namespace Math

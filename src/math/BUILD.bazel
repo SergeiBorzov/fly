@@ -9,8 +9,9 @@ cc_library(
         "functions.h",
     ],
     srcs = [
-        "mat.cpp",
         "functions.cpp",
+        "quat.cpp",
+        "mat.cpp",
     ],
     includes = [".."],
     deps = [

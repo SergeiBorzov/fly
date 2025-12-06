@@ -11,6 +11,8 @@ namespace Fly
 namespace Math
 {
 
+struct Mat4;
+
 struct Quat
 {
     union
@@ -31,7 +33,9 @@ struct Quat
     {
     }
 
-    inline Quat operator*(Quat rhs)
+    Quat(const Mat4& mat);
+
+    inline Quat operator*(Quat rhs) const
     {
         f32 nx = w * rhs.x + x * rhs.w + y * rhs.z - z * rhs.y;
         f32 ny = w * rhs.y - x * rhs.z + y * rhs.w + z * rhs.x;
@@ -41,7 +45,7 @@ struct Quat
         return Quat(nx, ny, nz, nw);
     }
 
-    inline Vec3 operator*(Vec3 rhs)
+    inline Vec3 operator*(Vec3 rhs) const
     {
         Quat v = Quat(rhs.x, rhs.y, rhs.z, 0.0);
         Quat conj = Quat(-x, -y, -z, w);
@@ -61,6 +65,18 @@ inline Quat operator*(f32 a, Quat b)
 }
 
 inline Quat Conjugate(Quat q) { return Quat(-q.x, -q.y, -q.z, q.w); }
+
+inline Quat Inverse(Quat q)
+{
+    f32 length2 = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
+    if (length2 > 0.0f)
+    {
+        f32 invLength2 = 1.0f / length2;
+        return Quat(-q.x * invLength2, -q.y * invLength2, -q.z * invLength2,
+                    q.w * invLength2);
+    }
+    return Quat();
+}
 
 inline Quat Normalize(Quat v)
 {
