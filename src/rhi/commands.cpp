@@ -102,26 +102,6 @@ void GenerateMipmaps(CommandBuffer& cmd, Texture& texture)
         srcPipelineStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 
         Blit(cmd, texture, i - 1, texture, i, VK_FILTER_LINEAR);
-        // VkImageBlit blit{};
-        // blit.srcOffsets[0] = {0, 0, 0};
-        // blit.srcOffsets[1] = {mipWidth, mipHeight, mipDepth};
-        // blit.srcSubresource.aspectMask = GetImageAspectMask(texture.format);
-        // blit.srcSubresource.mipLevel = i - 1;
-        // blit.srcSubresource.baseArrayLayer = 0;
-        // blit.srcSubresource.layerCount = texture.layerCount;
-
-        // blit.dstOffsets[0] = {0, 0, 0};
-        // blit.dstOffsets[1] = {MAX(mipWidth >> 1, 1), MAX(mipHeight >> 1, 1),
-        //                       MAX(mipDepth >> 1, 1)};
-        // blit.dstSubresource.aspectMask = GetImageAspectMask(texture.format);
-        // blit.dstSubresource.mipLevel = i;
-        // blit.dstSubresource.baseArrayLayer = 0;
-        // blit.dstSubresource.layerCount = texture.layerCount;
-
-        // vkCmdBlitImage(cmd.handle, texture.image,
-        //                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image,
-        //                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-        //                VK_FILTER_LINEAR);
 
         mipWidth = MAX(mipWidth >> 1, 1);
         mipHeight = MAX(mipHeight >> 1, 1);

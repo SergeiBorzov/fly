@@ -113,11 +113,8 @@ bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
         return false;
     }
 
-    if (!RHI::CreateCubemap(device,
-                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                VK_IMAGE_USAGE_SAMPLED_BIT,
-                            image.data, image.width, format, filterMode,
-                            image.mipCount, texture))
+    if (!RHI::CreateCubemap(device, usage, image.data, image.width, format,
+                            filterMode, image.mipCount, texture))
     {
         return false;
     }

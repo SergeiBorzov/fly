@@ -49,12 +49,12 @@ struct SwapchainRecreatedCallback
     SwapchainRecreatedFn func;
     void* data;
 
-    inline bool operator==(const SwapchainRecreatedCallback& other)
+    inline bool operator==(const SwapchainRecreatedCallback& other) const
     {
         return func == other.func && data == other.data;
     }
 
-    inline bool operator!=(const SwapchainRecreatedCallback& other)
+    inline bool operator!=(const SwapchainRecreatedCallback& other) const
     {
         return func != other.func || data != other.data;
     }

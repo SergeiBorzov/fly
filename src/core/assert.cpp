@@ -14,6 +14,7 @@ void AssertImpl(const char* cond, const char* file, int line, const char* msg,
         va_start(arg, msg);
         char* data = va_arg(arg, char*);
         vprintf(data, arg);
+        va_end(arg);
     }
 
     if (*msg)

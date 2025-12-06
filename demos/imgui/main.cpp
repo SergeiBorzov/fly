@@ -186,8 +186,10 @@ int main(int argc, char* argv[])
 
     RHI::WaitAllDevicesIdle(context);
     ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
     vkDestroyDescriptorPool(device.logicalDevice, descriptorPool,
                             RHI::GetVulkanAllocationCallbacks());
+    ImGui::DestroyContext();
     RHI::DestroyContext(context);
 
     glfwDestroyWindow(window);
