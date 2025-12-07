@@ -41,7 +41,7 @@ private:
     Fly::Math::Vec3 position_;
     double prevCursorX_ = 0.0;
     double prevCursorY_ = 0.0;
-    f32 yaw_ = 0.0f;
+    f32 yaw_ = 180.0f;
     f32 pitch_ = 0.0f;
     f32 vFov_;
     f32 hFov_;

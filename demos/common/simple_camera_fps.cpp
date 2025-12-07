@@ -8,7 +8,7 @@ namespace Fly
 SimpleCameraFPS::SimpleCameraFPS(f32 hFov, f32 aspect, f32 near, f32 far,
                                  Math::Vec3 position)
     : projection_(Math::Perspective(hFov, aspect, near, far)),
-      view_(Math::LookAt(position, position + Math::Vec3(0.0f, 0.0f, 1.0f),
+      view_(Math::LookAt(position, position + Math::Vec3(0.0f, 0.0f, -1.0f),
                          Math::Vec3(0.0f, 1.0f, 0.0f))),
       position_(position), hFov_(hFov), aspect_(aspect), near_(near), far_(far)
 {
