@@ -77,3 +77,16 @@ cc_test(
         "//src/math:math",
     ]
 )
+
+cc_test(
+    name = "test_transform",
+    size = "small",
+    srcs = [
+        "test_transform.cpp",
+    ],
+    deps = [
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "//src/math:math",
+    ],
+)
