@@ -337,7 +337,7 @@ bool CreateGraphicsPipeline(Device& device,
         stages[i].stage = ShaderTypeToVkShaderStage(shaderType);
         stages[i].module = shaderModule;
         stages[i].pName = "main";
-        stages[i].pSpecializationInfo = nullptr;
+        stages[i].pSpecializationInfo = shaders[i].pSpecializationInfo;
     }
 
     // Fixed state
@@ -446,6 +446,7 @@ bool CreateComputePipeline(Device& device, const Shader& computeShader,
     stageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     stageCreateInfo.module = computeShader.handle;
     stageCreateInfo.pName = "main";
+    stageCreateInfo.pSpecializationInfo = computeShader.pSpecializationInfo;
 
     VkComputePipelineCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
@@ -537,7 +538,7 @@ bool CreateRayTracingPipeline(Device& device, u32 maxRecursionDepth,
         stages[i].stage = ShaderTypeToVkShaderStage(shaders[i].type);
         stages[i].module = shaders[i].handle;
         stages[i].pName = "main";
-        stages[i].pSpecializationInfo = nullptr;
+        stages[i].pSpecializationInfo = shaders[i].pSpecializationInfo;
     }
 
     VkRayTracingShaderGroupCreateInfoKHR* groupCreateInfos =

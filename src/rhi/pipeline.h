@@ -39,6 +39,7 @@ struct Shader
 
     Type type = Type::Invalid;
     VkShaderModule handle = VK_NULL_HANDLE;
+    const VkSpecializationInfo* pSpecializationInfo = nullptr;
 };
 bool CreateShader(Device& device, Shader::Type type, const char* spvSource,
                   u64 codeSize, Shader& shaderModule);
