@@ -1,0 +1,10 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "hex_dump",
+    srcs = [
+        "hex_dump.c",
+    ],
+    visibility = ["//visibility:public"],
+)
+
