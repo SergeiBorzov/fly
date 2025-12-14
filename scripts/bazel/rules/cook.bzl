@@ -55,6 +55,28 @@ def _cook_meshes_impl(ctx):
 
     return [DefaultInfo(files = depset(outs))]
 
+def _file_to_cpp_header_impl(ctx):
+    outs = [ctx.actions.declare_file(ctx.label.name)]
+
+    extra_options = []
+    extra_options.append("-n")
+    extra_options.append(ctx.attr.array_name)
+    extra_options.append("-a")
+    extra_options.append(str(ctx.attr.alignment))
+    
+    ctx.actions.run(
+        inputs = [ctx.file.input],
+        outputs = outs,
+        executable = ctx.executable._command,
+        arguments = [
+                        "-i",
+                    ] +
+                    [ctx.file.input.path] +
+                    extra_options + ["-o"] + [f.path for f in outs],
+    )
+
+    return [DefaultInfo(files = depset(outs))]
+
 cook_images = rule(
     implementation = _cook_images_impl,
     attrs = {
@@ -112,3 +134,24 @@ cook_meshes = rule(
     },
 )
 
+file_to_cpp_header = rule(
+    implementation = _file_to_cpp_header_impl,
+    attrs = {
+        "input": attr.label(
+            mandatory = True,
+            allow_single_file = True,
+        ),
+        "alignment": attr.int(
+            default = 0,
+            mandatory = False,
+        ),
+        "array_name": attr.string(
+            mandatory = True,
+        ),
+        "_command": attr.label(
+            cfg = "exec",
+            executable = True,
+            default = Label("//src/assets/tools:hex_dump"),
+        ),
+    },
+)
