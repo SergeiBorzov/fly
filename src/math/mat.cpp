@@ -336,7 +336,7 @@ Mat4 Inverse(const Mat4& mat)
 
     if (det == 0)
     {
-        return false;
+        return Mat4(0.0f);
     }
 
     det = 1.0f / det;
