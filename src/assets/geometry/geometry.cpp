@@ -2,12 +2,19 @@
 
 #include "core/filesystem.h"
 #include "core/memory.h"
-#include "geometry.h"
+#include "core/thread_context.h"
 
 #define FAST_OBJ_REALLOC Fly::Realloc
 #define FAST_OBJ_FREE Fly::Free
 #define FAST_OBJ_IMPLEMENTATION
 #include <fast_obj.h>
+
+#define CGLTF_MALLOC(size) (Fly::Alloc(size))
+#define CGLTF_FREE(size) (Fly::Free(size))
+#define CGLTF_IMPLEMENTATION
+#include <cgltf.h>
+
+#include "geometry.h"
 
 #include <meshoptimizer.h>
 
@@ -331,14 +338,14 @@ static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
     }
 }
 
-static bool ImportGeometriesObj(String8 path, Geometry** ppGeometries,
+static bool ImportGeometriesObj(const void* pMesh, Geometry** ppGeometries,
                                 u32& geometryCount)
 {
-    FLY_ASSERT(path);
     FLY_ASSERT(ppGeometries);
     geometryCount = 0;
 
-    fastObjMesh* mesh = fast_obj_read(path.Data());
+    const fastObjMesh* mesh = static_cast<const fastObjMesh*>(pMesh);
+
     if (!mesh || mesh->object_count == 0)
     {
         return false;
@@ -385,13 +392,242 @@ static bool ImportGeometriesObj(String8 path, Geometry** ppGeometries,
     return true;
 }
 
+bool ImportGeometriesGltf(const cgltf_data* data, Geometry** ppGeometries,
+                          u32& geometryCount)
+{
+    FLY_ASSERT(data);
+    FLY_ASSERT(ppGeometries);
+
+    if (data->meshes_count == 0)
+    {
+        return true;
+    }
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+
+    u32* vertexCountArray = FLY_PUSH_ARENA(arena, u32, data->meshes_count);
+    MemZero(vertexCountArray, sizeof(u32) * data->meshes_count);
+    u32* indexCountArray = FLY_PUSH_ARENA(arena, u32, data->meshes_count);
+    MemZero(indexCountArray, sizeof(u32) * data->meshes_count);
+
+    for (u32 i = 0; i < data->meshes_count; i++)
+    {
+        const cgltf_mesh& mesh = data->meshes[i];
+
+        for (u32 j = 0; j < mesh.primitives_count; j++)
+        {
+            const cgltf_primitive& primitive = mesh.primitives[j];
+
+            bool isPosPresent = false;
+            bool isNormalPresent = false;
+
+            for (u32 k = 0; k < primitive.attributes_count; k++)
+            {
+                const cgltf_attribute& attribute = primitive.attributes[k];
+                const cgltf_accessor* accessor = attribute.data;
+                if (attribute.type == cgltf_attribute_type_position)
+                {
+                    if (accessor->component_type !=
+                            cgltf_component_type_r_32f &&
+                        accessor->type != cgltf_type_vec3)
+                    {
+                        fprintf(
+                            stderr,
+                            "Primitive position has non float vec3 format!\n");
+                        ArenaPopToMarker(arena, marker);
+                        return false;
+                    }
+                    isPosPresent = true;
+                }
+                else if (attribute.type == cgltf_attribute_type_normal)
+                {
+                    if (accessor->component_type !=
+                            cgltf_component_type_r_32f &&
+                        accessor->type != cgltf_type_vec3)
+                    {
+                        fprintf(
+                            stderr,
+                            "Primitive normal has non float vec3 format!\n");
+                        ArenaPopToMarker(arena, marker);
+                        return false;
+                    }
+                    isNormalPresent = true;
+                }
+                else if (attribute.type == cgltf_attribute_type_texcoord)
+                {
+                    if (accessor->component_type !=
+                            cgltf_component_type_r_32f &&
+                        accessor->type != cgltf_type_vec2)
+                    {
+                        fprintf(
+                            stderr,
+                            "Primitive tex coord has non float vec2 format!\n");
+                        ArenaPopToMarker(arena, marker);
+                        return false;
+                    }
+                }
+            }
+
+            if (!isPosPresent || !isNormalPresent)
+            {
+                fprintf(stderr,
+                        "Primitive vertex without position + normal!\n");
+                ArenaPopToMarker(arena, marker);
+                return false;
+            }
+            vertexCountArray[i] += primitive.attributes[0].data->count;
+
+            if (!primitive.indices)
+            {
+                fprintf(stderr, "Primitive without index buffer!\n");
+                ArenaPopToMarker(arena, marker);
+                return false;
+            }
+            indexCountArray[i] += primitive.indices->count;
+        }
+    }
+
+    geometryCount = data->meshes_count;
+    *ppGeometries =
+        static_cast<Geometry*>(Alloc(sizeof(Geometry) * data->meshes_count));
+
+    for (u32 i = 0; i < data->meshes_count; i++)
+    {
+        Geometry& geometry = (*ppGeometries)[i];
+        const cgltf_mesh& mesh = data->meshes[i];
+
+        geometry.subgeometryCount = mesh.primitives_count;
+        geometry.subgeometries = static_cast<Subgeometry*>(
+            Alloc(sizeof(Subgeometry) * mesh.primitives_count));
+        MemZero(geometry.subgeometries,
+                sizeof(Subgeometry) * mesh.primitives_count);
+
+        geometry.vertexCount = vertexCountArray[i];
+        geometry.vertices =
+            static_cast<Vertex*>(Alloc(sizeof(Vertex) * vertexCountArray[i]));
+        MemZero(geometry.vertices, sizeof(Vertex) * vertexCountArray[i]);
+
+        geometry.indexCount = indexCountArray[i];
+        geometry.indices =
+            static_cast<u32*>(Alloc(sizeof(u32) * indexCountArray[i]));
+        MemZero(geometry.indices, sizeof(u32) * indexCountArray[i]);
+
+        u32 vertexOffset = 0;
+        u32 indexOffset = 0;
+
+        for (u32 j = 0; j < mesh.primitives_count; j++)
+        {
+            const cgltf_primitive& primitive = mesh.primitives[j];
+
+            // Vertices
+            ArenaMarker loopMarker = ArenaGetMarker(arena);
+            for (u32 k = 0; k < primitive.attributes_count; k++)
+            {
+                const cgltf_attribute& attribute = primitive.attributes[k];
+                const cgltf_accessor* accessor = attribute.data;
+
+                u32 vertexCount = accessor->count;
+                if (attribute.type == cgltf_attribute_type_position)
+                {
+                    f32* unpacked = FLY_PUSH_ARENA(arena, f32, vertexCount * 3);
+                    cgltf_accessor_unpack_floats(accessor, unpacked,
+                                                 vertexCount * 3);
+                    for (u64 l = 0; l < vertexCount; l++)
+                    {
+                        memcpy(
+                            geometry.vertices[vertexOffset + l].position.data,
+                            unpacked + 3 * l, sizeof(f32) * 3);
+                    }
+                }
+                else if (attribute.type == cgltf_attribute_type_normal)
+                {
+                    f32* unpacked = FLY_PUSH_ARENA(arena, f32, vertexCount * 3);
+                    cgltf_accessor_unpack_floats(accessor, unpacked,
+                                                 vertexCount * 3);
+                    for (u64 l = 0; l < vertexCount; l++)
+                    {
+                        memcpy(geometry.vertices[vertexOffset + l].normal.data,
+                               unpacked + 3 * l, sizeof(f32) * 3);
+                    }
+                }
+                else if (attribute.type == cgltf_attribute_type_texcoord)
+                {
+                    f32* unpacked = FLY_PUSH_ARENA(arena, f32, vertexCount * 2);
+                    cgltf_accessor_unpack_floats(accessor, unpacked,
+                                                 vertexCount * 2);
+                    for (u64 l = 0; l < vertexCount; l++)
+                    {
+                        geometry.vertices[vertexOffset + l].u =
+                            *(unpacked + 2 * l);
+                        geometry.vertices[vertexOffset + l].v =
+                            *(unpacked + 2 * l + 1);
+                    }
+                }
+                ArenaPopToMarker(arena, loopMarker);
+            }
+
+            // Indices
+            u32 indexCount = primitive.indices->count;
+            geometry.subgeometries[j].lods[0] = {indexOffset, indexCount};
+
+            u32* indices = FLY_PUSH_ARENA(arena, u32, indexCount);
+            cgltf_accessor_unpack_indices(primitive.indices, indices,
+                                          sizeof(u32), indexCount);
+
+            for (u32 l = 0; l < indexCount; l++)
+            {
+                indices[l] += vertexOffset;
+            }
+            memcpy(geometry.indices + indexOffset, indices,
+                   sizeof(u32) * indexCount);
+            indexOffset += indexCount;
+            vertexOffset += primitive.attributes[0].data->count;
+            ArenaPopToMarker(arena, loopMarker);
+        }
+    }
+
+    ArenaPopToMarker(arena, marker);
+
+    return true;
+}
+
 bool ImportGeometries(String8 path, Geometry** geometries, u32& geometryCount)
 {
     String8 extension = String8::FindLast(path, '.');
     if (extension.StartsWith(FLY_STRING8_LITERAL(".obj")) ||
         extension.StartsWith(FLY_STRING8_LITERAL(".OBJ")))
     {
-        return ImportGeometriesObj(path, geometries, geometryCount);
+        fastObjMesh* mesh = fast_obj_read(path.Data());
+        bool res = ImportGeometriesObj(mesh, geometries, geometryCount);
+        fast_obj_destroy(mesh);
+
+        return res;
+    }
+    if (extension.StartsWith(FLY_STRING8_LITERAL(".gltf")) ||
+        extension.StartsWith(FLY_STRING8_LITERAL(".GLTF")) ||
+        extension.StartsWith(FLY_STRING8_LITERAL(".glb")) ||
+        extension.StartsWith(FLY_STRING8_LITERAL(".GLB")))
+    {
+        const cgltf_options options{};
+        cgltf_data* data = nullptr;
+
+        if (cgltf_parse_file(&options, path.Data(), &data) !=
+            cgltf_result_success)
+        {
+            return false;
+        }
+
+        if (cgltf_load_buffers(&options, data, path.Data()) !=
+            cgltf_result_success)
+        {
+            cgltf_free(data);
+            return false;
+        }
+        bool res = ImportGeometriesGltf(data, geometries, geometryCount);
+        cgltf_free(data);
+
+        return res;
     }
     return false;
 }
@@ -561,8 +797,9 @@ void GenerateGeometryLODs(Geometry& geometry)
                         fprintf(stderr,
                                 "Warning: mesh simplifier failed to reach "
                                 "target index "
-                                "count, subgeometry index %u\n",
-                                i);
+                                "count %u (current index count is %u), "
+                                "subgeometry index %u\n",
+                                targetIndexCount, lodIndexCount, i);
                     }
                 }
                 sg.lods[i] = {totalIndexCount, lodIndexCount};

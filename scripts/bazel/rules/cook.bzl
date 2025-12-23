@@ -32,6 +32,13 @@ def _cook_meshes_impl(ctx):
         out = ctx.actions.declare_file(f.basename)
         outs.append(out)
 
+    inputs = []
+    for f in ctx.files.inputs:
+        if f.path.endswith(".obj") or f.path.endswith(".OBJ") or \
+           f.path.endswith(".gltf") or f.path.endswith(".GLTF") or \
+           f.path.endswith(".glb") or f.path.endswith(".GLB"):
+            inputs.append(f.path)
+
     extra_options = []
     extra_options.append("-s")
     extra_options.append(ctx.attr.scale)
@@ -49,7 +56,7 @@ def _cook_meshes_impl(ctx):
         arguments = [
             "-i"
         ] +
-        [f.path for f in ctx.files.inputs] +
+        [f for f in inputs] +
         extra_options + ["-o"] + [f.path for f in outs],
     )
 

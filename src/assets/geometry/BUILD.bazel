@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 
 cc_library(
     name = "geometry",
@@ -13,6 +13,7 @@ cc_library(
         "//src/core:core",
         "//src/math:math",
         "@fast_obj//:fast_obj",
+        "@cgltf//:cgltf",
         "@meshoptimizer//:meshoptimizer",
     ],
     includes = [

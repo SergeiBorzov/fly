@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <limits.h>
 #include <stdio.h>
@@ -46,6 +47,28 @@ bool CreateDirectories(String8 path)
     }
 
     return true;
+}
+
+String8 CurrentWorkingDirectory(Arena& arena)
+{
+    char* buffer = FLY_PUSH_ARENA(arena, char, PATH_MAX);
+    if (getcwd(buffer, PATH_MAX) != nullptr)
+    {
+        return String8(buffer, strlen(buffer));
+    }
+
+    return String8();
+}
+
+String8 ParentDirectory(String8 path)
+{
+    String8CutPair cut{};
+    bool res = String8::Cut(path, FLY_PATH_SEPARATOR, cut);
+    if (res)
+    {
+        return String8(path.Data(), cut.head.Size() + 1);
+    }
+    return cut.head;
 }
 
 } // namespace Fly

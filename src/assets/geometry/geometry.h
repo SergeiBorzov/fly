@@ -6,6 +6,8 @@
 
 #include "vertex_layout.h"
 
+struct cgltf_data;
+
 namespace Fly
 {
 
@@ -42,6 +44,10 @@ struct Geometry
     u8 lodCount = 0;
 };
 
+bool ImportGeometiresObj(const void* mesh, Geometry** ppGeometries,
+                         u32& geometryCount);
+bool ImportGeometriesGltf(const cgltf_data* data, Geometry** ppGeometries,
+                          u32& geometryCount);
 bool ImportGeometries(String8 path, Geometry** geometries, u32& geometryCount);
 bool ExportGeometries(String8 path, const Geometry* geometries,
                       u32 geometryCount);

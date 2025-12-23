@@ -1,0 +1,30 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
+
+cc_library(
+    name = "export_scene",
+    srcs = [
+        "export_scene.cpp",
+    ],
+    hdrs = [
+        "export_scene.h",
+        "scene_storage.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//src/assets/geometry:geometry",
+        "//src/assets/image:import_image",
+        "//src/assets/image:export_image",
+        "@cgltf//:cgltf",
+    ],
+)
+
+cc_binary(
+    name = "cooker",
+    srcs = [
+        "cooker.cpp",
+    ],
+    deps = [
+        ":export_scene",
+    ],
+    visibility = ["//visibility:public"],
+)
