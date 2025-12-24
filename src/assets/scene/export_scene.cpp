@@ -21,6 +21,94 @@
 namespace Fly
 {
 
+struct NodeTraverseData
+{
+    const cgltf_node* node = nullptr;
+    i64 parentIndex = -1;
+};
+
+template <typename T>
+struct DynamicArray
+{
+public:
+    inline u64 Count() const { return count; }
+    inline u64 Capacity() const { return capacity; }
+
+    DynamicArray()
+    {
+        count = 0;
+        capacity = 0;
+        data = nullptr;
+    }
+
+    void Add(const T& value)
+    {
+        if (count + 1 > capacity)
+        {
+            if (capacity == 0)
+            {
+                capacity = 1;
+            }
+            else
+            {
+                capacity *= 2;
+            }
+            data = static_cast<T*>(Realloc(data, sizeof(T) * capacity));
+        }
+        data[count++] = value;
+    }
+
+    void Clear() { count = 0; }
+
+    T* Last()
+    {
+        if (!data || count == 0)
+        {
+            return nullptr;
+        }
+        return &data[count - 1];
+    }
+
+    const T* Last() const
+    {
+        if (!data || count == 0)
+        {
+            return nullptr;
+        }
+        return &data[count - 1];
+    }
+
+    T* Pop()
+    {
+        if (!data || count == 0)
+        {
+            return nullptr;
+        }
+        return &data[--count];
+    }
+
+    inline T* Data() { return data; }
+    inline const T* Data() const { return data; }
+    inline T& operator[](u64 index) { return data[index]; }
+    inline const T& operator[](u64 index) const { return data[index]; }
+
+    ~DynamicArray()
+    {
+        if (data)
+        {
+            Free(data);
+            count = 0;
+            capacity = 0;
+            data = nullptr;
+        }
+    }
+
+private:
+    u64 count;
+    u64 capacity;
+    T* data;
+};
+
 static bool CookImagesGltf(String8 path, const cgltf_data* data,
                            SceneStorage& sceneStorage)
 {
@@ -158,6 +246,84 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
     {
         return false;
     }
+
+    for (u32 i = 0; i < sceneStorage.geometryCount; i++)
+    {
+        CookGeometry(sceneStorage.geometries[i]);
+    }
+
+    DynamicArray<NodeTraverseData> stack;
+    DynamicArray<SceneNode> sceneNodes;
+
+    for (u32 i = 0; i < data->nodes_count; i++)
+    {
+        stack.Add({&data->nodes[i], -1});
+    }
+
+    while (stack.Count() != 0)
+    {
+        SceneNode sceneNode{};
+
+        const NodeTraverseData* pTraverseData = stack.Pop();
+        const cgltf_node* node = pTraverseData->node;
+        sceneNode.parentIndex = pTraverseData->parentIndex;
+
+        if (node->has_matrix)
+        {
+            Math::Mat4 localMatrix = Math::Mat4(node->matrix, 16);
+            Math::Vec3 x = Math::Vec3(localMatrix[0]);
+            Math::Vec3 y = Math::Vec3(localMatrix[1]);
+            Math::Vec3 z = Math::Vec3(localMatrix[2]);
+
+            sceneNode.localScale =
+                Math::Vec3(Math::Length(x), Math::Length(y), Math::Length(z));
+
+            Math::Mat4 rotMat(1.0f);
+            rotMat[0] = Math::Vec4(x / sceneNode.localScale.x, 0.0f);
+            rotMat[1] = Math::Vec4(y / sceneNode.localScale.y, 0.0f);
+            rotMat[2] = Math::Vec4(z / sceneNode.localScale.z, 0.0f);
+            sceneNode.localRotation = Math::Quat(rotMat);
+
+            sceneNode.localPosition = Math::Vec3(localMatrix[3]);
+        }
+        else
+        {
+            if (node->has_scale)
+            {
+                memcpy(sceneNode.localScale.data, node->scale, sizeof(f32) * 3);
+            }
+            if (node->has_rotation)
+            {
+                memcpy(sceneNode.localRotation.data, node->rotation,
+                       sizeof(f32) * 4);
+            }
+            if (node->has_translation)
+            {
+                memcpy(sceneNode.localPosition.data, node->translation,
+                       sizeof(f32) * 3);
+            }
+        }
+
+        if (node->mesh)
+        {
+            sceneNode.geometryIndex =
+                static_cast<i64>(node->mesh - data->meshes);
+        }
+
+        i64 nodeIndex = sceneNodes.Count();
+        sceneNodes.Add(sceneNode);
+
+        for (u32 i = 0; i < node->children_count; i++)
+        {
+            stack.Add({node->children[i], nodeIndex});
+        }
+    }
+
+    sceneStorage.nodeCount = sceneNodes.Count();
+    sceneStorage.nodes =
+        static_cast<SceneNode*>(Alloc(sizeof(SceneNode) * sceneNodes.Count()));
+    memcpy(sceneStorage.nodes, sceneNodes.Data(),
+           sizeof(SceneNode) * sceneNodes.Count());
 
     return true;
 }
