@@ -58,7 +58,7 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
         if (!RHI::CreateBuffer(device, false,
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                               vertexStart + meshHeader.vertexOffset,
+                               vertexStart + meshHeader.firstVertex,
                                sizeof(QVertex) * meshHeader.vertexCount,
                                mesh.vertexBuffer))
         {
@@ -69,7 +69,7 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
         if (!RHI::CreateBuffer(device, false,
                                VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                               indexStart + meshHeader.indexOffset,
+                               indexStart + meshHeader.firstIndex,
                                sizeof(u32) * meshHeader.indexCount,
                                mesh.indexBuffer))
         {

@@ -1,4 +1,5 @@
 #ifndef FLY_ASSETS_VERTEX_LAYOUT_H
+#define FLY_ASSETS_VERTEX_LAYOUT_H
 
 #define FLY_MAX_LOD_COUNT 8u
 
@@ -36,7 +37,7 @@ struct QVertex
 
 struct LOD
 {
-    u32 indexOffset = 0;
+    u32 firstIndex = 0;
     u32 indexCount = 0;
 };
 
@@ -57,12 +58,12 @@ struct MeshFileHeader
 struct MeshHeader
 {
     Math::Vec3 sphereCenter;
-    u64 lodsOffset;
+    u64 firstLod;
     u32 submeshCount;
     u32 vertexCount;
-    u32 vertexOffset;
+    u32 firstVertex;
     u32 indexCount;
-    u32 indexOffset;
+    u32 firstIndex;
     f32 sphereRadius;
     u8 lodCount;
 };

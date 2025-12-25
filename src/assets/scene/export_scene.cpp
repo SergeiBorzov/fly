@@ -5,15 +5,19 @@
 #include "core/memory.h"
 #include "core/thread_context.h"
 
+#include "math/mat.h"
+
 #include "assets/image/compress_image.h"
 #include "assets/image/image.h"
 #include "assets/image/import_image.h"
 #include "assets/image/transform_image.h"
 
 #include "assets/geometry/geometry.h"
+#include "assets/geometry/vertex_layout.h"
 
 #include "export_scene.h"
 #include "scene_data.h"
+#include "scene_header.h"
 
 #include <limits.h>
 #include <unistd.h>
@@ -361,11 +365,104 @@ bool CookScene(String8 path, SceneData& sceneData)
 
 bool ExportScene(String8 path, SceneData& sceneData)
 {
-    String8 dummy = FLY_STRING8_LITERAL("dummy");
-    if (!WriteStringToFile(dummy, path))
+    u64 totalIndexCount = 0;
+    u64 totalVertexCount = 0;
+    u32 totalLodCount = 0;
+
+    for (u32 i = 0; i < sceneData.geometryCount; i++)
     {
+        const Geometry& geometry = sceneData.geometries[i];
+        totalVertexCount += geometry.vertexCount;
+        totalIndexCount += geometry.indexCount;
+        totalLodCount += geometry.lodCount * geometry.subgeometryCount;
+    }
+
+    u64 totalSize =
+        sizeof(SceneHeader) + sizeof(MeshHeader) * sceneData.geometryCount +
+        sizeof(SceneNode) * sceneData.nodeCount + sizeof(LOD) * totalLodCount +
+        sizeof(QVertex) * totalVertexCount + sizeof(u32) * totalIndexCount;
+
+    u64 offset = 0;
+    u8* data = static_cast<u8*>(Alloc(totalSize));
+    SceneHeader* sceneHeader = reinterpret_cast<SceneHeader*>(data);
+    offset += sizeof(SceneHeader);
+
+    MeshHeader* meshHeaderStart = reinterpret_cast<MeshHeader*>(data + offset);
+    offset += sizeof(MeshHeader) * sceneData.geometryCount;
+
+    SceneNode* sceneNodeStart = reinterpret_cast<SceneNode*>(data + offset);
+    offset += sizeof(SceneNode) * sceneData.nodeCount;
+
+    LOD* lodStart = reinterpret_cast<LOD*>(data + offset);
+    offset += sizeof(LOD) * totalLodCount;
+
+    QVertex* vertexStart = reinterpret_cast<QVertex*>(data + offset);
+    offset += sizeof(QVertex) * totalVertexCount;
+
+    u32* indexStart = reinterpret_cast<u32*>(data + offset);
+
+    sceneHeader->version = {1, 0, 0};
+    sceneHeader->totalVertexCount = totalVertexCount;
+    sceneHeader->totalIndexCount = totalIndexCount;
+    sceneHeader->totalLodCount = totalLodCount;
+    sceneHeader->textureCount = 0;
+    sceneHeader->meshCount = sceneData.geometryCount;
+    sceneHeader->nodeCount = sceneData.nodeCount;
+
+    memcpy(sceneNodeStart, sceneData.nodes,
+           sizeof(SceneNode) * sceneData.nodeCount);
+
+    u64 firstVertex = 0;
+    u64 firstIndex = 0;
+    u32 firstLod = 0;
+
+    for (u32 i = 0; i < sceneData.geometryCount; i++)
+    {
+        const Geometry& geometry = sceneData.geometries[i];
+
+        MeshHeader& meshHeader = *(meshHeaderStart + i);
+        meshHeader.sphereCenter = geometry.sphereCenter;
+        meshHeader.submeshCount = geometry.subgeometryCount;
+        meshHeader.vertexCount = geometry.vertexCount;
+        meshHeader.indexCount = geometry.indexCount;
+        meshHeader.lodCount = geometry.lodCount;
+        meshHeader.sphereRadius = geometry.sphereRadius;
+        meshHeader.firstLod = firstLod;
+        meshHeader.firstVertex = firstVertex;
+        meshHeader.firstIndex = firstIndex;
+
+        LOD* lodData = lodStart + firstLod;
+        QVertex* vertexData = vertexStart + firstVertex;
+        u32* indexData = indexStart + firstIndex;
+
+        for (u32 j = 0; j < geometry.subgeometryCount; j++)
+        {
+            const Subgeometry& sg = geometry.subgeometries[j];
+            memcpy(lodData + j * geometry.lodCount, sg.lods,
+                   sizeof(LOD) * geometry.lodCount);
+            for (u32 k = 0; k < geometry.lodCount; k++)
+            {
+                LOD* lod = lodData + j * geometry.lodCount + k;
+                lod->firstIndex += firstIndex;
+            }
+        }
+
+        memcpy(vertexData, geometry.qvertices,
+               sizeof(QVertex) * geometry.vertexCount);
+        memcpy(indexData, geometry.indices, sizeof(u32) * geometry.indexCount);
+
+        firstLod += geometry.subgeometryCount * geometry.lodCount;
+        firstVertex += geometry.vertexCount;
+        firstIndex += geometry.indexCount;
+    }
+
+    String8 str(reinterpret_cast<char*>(data), totalSize);
+    if (!WriteStringToFile(str, path))
+    {
+        Free(data);
         return false;
     }
+    Free(data);
     return true;
 }
 

@@ -276,7 +276,7 @@ static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
             }
 
             Subgeometry subgeometry{};
-            subgeometry.lods[0].indexOffset = 3 * i;
+            subgeometry.lods[0].firstIndex = 3 * i;
             subgeometries.Add(subgeometry);
             currMaterialIndex = materialIndex;
         }
@@ -683,10 +683,10 @@ static void OptimizeGeometryVertexCache(Geometry& geometry)
 
         meshopt_optimizeVertexCache<u32>(
             newIndices,
-            geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+            geometry.indices + geometry.subgeometries[i].lods[0].firstIndex,
             geometry.subgeometries[i].lods[0].indexCount, geometry.vertexCount);
 
-        memcpy(geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+        memcpy(geometry.indices + geometry.subgeometries[i].lods[0].firstIndex,
                newIndices,
                sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount);
         Fly::Free(newIndices);
@@ -701,11 +701,11 @@ void OptimizeGeometryOverdraw(Geometry& geometry, f32 threshold)
             static_cast<u32*>(Alloc(sizeof(u32) * geometry.indexCount));
         meshopt_optimizeOverdraw<u32>(
             newIndices,
-            geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+            geometry.indices + geometry.subgeometries[i].lods[0].firstIndex,
             geometry.subgeometries[i].lods[0].indexCount,
             reinterpret_cast<const f32*>(geometry.vertices),
             geometry.vertexCount, sizeof(Vertex), threshold);
-        memcpy(geometry.indices + geometry.subgeometries[i].lods[0].indexOffset,
+        memcpy(geometry.indices + geometry.subgeometries[i].lods[0].firstIndex,
                newIndices,
                sizeof(u32) * geometry.subgeometries[i].lods[0].indexCount);
         Fly::Free(newIndices);
@@ -763,7 +763,7 @@ void GenerateGeometryLODs(Geometry& geometry)
             if (sg.lods[i - 1].indexCount == minSgIndexCount)
             {
                 memcpy(geometry.indices + totalIndexCount,
-                       geometry.indices + sg.lods[i - 1].indexOffset,
+                       geometry.indices + sg.lods[i - 1].firstIndex,
                        sizeof(u32) * sg.lods[i - 1].indexCount);
                 sg.lods[i] = {totalIndexCount, sg.lods[i - 1].indexCount};
             }
@@ -782,7 +782,7 @@ void GenerateGeometryLODs(Geometry& geometry)
                     f32 resultError = 0.0f;
                     lodIndexCount = meshopt_simplify<u32>(
                         geometry.indices + totalIndexCount,
-                        geometry.indices + sg.lods[0].indexOffset,
+                        geometry.indices + sg.lods[0].firstIndex,
                         sg.lods[0].indexCount,
                         reinterpret_cast<const float*>(geometry.vertices),
                         geometry.vertexCount, sizeof(Vertex), targetIndexCount,
@@ -901,8 +901,8 @@ bool ExportGeometries(String8 path, const Geometry* geometries,
         return false;
     }
 
-    u32 totalIndexCount = 0;
-    u32 totalVertexCount = 0;
+    u64 totalIndexCount = 0;
+    u64 totalVertexCount = 0;
     u32 totalLodCount = 0;
     for (u32 i = 0; i < geometryCount; i++)
     {
@@ -940,9 +940,9 @@ bool ExportGeometries(String8 path, const Geometry* geometries,
     fileHeader->totalVertexCount = totalVertexCount;
     fileHeader->totalIndexCount = totalIndexCount;
 
-    u64 vertexOffset = 0;
-    u64 indexOffset = 0;
-    u32 lodsOffset = 0;
+    u64 firstVertex = 0;
+    u64 firstIndex = 0;
+    u32 firstLod = 0;
     for (u32 i = 0; i < geometryCount; i++)
     {
         const Geometry& geometry = geometries[i];
@@ -954,13 +954,13 @@ bool ExportGeometries(String8 path, const Geometry* geometries,
         meshHeader.indexCount = geometry.indexCount;
         meshHeader.lodCount = geometry.lodCount;
         meshHeader.sphereRadius = geometry.sphereRadius;
-        meshHeader.lodsOffset = lodsOffset;
-        meshHeader.vertexOffset = vertexOffset;
-        meshHeader.indexOffset = indexOffset;
+        meshHeader.firstLod = firstLod;
+        meshHeader.firstVertex = firstVertex;
+        meshHeader.firstIndex = firstIndex;
 
-        LOD* lodData = lodStart + lodsOffset;
-        QVertex* vertexData = vertexStart + vertexOffset;
-        u32* indexData = indexStart + indexOffset;
+        LOD* lodData = lodStart + firstLod;
+        QVertex* vertexData = vertexStart + firstVertex;
+        u32* indexData = indexStart + firstIndex;
 
         for (u32 j = 0; j < geometry.subgeometryCount; j++)
         {
@@ -970,7 +970,7 @@ bool ExportGeometries(String8 path, const Geometry* geometries,
             for (u32 k = 0; k < geometry.lodCount; k++)
             {
                 LOD* lod = lodData + j * geometry.lodCount + k;
-                lod->indexOffset += indexOffset;
+                lod->firstIndex += firstIndex;
             }
         }
 
@@ -978,9 +978,9 @@ bool ExportGeometries(String8 path, const Geometry* geometries,
                sizeof(QVertex) * geometry.vertexCount);
         memcpy(indexData, geometry.indices, sizeof(u32) * geometry.indexCount);
 
-        lodsOffset += geometry.subgeometryCount * geometry.lodCount;
-        vertexOffset += geometry.vertexCount;
-        indexOffset += geometry.indexCount;
+        firstLod += geometry.subgeometryCount * geometry.lodCount;
+        firstVertex += geometry.vertexCount;
+        firstIndex += geometry.indexCount;
     }
 
     String8 str(reinterpret_cast<char*>(data), totalSize);
