@@ -52,6 +52,8 @@ cc_binary(
     deps = [
         ":import_image",
         ":export_image",
+        "@fly//src/assets/image/glsl:eq2cube_vert_spv",
+        "@fly//src/assets/image/glsl:eq2cube_frag_spv",
     ],
     visibility = ["//visibility:public"],
 )

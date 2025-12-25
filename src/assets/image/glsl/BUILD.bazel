@@ -1,0 +1,15 @@
+load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader_embedded")
+
+glsl_shader_embedded(
+    src = "eq2cube.vert",
+    array_name = "eq2cubeVertSpv",
+)
+
+glsl_shader_embedded(
+    src = "eq2cube.frag",
+    array_name = "eq2cubeFragSpv",
+    deps = [
+        "@fly//demos/common:glsl_bindless",
+    ],
+)
+

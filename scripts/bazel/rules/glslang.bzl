@@ -1,3 +1,5 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@fly//scripts/bazel/rules:cook.bzl", "file_to_cpp_header")
 
 def _glslang_build_info_impl(ctx):
     ctx.actions.run(
@@ -182,3 +184,36 @@ glsl_shader = rule(
     },
 )
 
+def glsl_shader_embedded(src, deps = [], array_name = None):
+    spv_target = src + ".spv"
+    glsl_shader(
+        name = spv_target,
+        src = src,
+        deps = deps,
+        visibility = ["//visibility:public"],
+    )
+
+    header_target = spv_target.replace(".", "_") + ".inl"
+    if array_name == None:
+        array_name = src.replace(".", "_") + "_spv"
+
+    file_to_cpp_header(
+        name = header_target,
+        input = ":" + spv_target,
+        array_name = array_name,
+        alignment = 32,
+        visibility = ["//visibility:public"],
+    )
+    
+    cc_library(
+        name = src.replace(".", "_") + "_spv",
+        hdrs = [
+            ":" + header_target,
+        ],
+        includes = [
+            ".",
+        ],
+        include_prefix = "glsl",
+        visibility = ["//visibility:public"],
+    )
+        
