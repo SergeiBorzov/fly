@@ -13,7 +13,7 @@
 #include "assets/geometry/geometry.h"
 
 #include "export_scene.h"
-#include "scene_storage.h"
+#include "scene_data.h"
 
 #include <limits.h>
 #include <unistd.h>
@@ -110,15 +110,15 @@ private:
 };
 
 static bool CookImagesGltf(String8 path, const cgltf_data* data,
-                           SceneStorage& sceneStorage)
+                           SceneData& sceneData)
 {
     if (data->textures_count == 0)
     {
         return true;
     }
 
-    sceneStorage.imageCount = data->textures_count;
-    sceneStorage.images =
+    sceneData.imageCount = data->textures_count;
+    sceneData.images =
         static_cast<Image*>(Alloc(sizeof(Image) * data->textures_count));
 
     Arena& arena = GetScratchArena();
@@ -148,7 +148,7 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
                    imagePath.Size());
 
             String8 relativeImagePath = String8(buffer, bufferSize - 1);
-            if (!LoadImageFromFile(relativeImagePath, sceneStorage.images[i]))
+            if (!LoadImageFromFile(relativeImagePath, sceneData.images[i]))
             {
                 return false;
             };
@@ -164,9 +164,9 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
         // Generate mips
         {
             Image transformedImage;
-            GenerateMips(sceneStorage.images[i], transformedImage);
-            FreeImage(sceneStorage.images[i]);
-            sceneStorage.images[i] = transformedImage;
+            GenerateMips(sceneData.images[i], transformedImage);
+            FreeImage(sceneData.images[i]);
+            sceneData.images[i] = transformedImage;
         }
 
         Fly::CodecType codecType = CodecType::Invalid;
@@ -221,7 +221,7 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
 
         // TODO: Store compressed image in scene storage
         u64 size = 0;
-        u8* data = CompressImage(sceneStorage.images[i], codecType, size);
+        u8* data = CompressImage(sceneData.images[i], codecType, size);
         Free(data);
     }
 
@@ -231,25 +231,25 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
 }
 
 static bool CookSceneGltf(String8 path, const cgltf_data* data,
-                          SceneStorage& sceneStorage)
+                          SceneData& sceneData)
 {
     FLY_ASSERT(path);
     FLY_ASSERT(data);
 
-    if (!CookImagesGltf(path, data, sceneStorage))
+    if (!CookImagesGltf(path, data, sceneData))
     {
         return false;
     }
 
-    if (!ImportGeometriesGltf(data, &sceneStorage.geometries,
-                              sceneStorage.geometryCount))
+    if (!ImportGeometriesGltf(data, &sceneData.geometries,
+                              sceneData.geometryCount))
     {
         return false;
     }
 
-    for (u32 i = 0; i < sceneStorage.geometryCount; i++)
+    for (u32 i = 0; i < sceneData.geometryCount; i++)
     {
-        CookGeometry(sceneStorage.geometries[i]);
+        CookGeometry(sceneData.geometries[i]);
     }
 
     DynamicArray<NodeTraverseData> stack;
@@ -319,16 +319,16 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
         }
     }
 
-    sceneStorage.nodeCount = sceneNodes.Count();
-    sceneStorage.nodes =
+    sceneData.nodeCount = sceneNodes.Count();
+    sceneData.nodes =
         static_cast<SceneNode*>(Alloc(sizeof(SceneNode) * sceneNodes.Count()));
-    memcpy(sceneStorage.nodes, sceneNodes.Data(),
+    memcpy(sceneData.nodes, sceneNodes.Data(),
            sizeof(SceneNode) * sceneNodes.Count());
 
     return true;
 }
 
-bool CookScene(String8 path, SceneStorage& sceneStorage)
+bool CookScene(String8 path, SceneData& sceneData)
 {
 
     if (path.EndsWith(FLY_STRING8_LITERAL(".gltf")) ||
@@ -352,14 +352,14 @@ bool CookScene(String8 path, SceneStorage& sceneStorage)
             return false;
         }
 
-        bool res = CookSceneGltf(path, data, sceneStorage);
+        bool res = CookSceneGltf(path, data, sceneData);
         cgltf_free(data);
         return res;
     }
     return false;
 }
 
-bool ExportScene(String8 path, SceneStorage& sceneStorage)
+bool ExportScene(String8 path, SceneData& sceneData)
 {
     String8 dummy = FLY_STRING8_LITERAL("dummy");
     if (!WriteStringToFile(dummy, path))

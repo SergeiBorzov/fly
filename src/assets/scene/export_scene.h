@@ -6,10 +6,10 @@
 namespace Fly
 {
 
-struct SceneStorage;
+struct SceneData;
 
-bool CookScene(String8 path, SceneStorage& sceneStorage);
-bool ExportScene(String8 path, SceneStorage& sceneStorage);
+bool CookScene(String8 path, SceneData& sceneStorage);
+bool ExportScene(String8 path, SceneData& sceneStorage);
 
 } // namespace Fly
 

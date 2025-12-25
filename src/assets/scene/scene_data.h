@@ -1,5 +1,5 @@
-#ifndef FLY_ASSETS_SCENE_STORAGE_H
-#define FLY_ASSETS_SCENE_STORAGE_H
+#ifndef FLY_ASSETS_SCENE_DATA_H
+#define FLY_ASSETS_SCENE_DATA_H
 
 #include "math/transform.h"
 
@@ -18,7 +18,7 @@ struct SceneNode
     i64 parentIndex = -1;
 };
 
-struct SceneStorage
+struct SceneData
 {
     SceneNode* nodes = nullptr;
     Geometry* geometries = nullptr;
@@ -30,4 +30,4 @@ struct SceneStorage
 
 } // namespace Fly
 
-#endif /* FLY_ASSETS_SCENE_STORAGE_H */
+#endif /* FLY_ASSETS_SCENE_DATA_H */

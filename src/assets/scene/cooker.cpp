@@ -5,7 +5,7 @@
 #include "core/thread_context.h"
 
 #include "export_scene.h"
-#include "scene_storage.h"
+#include "scene_data.h"
 
 using namespace Fly;
 
@@ -117,13 +117,13 @@ static void ProcessInput(Input& input)
 {
     for (u32 i = 0; i < input.inputCount; i++)
     {
-        SceneStorage sceneStorage{};
-        if (!CookScene(input.inputs[i], sceneStorage))
+        SceneData sceneData{};
+        if (!CookScene(input.inputs[i], sceneData))
         {
             exit(-5);
         }
 
-        if (!ExportScene(input.outputs[i], sceneStorage))
+        if (!ExportScene(input.outputs[i], sceneData))
         {
             exit(-6);
         }

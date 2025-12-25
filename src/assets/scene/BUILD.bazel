@@ -7,7 +7,7 @@ cc_library(
     ],
     hdrs = [
         "export_scene.h",
-        "scene_storage.h",
+        "scene_data.h",
     ],
     visibility = ["//visibility:public"],
     deps = [
