@@ -915,7 +915,7 @@ int main(int argc, char* argv[])
         {
             // sCamera.Update(window, deltaTime);
         }
-        sCamera.SetPosition(sCamera.GetPosition() +
+        sCamera.SetPosition(sCamera.GetPosition() -
                             Math::Vec3(0.0f, 0.0f, 3000.0f) * deltaTime);
 
         ProcessImGuiFrame();
