@@ -11,7 +11,6 @@
 
 #include "utils/utils.h"
 
-#include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
 #include <GLFW/glfw3.h>
@@ -32,7 +31,7 @@ using namespace Fly;
 
 static SimpleCameraFPS sCamera(80.0f,
                                static_cast<f32>(WINDOW_WIDTH) / WINDOW_HEIGHT,
-                               0.01f, 100.0f, Math::Vec3(0.0f, 0.0f, -5.0f));
+                               0.01f, 100.0f, Math::Vec3(0.0f, 0.0f, 5.0f));
 
 static RHI::ComputePipeline sCullPipeline;
 static RHI::ComputePipeline sWriteIndirectDispatchPipeline;
