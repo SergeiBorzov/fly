@@ -1,6 +1,5 @@
 #include "core/filesystem.h"
 #include "core/memory.h"
-#include <stdio.h>
 
 #include "math/vec.h"
 
@@ -76,13 +75,6 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
         }
 
         vertexOffset += mesh.vertexCount;
-    }
-
-    for (u32 i = 0; i < fileHeader->totalLodCount; i++)
-    {
-        LOD& lod = *(lodStart + i);
-        printf("first index: %u, index count: %u\n", lod.firstIndex,
-               lod.indexCount);
     }
 
     if (!RHI::CreateBuffer(device, false,
