@@ -1,7 +1,10 @@
 #include "core/filesystem.h"
 #include "core/memory.h"
+#include <stdio.h>
 
 #include "math/vec.h"
+
+#include "rhi/buffer.h"
 
 #include "mesh.h"
 
@@ -9,7 +12,8 @@ namespace Fly
 {
 
 bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
-                  u32& meshCount)
+                  u32& meshCount, RHI::Buffer& vertexBuffer,
+                  RHI::Buffer& indexBuffer)
 {
     String8 extension = String8::FindLast(path, '.');
     if (!extension.StartsWith(FLY_STRING8_LITERAL(".fmesh")))
@@ -42,6 +46,7 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
     *meshes = static_cast<Mesh*>(Alloc(sizeof(Mesh) * fileHeader->meshCount));
 
     u32 lodOffset = 0;
+    i32 vertexOffset = 0;
     meshCount = fileHeader->meshCount;
     for (u32 i = 0; i < fileHeader->meshCount; i++)
     {
@@ -54,28 +59,7 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
         mesh.indexCount = meshHeader.indexCount;
         mesh.sphereRadius = meshHeader.sphereRadius;
         mesh.lodCount = meshHeader.lodCount;
-
-        if (!RHI::CreateBuffer(device, false,
-                               VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                               vertexStart + meshHeader.firstVertex,
-                               sizeof(QVertex) * meshHeader.vertexCount,
-                               mesh.vertexBuffer))
-        {
-            Free(data);
-            return false;
-        }
-
-        if (!RHI::CreateBuffer(device, false,
-                               VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                               indexStart + meshHeader.firstIndex,
-                               sizeof(u32) * meshHeader.indexCount,
-                               mesh.indexBuffer))
-        {
-            Free(data);
-            return false;
-        }
+        mesh.vertexOffset = vertexOffset;
 
         mesh.submeshes = static_cast<Submesh*>(
             Alloc(sizeof(Submesh) * meshHeader.submeshCount));
@@ -90,6 +74,35 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
                    meshHeader.lodCount * sizeof(LOD));
             lodOffset += meshHeader.lodCount;
         }
+
+        vertexOffset += mesh.vertexCount;
+    }
+
+    for (u32 i = 0; i < fileHeader->totalLodCount; i++)
+    {
+        LOD& lod = *(lodStart + i);
+        printf("first index: %u, index count: %u\n", lod.firstIndex,
+               lod.indexCount);
+    }
+
+    if (!RHI::CreateBuffer(device, false,
+                           VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                           vertexStart,
+                           sizeof(QVertex) * fileHeader->totalVertexCount,
+                           vertexBuffer))
+    {
+        Free(data);
+        return false;
+    }
+
+    if (!RHI::CreateBuffer(
+            device, false,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            indexStart, sizeof(u32) * fileHeader->totalIndexCount, indexBuffer))
+    {
+        Free(data);
+        return false;
     }
 
     Free(data);
@@ -98,16 +111,6 @@ bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
 
 void DestroyMesh(RHI::Device& device, Mesh& mesh)
 {
-    if (mesh.vertexBuffer.handle != VK_NULL_HANDLE)
-    {
-        RHI::DestroyBuffer(device, mesh.vertexBuffer);
-    }
-
-    if (mesh.indexBuffer.handle != VK_NULL_HANDLE)
-    {
-        RHI::DestroyBuffer(device, mesh.indexBuffer);
-    }
-
     if (mesh.submeshes && mesh.submeshCount)
     {
         Free(mesh.submeshes);

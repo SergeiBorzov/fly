@@ -4,11 +4,15 @@
 #include "core/string8.h"
 #include "math/vec.h"
 
-#include "rhi/buffer.h"
 #include "vertex_layout.h"
 
 namespace Fly
 {
+
+namespace RHI
+{
+struct Buffer;
+}
 
 struct Submesh
 {
@@ -17,19 +21,19 @@ struct Submesh
 
 struct Mesh
 {
-    RHI::Buffer vertexBuffer;
-    RHI::Buffer indexBuffer;
     Math::Vec3 sphereCenter;
     Submesh* submeshes;
     u32 submeshCount;
     u32 vertexCount;
     u32 indexCount;
     f32 sphereRadius;
+    i32 vertexOffset;
     u8 lodCount;
 };
 
 bool ImportMeshes(String8 path, RHI::Device& device, Mesh** meshes,
-                  u32& meshCount);
+                  u32& meshCount, RHI::Buffer& vertexBuffer,
+                  RHI::Buffer& indexBuffer);
 void DestroyMesh(RHI::Device& device, Mesh& mesh);
 
 } // namespace Fly
