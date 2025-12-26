@@ -18,14 +18,6 @@ cook_images(
     generate_mips = True,
 )
 
-copy_files_to_directory(
-    name = "copy_scene_data",
-    srcs = [
-        "@gltf_sample_models//:box_textured_scene",
-    ],
-    output_directory = ".",
-)
-
 glsl_shader(
     name = "cubes.vert.spv",
     src = "cubes.vert",
@@ -55,7 +47,6 @@ cc_binary(
     data = [
         ":cubes.frag.spv",
         ":cubes.vert.spv",
-        ":copy_scene_data",
         ":cook_cesium_logo",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
