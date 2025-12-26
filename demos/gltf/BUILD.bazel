@@ -1,17 +1,19 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_scenes")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
-load("@fly//scripts/bazel/rules:copy_files_to_directory.bzl", "copy_files_to_directory")
 
 copy_vulkan_layers()
 copy_molten_vk()
 
-copy_files_to_directory(
-    name = "copy_scene_data",
-    srcs = [
-        "@gltf_sample_models//:sponza_scene",
+cook_scenes(
+    name = "scenes",
+    inputs = [
+        "@gltf_sample_models//:a_beautiful_game_scene",
     ],
-    output_directory = ".",
+    outputs = [
+        "a_beautiful_game.fscene",
+    ],
 )
 
 glsl_shader(
@@ -37,13 +39,14 @@ cc_binary(
     ],
     deps = [
         "//src/rhi:context",
-        "//demos/common:scene",
+        "//src/assets/scene:scene",
+        "//src/utils:utils",
         "//demos/common:simple_camera_fps",
     ],
     data = [
         ":unlit.frag.spv",
         ":unlit.vert.spv",
-        ":copy_scene_data",
+        ":scenes",
     ] + select({
         "@fly//scripts/bazel/build_type:release": [
         ],

@@ -8,11 +8,11 @@ namespace Fly
 
 struct Geometry;
 struct Image;
-struct SceneNode;
+struct SerializedSceneNode;
 
 struct SceneData
 {
-    SceneNode* nodes = nullptr;
+    SerializedSceneNode* nodes = nullptr;
     Geometry* geometries = nullptr;
     Image* images = nullptr;
     u32 nodeCount = 0;

@@ -3,6 +3,8 @@
 
 #define FLY_MAX_LOD_COUNT 8u
 
+#include "math/vec.h"
+
 namespace Fly
 {
 

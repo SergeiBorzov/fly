@@ -8,16 +8,16 @@
 namespace Fly
 {
 
-struct SceneNode
+struct SerializedSceneNode
 {
     Math::Quat localRotation = Math::Quat();
     Math::Vec3 localPosition = Math::Vec3(0.0f);
     Math::Vec3 localScale = Math::Vec3(1.0f);
-    i64 geometryIndex = -1;
+    i64 meshIndex = -1;
     i64 parentIndex = -1;
 };
 
-struct SceneHeader
+struct SceneFileHeader
 {
     struct
     {
@@ -27,6 +27,7 @@ struct SceneHeader
     } version;
     u64 totalVertexCount = 0;
     u64 totalIndexCount = 0;
+    u32 totalSubmeshCount = 0;
     u32 totalLodCount = 0;
     u32 textureCount = 0;
     u32 meshCount = 0;

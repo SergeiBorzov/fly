@@ -6,9 +6,10 @@
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 
+#include "assets/scene/scene.h"
+
 #include "utils/utils.h"
 
-#include "demos/common/scene.h"
 #include "demos/common/simple_camera_fps.h"
 
 #include <GLFW/glfw3.h>
@@ -19,6 +20,8 @@ static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sDepthTexture;
 
+static Scene sScene;
+
 struct UniformData
 {
     Math::Mat4 projection = {};
@@ -26,7 +29,7 @@ struct UniformData
 };
 
 static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
-                                    Fly::Math::Vec3(0.0f, 2.5f, 0.0f));
+                                    Fly::Math::Vec3(0.0f, 0.0f, 5.0f));
 
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
@@ -74,7 +77,7 @@ static bool CreatePipeline(RHI::Device& device)
     fixedState.colorBlendState.attachmentCount = 1;
     fixedState.depthStencilState.depthTestEnable = true;
     fixedState.rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    // fixedState.rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 
     if (!RHI::CreateGraphicsPipeline(device, fixedState, shaders,
                                      STACK_ARRAY_COUNT(shaders),
@@ -120,6 +123,20 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
+    if (!ImportScene(FLY_STRING8_LITERAL("a_beautiful_game.fscene"), device,
+                     sScene))
+    {
+        return false;
+    }
+
+    FLY_LOG("Scene has %u textures", sScene.textureCount);
+    FLY_LOG("Scene has %u meshes", sScene.meshCount);
+    FLY_LOG("Scene has %u nodes", sScene.nodeCount);
+    for (u32 i = 0; i < sScene.meshCount; i++)
+    {
+        FLY_LOG("Mesh %u has %u submeshes", i, sScene.meshes[i].submeshCount);
+    }
+
     return true;
 }
 
@@ -130,6 +147,7 @@ static void DestroyResources(RHI::Device& device)
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
     RHI::DestroyTexture(device, sDepthTexture);
+    DestroyScene(device, sScene);
 }
 
 static void RecordDrawScene(RHI::CommandBuffer& cmd,
@@ -138,43 +156,41 @@ static void RecordDrawScene(RHI::CommandBuffer& cmd,
                             const RHI::RecordTextureInput* textureInput,
                             u32 textureInputCount, void* pUserData)
 {
-    Scene* scene = static_cast<Scene*>(pUserData);
-
     RHI::SetViewport(cmd, 0, 0, static_cast<f32>(cmd.device->swapchainWidth),
                      static_cast<f32>(cmd.device->swapchainHeight), 0.0f, 1.0f);
     RHI::SetScissor(cmd, 0, 0, cmd.device->swapchainWidth,
                     cmd.device->swapchainHeight);
 
-    const RHI::Buffer& uniformBuffer = *(bufferInput[0].pBuffer);
-    const RHI::Buffer& materialBuffer = scene->materialBuffer;
+    const RHI::Buffer& cameraBuffer = *(bufferInput[0].pBuffer);
+    // const RHI::Buffer& materialBuffer = scene->materialBuffer;
 
     RHI::BindGraphicsPipeline(cmd, sGraphicsPipeline);
-    RHI::BindIndexBuffer(cmd, scene->indexBuffer, VK_INDEX_TYPE_UINT32);
+    RHI::BindIndexBuffer(cmd, sScene.indexBuffer, VK_INDEX_TYPE_UINT32);
 
-    u32 globalIndices[2] = {uniformBuffer.bindlessHandle,
-                            materialBuffer.bindlessHandle};
-    RHI::PushConstants(cmd, globalIndices, sizeof(globalIndices),
+    u32 pushConstants[] = {cameraBuffer.bindlessHandle,
+                           sScene.vertexBuffer.bindlessHandle, 0, 0};
+    RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants),
                        sizeof(Math::Mat4));
 
-    for (u32 i = 0; i < scene->meshNodeCount; i++)
+    for (u32 i = 0; i < sScene.nodeCount; i++)
     {
-        const Fly::MeshNode& meshNode = scene->meshNodes[i];
-        RHI::PushConstants(cmd, meshNode.model.data,
-                           sizeof(meshNode.model.data));
-        for (u32 j = 0; j < meshNode.mesh->submeshCount; j++)
+        SceneNode& node = sScene.nodes[i];
+        if (node.mesh)
         {
-            const Fly::Submesh& submesh = meshNode.mesh->submeshes[j];
-            u32 localIndices[2] = {submesh.vertexBufferIndex,
-                                   submesh.materialIndex};
-            RHI::PushConstants(cmd, localIndices, sizeof(localIndices),
-                               sizeof(Math::Mat4) + sizeof(globalIndices));
-            RHI::DrawIndexed(cmd, submesh.indexCount, 1, submesh.indexOffset, 0,
-                             0);
+            const Math::Mat4& model = node.transform.GetWorldMatrix();
+            RHI::PushConstants(cmd, &model, sizeof(Math::Mat4));
+            for (u32 j = 0; j < node.mesh->submeshCount; j++)
+            {
+                RHI::DrawIndexed(cmd,
+                                 node.mesh->submeshes[j].lods[0].indexCount, 1,
+                                 node.mesh->submeshes[j].lods[0].firstIndex,
+                                 node.mesh->vertexOffset, 0);
+            }
         }
     }
 }
 
-static void DrawScene(RHI::Device& device, Scene* scene)
+static void DrawScene(RHI::Device& device)
 {
     RHI::RecordBufferInput bufferInput = {&sUniformBuffers[device.frameIndex],
                                           VK_ACCESS_2_SHADER_READ_BIT};
@@ -187,7 +203,7 @@ static void DrawScene(RHI::Device& device, Scene* scene)
         {{0, 0}, {device.swapchainWidth, device.swapchainHeight}},
         &colorAttachment, 1, &depthAttachment);
     RHI::ExecuteGraphics(RenderFrameCommandBuffer(device), renderingInfo,
-                         RecordDrawScene, &bufferInput, 1, nullptr, 0, scene);
+                         RecordDrawScene, &bufferInput, 1);
 }
 
 int main(int argc, char* argv[])
@@ -198,6 +214,8 @@ int main(int argc, char* argv[])
     {
         return -1;
     }
+
+    sCamera.speed = 3.0f;
 
     // Initialize volk, window
     if (volkInitialize() != VK_SUCCESS)
@@ -232,6 +250,8 @@ int main(int argc, char* argv[])
     settings.deviceExtensions = requiredDeviceExtensions;
     settings.deviceExtensionCount = STACK_ARRAY_COUNT(requiredDeviceExtensions);
     settings.windowPtr = window;
+    settings.vulkan12Features.shaderFloat16 = true;
+    settings.vulkan11Features.storageBuffer16BitAccess = true;
 
     RHI::Context context;
     if (!RHI::CreateContext(settings, context))
@@ -249,13 +269,6 @@ int main(int argc, char* argv[])
 
     if (!CreateResources(device))
     {
-        return -1;
-    }
-
-    Fly::Scene scene;
-    if (!Fly::LoadSceneFromGLTF(arena, device, "Sponza.gltf", scene))
-    {
-        FLY_ERROR("Failed to load gltf");
         return -1;
     }
 
@@ -278,13 +291,12 @@ int main(int argc, char* argv[])
                               uniformBuffer);
 
         RHI::BeginRenderFrame(device);
-        DrawScene(device, &scene);
+        DrawScene(device);
         RHI::EndRenderFrame(device);
     }
 
     RHI::WaitAllDevicesIdle(context);
     DestroyResources(device);
-    Fly::UnloadScene(device, scene);
     DestroyPipeline(device);
     RHI::DestroyContext(context);
 

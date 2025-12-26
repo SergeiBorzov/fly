@@ -17,7 +17,7 @@
 
 #include "export_scene.h"
 #include "scene_data.h"
-#include "scene_header.h"
+#include "scene_serialization_types.h"
 
 #include <limits.h>
 #include <unistd.h>
@@ -257,7 +257,7 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
     }
 
     DynamicArray<NodeTraverseData> stack;
-    DynamicArray<SceneNode> sceneNodes;
+    DynamicArray<SerializedSceneNode> sceneNodes;
 
     for (u32 i = 0; i < data->nodes_count; i++)
     {
@@ -266,7 +266,7 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
 
     while (stack.Count() != 0)
     {
-        SceneNode sceneNode{};
+        SerializedSceneNode sceneNode{};
 
         const NodeTraverseData* pTraverseData = stack.Pop();
         const cgltf_node* node = pTraverseData->node;
@@ -310,8 +310,7 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
 
         if (node->mesh)
         {
-            sceneNode.geometryIndex =
-                static_cast<i64>(node->mesh - data->meshes);
+            sceneNode.meshIndex = static_cast<i64>(node->mesh - data->meshes);
         }
 
         i64 nodeIndex = sceneNodes.Count();
@@ -324,10 +323,10 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
     }
 
     sceneData.nodeCount = sceneNodes.Count();
-    sceneData.nodes =
-        static_cast<SceneNode*>(Alloc(sizeof(SceneNode) * sceneNodes.Count()));
+    sceneData.nodes = static_cast<SerializedSceneNode*>(
+        Alloc(sizeof(SerializedSceneNode) * sceneNodes.Count()));
     memcpy(sceneData.nodes, sceneNodes.Data(),
-           sizeof(SceneNode) * sceneNodes.Count());
+           sizeof(SerializedSceneNode) * sceneNodes.Count());
 
     return true;
 }
@@ -367,6 +366,7 @@ bool ExportScene(String8 path, SceneData& sceneData)
 {
     u64 totalIndexCount = 0;
     u64 totalVertexCount = 0;
+    u64 totalSubmeshCount = 0;
     u32 totalLodCount = 0;
 
     for (u32 i = 0; i < sceneData.geometryCount; i++)
@@ -374,24 +374,27 @@ bool ExportScene(String8 path, SceneData& sceneData)
         const Geometry& geometry = sceneData.geometries[i];
         totalVertexCount += geometry.vertexCount;
         totalIndexCount += geometry.indexCount;
+        totalSubmeshCount += geometry.subgeometryCount;
         totalLodCount += geometry.lodCount * geometry.subgeometryCount;
     }
 
     u64 totalSize =
-        sizeof(SceneHeader) + sizeof(MeshHeader) * sceneData.geometryCount +
-        sizeof(SceneNode) * sceneData.nodeCount + sizeof(LOD) * totalLodCount +
-        sizeof(QVertex) * totalVertexCount + sizeof(u32) * totalIndexCount;
+        sizeof(SceneFileHeader) + sizeof(MeshHeader) * sceneData.geometryCount +
+        sizeof(SerializedSceneNode) * sceneData.nodeCount +
+        sizeof(LOD) * totalLodCount + sizeof(QVertex) * totalVertexCount +
+        sizeof(u32) * totalIndexCount;
 
     u64 offset = 0;
     u8* data = static_cast<u8*>(Alloc(totalSize));
-    SceneHeader* sceneHeader = reinterpret_cast<SceneHeader*>(data);
-    offset += sizeof(SceneHeader);
+    SceneFileHeader* sceneHeader = reinterpret_cast<SceneFileHeader*>(data);
+    offset += sizeof(SceneFileHeader);
 
     MeshHeader* meshHeaderStart = reinterpret_cast<MeshHeader*>(data + offset);
     offset += sizeof(MeshHeader) * sceneData.geometryCount;
 
-    SceneNode* sceneNodeStart = reinterpret_cast<SceneNode*>(data + offset);
-    offset += sizeof(SceneNode) * sceneData.nodeCount;
+    SerializedSceneNode* sceneNodeStart =
+        reinterpret_cast<SerializedSceneNode*>(data + offset);
+    offset += sizeof(SerializedSceneNode) * sceneData.nodeCount;
 
     LOD* lodStart = reinterpret_cast<LOD*>(data + offset);
     offset += sizeof(LOD) * totalLodCount;
@@ -404,13 +407,14 @@ bool ExportScene(String8 path, SceneData& sceneData)
     sceneHeader->version = {1, 0, 0};
     sceneHeader->totalVertexCount = totalVertexCount;
     sceneHeader->totalIndexCount = totalIndexCount;
+    sceneHeader->totalSubmeshCount = totalSubmeshCount;
     sceneHeader->totalLodCount = totalLodCount;
     sceneHeader->textureCount = 0;
     sceneHeader->meshCount = sceneData.geometryCount;
     sceneHeader->nodeCount = sceneData.nodeCount;
 
     memcpy(sceneNodeStart, sceneData.nodes,
-           sizeof(SceneNode) * sceneData.nodeCount);
+           sizeof(SerializedSceneNode) * sceneData.nodeCount);
 
     u64 firstVertex = 0;
     u64 firstIndex = 0;

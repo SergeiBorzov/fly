@@ -8,15 +8,33 @@ cc_library(
     hdrs = [
         "export_scene.h",
         "scene_data.h",
-        "scene_header.h",
+        "scene_serialization_types.h",
     ],
-    visibility = ["//visibility:public"],
     deps = [
         "//src/assets/geometry:geometry",
         "//src/assets/image:import_image",
         "//src/assets/image:export_image",
         "@cgltf//:cgltf",
     ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "scene",
+    srcs = [
+        "scene.cpp",
+    ],
+    hdrs = [
+        "scene.h",
+        "scene_serialization_types.h",
+    ],
+    deps = [
+        "//src/core:filesystem",
+        "//src/math:math",
+        "//src/rhi:context",
+        "//src/assets/geometry:mesh",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_binary(

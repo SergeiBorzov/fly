@@ -23,23 +23,4 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
 )
-
-cc_library(
-    name = "scene",
-    hdrs = [
-        "scene.h",
-    ],
-    srcs = [
-        "scene.cpp",
-    ],
-    deps = [
-        "//src/math:math",
-        "//src/assets:import_gltf",
-        "//src/assets/image:import_image",
-        "//src/assets:import_spv",
-        "//src/rhi:context",
-        "//src/utils:utils",
-    ],
-    visibility = ["//visibility:public"],
-)
     

@@ -62,13 +62,13 @@ String8 CurrentWorkingDirectory(Arena& arena)
 
 String8 ParentDirectory(String8 path)
 {
-    String8CutPair cut{};
-    bool res = String8::Cut(path, FLY_PATH_SEPARATOR, cut);
-    if (res)
+    String8 last = String8::FindLast(path, FLY_PATH_SEPARATOR);
+    if (!last)
     {
-        return String8(path.Data(), cut.head.Size() + 1);
+        return path;
     }
-    return cut.head;
+
+    return String8(path.Data(), path.Size() - last.Size() + 1);
 }
 
 } // namespace Fly

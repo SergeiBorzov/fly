@@ -62,6 +62,34 @@ def _cook_meshes_impl(ctx):
 
     return [DefaultInfo(files = depset(outs))]
 
+def _cook_scenes_impl(ctx):
+    outs = []
+    for f in ctx.files.outputs:
+        out = ctx.actions.declare_file(f.basename)
+        outs.append(out)
+
+    inputs = []
+    for f in ctx.files.inputs:
+        if f.path.endswith(".obj") or f.path.endswith(".OBJ") or \
+           f.path.endswith(".gltf") or f.path.endswith(".GLTF") or \
+           f.path.endswith(".glb") or f.path.endswith(".GLB"):
+            inputs.append(f.path)
+            
+    extra_options = []
+
+    ctx.actions.run(
+        inputs = ctx.files.inputs,
+        outputs = outs,
+        executable = ctx.executable._command,
+        arguments = [
+            "-i"
+        ] +
+        [f for f in inputs] +
+        extra_options + ["-o"] + [f.path for f in outs],
+    )
+
+    return [DefaultInfo(files = depset(outs))]
+
 def _file_to_cpp_header_impl(ctx):
     outs = [ctx.actions.declare_file(ctx.label.name)]
 
@@ -137,6 +165,27 @@ cook_meshes = rule(
         ),
         "flip_winding_order": attr.bool(
             default = False,
+        ),
+    },
+)
+
+cook_scenes = rule(
+    implementation = _cook_scenes_impl,
+    attrs = {
+        "inputs": attr.label_list(
+            mandatory = True,
+            allow_empty = False,
+            allow_files = True,
+        ),
+        "outputs": attr.label_list(
+            mandatory = True,
+            allow_empty = False,
+            allow_files = True,
+        ),
+        "_command": attr.label(
+            cfg = "exec",
+            executable = True,
+            default = Label("//src/assets/scene:cooker"),
         ),
     },
 )
