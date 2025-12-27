@@ -24,10 +24,8 @@ cc_library(
         "image.h",
         "export_image.h",
         "transform_image.h",
-        "compress_image.h",
     ],
     srcs = [
-        "compress_image.cpp",
         "transform_image.cpp",
         "export_image.cpp",
     ],

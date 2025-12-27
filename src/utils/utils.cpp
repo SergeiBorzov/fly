@@ -36,7 +36,7 @@ bool LoadTexture2DFromFile(RHI::Device& device, VkImageUsageFlags usage,
     {
         return false;
     }
-    FreeImage(image);
+    DestroyImage(image);
     return true;
 }
 
@@ -87,7 +87,7 @@ bool LoadCubemap(RHI::Device& device, VkImageUsageFlags usage, String8 path,
         return false;
     }
 
-    FreeImage(image);
+    DestroyImage(image);
     return true;
 }
 
@@ -119,7 +119,7 @@ bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
         return false;
     }
 
-    FreeImage(image);
+    DestroyImage(image);
     return true;
 }
 
@@ -153,7 +153,7 @@ bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
         return false;
     }
 
-    FreeImage(image);
+    DestroyImage(image);
     return true;
 }
 

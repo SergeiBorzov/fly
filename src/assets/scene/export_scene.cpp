@@ -130,11 +130,41 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
 
     for (u64 i = 0; i < data->textures_count; i++)
     {
-        ArenaMarker loopMarker = ArenaGetMarker(arena);
         cgltf_texture& texture = data->textures[i];
         if (!texture.image)
         {
             continue;
+        }
+
+        Fly::CodecType codecType = CodecType::Invalid;
+        u32 desiredChannelCount = 4;
+        for (cgltf_size i = 0; i < data->materials_count; i++)
+        {
+            cgltf_material* mat = &data->materials[i];
+
+            if (mat->pbr_metallic_roughness.base_color_texture.texture ==
+                &texture)
+            {
+                desiredChannelCount = 4;
+                codecType = (mat->alpha_mode == cgltf_alpha_mode_opaque)
+                                ? CodecType::BC1
+                                : CodecType::BC3;
+                break;
+            }
+
+            // TODO:
+            // Combine Roughness, metallic, occlusion into single texture Use
+            // BC1 Put roughness in green channel (highest precision)
+
+            // TODO:
+            // Emissive texture
+
+            if (mat->normal_texture.texture == &texture)
+            {
+                desiredChannelCount = 2;
+                codecType = CodecType::BC5;
+                break;
+            }
         }
 
         if (texture.image->uri)
@@ -163,70 +193,14 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
                        texture.image->mime_type);
             return false;
         }
-        ArenaPopToMarker(arena, loopMarker);
+        ArenaPopToMarker(arena, marker);
 
-        // Generate mips
-        {
-            Image transformedImage;
-            GenerateMips(sceneData.images[i], transformedImage);
-            FreeImage(sceneData.images[i]);
-            sceneData.images[i] = transformedImage;
-        }
+        // TODO: specify linear for normal maps ...
+        GenerateMips(sceneData.images[i], false);
 
-        Fly::CodecType codecType = CodecType::Invalid;
-        for (cgltf_size i = 0; i < data->materials_count; i++)
-        {
-            cgltf_material* mat = &data->materials[i];
+        // TODO: Compress
 
-            if (mat->pbr_metallic_roughness.base_color_texture.texture ==
-                &texture)
-            {
-                codecType = CodecType::BC1;
-                break;
-            }
-
-            // Metallic-Roughness
-            if (mat->pbr_metallic_roughness.metallic_roughness_texture
-                        .texture == &texture &&
-                mat->occlusion_texture.texture != &texture)
-            {
-                codecType = CodecType::BC5;
-                break;
-            }
-
-            if (mat->pbr_metallic_roughness.metallic_roughness_texture
-                        .texture != &texture &&
-                mat->occlusion_texture.texture == &texture)
-            {
-                codecType = CodecType::BC4;
-                break;
-            }
-
-            if (mat->pbr_metallic_roughness.metallic_roughness_texture
-                        .texture != &texture &&
-                mat->occlusion_texture.texture == &texture)
-            {
-                codecType = CodecType::BC1;
-                break;
-            }
-
-            if (mat->normal_texture.texture == &texture)
-            {
-                codecType = CodecType::BC5;
-                break;
-            }
-
-            if (mat->emissive_texture.texture == &texture)
-            {
-                codecType = CodecType::BC1;
-                break;
-            }
-        }
-
-        // TODO: Store compressed image in scene storage
-        u64 size = 0;
-        u8* data = CompressImage(sceneData.images[i], codecType, size);
-        Free(data);
+        // TODO: Store
     }
 
     ArenaPopToMarker(arena, marker);
@@ -234,26 +208,13 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
     return true;
 }
 
-static bool CookSceneGltf(String8 path, const cgltf_data* data,
-                          SceneData& sceneData)
+static void CookNodesGltf(const cgltf_data* data, SceneData& sceneData)
 {
-    FLY_ASSERT(path);
-    FLY_ASSERT(data);
-
-    if (!CookImagesGltf(path, data, sceneData))
+    if (!data->nodes_count)
     {
-        return false;
-    }
-
-    if (!ImportGeometriesGltf(data, &sceneData.geometries,
-                              sceneData.geometryCount))
-    {
-        return false;
-    }
-
-    for (u32 i = 0; i < sceneData.geometryCount; i++)
-    {
-        CookGeometry(sceneData.geometries[i]);
+        sceneData.nodes = nullptr;
+        sceneData.nodeCount = 0;
+        return;
     }
 
     DynamicArray<NodeTraverseData> stack;
@@ -327,6 +288,31 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
         Alloc(sizeof(SerializedSceneNode) * sceneNodes.Count()));
     memcpy(sceneData.nodes, sceneNodes.Data(),
            sizeof(SerializedSceneNode) * sceneNodes.Count());
+}
+
+static bool CookSceneGltf(String8 path, const cgltf_data* data,
+                          SceneData& sceneData)
+{
+    FLY_ASSERT(path);
+    FLY_ASSERT(data);
+
+    if (!CookImagesGltf(path, data, sceneData))
+    {
+        return false;
+    }
+
+    if (!ImportGeometriesGltf(data, &sceneData.geometries,
+                              sceneData.geometryCount))
+    {
+        return false;
+    }
+
+    for (u32 i = 0; i < sceneData.geometryCount; i++)
+    {
+        CookGeometry(sceneData.geometries[i]);
+    }
+
+    CookNodesGltf(data, sceneData);
 
     return true;
 }

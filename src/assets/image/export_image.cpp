@@ -5,7 +5,6 @@
 #include "core/log.h"
 #include "core/memory.h"
 
-#include "compress_image.h"
 #include "export_image.h"
 #include "image.h"
 
@@ -18,138 +17,8 @@
 
 #include <tinyexr.h>
 
-#define HALF_EXPONENT_MASK (0x7C00u)
-#define HALF_MANTISSA_MASK (0x3FFu)
-#define HALF_SIGN_MASK (0x8000u)
-
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-
-static u8 ReinhardTonemap(f32 value)
-{
-    value = value / (1.0f + value);
-    return static_cast<u8>(value * 255.0f + 0.5f);
-}
-
 namespace Fly
 {
-
-static Image TonemapHalf(const Image& image)
-{
-    FLY_ASSERT(image.storageType == ImageStorageType::Half);
-
-    Image output;
-    output.storageType = ImageStorageType::Byte;
-
-    output.mem =
-        static_cast<u8*>(Fly::Alloc(sizeof(u8) * image.width * image.height *
-                                    image.channelCount * image.layerCount));
-    output.data = output.mem;
-    output.width = image.width;
-    output.height = image.height;
-    output.mipCount = 1;
-    output.layerCount = image.layerCount;
-    output.channelCount = image.channelCount;
-
-    f16* imageData = reinterpret_cast<f16*>(image.data);
-
-    for (u32 n = 0; n < image.layerCount; n++)
-    {
-        for (u32 i = 0; i < image.height; i++)
-        {
-            for (u32 j = 0; j < image.width; j++)
-            {
-                for (u32 k = 0; k < MIN(image.channelCount, 3); k++)
-                {
-                    f32 value = imageData[n * image.height * image.width *
-                                              image.channelCount +
-                                          image.width * image.channelCount * i +
-                                          image.channelCount * j + k];
-
-                    output.data[n * image.height * image.width *
-                                    image.channelCount +
-                                image.width * image.channelCount * i +
-                                image.channelCount * j + k] =
-                        ReinhardTonemap(value);
-                }
-
-                if (image.channelCount == 4)
-                {
-                    f32 value = imageData[n * image.height * image.width *
-                                              image.channelCount +
-                                          image.width * image.channelCount * i +
-                                          image.channelCount * j + 3];
-
-                    output.data[n * image.height * image.width *
-                                    image.channelCount +
-                                image.width * image.channelCount * i +
-                                image.channelCount * j + 3] =
-                        static_cast<u8>(value * 255.0f + 0.5f);
-                }
-            }
-        }
-    }
-
-    return output;
-}
-
-static Image TonemapFloat(const Image& image)
-{
-    FLY_ASSERT(image.storageType == ImageStorageType::Float);
-
-    Image output;
-    output.storageType = ImageStorageType::Byte;
-
-    output.mem =
-        static_cast<u8*>(Fly::Alloc(sizeof(u8) * image.width * image.height *
-                                    image.channelCount * image.layerCount));
-    output.data = output.mem;
-    output.width = image.width;
-    output.height = image.height;
-    output.mipCount = 1;
-    output.layerCount = image.layerCount;
-    output.channelCount = image.channelCount;
-
-    f32* imageData = reinterpret_cast<f32*>(image.data);
-
-    for (u32 n = 0; n < image.layerCount; n++)
-    {
-        for (u32 i = 0; i < image.height; i++)
-        {
-            for (u32 j = 0; j < image.width; j++)
-            {
-                for (u32 k = 0; k < MIN(image.channelCount, 3); k++)
-                {
-                    f32 value = imageData[n * image.height * image.width *
-                                              image.channelCount +
-                                          image.width * image.channelCount * i +
-                                          image.channelCount * j + k];
-
-                    output.data[n * image.height * image.width *
-                                    image.channelCount +
-                                image.width * image.channelCount * i +
-                                image.channelCount * j + k] =
-                        ReinhardTonemap(value);
-                }
-
-                if (image.channelCount == 4)
-                {
-                    f32 value = imageData[n * image.height * image.width *
-                                              image.channelCount +
-                                          image.width * image.channelCount * i +
-                                          image.channelCount * j + 3];
-
-                    output.data[n * image.height * image.width *
-                                    image.channelCount +
-                                image.width * image.channelCount * i +
-                                image.channelCount * j + 3] =
-                        static_cast<u8>(value * 255.0f + 0.5f);
-                }
-            }
-        }
-    }
-
-    return output;
-}
 
 static bool ExportPNG(String8 path, const Image& image)
 {
@@ -187,74 +56,30 @@ static bool ExportHDR(String8 path, const Image& image)
                           reinterpret_cast<const float*>(image.data));
 }
 
-static bool ExportFBC1(String8 path, const Image& image)
+static bool ExportCookedImage(String8 path, const Image& image)
 {
-    u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC1, size);
-    if (!data)
-    {
-        return false;
-    }
-    String8 str(reinterpret_cast<const char*>(data), size);
-    if (!WriteStringToFile(str, path))
-    {
-        Free(data);
-        return false;
-    }
-    Free(data);
-    return true;
-}
+    u64 imageSize = GetImageSize(image);
+    u64 totalSize = imageSize + sizeof(ImageHeader);
 
-static bool ExportFBC3(String8 path, const Image& image)
-{
-    u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC3, size);
-    if (!data)
-    {
-        return false;
-    }
-    String8 str(reinterpret_cast<const char*>(data), size);
-    if (!WriteStringToFile(str, path))
-    {
-        Free(data);
-        return false;
-    }
-    Free(data);
-    return true;
-}
+    u8* data = static_cast<u8*>(Alloc(totalSize));
+    ImageHeader* header = reinterpret_cast<ImageHeader*>(data);
+    header->width = image.width;
+    header->height = image.height;
+    header->channelCount = image.channelCount;
+    header->layerCount = image.layerCount;
+    header->mipCount = image.mipCount;
+    header->storageType = ImageStorageType::Byte;
 
-static bool ExportFBC4(String8 path, const Image& image)
-{
-    u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC4, size);
-    if (!data)
-    {
-        return false;
-    }
-    String8 str(reinterpret_cast<const char*>(data), size);
-    if (!WriteStringToFile(str, path))
-    {
-        Free(data);
-        return false;
-    }
-    Free(data);
-    return true;
-}
+    u8* imageData = data + sizeof(ImageHeader);
+    memcpy(imageData, image.data, imageSize);
 
-static bool ExportFBC5(String8 path, const Image& image)
-{
-    u64 size = 0;
-    u8* data = CompressImage(image, CodecType::BC5, size);
-    if (!data)
-    {
-        return false;
-    }
-    String8 str(reinterpret_cast<const char*>(data), size);
+    String8 str(reinterpret_cast<const char*>(data), totalSize);
     if (!WriteStringToFile(str, path))
     {
         Free(data);
         return false;
     }
+
     Free(data);
     return true;
 }
@@ -315,7 +140,7 @@ static bool ExportEXR(String8 path, const Image& image)
                 sizeof(f16) * image.layerCount * image.width * image.height));
         }
 
-        f16* imageData = reinterpret_cast<f16*>(image.data);
+        const f16* imageData = reinterpret_cast<const f16*>(image.data);
         for (u32 n = 0; n < image.layerCount; n++)
         {
             for (u32 i = 0; i < image.height; i++)
@@ -340,15 +165,15 @@ static bool ExportEXR(String8 path, const Image& image)
     const char* err = nullptr;
     int ret = SaveEXRImageToFile(&exrImage, &exrHeader, path.Data(), &err);
 
-    Fly::Free(exrHeader.channels);
-    Fly::Free(exrHeader.pixel_types);
-    Fly::Free(exrHeader.requested_pixel_types);
+    Free(exrHeader.channels);
+    Free(exrHeader.pixel_types);
+    Free(exrHeader.requested_pixel_types);
 
     for (u32 i = 0; i < image.channelCount; i++)
     {
-        Fly::Free(exrImage.images[i]);
+        Free(exrImage.images[i]);
     }
-    Fly::Free(exrImage.images);
+    Free(exrImage.images);
 
     if (ret != TINYEXR_SUCCESS)
     {
@@ -361,67 +186,82 @@ static bool ExportEXR(String8 path, const Image& image)
 
 bool ExportImage(String8 path, const Image& image)
 {
-    Image exportImage = image;
-    if (image.storageType == ImageStorageType::Half)
+    switch (image.storageType)
     {
-        if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
+        case ImageStorageType::Byte:
         {
-            return ExportEXR(path, image);
+            if (path.EndsWith(FLY_STRING8_LITERAL(".png")))
+            {
+                return ExportPNG(path, image);
+            }
+            else if (path.EndsWith(FLY_STRING8_LITERAL(".jpg")) ||
+                     path.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
+            {
+                return ExportJPG(path, image);
+            }
+            else if (path.EndsWith(FLY_STRING8_LITERAL(".bmp")))
+            {
+                return ExportBMP(path, image);
+            }
+            else if (path.EndsWith(FLY_STRING8_LITERAL(".tga")))
+            {
+                return ExportTGA(path, image);
+            }
+            break;
         }
-        exportImage = TonemapHalf(image);
-    }
-    else if (image.storageType == ImageStorageType::Float)
-    {
-        if (path.EndsWith(FLY_STRING8_LITERAL(".hdr")))
+        case ImageStorageType::Half:
         {
-            return ExportHDR(path, image);
+            if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
+            {
+                return ExportEXR(path, image);
+            }
+            break;
         }
-        else if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
+        case ImageStorageType::Float:
         {
-            return ExportEXR(path, image);
+            if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
+            {
+                return ExportEXR(path, image);
+            }
+            else if (path.EndsWith(FLY_STRING8_LITERAL(".hdr")))
+            {
+                return ExportHDR(path, image);
+            }
+            break;
         }
-        exportImage = TonemapFloat(image);
+        case ImageStorageType::BC1:
+        {
+            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
+            {
+                return ExportCookedImage(path, image);
+            }
+            break;
+        }
+        case ImageStorageType::BC3:
+        {
+            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
+            {
+                return ExportCookedImage(path, image);
+            }
+            break;
+        }
+        case ImageStorageType::BC4:
+        {
+            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
+            {
+                return ExportCookedImage(path, image);
+            }
+            break;
+        }
+        case ImageStorageType::BC5:
+        {
+            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
+            {
+                ExportCookedImage(path, image);
+            }
+            break;
+        }
     }
-
-    if (path.EndsWith(FLY_STRING8_LITERAL(".png")))
-    {
-        return ExportPNG(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".jpg")) ||
-             path.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
-    {
-        return ExportJPG(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".bmp")))
-    {
-        return ExportBMP(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".tga")))
-    {
-        return ExportTGA(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
-    {
-        return ExportFBC1(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
-    {
-        return ExportFBC3(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
-    {
-        return ExportFBC4(path, exportImage);
-    }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
-    {
-        return ExportFBC5(path, exportImage);
-    }
-
-    if (image.storageType == ImageStorageType::Half)
-    {
-        FreeImage(exportImage);
-    }
-
     return false;
 }
 

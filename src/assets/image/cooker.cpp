@@ -282,6 +282,28 @@ static bool CreateEq2CubePipeline(RHI::Device& device,
     return true;
 }
 
+static bool CompressOutputImage(String8 path, Image& image)
+{
+    String8 extension = String8::FindLast(path, '.');
+    if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc1")))
+    {
+        return CompressImage(ImageStorageType::BC1, image);
+    }
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc3")))
+    {
+        return CompressImage(ImageStorageType::BC3, image);
+    }
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc4")))
+    {
+        return CompressImage(ImageStorageType::BC4, image);
+    }
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc5")))
+    {
+        return CompressImage(ImageStorageType::BC5, image);
+    }
+    return true;
+}
+
 void ProcessInput(Input& input)
 {
     RHI::Context context;
@@ -306,7 +328,7 @@ void ProcessInput(Input& input)
 
     for (u32 i = 0; i < input.inputCount; i++)
     {
-        Image image;
+        Image image{};
         u32 channelCount =
             GetImageChannelCount(input.inputs[i], input.outputs[i]);
         if (channelCount == 0 && input.generateMips)
@@ -327,49 +349,57 @@ void ProcessInput(Input& input)
 
         if (input.resize)
         {
-            Image transformedImage;
-            if (!ResizeImageSRGB(image, input.resizeX, input.resizeY,
-                                 transformedImage))
+            // TODO: Pass linear / srgb flag
+            if (!ResizeImageSRGB(input.resizeX, input.resizeY, image))
             {
+                Free(image.data);
                 fprintf(stderr, "Transform error: Failed to resize %s\n",
                         input.inputs[i]);
                 exit(-10);
             }
-            FreeImage(image);
-            image = transformedImage;
         }
 
         if (input.eq2cube)
         {
-            Image transformedImage;
-            if (!Eq2Cube(*device, eq2cubePipeline, image, transformedImage,
-                         input.generateMips))
+            if (!Eq2Cube(*device, eq2cubePipeline, image))
             {
-                fprintf(stderr, "Export error: failed to transform "
-                                "equirectangular to cube");
+                Free(image.data);
+                fprintf(stderr,
+                        "Transform error: failed to transform "
+                        "equirectangular to cube %s\n",
+                        input.inputs[i]);
                 exit(-32);
             }
-            FreeImage(image);
-            image = transformedImage;
         }
 
-        if (input.generateMips && !input.eq2cube)
+        if (input.generateMips)
         {
-            Image transformedImage;
-            GenerateMips(image, transformedImage);
-            FreeImage(image);
-            image = transformedImage;
+            // TODO: Pass linear / srgb flag
+            if (!GenerateMips(image, false))
+            {
+                fprintf(stderr,
+                        "Transform error: Failed to generate mipmaps %s\n",
+                        input.inputs[i]);
+                exit(-12);
+            }
         }
 
-        if (!ExportImage(String8(input.outputs[i], strlen(input.outputs[i])),
-                         image))
+        String8 outStr = String8(input.outputs[i], strlen(input.outputs[i]));
+        if (!CompressOutputImage(outStr, image))
+        {
+            fprintf(stderr, "Transform error: Failed to compress %s\n",
+                    input.outputs[i]);
+            exit(-13);
+        }
+
+        if (!ExportImage(outStr, image))
         {
             fprintf(stderr, "Export error: failed to write image %s\n",
                     input.outputs[i]);
             exit(-8);
         }
 
-        FreeImage(image);
+        Free(image.data);
     }
 
     if (input.eq2cube)

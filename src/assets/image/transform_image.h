@@ -1,10 +1,10 @@
 #ifndef FLY_TRANSFORM_IMAGE_H
 #define FLY_TRANSFORM_IMAGE_H
 
+#include "image.h"
+
 namespace Fly
 {
-
-struct Image;
 
 namespace RHI
 {
@@ -14,13 +14,15 @@ struct GraphicsPipeline;
 
 }; // namespace RHI
 
-bool ResizeImageSRGB(const Image& srcImage, u32 width, u32 height,
-                     Image& dstImage);
-bool ResizeImageLinear(const Image& srcImage, u32 width, u32 height,
-                       Image& dstImage);
-bool GenerateMips(const Image& srcImage, Image& dstImage);
+void CopyImage(const Image& srcImage, Image& dstImage);
+bool ResizeImageSRGB(u32 width, u32 height, Image& image);
+bool ResizeImageLinear(u32 width, u32 height, Image& image);
+bool GenerateMips(Image& image, bool linearResize = false);
 bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
-             const Image& srcImage, Image& dstImage, bool generateMips);
+             Image& image);
+bool CompressImage(ImageStorageType codec, Image& image);
+void TonemapHalf(Image& image);
+void TonemapFloat(Image& image);
 
 } // namespace Fly
 

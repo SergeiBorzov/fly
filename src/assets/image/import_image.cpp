@@ -26,20 +26,22 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     FLY_ASSERT(path);
 
     u64 size = 0;
-    u8* bytes = ReadFileToByteArray(path, size);
-    image.mem = bytes;
+    u8* data = ReadFileToByteArray(path, size);
+    const ImageHeader* header = reinterpret_cast<const ImageHeader*>(data);
 
-    ImageHeader* header = reinterpret_cast<ImageHeader*>(bytes);
-    image.storageType = header->storageType;
+    image.width = header->width;
+    image.height = header->height;
     image.channelCount = header->channelCount;
-    image.mipCount = header->mipCount;
     image.layerCount = header->layerCount;
+    image.mipCount = header->mipCount;
+    image.storageType = header->storageType;
 
-    ImageLayerRow* layerRow =
-        reinterpret_cast<ImageLayerRow*>(bytes + sizeof(ImageHeader));
-    image.width = layerRow->width;
-    image.height = layerRow->height;
-    image.data = bytes + layerRow->offset;
+    u64 imageSize = GetImageSize(image);
+    u8* imageData = static_cast<u8*>(Alloc(imageSize));
+    memcpy(imageData, data + sizeof(ImageHeader), imageSize);
+
+    Free(data);
+    image.data = imageData;
 
     return true;
 }
@@ -114,7 +116,6 @@ bool LoadExrImageFromFile(String8 path, Image& image)
     u16* data =
         static_cast<u16*>(Fly::Alloc(sizeof(u16) * exrImage.width *
                                      exrImage.height * exrImage.num_channels));
-    image.mem = reinterpret_cast<u8*>(data);
     image.data = reinterpret_cast<u8*>(data);
     image.channelCount = exrImage.num_channels;
     image.width = exrImage.width;
@@ -124,7 +125,6 @@ bool LoadExrImageFromFile(String8 path, Image& image)
     image.storageType = ImageStorageType::Half;
 
     // Change channel layout
-    image.mem = reinterpret_cast<u8*>(data);
     for (u32 j = 0; j < image.height; j++)
     {
         for (u32 i = 0; i < image.width; i++)
@@ -163,16 +163,15 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     int x = 0, y = 0, n = 0;
     if (stbi_is_hdr(path.Data()))
     {
-        image.mem = reinterpret_cast<u8*>(
+        image.data = reinterpret_cast<u8*>(
             stbi_loadf(path.Data(), &x, &y, &n, desiredChannelCount));
         image.storageType = ImageStorageType::Float;
     }
     else
     {
-        image.mem = stbi_load(path.Data(), &x, &y, &n, desiredChannelCount);
+        image.data = stbi_load(path.Data(), &x, &y, &n, desiredChannelCount);
         image.storageType = ImageStorageType::Byte;
     }
-    image.data = image.mem;
 
     image.mipCount = 1;
     image.layerCount = 1;
@@ -191,46 +190,70 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     return image.data;
 }
 
-void FreeImage(Image& image)
+static u64 GetImageLayerSize(u32 width, u32 height, u32 channelCount,
+                             ImageStorageType storageType)
 {
-    FLY_ASSERT(image.mem);
-    FLY_ASSERT(image.data);
-
-    Fly::Free(image.mem);
-
-    image.mem = nullptr;
-    image.data = nullptr;
-    image.channelCount = 0;
-    image.width = 0;
-    image.height = 0;
-}
-
-u32 GetImageStorageTypeSize(ImageStorageType type)
-{
-    switch (type)
+    switch (storageType)
     {
+        case ImageStorageType::BC1:
+        case ImageStorageType::BC4:
+        {
+            return ((width + 3) / 4) * ((height + 3) / 4) * 8;
+        }
+        case ImageStorageType::BC3:
+        case ImageStorageType::BC5:
+        {
+            return ((width + 3) / 4) * ((height + 3) / 4) * 16;
+        }
         case ImageStorageType::Byte:
         {
-            return sizeof(u8);
+            return width * height * channelCount * sizeof(u8);
         }
         case ImageStorageType::Half:
         {
-            return sizeof(u16);
+            return width * height * channelCount * sizeof(f16);
         }
         case ImageStorageType::Float:
         {
-            return sizeof(f32);
-        }
-        case ImageStorageType::Block8:
-        {
-            return 8;
-        }
-        case ImageStorageType::Block16:
-        {
-            return 16;
+            return width * height * channelCount * sizeof(f32);
         }
     }
+
     return 0;
+}
+
+u64 GetImageSize(const Image& image)
+{
+    u64 imageSize = 0;
+    for (u32 i = 0; i < image.mipCount; i++)
+    {
+        imageSize += GetImageLayerSize(image.width, image.height,
+                                       image.channelCount, image.storageType) *
+                     image.layerCount;
+    }
+    return imageSize;
+}
+
+u64 GetImageSize(u32 width, u32 height, u8 channelCount, u8 layerCount,
+                 u8 mipCount, ImageStorageType storageType)
+{
+    u64 imageSize = 0;
+    for (u32 i = 0; i < mipCount; i++)
+    {
+        imageSize +=
+            GetImageLayerSize(width, height, channelCount, storageType) *
+            layerCount;
+    }
+    return imageSize;
+}
+
+void DestroyImage(Image& image)
+{
+    if (image.data)
+    {
+        Free(image.data);
+    }
+    image = {};
 }
 
 } // namespace Fly
