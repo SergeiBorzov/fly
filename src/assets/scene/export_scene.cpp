@@ -7,7 +7,6 @@
 
 #include "math/mat.h"
 
-#include "assets/image/compress_image.h"
 #include "assets/image/image.h"
 #include "assets/image/import_image.h"
 #include "assets/image/transform_image.h"
@@ -130,13 +129,14 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
 
     for (u64 i = 0; i < data->textures_count; i++)
     {
+        bool isLinear = false;
         cgltf_texture& texture = data->textures[i];
         if (!texture.image)
         {
             continue;
         }
 
-        Fly::CodecType codecType = CodecType::Invalid;
+        ImageStorageType storageType = ImageStorageType::BC1;
         u32 desiredChannelCount = 4;
         for (cgltf_size i = 0; i < data->materials_count; i++)
         {
@@ -146,9 +146,9 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
                 &texture)
             {
                 desiredChannelCount = 4;
-                codecType = (mat->alpha_mode == cgltf_alpha_mode_opaque)
-                                ? CodecType::BC1
-                                : CodecType::BC3;
+                storageType = (mat->alpha_mode == cgltf_alpha_mode_opaque)
+                                  ? ImageStorageType::BC1
+                                  : ImageStorageType::BC3;
                 break;
             }
 
@@ -162,7 +162,8 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
             if (mat->normal_texture.texture == &texture)
             {
                 desiredChannelCount = 2;
-                codecType = CodecType::BC5;
+                storageType = ImageStorageType::BC5;
+                isLinear = true;
                 break;
             }
         }
@@ -182,7 +183,8 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
                    imagePath.Size());
 
             String8 relativeImagePath = String8(buffer, bufferSize - 1);
-            if (!LoadImageFromFile(relativeImagePath, sceneData.images[i]))
+            if (!LoadImageFromFile(relativeImagePath, sceneData.images[i],
+                                   desiredChannelCount))
             {
                 return false;
             };
@@ -195,12 +197,8 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
         }
         ArenaPopToMarker(arena, marker);
 
-        // TODO: specify linear for normal maps ...
-        GenerateMips(sceneData.images[i], false);
-
-        // TODO: Compress
-
-        // TODO: Store
+        GenerateMips(sceneData.images[i], isLinear);
+        CompressImage(storageType, sceneData.images[i]);
     }
 
     ArenaPopToMarker(arena, marker);
@@ -364,16 +362,27 @@ bool ExportScene(String8 path, SceneData& sceneData)
         totalLodCount += geometry.lodCount * geometry.subgeometryCount;
     }
 
+    u64 totalImageSize = 0;
+    for (u32 i = 0; i < sceneData.imageCount; i++)
+    {
+        totalImageSize += GetImageSize(sceneData.images[i]);
+    }
+
     u64 totalSize =
-        sizeof(SceneFileHeader) + sizeof(MeshHeader) * sceneData.geometryCount +
+        sizeof(SceneFileHeader) + sizeof(ImageHeader) * sceneData.imageCount +
+        sizeof(MeshHeader) * sceneData.geometryCount +
         sizeof(SerializedSceneNode) * sceneData.nodeCount +
         sizeof(LOD) * totalLodCount + sizeof(QVertex) * totalVertexCount +
-        sizeof(u32) * totalIndexCount;
+        sizeof(u32) * totalIndexCount + totalImageSize;
 
     u64 offset = 0;
     u8* data = static_cast<u8*>(Alloc(totalSize));
     SceneFileHeader* sceneHeader = reinterpret_cast<SceneFileHeader*>(data);
     offset += sizeof(SceneFileHeader);
+
+    ImageHeader* imageHeaderStart =
+        reinterpret_cast<ImageHeader*>(data + offset);
+    offset += sizeof(ImageHeader) * sceneData.imageCount;
 
     MeshHeader* meshHeaderStart = reinterpret_cast<MeshHeader*>(data + offset);
     offset += sizeof(MeshHeader) * sceneData.geometryCount;
@@ -389,15 +398,38 @@ bool ExportScene(String8 path, SceneData& sceneData)
     offset += sizeof(QVertex) * totalVertexCount;
 
     u32* indexStart = reinterpret_cast<u32*>(data + offset);
+    offset += sizeof(u32) * totalIndexCount;
+
+    u8* imageDataStart = reinterpret_cast<u8*>(data + offset);
+    offset += sizeof(u8) * totalImageSize;
 
     sceneHeader->version = {1, 0, 0};
     sceneHeader->totalVertexCount = totalVertexCount;
     sceneHeader->totalIndexCount = totalIndexCount;
     sceneHeader->totalSubmeshCount = totalSubmeshCount;
     sceneHeader->totalLodCount = totalLodCount;
-    sceneHeader->textureCount = 0;
+    sceneHeader->textureCount = sceneData.imageCount;
     sceneHeader->meshCount = sceneData.geometryCount;
     sceneHeader->nodeCount = sceneData.nodeCount;
+
+    u64 imageOffset = 0;
+    for (u32 i = 0; i < sceneData.imageCount; i++)
+    {
+        const Image& image = sceneData.images[i];
+
+        ImageHeader& header = *(imageHeaderStart + i);
+        header.size = GetImageSize(image);
+        header.offset = imageOffset;
+        header.width = image.width;
+        header.height = image.height;
+        header.channelCount = image.channelCount;
+        header.layerCount = image.layerCount;
+        header.mipCount = image.mipCount;
+        header.storageType = image.storageType;
+
+        memcpy(imageDataStart + imageOffset, image.data, header.size);
+        imageOffset += header.size;
+    }
 
     memcpy(sceneNodeStart, sceneData.nodes,
            sizeof(SerializedSceneNode) * sceneData.nodeCount);

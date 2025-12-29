@@ -19,6 +19,8 @@ enum class ImageStorageType : u8
 
 struct ImageHeader
 {
+    u64 size = 0;
+    u64 offset = 0;
     u32 width = 0;
     u32 height = 0;
     u8 channelCount = 0;

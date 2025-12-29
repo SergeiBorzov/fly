@@ -63,6 +63,8 @@ static bool ExportCookedImage(String8 path, const Image& image)
 
     u8* data = static_cast<u8*>(Alloc(totalSize));
     ImageHeader* header = reinterpret_cast<ImageHeader*>(data);
+    header->size = GetImageSize(image);
+    header->offset = sizeof(ImageHeader);
     header->width = image.width;
     header->height = image.height;
     header->channelCount = image.channelCount;

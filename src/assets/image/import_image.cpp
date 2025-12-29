@@ -18,6 +18,8 @@
 
 #include <tinyexr.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 namespace Fly
 {
 
@@ -36,7 +38,7 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     image.mipCount = header->mipCount;
     image.storageType = header->storageType;
 
-    u64 imageSize = GetImageSize(image);
+    u64 imageSize = header->size;
     u8* imageData = static_cast<u8*>(Alloc(imageSize));
     memcpy(imageData, data + sizeof(ImageHeader), imageSize);
 
@@ -227,8 +229,11 @@ u64 GetImageSize(const Image& image)
     u64 imageSize = 0;
     for (u32 i = 0; i < image.mipCount; i++)
     {
-        imageSize += GetImageLayerSize(image.width, image.height,
-                                       image.channelCount, image.storageType) *
+        u32 mipWidth = MAX(image.width >> i, 1);
+        u32 mipHeight = MAX(image.height >> i, 1);
+
+        imageSize += GetImageLayerSize(mipWidth, mipHeight, image.channelCount,
+                                       image.storageType) *
                      image.layerCount;
     }
     return imageSize;
@@ -240,8 +245,10 @@ u64 GetImageSize(u32 width, u32 height, u8 channelCount, u8 layerCount,
     u64 imageSize = 0;
     for (u32 i = 0; i < mipCount; i++)
     {
+        u32 mipWidth = MAX(width >> i, 1);
+        u32 mipHeight = MAX(height >> i, 1);
         imageSize +=
-            GetImageLayerSize(width, height, channelCount, storageType) *
+            GetImageLayerSize(mipWidth, mipHeight, channelCount, storageType) *
             layerCount;
     }
     return imageSize;

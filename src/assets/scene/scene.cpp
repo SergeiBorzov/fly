@@ -7,12 +7,41 @@
 
 #include "assets/geometry/mesh.h"
 #include "assets/geometry/vertex_layout.h"
+#include "assets/image/image.h"
 
 #include "scene.h"
 #include "scene_serialization_types.h"
 
 namespace Fly
 {
+
+static VkFormat CompressedStorageToVkFormat(ImageStorageType storageType)
+{
+    switch (storageType)
+    {
+        case ImageStorageType::BC1:
+        {
+            return VK_FORMAT_BC1_RGB_SRGB_BLOCK;
+        }
+        case ImageStorageType::BC3:
+        {
+            return VK_FORMAT_BC3_SRGB_BLOCK;
+        }
+        case ImageStorageType::BC4:
+        {
+            return VK_FORMAT_BC4_UNORM_BLOCK;
+        }
+        case ImageStorageType::BC5:
+        {
+            return VK_FORMAT_BC5_UNORM_BLOCK;
+        }
+        default:
+        {
+            break;
+        }
+    }
+    return VK_FORMAT_UNDEFINED;
+}
 
 bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
 {
@@ -33,6 +62,13 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
     const SceneFileHeader* fileHeader =
         reinterpret_cast<const SceneFileHeader*>(data);
     offset += sizeof(SceneFileHeader);
+
+    const ImageHeader* imageHeaderStart = nullptr;
+    if (fileHeader->textureCount)
+    {
+        imageHeaderStart = reinterpret_cast<const ImageHeader*>(data + offset);
+        offset += sizeof(ImageHeader) * fileHeader->textureCount;
+    }
 
     const MeshHeader* meshHeaderStart = nullptr;
     if (fileHeader->meshCount)
@@ -68,6 +104,40 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
     {
         indexStart = reinterpret_cast<const u32*>(data + offset);
         offset += sizeof(u32) * fileHeader->totalIndexCount;
+    }
+
+    const u8* imageDataStart = nullptr;
+    if (fileHeader->textureCount)
+    {
+        imageDataStart = reinterpret_cast<const u8*>(data + offset);
+    }
+
+    // Textures
+    if (imageHeaderStart)
+    {
+        scene.textureCount = fileHeader->textureCount;
+        scene.textures = static_cast<RHI::Texture*>(
+            Alloc(sizeof(RHI::Texture) * scene.textureCount));
+        for (u32 i = 0; i < scene.textureCount; i++)
+        {
+            const ImageHeader& imageHeader = *(imageHeaderStart + i);
+            VkFormat imageFormat =
+                CompressedStorageToVkFormat(imageHeader.storageType);
+
+            if (!RHI::CreateTexture2D(device,
+                                      VK_IMAGE_USAGE_SAMPLED_BIT |
+                                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                      imageDataStart + imageHeader.offset,
+                                      imageHeader.width, imageHeader.height,
+                                      imageFormat,
+                                      RHI::Sampler::FilterMode::Anisotropy8x,
+                                      RHI::Sampler::WrapMode::Repeat,
+                                      imageHeader.mipCount, scene.textures[i]))
+            {
+                Free(data);
+                return false;
+            }
+        }
     }
 
     // Buffers
@@ -175,6 +245,7 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
         }
     }
 
+    Free(data);
     return true;
 }
 

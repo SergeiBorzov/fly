@@ -33,6 +33,7 @@ cc_library(
         "//src/math:math",
         "//src/rhi:context",
         "//src/assets/geometry:mesh",
+        "//src/assets/image:import_image"
     ],
     visibility = ["//visibility:public"],
 )
