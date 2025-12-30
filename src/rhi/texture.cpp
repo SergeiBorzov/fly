@@ -621,11 +621,11 @@ bool CreateTexture2D(Device& device, VkImageUsageFlags usage, const void* data,
         return false;
     }
 
-    FLY_DEBUG_LOG(
-        "Texture2D [%llu] created with size %f MB: bindless handle %u storage "
-        "bindless handle %u",
-        texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
-        texture.bindlessHandle, texture.bindlessStorageHandle);
+    // FLY_DEBUG_LOG(
+    //     "Texture2D [%llu] created with size %f MB: bindless handle %u storage
+    //     " "bindless handle %u", texture.image, texture.allocationInfo.size /
+    //     1024.0 / 1024.0, texture.bindlessHandle,
+    //     texture.bindlessStorageHandle);
     return true;
 }
 
@@ -710,10 +710,12 @@ bool CreateCubemap(Device& device, VkImageUsageFlags usage, const void* data,
         return false;
     }
 
-    FLY_DEBUG_LOG("Cubemap [%llu] created with size %f MB: bindless %u storage "
-                  "bindless handle %u",
-                  texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
-                  texture.bindlessHandle, texture.bindlessStorageHandle);
+    // FLY_DEBUG_LOG("Cubemap [%llu] created with size %f MB: bindless %u
+    // storage "
+    //               "bindless handle %u",
+    //               texture.image, texture.allocationInfo.size / 1024.0 /
+    //               1024.0, texture.bindlessHandle,
+    //               texture.bindlessStorageHandle);
     return true;
 }
 
@@ -789,11 +791,11 @@ bool CreateTexture3D(Device& device, VkImageUsageFlags usage, const void* data,
         return false;
     }
 
-    FLY_DEBUG_LOG(
-        "Texture3D [%llu] created with size %f MB: bindless handle %u storage "
-        "bindless handle %u",
-        texture.image, texture.allocationInfo.size / 1024.0 / 1024.0,
-        texture.bindlessHandle, texture.bindlessStorageHandle);
+    // FLY_DEBUG_LOG(
+    //     "Texture3D [%llu] created with size %f MB: bindless handle %u storage
+    //     " "bindless handle %u", texture.image, texture.allocationInfo.size /
+    //     1024.0 / 1024.0, texture.bindlessHandle,
+    //     texture.bindlessStorageHandle);
     return true;
 }
 
@@ -815,10 +817,11 @@ void DestroyTexture(Device& device, Texture& texture)
     texture.width = 0;
     texture.height = 0;
     texture.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    FLY_DEBUG_LOG("Texture [%llu] destroyed: bindless handle %u dealloc size "
-                  "%f MB",
-                  texture.image, texture.bindlessHandle,
-                  texture.allocationInfo.size / 1024.0 / 1024.0);
+    // FLY_DEBUG_LOG("Texture [%llu] destroyed: bindless handle %u dealloc size
+    // "
+    //               "%f MB",
+    //               texture.image, texture.bindlessHandle,
+    //               texture.allocationInfo.size / 1024.0 / 1024.0);
 }
 
 } // namespace RHI

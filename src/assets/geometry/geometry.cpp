@@ -520,6 +520,13 @@ bool ImportGeometriesGltf(const cgltf_data* data, Geometry** ppGeometries,
         {
             const cgltf_primitive& primitive = mesh.primitives[j];
 
+            geometry.subgeometries[j].materialIndex = -1;
+            if (primitive.material)
+            {
+                geometry.subgeometries[j].materialIndex =
+                    static_cast<i32>(primitive.material - data->materials);
+            }
+
             // Vertices
             ArenaMarker loopMarker = ArenaGetMarker(arena);
             for (u32 k = 0; k < primitive.attributes_count; k++)

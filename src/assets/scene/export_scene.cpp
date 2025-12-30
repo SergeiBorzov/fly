@@ -206,6 +206,54 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
     return true;
 }
 
+static void CookMaterialsGltf(const cgltf_data* data, SceneData& sceneData)
+{
+    if (!data->materials_count)
+    {
+        sceneData.materials = nullptr;
+        sceneData.materialCount = 0;
+        return;
+    }
+
+    u64 materialCount = 0;
+    sceneData.materials = static_cast<SerializedPBRMaterial*>(
+        Alloc(sizeof(SerializedPBRMaterial) * data->materials_count));
+
+    for (u32 i = 0; i < data->materials_count; i++)
+    {
+        const cgltf_material& material = data->materials[i];
+        SerializedPBRMaterial& serializedMaterial = sceneData.materials[i];
+        serializedMaterial = {};
+
+        if (!material.has_pbr_metallic_roughness)
+        {
+            continue;
+        }
+
+        const cgltf_pbr_metallic_roughness& pbr =
+            material.pbr_metallic_roughness;
+        memcpy(serializedMaterial.baseColor.data, pbr.base_color_factor,
+               sizeof(Math::Vec4));
+        serializedMaterial.metallic = pbr.metallic_factor;
+        serializedMaterial.roughness = pbr.roughness_factor;
+        if (pbr.base_color_texture.texture)
+        {
+            serializedMaterial.baseColorTextureIndex = static_cast<i32>(
+                pbr.base_color_texture.texture - data->textures);
+        }
+
+        if (material.normal_texture.texture)
+        {
+            serializedMaterial.normalTextureIndex = static_cast<i32>(
+                material.normal_texture.texture - data->textures);
+        }
+
+        materialCount++;
+    }
+
+    sceneData.materialCount = materialCount;
+}
+
 static void CookNodesGltf(const cgltf_data* data, SceneData& sceneData)
 {
     if (!data->nodes_count)
@@ -311,6 +359,7 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
     }
 
     CookNodesGltf(data, sceneData);
+    CookMaterialsGltf(data, sceneData);
 
     return true;
 }
@@ -379,14 +428,26 @@ static void SerializeImages(const SceneData& sceneData,
     }
 }
 
+static void SerializeMaterials(const SceneData& sceneData,
+                               SerializedPBRMaterial* pbrMaterialStart)
+{
+    if (sceneData.materials && sceneData.materialCount)
+    {
+        memcpy(pbrMaterialStart, sceneData.materials,
+               sizeof(SerializedPBRMaterial) * sceneData.materialCount);
+    }
+}
+
 static void SerializeMeshes(const SceneData& sceneData,
                             MeshHeader* meshHeaderStart, LOD* lodStart,
+                            i32* submeshMaterialIndexStart,
                             QVertex* vertexStart, u32* indexStart)
 {
     u64 firstVertex = 0;
     u64 firstIndex = 0;
     u32 firstLod = 0;
 
+    u32 sgOffset = 0;
     for (u32 i = 0; i < sceneData.geometryCount; i++)
     {
         const Geometry& geometry = sceneData.geometries[i];
@@ -411,6 +472,9 @@ static void SerializeMeshes(const SceneData& sceneData,
             const Subgeometry& sg = geometry.subgeometries[j];
             memcpy(lodData + j * geometry.lodCount, sg.lods,
                    sizeof(LOD) * geometry.lodCount);
+            *(submeshMaterialIndexStart + sgOffset) = sg.materialIndex;
+            sgOffset++;
+
             for (u32 k = 0; k < geometry.lodCount; k++)
             {
                 LOD* lod = lodData + j * geometry.lodCount + k;
@@ -466,6 +530,10 @@ bool ExportScene(String8 path, const SceneData& sceneData)
         reinterpret_cast<ImageHeader*>(data + offset);
     offset += sizeof(ImageHeader) * sceneData.imageCount;
 
+    SerializedPBRMaterial* pbrMaterialStart =
+        reinterpret_cast<SerializedPBRMaterial*>(data + offset);
+    offset += sizeof(SerializedPBRMaterial) * sceneData.materialCount;
+
     MeshHeader* meshHeaderStart = reinterpret_cast<MeshHeader*>(data + offset);
     offset += sizeof(MeshHeader) * sceneData.geometryCount;
 
@@ -475,6 +543,9 @@ bool ExportScene(String8 path, const SceneData& sceneData)
 
     LOD* lodStart = reinterpret_cast<LOD*>(data + offset);
     offset += sizeof(LOD) * totalLodCount;
+
+    i32* submeshMaterialIndexStart = reinterpret_cast<i32*>(data + offset);
+    offset += sizeof(i32) * totalSubmeshCount;
 
     QVertex* vertexStart = reinterpret_cast<QVertex*>(data + offset);
     offset += sizeof(QVertex) * totalVertexCount;
@@ -493,15 +564,18 @@ bool ExportScene(String8 path, const SceneData& sceneData)
     sceneHeader->textureCount = sceneData.imageCount;
     sceneHeader->meshCount = sceneData.geometryCount;
     sceneHeader->nodeCount = sceneData.nodeCount;
+    sceneHeader->materialCount = sceneData.materialCount;
 
     SerializeImages(sceneData, imageHeaderStart, imageDataStart);
+    SerializeMaterials(sceneData, pbrMaterialStart);
     SerializeNodes(sceneData, sceneNodeStart);
-    SerializeMeshes(sceneData, meshHeaderStart, lodStart, vertexStart,
-                    indexStart);
+    SerializeMeshes(sceneData, meshHeaderStart, lodStart,
+                    submeshMaterialIndexStart, vertexStart, indexStart);
 
     String8 str(reinterpret_cast<char*>(data), totalSize);
     bool res = WriteStringToFile(str, path);
     Free(data);
+
     return res;
 }
 

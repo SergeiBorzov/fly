@@ -1,6 +1,7 @@
 #include "core/filesystem.h"
 #include "core/memory.h"
 #include "core/string8.h"
+#include "core/thread_context.h"
 
 #include "rhi/device.h"
 #include "rhi/texture.h"
@@ -164,9 +165,68 @@ static void ImportNodes(const SceneFileHeader* fileHeader,
     }
 }
 
+static bool ImportMaterials(RHI::Device& device,
+                            const SceneFileHeader* fileHeader,
+                            const SerializedPBRMaterial* pbrMaterialStart,
+                            Scene& scene)
+{
+    if (!fileHeader->materialCount)
+    {
+        return true;
+    }
+
+    scene.materialCount = fileHeader->materialCount;
+
+    Arena& arena = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(arena);
+    PBRMaterial* pbrMaterials =
+        FLY_PUSH_ARENA(arena, PBRMaterial, fileHeader->materialCount);
+
+    for (u32 i = 0; i < fileHeader->materialCount; i++)
+    {
+        const SerializedPBRMaterial& serializedMaterial =
+            *(pbrMaterialStart + i);
+        PBRMaterial& material = pbrMaterials[i];
+        material = {};
+
+        material.baseColorTextureBindlessHandle =
+            scene.whiteTexture.bindlessHandle;
+        material.normalTextureBindlessHandle =
+            scene.flatNormalTexture.bindlessHandle;
+
+        if (serializedMaterial.baseColorTextureIndex != -1)
+        {
+            material.baseColorTextureBindlessHandle =
+                scene.textures[serializedMaterial.baseColorTextureIndex]
+                    .bindlessHandle;
+        }
+
+        if (serializedMaterial.normalTextureIndex != -1)
+        {
+            material.normalTextureBindlessHandle =
+                scene.textures[serializedMaterial.normalTextureIndex]
+                    .bindlessHandle;
+        }
+    }
+
+    bool res = RHI::CreateBuffer(
+        device, false,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        pbrMaterials, sizeof(PBRMaterial) * fileHeader->materialCount,
+        scene.pbrMaterialBuffer);
+
+    ArenaPopToMarker(arena, marker);
+    if (!res)
+    {
+        DestroyScene(device, scene);
+    }
+
+    return res;
+}
+
 static void ImportMeshes(const SceneFileHeader* fileHeader,
                          const MeshHeader* meshHeaderStart, const LOD* lodStart,
-                         Scene& scene)
+                         const i32* submeshMaterialIndexStart, Scene& scene)
 {
     if (!fileHeader->meshCount)
     {
@@ -197,6 +257,9 @@ static void ImportMeshes(const SceneFileHeader* fileHeader,
 
         for (u32 j = 0; j < meshHeader.submeshCount; j++)
         {
+            mesh.submeshes[j].materialIndex =
+                *(submeshMaterialIndexStart + submeshOffset + j);
+
             MemZero(mesh.submeshes[j].lods, sizeof(LOD) * FLY_MAX_LOD_COUNT);
             memcpy(mesh.submeshes[j].lods, lodStart + lodOffset,
                    meshHeader.lodCount * sizeof(LOD));
@@ -208,9 +271,44 @@ static void ImportMeshes(const SceneFileHeader* fileHeader,
     }
 }
 
+static bool CreateFallbackTextures(RHI::Device& device, Scene& scene)
+{
+    const u8 white[4] = {255, 255, 255, 255};
+    if (!RHI::CreateTexture2D(
+            device,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, white,
+            1, 1, VK_FORMAT_R8G8B8A8_UNORM, RHI::Sampler::FilterMode::Nearest,
+            RHI::Sampler::WrapMode::Repeat, 1, scene.whiteTexture))
+    {
+        DestroyScene(device, scene);
+        return false;
+    }
+
+    const u8 bc5FlatNormalBlock[16] = {128, 128, 0, 0, 0, 0, 0, 0,
+                                       128, 128, 0, 0, 0, 0, 0, 0};
+
+    if (!RHI::CreateTexture2D(
+            device,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            bc5FlatNormalBlock, 4, 4, VK_FORMAT_BC5_UNORM_BLOCK,
+            RHI::Sampler::FilterMode::Nearest, RHI::Sampler::WrapMode::Repeat,
+            1, scene.flatNormalTexture))
+    {
+        DestroyScene(device, scene);
+        return false;
+    }
+
+    return true;
+}
+
 bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
 {
     DestroyScene(device, scene);
+
+    if (!CreateFallbackTextures(device, scene))
+    {
+        return false;
+    }
 
     String8 extension = String8::FindLast(path, '.');
     if (!extension.StartsWith(FLY_STRING8_LITERAL(".fscene")))
@@ -234,6 +332,10 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
         reinterpret_cast<const ImageHeader*>(data + offset);
     offset += sizeof(ImageHeader) * fileHeader->textureCount;
 
+    const SerializedPBRMaterial* pbrMaterialStart =
+        reinterpret_cast<const SerializedPBRMaterial*>(data + offset);
+    offset += sizeof(SerializedPBRMaterial) * fileHeader->materialCount;
+
     const MeshHeader* meshHeaderStart =
         reinterpret_cast<const MeshHeader*>(data + offset);
     offset += sizeof(MeshHeader) * fileHeader->meshCount;
@@ -244,6 +346,10 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
 
     const LOD* lodStart = reinterpret_cast<const LOD*>(data + offset);
     offset += sizeof(LOD) * fileHeader->totalLodCount;
+
+    const i32* submeshMaterialIndexStart =
+        reinterpret_cast<i32*>(data + offset);
+    offset += sizeof(i32) * fileHeader->totalSubmeshCount;
 
     const QVertex* vertexStart =
         reinterpret_cast<const QVertex*>(data + offset);
@@ -267,7 +373,14 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
         return false;
     }
 
-    ImportMeshes(fileHeader, meshHeaderStart, lodStart, scene);
+    if (!ImportMaterials(device, fileHeader, pbrMaterialStart, scene))
+    {
+        Free(data);
+        return false;
+    }
+
+    ImportMeshes(fileHeader, meshHeaderStart, lodStart,
+                 submeshMaterialIndexStart, scene);
     ImportNodes(fileHeader, sceneNodeStart, scene);
 
     Free(data);
@@ -295,6 +408,16 @@ void DestroyScene(RHI::Device& device, Scene& scene)
         scene.textureCount = 0;
     }
 
+    if (scene.whiteTexture.image != VK_NULL_HANDLE)
+    {
+        RHI::DestroyTexture(device, scene.whiteTexture);
+    }
+
+    if (scene.flatNormalTexture.image != VK_NULL_HANDLE)
+    {
+        RHI::DestroyTexture(device, scene.flatNormalTexture);
+    }
+
     if (scene.nodes && scene.nodeCount)
     {
         Free(scene.nodes);
@@ -302,6 +425,10 @@ void DestroyScene(RHI::Device& device, Scene& scene)
         scene.nodeCount = 0;
     }
 
+    if (scene.pbrMaterialBuffer.handle != VK_NULL_HANDLE)
+    {
+        RHI::DestroyBuffer(device, scene.pbrMaterialBuffer);
+    }
     if (scene.indexBuffer.handle != VK_NULL_HANDLE)
     {
         RHI::DestroyBuffer(device, scene.indexBuffer);

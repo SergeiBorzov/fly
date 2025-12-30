@@ -152,18 +152,18 @@ bool CreateBuffer(Device& device, bool hostVisible, VkBufferUsageFlags usage,
         buffer.bindlessHandle = (*pBindlessHandle)++;
     }
 
-    FLY_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
-                  buffer.handle, buffer.bindlessHandle,
-                  buffer.allocationInfo.size / 1024.0 / 1024.0);
+    // FLY_DEBUG_LOG("Buffer[%llu] created: bindless handle %u, alloc size %f MB",
+    //               buffer.handle, buffer.bindlessHandle,
+    //               buffer.allocationInfo.size / 1024.0 / 1024.0);
     return true;
 }
 
 void DestroyBuffer(Device& device, Buffer& buffer)
 {
-    FLY_DEBUG_LOG(
-        "Buffer[%llu] destroyed: bindless handle %u, dealloc size: %f MB",
-        buffer.handle, buffer.bindlessHandle,
-        buffer.allocationInfo.size / 1024.0 / 1024.0);
+    // FLY_DEBUG_LOG(
+    //     "Buffer[%llu] destroyed: bindless handle %u, dealloc size: %f MB",
+    //     buffer.handle, buffer.bindlessHandle,
+    //     buffer.allocationInfo.size / 1024.0 / 1024.0);
     FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
     vmaDestroyBuffer(device.allocator, buffer.handle, buffer.allocation);
     buffer.handle = VK_NULL_HANDLE;

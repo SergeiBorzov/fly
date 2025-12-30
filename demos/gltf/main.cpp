@@ -132,6 +132,7 @@ static bool CreateResources(RHI::Device& device)
     FLY_LOG("Scene has %u textures", sScene.textureCount);
     FLY_LOG("Scene has %u meshes", sScene.meshCount);
     FLY_LOG("Scene has %u nodes", sScene.nodeCount);
+    FLY_LOG("Scene has %u materials", sScene.materialCount);
     for (u32 i = 0; i < sScene.meshCount; i++)
     {
         FLY_LOG("Mesh %u has %u submeshes", i, sScene.meshes[i].submeshCount);

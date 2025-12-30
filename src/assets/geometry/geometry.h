@@ -24,6 +24,7 @@ enum class CoordSystem : u8
 struct Subgeometry
 {
     LOD lods[FLY_MAX_LOD_COUNT];
+    i32 materialIndex = -1;
 };
 
 struct Geometry
@@ -36,6 +37,7 @@ struct Geometry
         QVertex* qvertices;
     };
     u32* indices = nullptr;
+    
     f32 sphereRadius = 0.0f;
     u32 indexCount = 0;
     u32 vertexCount = 0;

@@ -17,6 +17,7 @@ struct Buffer;
 struct Submesh
 {
     LOD lods[FLY_MAX_LOD_COUNT];
+    i32 materialIndex = -1;
 };
 
 struct Mesh

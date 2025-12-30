@@ -17,6 +17,16 @@ struct SerializedSceneNode
     i64 parentIndex = -1;
 };
 
+struct SerializedPBRMaterial
+{
+    Math::Vec4 baseColor = Math::Vec4(1.0f);
+    i32 baseColorTextureIndex = -1;
+    i32 normalTextureIndex = -1;
+    f32 roughness = 0.5f;
+    f32 metallic = 0.0f;
+    // i32 ormTextureIndex = -1;
+};
+
 struct SceneFileHeader
 {
     struct
@@ -31,6 +41,7 @@ struct SceneFileHeader
     u32 totalLodCount = 0;
     u32 textureCount = 0;
     u32 meshCount = 0;
+    u32 materialCount = 0;
     u32 nodeCount = 0;
 };
 
