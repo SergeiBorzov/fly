@@ -346,7 +346,89 @@ bool CookScene(String8 path, SceneData& sceneData)
     return false;
 }
 
-bool ExportScene(String8 path, SceneData& sceneData)
+static void SerializeNodes(const SceneData& sceneData,
+                           SerializedSceneNode* sceneNodeStart)
+{
+    if (sceneData.nodes && sceneData.nodeCount)
+    {
+        memcpy(sceneNodeStart, sceneData.nodes,
+               sizeof(SerializedSceneNode) * sceneData.nodeCount);
+    }
+}
+
+static void SerializeImages(const SceneData& sceneData,
+                            ImageHeader* imageHeaderStart, u8* imageDataStart)
+{
+    u64 imageOffset = 0;
+    for (u32 i = 0; i < sceneData.imageCount; i++)
+    {
+        const Image& image = sceneData.images[i];
+
+        ImageHeader& header = *(imageHeaderStart + i);
+        header.size = GetImageSize(image);
+        header.offset = imageOffset;
+        header.width = image.width;
+        header.height = image.height;
+        header.channelCount = image.channelCount;
+        header.layerCount = image.layerCount;
+        header.mipCount = image.mipCount;
+        header.storageType = image.storageType;
+
+        memcpy(imageDataStart + imageOffset, image.data, header.size);
+        imageOffset += header.size;
+    }
+}
+
+static void SerializeMeshes(const SceneData& sceneData,
+                            MeshHeader* meshHeaderStart, LOD* lodStart,
+                            QVertex* vertexStart, u32* indexStart)
+{
+    u64 firstVertex = 0;
+    u64 firstIndex = 0;
+    u32 firstLod = 0;
+
+    for (u32 i = 0; i < sceneData.geometryCount; i++)
+    {
+        const Geometry& geometry = sceneData.geometries[i];
+
+        MeshHeader& meshHeader = *(meshHeaderStart + i);
+        meshHeader.sphereCenter = geometry.sphereCenter;
+        meshHeader.submeshCount = geometry.subgeometryCount;
+        meshHeader.vertexCount = geometry.vertexCount;
+        meshHeader.indexCount = geometry.indexCount;
+        meshHeader.lodCount = geometry.lodCount;
+        meshHeader.sphereRadius = geometry.sphereRadius;
+        meshHeader.firstLod = firstLod;
+        meshHeader.firstVertex = firstVertex;
+        meshHeader.firstIndex = firstIndex;
+
+        LOD* lodData = lodStart + firstLod;
+        QVertex* vertexData = vertexStart + firstVertex;
+        u32* indexData = indexStart + firstIndex;
+
+        for (u32 j = 0; j < geometry.subgeometryCount; j++)
+        {
+            const Subgeometry& sg = geometry.subgeometries[j];
+            memcpy(lodData + j * geometry.lodCount, sg.lods,
+                   sizeof(LOD) * geometry.lodCount);
+            for (u32 k = 0; k < geometry.lodCount; k++)
+            {
+                LOD* lod = lodData + j * geometry.lodCount + k;
+                lod->firstIndex += firstIndex;
+            }
+        }
+
+        memcpy(vertexData, geometry.qvertices,
+               sizeof(QVertex) * geometry.vertexCount);
+        memcpy(indexData, geometry.indices, sizeof(u32) * geometry.indexCount);
+
+        firstLod += geometry.subgeometryCount * geometry.lodCount;
+        firstVertex += geometry.vertexCount;
+        firstIndex += geometry.indexCount;
+    }
+}
+
+bool ExportScene(String8 path, const SceneData& sceneData)
 {
     u64 totalIndexCount = 0;
     u64 totalVertexCount = 0;
@@ -412,80 +494,15 @@ bool ExportScene(String8 path, SceneData& sceneData)
     sceneHeader->meshCount = sceneData.geometryCount;
     sceneHeader->nodeCount = sceneData.nodeCount;
 
-    u64 imageOffset = 0;
-    for (u32 i = 0; i < sceneData.imageCount; i++)
-    {
-        const Image& image = sceneData.images[i];
-
-        ImageHeader& header = *(imageHeaderStart + i);
-        header.size = GetImageSize(image);
-        header.offset = imageOffset;
-        header.width = image.width;
-        header.height = image.height;
-        header.channelCount = image.channelCount;
-        header.layerCount = image.layerCount;
-        header.mipCount = image.mipCount;
-        header.storageType = image.storageType;
-
-        memcpy(imageDataStart + imageOffset, image.data, header.size);
-        imageOffset += header.size;
-    }
-
-    memcpy(sceneNodeStart, sceneData.nodes,
-           sizeof(SerializedSceneNode) * sceneData.nodeCount);
-
-    u64 firstVertex = 0;
-    u64 firstIndex = 0;
-    u32 firstLod = 0;
-
-    for (u32 i = 0; i < sceneData.geometryCount; i++)
-    {
-        const Geometry& geometry = sceneData.geometries[i];
-
-        MeshHeader& meshHeader = *(meshHeaderStart + i);
-        meshHeader.sphereCenter = geometry.sphereCenter;
-        meshHeader.submeshCount = geometry.subgeometryCount;
-        meshHeader.vertexCount = geometry.vertexCount;
-        meshHeader.indexCount = geometry.indexCount;
-        meshHeader.lodCount = geometry.lodCount;
-        meshHeader.sphereRadius = geometry.sphereRadius;
-        meshHeader.firstLod = firstLod;
-        meshHeader.firstVertex = firstVertex;
-        meshHeader.firstIndex = firstIndex;
-
-        LOD* lodData = lodStart + firstLod;
-        QVertex* vertexData = vertexStart + firstVertex;
-        u32* indexData = indexStart + firstIndex;
-
-        for (u32 j = 0; j < geometry.subgeometryCount; j++)
-        {
-            const Subgeometry& sg = geometry.subgeometries[j];
-            memcpy(lodData + j * geometry.lodCount, sg.lods,
-                   sizeof(LOD) * geometry.lodCount);
-            for (u32 k = 0; k < geometry.lodCount; k++)
-            {
-                LOD* lod = lodData + j * geometry.lodCount + k;
-                lod->firstIndex += firstIndex;
-            }
-        }
-
-        memcpy(vertexData, geometry.qvertices,
-               sizeof(QVertex) * geometry.vertexCount);
-        memcpy(indexData, geometry.indices, sizeof(u32) * geometry.indexCount);
-
-        firstLod += geometry.subgeometryCount * geometry.lodCount;
-        firstVertex += geometry.vertexCount;
-        firstIndex += geometry.indexCount;
-    }
+    SerializeImages(sceneData, imageHeaderStart, imageDataStart);
+    SerializeNodes(sceneData, sceneNodeStart);
+    SerializeMeshes(sceneData, meshHeaderStart, lodStart, vertexStart,
+                    indexStart);
 
     String8 str(reinterpret_cast<char*>(data), totalSize);
-    if (!WriteStringToFile(str, path))
-    {
-        Free(data);
-        return false;
-    }
+    bool res = WriteStringToFile(str, path);
     Free(data);
-    return true;
+    return res;
 }
 
 } // namespace Fly

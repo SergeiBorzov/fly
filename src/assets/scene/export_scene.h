@@ -9,7 +9,7 @@ namespace Fly
 struct SceneData;
 
 bool CookScene(String8 path, SceneData& sceneStorage);
-bool ExportScene(String8 path, SceneData& sceneStorage);
+bool ExportScene(String8 path, const SceneData& sceneStorage);
 
 } // namespace Fly
 
