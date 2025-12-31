@@ -87,7 +87,7 @@ static void CompressImageLayer(u8* dst, const u8* src, u32 srcWidth,
     };
 
     static u8 channelCounts[4] = {4, 4, 1, 2};
-    static u8 blockSizes[4] = {8, 8, 16, 16};
+    static u8 blockSizes[4] = {8, 16, 8, 16};
 
     BlockCompressionFunc compressionFunc =
         compressionFuncs[static_cast<u8>(codec)];
