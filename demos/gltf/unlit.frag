@@ -43,9 +43,5 @@ void main()
 
     vec3 color = baseColor * material.baseColor.rgb;
 
-    vec3 n = normalize(vIn.normal);
-    vec3 l = normalize(vec3(0.2f, 1.0f, 0.3f));
-    vec3 luminance = max(dot(l, n), 0.0f) * color;
-
-    outColor = vec4(luminance, 1.0f);
+    outColor = vec4(color, 1.0f);
 }
