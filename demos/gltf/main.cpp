@@ -169,7 +169,8 @@ static void RecordDrawScene(RHI::CommandBuffer& cmd,
     RHI::BindIndexBuffer(cmd, sScene.indexBuffer, VK_INDEX_TYPE_UINT32);
 
     u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           sScene.vertexBuffer.bindlessHandle, 0, 0};
+                           sScene.vertexBuffer.bindlessHandle,
+                           sScene.pbrMaterialBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants),
                        sizeof(Math::Mat4));
 
@@ -182,6 +183,9 @@ static void RecordDrawScene(RHI::CommandBuffer& cmd,
             RHI::PushConstants(cmd, &model, sizeof(Math::Mat4));
             for (u32 j = 0; j < node.mesh->submeshCount; j++)
             {
+                i32 materialIndex = node.mesh->submeshes[j].materialIndex;
+                RHI::PushConstants(cmd, &materialIndex, sizeof(materialIndex),
+                                   sizeof(Math::Mat4) + sizeof(u32) * 3);
                 RHI::DrawIndexed(cmd,
                                  node.mesh->submeshes[j].lods[0].indexCount, 1,
                                  node.mesh->submeshes[j].lods[0].firstIndex,

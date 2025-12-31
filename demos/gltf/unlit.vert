@@ -11,13 +11,13 @@ layout(location = 0) out VsOut
 }
 vOut;
 
-layout(push_constant) uniform Indices
+layout(push_constant) uniform PushConstants
 {
     mat4 model;
     uint cameraBufferIndex;
     uint vertexBufferIndex;
     uint materialBufferIndex;
-    uint materialIndex;
+    int materialIndex;
 }
 gPushConstants;
 
@@ -38,7 +38,7 @@ FLY_REGISTER_STORAGE_BUFFER(readonly, Vertex, {
 
 vec3 DecodeVector3(uint quantized)
 {
-    const float scale = 1.0 / 1023.0; // 10-bit max value is 1023
+    const float scale = 1.0 / 1023.0;
 
     uint xBits = (quantized >> 20) & 0x3FFu;
     uint yBits = (quantized >> 10) & 0x3FFu;
