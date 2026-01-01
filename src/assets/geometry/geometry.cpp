@@ -94,23 +94,12 @@ private:
     T* data;
 };
 
-typedef void (*VertexTransformFunc)(Vertex& vertex, void* userData);
-
-struct TransformData
-{
-    f32 scale;
-    CoordSystem coordSystem;
-    bool flipForward;
-};
-
-static void TransformVertex(Vertex& vertex, void* userData)
+static void TransformVertex(Vertex& vertex, f32 scale, CoordSystem coordSystem,
+                            bool flipForward)
 {
     FLY_ASSERT(userData);
 
-    const TransformData& transformData =
-        *static_cast<const TransformData*>(userData);
-
-    switch (transformData.coordSystem)
+    switch (coordSystem)
     {
         case CoordSystem::XZY:
         {
@@ -168,8 +157,8 @@ static void TransformVertex(Vertex& vertex, void* userData)
         }
     }
 
-    vertex.position *= transformData.scale;
-    if (transformData.flipForward)
+    vertex.position *= scale;
+    if (flipForward)
     {
         vertex.position.z *= -1.0f;
         vertex.normal.z *= -1.0f;
@@ -178,25 +167,13 @@ static void TransformVertex(Vertex& vertex, void* userData)
     }
 }
 
-static void ApplyVertexTransformToGeometry(
-    Geometry& geometry, VertexTransformFunc vertexTransformFunc, void* userData)
-{
-    FLY_ASSERT(vertexTransformFunc);
-    for (u32 i = 0; i < geometry.vertexCount; i++)
-    {
-        vertexTransformFunc(geometry.vertices[i], userData);
-    }
-}
-
 void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
                        Geometry& geometry)
 {
-    TransformData transformData;
-    transformData.scale = scale;
-    transformData.coordSystem = coordSystem;
-    transformData.flipForward = flipForward;
-
-    ApplyVertexTransformToGeometry(geometry, TransformVertex, &transformData);
+    for (u32 i = 0; i < geometry.vertexCount; i++)
+    {
+        TransformVertex(geometry.vertices[i], scale, coordSystem, flipForward);
+    }
 }
 
 static void CalculateTangents(Geometry& geometry)

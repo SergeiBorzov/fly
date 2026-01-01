@@ -113,9 +113,10 @@ private:
 };
 
 static bool CookImagesGltf(String8 path, const cgltf_data* data,
+                           const SceneExportOptions& options,
                            SceneData& sceneData)
 {
-    if (data->textures_count == 0)
+    if (data->textures_count == 0 || !options.exportMaterials)
     {
         return true;
     }
@@ -206,12 +207,21 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
     return true;
 }
 
-static void CookMaterialsGltf(const cgltf_data* data, SceneData& sceneData)
+static void CookMaterialsGltf(const cgltf_data* data,
+                              const SceneExportOptions& options,
+                              SceneData& sceneData)
 {
-    if (!data->materials_count)
+    if (!data->materials_count || !options.exportMaterials)
     {
         sceneData.materials = nullptr;
         sceneData.materialCount = 0;
+        for (u32 i = 0; i < sceneData.geometryCount; i++)
+        {
+            for (u32 j = 0; j < sceneData.geometries[i].subgeometryCount; j++)
+            {
+                sceneData.geometries[i].subgeometries[j].materialIndex = -1;
+            }
+        }
         return;
     }
 
@@ -254,9 +264,90 @@ static void CookMaterialsGltf(const cgltf_data* data, SceneData& sceneData)
     sceneData.materialCount = materialCount;
 }
 
-static void CookNodesGltf(const cgltf_data* data, SceneData& sceneData)
+static void TransformSerializedNode(f32 scale, CoordSystem coordSystem,
+                                    bool flipForward, SerializedSceneNode& node)
 {
-    if (!data->nodes_count)
+    switch (coordSystem)
+    {
+        case CoordSystem::XZY:
+        {
+            node.localPosition =
+                Math::Vec3(node.localPosition.x, node.localPosition.z,
+                           node.localPosition.y);
+            node.localRotation =
+                Math::Quat(node.localRotation.x, node.localRotation.z,
+                           node.localRotation.y, node.localRotation.w);
+            node.localScale = Math::Vec3(node.localScale.x, node.localScale.z,
+                                         node.localScale.y);
+            break;
+        }
+        case CoordSystem::YXZ:
+        {
+            node.localPosition =
+                Math::Vec3(node.localPosition.y, node.localPosition.x,
+                           node.localPosition.z);
+            node.localRotation =
+                Math::Quat(node.localRotation.y, node.localRotation.x,
+                           node.localRotation.z, node.localRotation.w);
+            node.localScale = Math::Vec3(node.localScale.y, node.localScale.x,
+                                         node.localScale.z);
+            break;
+        }
+        case CoordSystem::YZX:
+        {
+            node.localPosition =
+                Math::Vec3(node.localPosition.y, node.localPosition.z,
+                           node.localPosition.x);
+            node.localRotation =
+                Math::Quat(node.localRotation.y, node.localRotation.z,
+                           node.localRotation.x, node.localRotation.w);
+            node.localScale = Math::Vec3(node.localScale.y, node.localScale.z,
+                                         node.localScale.x);
+            break;
+        }
+        case CoordSystem::ZXY:
+        {
+            node.localPosition =
+                Math::Vec3(node.localPosition.z, node.localPosition.x,
+                           node.localPosition.y);
+            node.localRotation =
+                Math::Quat(node.localRotation.z, node.localRotation.x,
+                           node.localRotation.y, node.localRotation.w);
+            node.localScale = Math::Vec3(node.localScale.z, node.localScale.x,
+                                         node.localScale.y);
+            break;
+        }
+        case CoordSystem::ZYX:
+        {
+            node.localPosition =
+                Math::Vec3(node.localPosition.z, node.localPosition.y,
+                           node.localPosition.x);
+            node.localRotation =
+                Math::Quat(node.localRotation.z, node.localRotation.y,
+                           node.localRotation.x, node.localRotation.w);
+            node.localScale = Math::Vec3(node.localScale.z, node.localScale.y,
+                                         node.localScale.x);
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+
+    node.localPosition *= scale;
+    if (flipForward)
+    {
+        node.localPosition.z *= -1.0f;
+        node.localRotation.z *= -1.0f;
+    }
+}
+
+static void CookNodesGltf(const cgltf_data* data,
+                          const SceneExportOptions& options,
+                          SceneData& sceneData)
+{
+    if (!data->nodes_count || !options.exportNodes)
     {
         sceneData.nodes = nullptr;
         sceneData.nodeCount = 0;
@@ -334,15 +425,26 @@ static void CookNodesGltf(const cgltf_data* data, SceneData& sceneData)
         Alloc(sizeof(SerializedSceneNode) * sceneNodes.Count()));
     memcpy(sceneData.nodes, sceneNodes.Data(),
            sizeof(SerializedSceneNode) * sceneNodes.Count());
+
+    if (options.scale != 1.0f || options.coordSystem != CoordSystem::XYZ ||
+        options.flipForward)
+    {
+        for (u32 i = 0; i < sceneData.nodeCount; i++)
+        {
+            TransformSerializedNode(options.scale, options.coordSystem,
+                                    options.flipForward, sceneData.nodes[i]);
+        }
+    }
 }
 
 static bool CookSceneGltf(String8 path, const cgltf_data* data,
+                          const SceneExportOptions& options,
                           SceneData& sceneData)
 {
     FLY_ASSERT(path);
     FLY_ASSERT(data);
 
-    if (!CookImagesGltf(path, data, sceneData))
+    if (!CookImagesGltf(path, data, options, sceneData))
     {
         return false;
     }
@@ -355,16 +457,27 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
 
     for (u32 i = 0; i < sceneData.geometryCount; i++)
     {
+        if (options.scale != 1.0f || options.coordSystem != CoordSystem::XYZ ||
+            options.flipForward)
+        {
+            TransformGeometry(options.scale, options.coordSystem,
+                              options.flipForward, sceneData.geometries[i]);
+        }
+        if (options.flipWindingOrder)
+        {
+            FlipGeometryWindingOrder(sceneData.geometries[i]);
+        }
         CookGeometry(sceneData.geometries[i]);
     }
 
-    CookNodesGltf(data, sceneData);
-    CookMaterialsGltf(data, sceneData);
+    CookNodesGltf(data, options, sceneData);
+    CookMaterialsGltf(data, options, sceneData);
 
     return true;
 }
 
-bool CookScene(String8 path, SceneData& sceneData)
+bool CookScene(String8 path, const SceneExportOptions& cookOptions,
+               SceneData& sceneData)
 {
 
     if (path.EndsWith(FLY_STRING8_LITERAL(".gltf")) ||
@@ -388,7 +501,7 @@ bool CookScene(String8 path, SceneData& sceneData)
             return false;
         }
 
-        bool res = CookSceneGltf(path, data, sceneData);
+        bool res = CookSceneGltf(path, data, cookOptions, sceneData);
         cgltf_free(data);
         return res;
     }

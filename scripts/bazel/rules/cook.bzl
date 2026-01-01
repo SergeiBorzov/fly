@@ -26,42 +26,6 @@ def _cook_images_impl(ctx):
 
     return [DefaultInfo(files = depset(outs))]
 
-def _cook_meshes_impl(ctx):
-    outs = []
-    for f in ctx.files.outputs:
-        out = ctx.actions.declare_file(f.basename)
-        outs.append(out)
-
-    inputs = []
-    for f in ctx.files.inputs:
-        if f.path.endswith(".obj") or f.path.endswith(".OBJ") or \
-           f.path.endswith(".gltf") or f.path.endswith(".GLTF") or \
-           f.path.endswith(".glb") or f.path.endswith(".GLB"):
-            inputs.append(f.path)
-
-    extra_options = []
-    extra_options.append("-s")
-    extra_options.append(ctx.attr.scale)
-    extra_options.append("-c")
-    extra_options.append(ctx.attr.coord_system)
-    if ctx.attr.flip_forward:
-        extra_options.append("-ff")
-    if ctx.attr.flip_winding_order:
-        extra_options.append("-fw")
-
-    ctx.actions.run(
-        inputs = ctx.files.inputs,
-        outputs = outs,
-        executable = ctx.executable._command,
-        arguments = [
-            "-i"
-        ] +
-        [f for f in inputs] +
-        extra_options + ["-o"] + [f.path for f in outs],
-    )
-
-    return [DefaultInfo(files = depset(outs))]
-
 def _cook_scenes_impl(ctx):
     outs = []
     for f in ctx.files.outputs:
@@ -76,6 +40,18 @@ def _cook_scenes_impl(ctx):
             inputs.append(f.path)
             
     extra_options = []
+    extra_options.append("-s")
+    extra_options.append(ctx.attr.scale)
+    extra_options.append("-c")
+    extra_options.append(ctx.attr.coord_system)
+    if ctx.attr.flip_forward:
+        extra_options.append("-ff")
+    if ctx.attr.flip_winding_order:
+        extra_options.append("-fw")
+    if not ctx.attr.export_nodes:
+        extra_options.append("-nn")
+    if not ctx.attr.export_materials:
+        extra_options.append("-nm")
 
     ctx.actions.run(
         inputs = ctx.files.inputs,
@@ -135,40 +111,6 @@ cook_images = rule(
     },
 )
 
-cook_meshes = rule(
-    implementation = _cook_meshes_impl,
-    attrs = {
-        "inputs": attr.label_list(
-            mandatory = True,
-            allow_empty = False,
-            allow_files = True,
-        ),
-        "outputs": attr.label_list(
-            mandatory = True,
-            allow_empty = False,
-            allow_files = True,
-        ),
-        "_command": attr.label(
-            cfg = "exec",
-            executable = True,
-            default = Label("//src/assets/geometry:cooker"),
-        ),
-        "scale": attr.string(
-            default = "1.0"
-        ),
-        "coord_system": attr.string(
-            default = "xyz",
-            values = ["xyz", "xzy", "yxz", "yzx", "zxy", "zyx"],
-        ),
-        "flip_forward": attr.bool(
-            default = False,
-        ),
-        "flip_winding_order": attr.bool(
-            default = False,
-        ),
-    },
-)
-
 cook_scenes = rule(
     implementation = _cook_scenes_impl,
     attrs = {
@@ -186,6 +128,25 @@ cook_scenes = rule(
             cfg = "exec",
             executable = True,
             default = Label("//src/assets/scene:cooker"),
+        ),
+        "scale": attr.string(
+            default = "1.0"
+        ),
+        "coord_system": attr.string(
+            default = "xyz",
+            values = ["xyz", "xzy", "yxz", "yzx", "zxy", "zyx"],
+        ),
+        "flip_forward": attr.bool(
+            default = False,
+        ),
+        "flip_winding_order": attr.bool(
+            default = False,
+        ),
+        "export_nodes": attr.bool(
+            default = True,
+        ),
+        "export_materials": attr.bool(
+            default = True,
         ),
     },
 )

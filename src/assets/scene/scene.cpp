@@ -170,23 +170,24 @@ static bool ImportMaterials(RHI::Device& device,
                             const SerializedPBRMaterial* pbrMaterialStart,
                             Scene& scene)
 {
-    if (!fileHeader->materialCount)
-    {
-        return true;
-    }
-
-    scene.materialCount = fileHeader->materialCount;
+    scene.materialCount = fileHeader->materialCount + 1;
 
     Arena& arena = GetScratchArena();
     ArenaMarker marker = ArenaGetMarker(arena);
     PBRMaterial* pbrMaterials =
-        FLY_PUSH_ARENA(arena, PBRMaterial, fileHeader->materialCount);
+        FLY_PUSH_ARENA(arena, PBRMaterial, scene.materialCount);
+
+    pbrMaterials[0] = {};
+    pbrMaterials[0].baseColor = Math::Vec4(1.0f, 0.0f, 1.0f, 1.0f);
+    pbrMaterials[0].baseColorTextureBindlessHandle =
+        scene.whiteTexture.bindlessHandle;
+    pbrMaterials[0].normalTextureBindlessHandle =
+        scene.flatNormalTexture.bindlessHandle;
 
     for (u32 i = 0; i < fileHeader->materialCount; i++)
     {
-        const SerializedPBRMaterial& serializedMaterial =
-            *(pbrMaterialStart + i);
-        PBRMaterial& material = pbrMaterials[i];
+        const SerializedPBRMaterial& serializedMaterial = pbrMaterialStart[i];
+        PBRMaterial& material = pbrMaterials[i + 1];
         material = {};
 
         material.baseColorTextureBindlessHandle =
@@ -212,7 +213,7 @@ static bool ImportMaterials(RHI::Device& device,
     bool res = RHI::CreateBuffer(
         device, false,
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        pbrMaterials, sizeof(PBRMaterial) * fileHeader->materialCount,
+        pbrMaterials, sizeof(PBRMaterial) * scene.materialCount,
         scene.pbrMaterialBuffer);
 
     ArenaPopToMarker(arena, marker);
@@ -257,8 +258,16 @@ static void ImportMeshes(const SceneFileHeader* fileHeader,
 
         for (u32 j = 0; j < meshHeader.submeshCount; j++)
         {
-            mesh.submeshes[j].materialIndex =
+            i32 materialIndex =
                 *(submeshMaterialIndexStart + submeshOffset + j);
+            if (materialIndex != -1)
+            {
+                mesh.submeshes[j].materialIndex = materialIndex + 1;
+            }
+            else
+            {
+                mesh.submeshes[j].materialIndex = 0;
+            }
 
             MemZero(mesh.submeshes[j].lods, sizeof(LOD) * FLY_MAX_LOD_COUNT);
             memcpy(mesh.submeshes[j].lods, lodStart + lodOffset,
