@@ -9,9 +9,13 @@ copy_molten_vk()
 cook_scenes(
     name = "scenes",
     inputs = [
+        "@gltf_sample_models//:sponza_scene",
+        "@gltf_sample_models//:damaged_helmet_scene",
         "@gltf_sample_models//:a_beautiful_game_scene",
     ],
     outputs = [
+        "sponza.fscene",
+        "damaged_helmet.fscene",
         "a_beautiful_game.fscene",
     ],
 )

@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "core/clock.h"
 #include "core/log.h"
 #include "core/thread_context.h"
@@ -20,6 +22,7 @@ static RHI::GraphicsPipeline sGraphicsPipeline;
 static RHI::Buffer sUniformBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
 static RHI::Texture sDepthTexture;
 
+static i32 sCurrentLodLevel = 0;
 static Scene sScene;
 
 struct UniformData
@@ -31,12 +34,44 @@ struct UniformData
 static Fly::SimpleCameraFPS sCamera(80.0f, 1280.0f / 720.0f, 0.01f, 100.0f,
                                     Fly::Math::Vec3(0.0f, 0.0f, 5.0f));
 
+static bool ImportNextScene(RHI::Device& device)
+{
+    static u32 currentSceneIndex = 0;
+    vkQueueWaitIdle(device.graphicsComputeQueue);
+
+    static String8 scenes[] = {FLY_STRING8_LITERAL("damaged_helmet.fscene"),
+                               FLY_STRING8_LITERAL("sponza.fscene"),
+                               FLY_STRING8_LITERAL("a_beautiful_game.fscene")};
+
+    currentSceneIndex = (currentSceneIndex + 1) % STACK_ARRAY_COUNT(scenes);
+
+    return ImportScene(scenes[currentSceneIndex], device, sScene);
+}
+
 static void OnKeyboardPressed(GLFWwindow* window, int key, int scancode,
                               int action, int mods)
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, true);
+    }
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS)
+    {
+        RHI::Device* pDevice =
+            static_cast<RHI::Device*>(glfwGetWindowUserPointer(window));
+        if (!ImportNextScene(*pDevice))
+        {
+            exit(-1);
+        }
+    }
+    if (key == GLFW_KEY_K && action == GLFW_PRESS)
+    {
+        sCurrentLodLevel = Math::Max(sCurrentLodLevel - 1, 0);
+    }
+    if (key == GLFW_KEY_L && action == GLFW_PRESS)
+    {
+        sCurrentLodLevel = Math::Min(sCurrentLodLevel + 1,
+                                     static_cast<i32>(FLY_MAX_LOD_COUNT) - 1);
     }
 }
 
@@ -123,21 +158,6 @@ static bool CreateResources(RHI::Device& device)
         }
     }
 
-    if (!ImportScene(FLY_STRING8_LITERAL("a_beautiful_game.fscene"), device,
-                     sScene))
-    {
-        return false;
-    }
-
-    FLY_LOG("Scene has %u textures", sScene.textureCount);
-    FLY_LOG("Scene has %u meshes", sScene.meshCount);
-    FLY_LOG("Scene has %u nodes", sScene.nodeCount);
-    FLY_LOG("Scene has %u materials", sScene.materialCount);
-    for (u32 i = 0; i < sScene.meshCount; i++)
-    {
-        FLY_LOG("Mesh %u has %u submeshes", i, sScene.meshes[i].submeshCount);
-    }
-
     return true;
 }
 
@@ -148,7 +168,6 @@ static void DestroyResources(RHI::Device& device)
         RHI::DestroyBuffer(device, sUniformBuffers[i]);
     }
     RHI::DestroyTexture(device, sDepthTexture);
-    DestroyScene(device, sScene);
 }
 
 static void RecordDrawScene(RHI::CommandBuffer& cmd,
@@ -186,10 +205,13 @@ static void RecordDrawScene(RHI::CommandBuffer& cmd,
                 i32 materialIndex = node.mesh->submeshes[j].materialIndex;
                 RHI::PushConstants(cmd, &materialIndex, sizeof(materialIndex),
                                    sizeof(Math::Mat4) + sizeof(u32) * 3);
-                RHI::DrawIndexed(cmd,
-                                 node.mesh->submeshes[j].lods[0].indexCount, 1,
-                                 node.mesh->submeshes[j].lods[0].firstIndex,
-                                 node.mesh->vertexOffset, 0);
+                i32 lodLevel =
+                    Math::Min(sCurrentLodLevel,
+                              static_cast<i32>(node.mesh->lodCount) - 1);
+                RHI::DrawIndexed(
+                    cmd, node.mesh->submeshes[j].lods[lodLevel].indexCount, 1,
+                    node.mesh->submeshes[j].lods[lodLevel].firstIndex,
+                    node.mesh->vertexOffset, 0);
             }
         }
     }
@@ -237,7 +259,7 @@ int main(int argc, char* argv[])
     glfwSetErrorCallback(ErrorCallbackGLFW);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window =
-        glfwCreateWindow(1280, 720, "Sponza gltf", nullptr, nullptr);
+        glfwCreateWindow(1280, 720, "Gltf demo", nullptr, nullptr);
     if (!window)
     {
         FLY_ERROR("Failed to create glfw window");
@@ -266,6 +288,7 @@ int main(int argc, char* argv[])
     }
     RHI::Device& device = context.devices[0];
     device.swapchainRecreatedCallback.func = OnFramebufferResize;
+    glfwSetWindowUserPointer(window, &device);
 
     if (!CreatePipeline(device))
     {
@@ -275,6 +298,20 @@ int main(int argc, char* argv[])
     if (!CreateResources(device))
     {
         return -1;
+    }
+
+    if (!ImportNextScene(device))
+    {
+        return false;
+    }
+
+    FLY_LOG("Scene has %u textures", sScene.textureCount);
+    FLY_LOG("Scene has %u meshes", sScene.meshCount);
+    FLY_LOG("Scene has %u nodes", sScene.nodeCount);
+    FLY_LOG("Scene has %u materials", sScene.materialCount);
+    for (u32 i = 0; i < sScene.meshCount; i++)
+    {
+        FLY_LOG("Mesh %u has %u submeshes", i, sScene.meshes[i].submeshCount);
     }
 
     u64 previousFrameTime = 0;
@@ -302,6 +339,7 @@ int main(int argc, char* argv[])
 
     RHI::WaitAllDevicesIdle(context);
     DestroyResources(device);
+    DestroyScene(device, sScene);
     DestroyPipeline(device);
     RHI::DestroyContext(context);
 
