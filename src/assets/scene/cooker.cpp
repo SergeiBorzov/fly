@@ -2,11 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "assets/geometry/geometry.h"
 #include "core/thread_context.h"
 
-#include "export_scene.h"
-#include "scene_data.h"
+#include "assets/scene/geometry.h"
+#include "assets/scene/scene_data.h"
 
 using namespace Fly;
 
@@ -187,15 +186,17 @@ static void ProcessInput(Input& input)
     for (u32 i = 0; i < input.inputCount; i++)
     {
         SceneData sceneData{};
-        if (!CookScene(input.inputs[i], input.options, sceneData))
+        if (!CookSceneData(input.inputs[i], input.options, sceneData))
         {
             exit(-5);
         }
 
-        if (!ExportScene(input.outputs[i], sceneData))
+        if (!ExportSceneData(input.outputs[i], sceneData))
         {
             exit(-6);
         }
+
+        DestroySceneData(sceneData);
     }
 }
 

@@ -2,16 +2,35 @@
 #define FLY_ASSETS_SCENE_SCENE_H
 
 #include "core/types.h"
+#include "core/string8.h"
 
 #include "math/transform.h"
-
-#include "assets/geometry/mesh.h"
 
 #include "rhi/buffer.h"
 #include "rhi/texture.h"
 
+#include "assets/scene/scene_common.h"
+
 namespace Fly
 {
+
+struct Submesh
+{
+    LOD lods[FLY_MAX_LOD_COUNT];
+    i32 materialIndex = -1;
+};
+
+struct Mesh
+{
+    Math::Vec3 sphereCenter;
+    Submesh* submeshes;
+    u32 submeshCount;
+    u32 vertexCount;
+    u32 indexCount;
+    f32 sphereRadius;
+    i32 vertexOffset;
+    u8 lodCount;
+};
 
 struct SceneNode
 {

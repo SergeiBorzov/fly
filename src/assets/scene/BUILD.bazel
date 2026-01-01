@@ -1,21 +1,26 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 
 cc_library(
-    name = "export_scene",
+    name = "scene_data",
     srcs = [
-        "export_scene.cpp",
+        "scene_data.cpp",
+        "geometry.cpp",
     ],
     hdrs = [
-        "export_scene.h",
+        "geometry.h",
         "scene_data.h",
-        "scene_serialization_types.h",
+        "scene_common.h",
     ],
     deps = [
-        "//src/assets/geometry:geometry",
+        "//src/core:core",
+        "//src/math:math",
         "//src/assets/image:import_image",
         "//src/assets/image:export_image",
         "@cgltf//:cgltf",
+        "@fast_obj//:fast_obj",
+        "@meshoptimizer//:meshoptimizer",
     ],
+    includes = ["../.."],
     visibility = ["//visibility:public"],
 )
 
@@ -26,13 +31,12 @@ cc_library(
     ],
     hdrs = [
         "scene.h",
-        "scene_serialization_types.h",
+        "scene_common.h",
     ],
     deps = [
         "//src/core:filesystem",
         "//src/math:math",
         "//src/rhi:context",
-        "//src/assets/geometry:mesh",
         "//src/assets/image:import_image",
     ],
     visibility = ["//visibility:public"],
@@ -44,7 +48,7 @@ cc_binary(
         "cooker.cpp",
     ],
     deps = [
-        ":export_scene",
+        ":scene_data",
     ],
     visibility = ["//visibility:public"],
 )

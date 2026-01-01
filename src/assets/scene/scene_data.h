@@ -1,6 +1,7 @@
 #ifndef FLY_ASSETS_SCENE_DATA_H
 #define FLY_ASSETS_SCENE_DATA_H
 
+#include "core/string8.h"
 #include "core/types.h"
 
 namespace Fly
@@ -10,6 +11,7 @@ struct Geometry;
 struct Image;
 struct SerializedSceneNode;
 struct SerializedPBRMaterial;
+struct SceneExportOptions;
 
 struct SceneData
 {
@@ -22,6 +24,11 @@ struct SceneData
     u32 imageCount = 0;
     u32 materialCount = 0;
 };
+
+bool CookSceneData(String8 path, const SceneExportOptions& options,
+               SceneData& sceneStorage);
+bool ExportSceneData(String8 path, const SceneData& sceneStorage);
+void DestroySceneData(SceneData& sceneData);
 
 } // namespace Fly
 

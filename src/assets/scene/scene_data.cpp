@@ -11,12 +11,9 @@
 #include "assets/image/import_image.h"
 #include "assets/image/transform_image.h"
 
-#include "assets/geometry/geometry.h"
-#include "assets/geometry/vertex_layout.h"
-
-#include "export_scene.h"
+#include "geometry.h"
+#include "scene_common.h"
 #include "scene_data.h"
-#include "scene_serialization_types.h"
 
 #include <limits.h>
 #include <unistd.h>
@@ -476,38 +473,6 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
     return true;
 }
 
-bool CookScene(String8 path, const SceneExportOptions& cookOptions,
-               SceneData& sceneData)
-{
-
-    if (path.EndsWith(FLY_STRING8_LITERAL(".gltf")) ||
-        path.EndsWith(FLY_STRING8_LITERAL(".GLTF")) ||
-        path.EndsWith(FLY_STRING8_LITERAL(".glb")) ||
-        path.EndsWith(FLY_STRING8_LITERAL(".GLB")))
-    {
-        const cgltf_options options{};
-        cgltf_data* data = nullptr;
-
-        if (cgltf_parse_file(&options, path.Data(), &data) !=
-            cgltf_result_success)
-        {
-            return false;
-        }
-
-        if (cgltf_load_buffers(&options, data, path.Data()) !=
-            cgltf_result_success)
-        {
-            cgltf_free(data);
-            return false;
-        }
-
-        bool res = CookSceneGltf(path, data, cookOptions, sceneData);
-        cgltf_free(data);
-        return res;
-    }
-    return false;
-}
-
 static void SerializeNodes(const SceneData& sceneData,
                            SerializedSceneNode* sceneNodeStart)
 {
@@ -605,7 +570,39 @@ static void SerializeMeshes(const SceneData& sceneData,
     }
 }
 
-bool ExportScene(String8 path, const SceneData& sceneData)
+bool CookSceneData(String8 path, const SceneExportOptions& cookOptions,
+                   SceneData& sceneData)
+{
+
+    if (path.EndsWith(FLY_STRING8_LITERAL(".gltf")) ||
+        path.EndsWith(FLY_STRING8_LITERAL(".GLTF")) ||
+        path.EndsWith(FLY_STRING8_LITERAL(".glb")) ||
+        path.EndsWith(FLY_STRING8_LITERAL(".GLB")))
+    {
+        const cgltf_options options{};
+        cgltf_data* data = nullptr;
+
+        if (cgltf_parse_file(&options, path.Data(), &data) !=
+            cgltf_result_success)
+        {
+            return false;
+        }
+
+        if (cgltf_load_buffers(&options, data, path.Data()) !=
+            cgltf_result_success)
+        {
+            cgltf_free(data);
+            return false;
+        }
+
+        bool res = CookSceneGltf(path, data, cookOptions, sceneData);
+        cgltf_free(data);
+        return res;
+    }
+    return false;
+}
+
+bool ExportSceneData(String8 path, const SceneData& sceneData)
 {
     u64 totalIndexCount = 0;
     u64 totalVertexCount = 0;
@@ -690,6 +687,37 @@ bool ExportScene(String8 path, const SceneData& sceneData)
     Free(data);
 
     return res;
+}
+
+void DestroySceneData(SceneData& sceneData)
+{
+    if (sceneData.materials)
+    {
+        Free(sceneData.materials);
+    }
+
+    if (sceneData.nodes)
+    {
+        Free(sceneData.nodes);
+    }
+
+    if (sceneData.geometries)
+    {
+        for (u32 i = 0; i < sceneData.geometryCount; i++)
+        {
+            DestroyGeometry(sceneData.geometries[i]);
+        }
+    }
+
+    if (sceneData.images)
+    {
+        for (u32 i = 0; i < sceneData.imageCount; i++)
+        {
+            Free(sceneData.images[i].data);
+        }
+    }
+
+    sceneData = {};
 }
 
 } // namespace Fly

@@ -6,12 +6,9 @@
 #include "rhi/device.h"
 #include "rhi/texture.h"
 
-#include "assets/geometry/mesh.h"
-#include "assets/geometry/vertex_layout.h"
 #include "assets/image/image.h"
 
 #include "scene.h"
-#include "scene_serialization_types.h"
 
 namespace Fly
 {

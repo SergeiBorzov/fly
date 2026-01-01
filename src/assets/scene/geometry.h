@@ -4,7 +4,7 @@
 #include "core/string8.h"
 #include "math/vec.h"
 
-#include "vertex_layout.h"
+#include "assets/scene/scene_common.h"
 
 struct cgltf_data;
 
@@ -19,6 +19,16 @@ enum class CoordSystem : u8
     YZX = 3,
     ZXY = 4,
     ZYX = 5
+};
+
+struct SceneExportOptions
+{
+    f32 scale = 1.0f;
+    bool flipForward = false;
+    bool flipWindingOrder = false;
+    CoordSystem coordSystem = CoordSystem::XYZ;
+    bool exportNodes = true;
+    bool exportMaterials = true;
 };
 
 struct Subgeometry

@@ -8,42 +8,6 @@
 namespace Fly
 {
 
-struct SerializedSceneNode
-{
-    Math::Quat localRotation = Math::Quat();
-    Math::Vec3 localPosition = Math::Vec3(0.0f);
-    Math::Vec3 localScale = Math::Vec3(1.0f);
-    i64 meshIndex = -1;
-    i64 parentIndex = -1;
-};
-
-struct SerializedPBRMaterial
-{
-    Math::Vec4 baseColor = Math::Vec4(1.0f);
-    i32 baseColorTextureIndex = -1;
-    i32 normalTextureIndex = -1;
-    f32 roughness = 0.5f;
-    f32 metallic = 0.0f;
-    // i32 ormTextureIndex = -1;
-};
-
-struct SceneFileHeader
-{
-    struct
-    {
-        u32 major;
-        u32 minor;
-        u32 patch;
-    } version;
-    u64 totalVertexCount = 0;
-    u64 totalIndexCount = 0;
-    u32 totalSubmeshCount = 0;
-    u32 totalLodCount = 0;
-    u32 textureCount = 0;
-    u32 meshCount = 0;
-    u32 materialCount = 0;
-    u32 nodeCount = 0;
-};
 
 } // namespace Fly
 
