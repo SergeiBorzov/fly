@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl", "glsl_shader")
-load("@fly//scripts/bazel/rules:cook.bzl", "cook_meshes", "cook_images")
+load("@fly//scripts/bazel/rules:cook.bzl", "cook_scenes", "cook_images")
 load("@fly//scripts/bazel/rules:common.bzl", "copy_vulkan_layers", "copy_molten_vk")
 
 copy_vulkan_layers()
@@ -18,13 +18,13 @@ cook_images(
     eq2cube = True,
 )
 
-cook_meshes(
-    name = "cook_dragon_mesh",
+cook_scenes(
+    name = "cook_dragon_scene",
     inputs = [
         "@casual_effects//:dragon/dragon.obj",
     ],
     outputs = [
-        "dragon.fmesh",
+        "dragon.fscene",
     ],
     scale = "5.0",
     flip_forward = True,
@@ -152,11 +152,11 @@ cc_binary(
         "@imgui//:imgui",
         "//src/rhi:context",
         "//src/utils:utils",
-        "//src/assets/geometry:mesh",
+        "//src/assets/scene:scene",
         "//demos/common:simple_camera_fps",
     ],
     data = [
-        ":cook_dragon_mesh",
+        ":cook_dragon_scene",
         ":cook_skybox",
         ":lit.vert.spv",
         ":lit.frag.spv",

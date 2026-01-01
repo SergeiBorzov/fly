@@ -315,8 +315,8 @@ static void ExtractGeometryDataFromObj(const fastObjMesh& mesh,
     }
 }
 
-static bool ImportGeometriesObj(const void* pMesh, Geometry** ppGeometries,
-                                u32& geometryCount)
+bool ImportGeometriesObj(const void* pMesh, Geometry** ppGeometries,
+                         u32& geometryCount)
 {
     FLY_ASSERT(ppGeometries);
     geometryCount = 0;
@@ -574,46 +574,6 @@ bool ImportGeometriesGltf(const cgltf_data* data, Geometry** ppGeometries,
     ArenaPopToMarker(arena, marker);
 
     return true;
-}
-
-bool ImportGeometries(String8 path, Geometry** geometries, u32& geometryCount)
-{
-    String8 extension = String8::FindLast(path, '.');
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".obj")) ||
-        extension.StartsWith(FLY_STRING8_LITERAL(".OBJ")))
-    {
-        fastObjMesh* mesh = fast_obj_read(path.Data());
-        bool res = ImportGeometriesObj(mesh, geometries, geometryCount);
-        fast_obj_destroy(mesh);
-
-        return res;
-    }
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".gltf")) ||
-        extension.StartsWith(FLY_STRING8_LITERAL(".GLTF")) ||
-        extension.StartsWith(FLY_STRING8_LITERAL(".glb")) ||
-        extension.StartsWith(FLY_STRING8_LITERAL(".GLB")))
-    {
-        const cgltf_options options{};
-        cgltf_data* data = nullptr;
-
-        if (cgltf_parse_file(&options, path.Data(), &data) !=
-            cgltf_result_success)
-        {
-            return false;
-        }
-
-        if (cgltf_load_buffers(&options, data, path.Data()) !=
-            cgltf_result_success)
-        {
-            cgltf_free(data);
-            return false;
-        }
-        bool res = ImportGeometriesGltf(data, geometries, geometryCount);
-        cgltf_free(data);
-
-        return res;
-    }
-    return false;
 }
 
 void FlipGeometryWindingOrder(Geometry& geometry)
@@ -875,107 +835,6 @@ void CookGeometry(Geometry& geometry)
     CalculateBoundingSphere(geometry);
     GenerateGeometryLODs(geometry);
     QuantizeGeometry(geometry);
-}
-
-bool ExportGeometries(String8 path, const Geometry* geometries,
-                      u32 geometryCount)
-{
-    if (!geometries || geometryCount == 0)
-    {
-        return false;
-    }
-
-    u64 totalIndexCount = 0;
-    u64 totalVertexCount = 0;
-    u32 totalLodCount = 0;
-    for (u32 i = 0; i < geometryCount; i++)
-    {
-        totalVertexCount += geometries[i].vertexCount;
-        totalIndexCount += geometries[i].indexCount;
-        totalLodCount +=
-            geometries[i].lodCount * geometries[i].subgeometryCount;
-    }
-
-    u64 totalSize =
-        sizeof(MeshFileHeader) + sizeof(MeshHeader) * geometryCount +
-        sizeof(LOD) * totalLodCount + sizeof(QVertex) * totalVertexCount +
-        sizeof(u32) * totalIndexCount;
-
-    u64 offset = 0;
-    u8* data = static_cast<u8*>(Alloc(totalSize));
-
-    MeshFileHeader* fileHeader = reinterpret_cast<MeshFileHeader*>(data);
-    offset += sizeof(MeshFileHeader);
-
-    MeshHeader* meshHeaderStart = reinterpret_cast<MeshHeader*>(data + offset);
-    offset += sizeof(MeshHeader) * geometryCount;
-
-    LOD* lodStart = reinterpret_cast<LOD*>(data + offset);
-    offset += sizeof(LOD) * totalLodCount;
-
-    QVertex* vertexStart = reinterpret_cast<QVertex*>(data + offset);
-    offset += sizeof(QVertex) * totalVertexCount;
-
-    u32* indexStart = reinterpret_cast<u32*>(data + offset);
-
-    fileHeader->version = {1, 0, 0};
-    fileHeader->meshCount = geometryCount;
-    fileHeader->totalLodCount = totalLodCount;
-    fileHeader->totalVertexCount = totalVertexCount;
-    fileHeader->totalIndexCount = totalIndexCount;
-
-    u64 firstVertex = 0;
-    u64 firstIndex = 0;
-    u32 firstLod = 0;
-    for (u32 i = 0; i < geometryCount; i++)
-    {
-        const Geometry& geometry = geometries[i];
-
-        MeshHeader& meshHeader = *(meshHeaderStart + i);
-        meshHeader.sphereCenter = geometry.sphereCenter;
-        meshHeader.submeshCount = geometry.subgeometryCount;
-        meshHeader.vertexCount = geometry.vertexCount;
-        meshHeader.indexCount = geometry.indexCount;
-        meshHeader.lodCount = geometry.lodCount;
-        meshHeader.sphereRadius = geometry.sphereRadius;
-        meshHeader.firstLod = firstLod;
-        meshHeader.firstVertex = firstVertex;
-        meshHeader.firstIndex = firstIndex;
-
-        LOD* lodData = lodStart + firstLod;
-        QVertex* vertexData = vertexStart + firstVertex;
-        u32* indexData = indexStart + firstIndex;
-
-        for (u32 j = 0; j < geometry.subgeometryCount; j++)
-        {
-            const Subgeometry& sg = geometry.subgeometries[j];
-            memcpy(lodData + j * geometry.lodCount, sg.lods,
-                   sizeof(LOD) * geometry.lodCount);
-            for (u32 k = 0; k < geometry.lodCount; k++)
-            {
-                LOD* lod = lodData + j * geometry.lodCount + k;
-                lod->firstIndex += firstIndex;
-            }
-        }
-
-        memcpy(vertexData, geometry.qvertices,
-               sizeof(QVertex) * geometry.vertexCount);
-        memcpy(indexData, geometry.indices, sizeof(u32) * geometry.indexCount);
-
-        firstLod += geometry.subgeometryCount * geometry.lodCount;
-        firstVertex += geometry.vertexCount;
-        firstIndex += geometry.indexCount;
-    }
-
-    String8 str(reinterpret_cast<char*>(data), totalSize);
-    if (!WriteStringToFile(str, path))
-    {
-        Free(data);
-        return false;
-    }
-
-    Free(data);
-    return true;
 }
 
 } // namespace Fly

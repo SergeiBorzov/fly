@@ -1,4 +1,5 @@
 #include <cgltf.h>
+#include <fast_obj.h>
 
 #include "core/assert.h"
 #include "core/filesystem.h"
@@ -434,6 +435,38 @@ static void CookNodesGltf(const cgltf_data* data,
     }
 }
 
+static bool CookSceneObj(String8 path, const fastObjMesh* mesh,
+                         const SceneExportOptions& options,
+                         SceneData& sceneData)
+{
+    FLY_ASSERT(path);
+    FLY_ASSERT(mesh);
+
+    if (!ImportGeometriesObj(mesh, &sceneData.geometries,
+                             sceneData.geometryCount))
+    {
+        return false;
+    }
+
+    for (u32 i = 0; i < sceneData.geometryCount; i++)
+    {
+        if (options.scale != 1.0f || options.coordSystem != CoordSystem::XYZ ||
+            options.flipForward)
+        {
+            TransformGeometry(options.scale, options.coordSystem,
+                              options.flipForward, sceneData.geometries[i]);
+        }
+        if (options.flipWindingOrder)
+        {
+            FlipGeometryWindingOrder(sceneData.geometries[i]);
+        }
+        CookGeometry(sceneData.geometries[i]);
+    }
+
+    return true;
+    // TODO: images + materials + default node
+}
+
 static bool CookSceneGltf(String8 path, const cgltf_data* data,
                           const SceneExportOptions& options,
                           SceneData& sceneData)
@@ -597,6 +630,14 @@ bool CookSceneData(String8 path, const SceneExportOptions& cookOptions,
 
         bool res = CookSceneGltf(path, data, cookOptions, sceneData);
         cgltf_free(data);
+        return res;
+    }
+    else if (path.EndsWith(FLY_STRING8_LITERAL(".obj")) ||
+             path.EndsWith(FLY_STRING8_LITERAL(".OBJ")))
+    {
+        fastObjMesh* mesh = fast_obj_read(path.Data());
+        bool res = CookSceneObj(path, mesh, cookOptions, sceneData);
+        fast_obj_destroy(mesh);
         return res;
     }
     return false;

@@ -10,7 +10,7 @@
 #include "rhi/context.h"
 #include "rhi/pipeline.h"
 
-#include "assets/geometry/mesh.h"
+#include "assets/scene/scene.h"
 
 #include "utils/utils.h"
 
@@ -82,8 +82,6 @@ static RHI::ComputePipeline sRemapPipeline;
 static RHI::ComputePipeline sRadianceProjectionPipeline;
 static RHI::ComputePipeline sBrdfIntegrationPipeline;
 static RHI::Buffer sCameraBuffers[FLY_FRAME_IN_FLIGHT_COUNT];
-static RHI::Buffer sVertexBuffer;
-static RHI::Buffer sIndexBuffer;
 static RHI::Buffer sMeshInstances;
 static RHI::Buffer sMeshDataBuffer;
 static RHI::Buffer sDrawCommands;
@@ -98,8 +96,8 @@ static RHI::Texture sBrdfIntegrationLUT;
 static RHI::Texture sPrefilteredSkyboxTexture;
 static VkImageView* sHzbTextureImageViews;
 static VkImageView* sPrefilteredSkyboxImageViews;
-static Mesh* sMeshes;
-static u32 sMeshCount;
+
+static Scene sScene;
 
 static i32 sInstanceRowCount = 15;
 static bool sIsCullingFixed = false;
@@ -464,28 +462,18 @@ static void DestroyPipelines(RHI::Device& device)
 
 static bool CreateResources(RHI::Device& device)
 {
-    if (!ImportMeshes(FLY_STRING8_LITERAL("dragon.fmesh"), device, &sMeshes,
-                      sMeshCount, sVertexBuffer, sIndexBuffer))
+    if (!ImportScene(FLY_STRING8_LITERAL("dragon.fscene"), device, sScene))
     {
-        FLY_ERROR("Failed to import mesh");
         return false;
     }
-    FLY_ASSERT(sMeshCount == 1);
-    FLY_ASSERT(sMeshes[0].submeshCount == 1);
 
-    FLY_LOG("Bounding sphere center is %f %f %f and radius %f",
-            sMeshes[0].sphereCenter.x, sMeshes[0].sphereCenter.y,
-            sMeshes[0].sphereCenter.z, sMeshes[0].sphereRadius);
-    for (u32 i = 0; i < sMeshes[0].lodCount; i++)
-    {
-        FLY_LOG("LOD %u: triangle count %u", i,
-                sMeshes[0].submeshes[0].lods[i].indexCount / 3);
-    }
+    FLY_ASSERT(sScene.meshCount == 1);
+    FLY_ASSERT(sScene.meshes[0].submeshCount == 1);
 
     MeshData meshData;
-    meshData.center = sMeshes[0].sphereCenter;
-    meshData.radius = sMeshes[0].sphereRadius;
-    meshData.lodCount = sMeshes[0].lodCount;
+    meshData.center = sScene.meshes[0].sphereCenter;
+    meshData.radius = sScene.meshes[0].sphereRadius;
+    meshData.lodCount = sScene.meshes[0].lodCount;
 
     if (!RHI::CreateBuffer(device, false,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -504,14 +492,14 @@ static bool CreateResources(RHI::Device& device)
     for (u32 i = 0; i < FLY_MAX_LOD_COUNT; i++)
     {
         drawCommands[i] = {};
-        if (i < sMeshes[0].lodCount)
+        if (i < sScene.meshes[0].lodCount)
         {
             drawCommands[i].indexCount =
-                sMeshes[0].submeshes[0].lods[i].indexCount;
+                sScene.meshes[0].submeshes[0].lods[i].indexCount;
             drawCommands[i].instanceCount = 0;
             drawCommands[i].firstIndex =
-                sMeshes[0].submeshes[0].lods[i].firstIndex;
-            drawCommands[i].vertexOffset = sMeshes[0].vertexOffset;
+                sScene.meshes[0].submeshes[0].lods[i].firstIndex;
+            drawCommands[i].vertexOffset = sScene.meshes[0].vertexOffset;
             drawCommands[i].firstInstance = 0;
         }
     }
@@ -702,13 +690,7 @@ static void DestroyResources(RHI::Device& device)
 {
     RHI::DestroyQueryPool(device, sTimestampQueryPool);
 
-    for (u32 i = 0; i < sMeshCount; i++)
-    {
-        DestroyMesh(device, sMeshes[i]);
-    }
-    Free(sMeshes);
-    RHI::DestroyBuffer(device, sVertexBuffer);
-    RHI::DestroyBuffer(device, sIndexBuffer);
+    DestroyScene(device, sScene);
 
     for (u32 i = 0; i < FLY_FRAME_IN_FLIGHT_COUNT; i++)
     {
@@ -1179,10 +1161,10 @@ static void RecordPrepass(RHI::CommandBuffer& cmd,
     RHI::Buffer& meshInstanceBuffer = *(bufferInput[1].pBuffer);
     RHI::Buffer& remapBuffer = *(bufferInput[2].pBuffer);
 
-    RHI::BindIndexBuffer(cmd, sIndexBuffer, VK_INDEX_TYPE_UINT32);
+    RHI::BindIndexBuffer(cmd, sScene.indexBuffer, VK_INDEX_TYPE_UINT32);
 
     u32 pushConstants[] = {
-        cameraBuffer.bindlessHandle, sVertexBuffer.bindlessHandle,
+        cameraBuffer.bindlessHandle, sScene.vertexBuffer.bindlessHandle,
         remapBuffer.bindlessHandle, meshInstanceBuffer.bindlessHandle};
     RHI::PushConstants(cmd, pushConstants, sizeof(pushConstants));
 
@@ -1238,10 +1220,10 @@ static void RecordDrawMesh(RHI::CommandBuffer& cmd,
     RHI::Texture& brdfIntegrationLUT = *(textureInput[0].pTexture);
     RHI::Texture& prefilteredMap = *(textureInput[1].pTexture);
 
-    RHI::BindIndexBuffer(cmd, sIndexBuffer, VK_INDEX_TYPE_UINT32);
+    RHI::BindIndexBuffer(cmd, sScene.indexBuffer, VK_INDEX_TYPE_UINT32);
 
     u32 pushConstants[] = {cameraBuffer.bindlessHandle,
-                           sVertexBuffer.bindlessHandle,
+                           sScene.vertexBuffer.bindlessHandle,
                            remapBuffer.bindlessHandle,
                            meshInstanceBuffer.bindlessHandle,
                            radianceProjectionBuffer.bindlessHandle,
