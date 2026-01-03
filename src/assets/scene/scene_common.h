@@ -44,20 +44,6 @@ struct LOD
     u32 indexCount = 0;
 };
 
-struct MeshFileHeader
-{
-    struct
-    {
-        u32 major;
-        u32 minor;
-        u32 patch;
-    } version;
-    u32 meshCount;
-    u32 totalLodCount;
-    u32 totalVertexCount;
-    u32 totalIndexCount;
-};
-
 struct MeshHeader
 {
     Math::Vec3 sphereCenter;
