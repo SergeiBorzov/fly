@@ -263,6 +263,24 @@ bool ExportImage(String8 path, const Image& image)
             }
             break;
         }
+        case ImageStorageType::BC6:
+        {
+            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc6")))
+            {
+                return ExportCookedImage(path, image);
+            }
+        }
+        case ImageStorageType::BC7:
+        {
+            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc7")))
+            {
+                return ExportCookedImage(path, image);
+            }
+        }
+        default:
+        {
+            return false;
+        }
     }
     return false;
 }

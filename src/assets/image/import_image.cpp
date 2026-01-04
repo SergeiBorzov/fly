@@ -18,6 +18,8 @@
 
 #include <tinyexr.h>
 
+#include "assets/image/dds_image.h"
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 namespace Fly
@@ -161,6 +163,10 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     {
         return LoadExrImageFromFile(path, image);
     }
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".dds")))
+    {
+        return DDS::LoadDDSImage(path, image);
+    }
 
     int x = 0, y = 0, n = 0;
     if (stbi_is_hdr(path.Data()))
@@ -192,8 +198,8 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     return image.data;
 }
 
-static u64 GetImageLayerSize(u32 width, u32 height, u32 channelCount,
-                             ImageStorageType storageType)
+u64 GetImageLayerSize(u32 width, u32 height, u32 channelCount,
+                      ImageStorageType storageType)
 {
     switch (storageType)
     {
@@ -204,6 +210,8 @@ static u64 GetImageLayerSize(u32 width, u32 height, u32 channelCount,
         }
         case ImageStorageType::BC3:
         case ImageStorageType::BC5:
+        case ImageStorageType::BC6:
+        case ImageStorageType::BC7:
         {
             return ((width + 3) / 4) * ((height + 3) / 4) * 16;
         }
@@ -218,6 +226,10 @@ static u64 GetImageLayerSize(u32 width, u32 height, u32 channelCount,
         case ImageStorageType::Float:
         {
             return width * height * channelCount * sizeof(f32);
+        }
+        default:
+        {
+            return 0;
         }
     }
 

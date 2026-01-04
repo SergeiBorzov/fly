@@ -1,6 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 
 cc_library(
+    name = "dds_image",
+    hdrs = [
+        "dds_image.h",
+        "image.h",
+    ],
+    srcs = [
+        "dds_image.cpp",
+    ],
+    includes = ["../.."],
+    deps = [
+        "//src/core:core",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "import_image",
     hdrs = [
         "image.h",
@@ -11,6 +27,7 @@ cc_library(
     ],
     includes = ["../.."],
     deps = [
+        ":dds_image",
         "//src/core:core",
         "@stb//:stb_image",
         "@tinyexr//:tinyexr",

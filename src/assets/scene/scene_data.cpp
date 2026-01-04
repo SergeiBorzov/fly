@@ -174,8 +174,7 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
                 String8(texture.image->uri, strlen(texture.image->uri));
 
             u64 bufferSize = gltfDirPath.Size() + imagePath.Size() + 1;
-            char* buffer = FLY_PUSH_ARENA(
-                arena, char, gltfDirPath.Size() + imagePath.Size() + 1);
+            char* buffer = FLY_PUSH_ARENA(arena, char, bufferSize);
             MemZero(buffer, bufferSize);
             memcpy(buffer, gltfDirPath.Data(), gltfDirPath.Size());
             memcpy(buffer + gltfDirPath.Size(), imagePath.Data(),
@@ -196,8 +195,14 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
         }
         ArenaPopToMarker(arena, marker);
 
-        GenerateMips(sceneData.images[i], isLinear);
-        CompressImage(storageType, sceneData.images[i]);
+        if (sceneData.images[i].storageType == ImageStorageType::Byte)
+        {
+            if (sceneData.images[i].mipCount == 1)
+            {
+                GenerateMips(sceneData.images[i], isLinear);
+            }
+            CompressImage(storageType, sceneData.images[i]);
+        }
     }
 
     ArenaPopToMarker(arena, marker);
@@ -464,7 +469,6 @@ static bool CookSceneObj(String8 path, const fastObjMesh* mesh,
     }
 
     return true;
-    // TODO: images + materials + default node
 }
 
 static bool CookSceneGltf(String8 path, const cgltf_data* data,

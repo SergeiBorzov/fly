@@ -105,7 +105,11 @@ bool LoadCompressedCubemap(RHI::Device& device, VkImageUsageFlags usage,
                format == VK_FORMAT_BC4_UNORM_BLOCK ||
                format == VK_FORMAT_BC4_SNORM_BLOCK ||
                format == VK_FORMAT_BC5_UNORM_BLOCK ||
-               format == VK_FORMAT_BC5_SNORM_BLOCK);
+               format == VK_FORMAT_BC5_SNORM_BLOCK ||
+               format == VK_FORMAT_BC6H_UFLOAT_BLOCK ||
+               format == VK_FORMAT_BC6H_SFLOAT_BLOCK ||
+               format == VK_FORMAT_BC7_UNORM_BLOCK ||
+               format == VK_FORMAT_BC7_SRGB_BLOCK);
 
     Image image;
     if (!Fly::LoadImageFromFile(path, image))
@@ -138,7 +142,11 @@ bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
                format == VK_FORMAT_BC4_UNORM_BLOCK ||
                format == VK_FORMAT_BC4_SNORM_BLOCK ||
                format == VK_FORMAT_BC5_UNORM_BLOCK ||
-               format == VK_FORMAT_BC5_SNORM_BLOCK);
+               format == VK_FORMAT_BC5_SNORM_BLOCK ||
+               format == VK_FORMAT_BC6H_UFLOAT_BLOCK ||
+               format == VK_FORMAT_BC6H_SFLOAT_BLOCK ||
+               format == VK_FORMAT_BC7_UNORM_BLOCK ||
+               format == VK_FORMAT_BC7_SRGB_BLOCK);
 
     Image image;
     if (!Fly::LoadImageFromFile(path, image))

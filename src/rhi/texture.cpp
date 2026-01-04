@@ -56,6 +56,10 @@ u32 GetImageSize(u32 width, u32 height, u32 depth, VkFormat format)
         case VK_FORMAT_BC3_SRGB_BLOCK:
         case VK_FORMAT_BC5_UNORM_BLOCK:
         case VK_FORMAT_BC5_SNORM_BLOCK:
+        case VK_FORMAT_BC6H_UFLOAT_BLOCK:
+        case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+        case VK_FORMAT_BC7_UNORM_BLOCK:
+        case VK_FORMAT_BC7_SRGB_BLOCK:
         {
             return (((width + 3) / 4) * ((height + 3) / 4) * 16) * depth;
         }

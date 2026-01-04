@@ -285,21 +285,35 @@ static bool CreateEq2CubePipeline(RHI::Device& device,
 static bool CompressOutputImage(String8 path, Image& image)
 {
     String8 extension = String8::FindLast(path, '.');
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc1")))
+    if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc1")) &&
+        image.storageType != ImageStorageType::BC1)
     {
         return CompressImage(ImageStorageType::BC1, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc3")))
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc3")) &&
+             image.storageType != ImageStorageType::BC3)
     {
         return CompressImage(ImageStorageType::BC3, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc4")))
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc4")) &&
+             image.storageType != ImageStorageType::BC4)
     {
         return CompressImage(ImageStorageType::BC4, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc5")))
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc5")) &&
+             image.storageType != ImageStorageType::BC5)
     {
         return CompressImage(ImageStorageType::BC5, image);
+    }
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc6")) &&
+             image.storageType != ImageStorageType::BC6)
+    {
+        return false;
+    }
+    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc7")) &&
+             image.storageType != ImageStorageType::BC7)
+    {
+        return false;
     }
     return true;
 }

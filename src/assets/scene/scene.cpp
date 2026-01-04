@@ -33,6 +33,14 @@ static VkFormat CompressedStorageToVkFormat(ImageStorageType storageType)
         {
             return VK_FORMAT_BC5_UNORM_BLOCK;
         }
+        case ImageStorageType::BC6:
+        {
+            return VK_FORMAT_BC6H_UFLOAT_BLOCK;
+        }
+        case ImageStorageType::BC7:
+        {
+            return VK_FORMAT_BC7_SRGB_BLOCK;
+        }
         default:
         {
             break;

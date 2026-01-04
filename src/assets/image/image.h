@@ -6,15 +6,18 @@
 namespace Fly
 {
 
-enum class ImageStorageType : u8
+enum class ImageStorageType : i8
 {
+    Invalid = -1,
     BC1 = 0,
     BC3 = 1,
     BC4 = 2,
     BC5 = 3,
-    Byte = 4,
-    Half = 5,
-    Float = 6,
+    BC6 = 4,
+    BC7 = 5,
+    Byte = 6,
+    Half = 7,
+    Float = 8,
 };
 
 struct ImageHeader
@@ -44,6 +47,8 @@ u32 GetImageStorageTypeSize(ImageStorageType type);
 u64 GetImageSize(const Image& image);
 u64 GetImageSize(u32 width, u32 height, u8 channelCount, u8 layerCount,
                  u8 mipCount, ImageStorageType storageType);
+u64 GetImageLayerSize(u32 width, u32 height, u32 channelCount,
+                      ImageStorageType storageType);
 
 } // namespace Fly
 
