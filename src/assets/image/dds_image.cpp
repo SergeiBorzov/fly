@@ -206,9 +206,46 @@ enum PixelFormatFlags : u32
     DDPF_LUMINANCE = 0x20000
 };
 
-namespace Fly
+struct PixelFormat
 {
-namespace DDS
+    u32 size;
+    u32 flags;
+    u32 fourCC;
+    u32 rgbBitCount;
+    u32 rBitMask;
+    u32 gBitMask;
+    u32 bBitMask;
+    u32 aBitMask;
+};
+
+struct HeaderDXT10
+{
+    u32 dxgiFormat;
+    u32 resourceDimension;
+    u32 miscFlag;
+    u32 arraySize;
+    u32 miscFlag2;
+};
+
+struct Header
+{
+    u32 size;
+    u32 flags;
+    u32 height;
+    u32 width;
+    u32 pitchOrLinearSize;
+    u32 depth;
+    u32 mipMapCount;
+    u32 reserved1[11];
+    PixelFormat pixelFormat;
+    u32 caps;
+    u32 caps2;
+    u32 caps3;
+    u32 caps4;
+    u32 reserved2;
+};
+
+namespace Fly
 {
 
 static u8 GetChannelCount(u32 fmt)
@@ -435,5 +472,4 @@ failure:
     return false;
 }
 
-} // namespace DDS
 } // namespace Fly

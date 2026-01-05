@@ -487,33 +487,6 @@ bool Eq2Cube(RHI::Device& device, RHI::GraphicsPipeline& eq2cubePipeline,
     return true;
 }
 
-const char* CodecToExtension(ImageStorageType storageType)
-{
-    switch (storageType)
-    {
-        case ImageStorageType::BC1:
-        {
-            return ".fbc1";
-        }
-        case ImageStorageType::BC3:
-        {
-            return ".fbc3";
-        }
-        case ImageStorageType::BC4:
-        {
-            return ".fbc4";
-        }
-        case ImageStorageType::BC5:
-        {
-            return ".fbc5";
-        }
-        default:
-        {
-            return nullptr;
-        }
-    }
-}
-
 bool CompressImage(ImageStorageType codec, Image& image)
 {
     FLY_ASSERT(image.data);

@@ -44,6 +44,10 @@ def _cook_scenes_impl(ctx):
     extra_options.append(ctx.attr.scale)
     extra_options.append("-c")
     extra_options.append(ctx.attr.coord_system)
+    if ctx.attr.flip_right:
+        extra_options.append("-fr")
+    if ctx.attr.flip_up:
+        extra_options.append("-fu")
     if ctx.attr.flip_forward:
         extra_options.append("-ff")
     if ctx.attr.flip_winding_order:
@@ -137,6 +141,12 @@ cook_scenes = rule(
             values = ["xyz", "xzy", "yxz", "yzx", "zxy", "zyx"],
         ),
         "flip_forward": attr.bool(
+            default = False,
+        ),
+        "flip_up": attr.bool(
+            default = False,
+        ),
+        "flip_right": attr.bool(
             default = False,
         ),
         "flip_winding_order": attr.bool(

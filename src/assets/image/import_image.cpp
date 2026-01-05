@@ -165,7 +165,7 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     }
     else if (extension.StartsWith(FLY_STRING8_LITERAL(".dds")))
     {
-        return DDS::LoadDDSImage(path, image);
+        return LoadDDSImage(path, image);
     }
 
     int x = 0, y = 0, n = 0;

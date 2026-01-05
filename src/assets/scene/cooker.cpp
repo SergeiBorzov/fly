@@ -115,6 +115,14 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
                 exit(-4);
             }
         }
+        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-fr")))
+        {
+            data.options.flipRight = true;
+        }
+        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-fu")))
+        {
+            data.options.flipUp = true;
+        }
         else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-ff")))
         {
             data.options.flipForward = true;

@@ -70,15 +70,14 @@ static bool ImportTextures(RHI::Device& device,
         VkFormat imageFormat =
             CompressedStorageToVkFormat(imageHeader.storageType);
 
-        if (!RHI::CreateTexture2D(device,
-                                  VK_IMAGE_USAGE_SAMPLED_BIT |
-                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  imageDataStart + imageHeader.offset,
-                                  imageHeader.width, imageHeader.height,
-                                  imageFormat,
-                                  RHI::Sampler::FilterMode::Anisotropy8x,
-                                  RHI::Sampler::WrapMode::Repeat,
-                                  imageHeader.mipCount, scene.textures[i]))
+        if (!RHI::CreateTexture2D(
+                device,
+                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                imageDataStart + imageHeader.offset, imageHeader.width,
+                imageHeader.height, imageFormat,
+                RHI::Sampler::FilterMode::Anisotropy8x,
+                RHI::Sampler::WrapMode::Repeat, imageHeader.mipCount,
+                scene.textures[i]))
         {
             DestroyScene(device, scene);
             return false;

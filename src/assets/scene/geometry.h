@@ -24,6 +24,8 @@ enum class CoordSystem : u8
 struct SceneExportOptions
 {
     f32 scale = 1.0f;
+    bool flipRight = false;
+    bool flipUp = false;
     bool flipForward = false;
     bool flipWindingOrder = false;
     CoordSystem coordSystem = CoordSystem::XYZ;
@@ -60,8 +62,8 @@ bool ImportGeometriesObj(const void* mesh, Geometry** ppGeometries,
                          u32& geometryCount);
 bool ImportGeometriesGltf(const cgltf_data* data, Geometry** ppGeometries,
                           u32& geometryCount);
-void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
-                       Geometry& geometry);
+void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipRight,
+                       bool flipUp, bool flipForward, Geometry& geometry);
 void FlipGeometryWindingOrder(Geometry& geometry);
 void CookGeometry(Geometry& geometry);
 void DestroyGeometry(Geometry& geometry);

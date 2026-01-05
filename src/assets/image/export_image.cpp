@@ -269,6 +269,7 @@ bool ExportImage(String8 path, const Image& image)
             {
                 return ExportCookedImage(path, image);
             }
+            break;
         }
         case ImageStorageType::BC7:
         {
@@ -276,6 +277,7 @@ bool ExportImage(String8 path, const Image& image)
             {
                 return ExportCookedImage(path, image);
             }
+            break;
         }
         default:
         {

@@ -7,7 +7,6 @@
 namespace Fly
 {
 
-struct Path;
 struct Image;
 
 bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount = 4);

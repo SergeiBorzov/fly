@@ -95,9 +95,34 @@ private:
 };
 
 static void TransformVertex(Vertex& vertex, f32 scale, CoordSystem coordSystem,
-                            bool flipForward)
+                            bool flipRight, bool flipUp, bool flipForward)
 {
     FLY_ASSERT(userData);
+
+    vertex.position *= scale;
+    if (flipRight)
+    {
+        vertex.position.x *= -1.0f;
+        vertex.normal.x *= -1.0f;
+        vertex.tangent.x *= -1.0f;
+        vertex.tangent.w *= -1.0f;
+    }
+
+    if (flipUp)
+    {
+        vertex.position.y *= -1.0f;
+        vertex.normal.y *= -1.0f;
+        vertex.tangent.y *= -1.0f;
+        vertex.tangent.w *= -1.0f;
+    }
+
+    if (flipForward)
+    {
+        vertex.position.z *= -1.0f;
+        vertex.normal.z *= -1.0f;
+        vertex.tangent.z *= -1.0f;
+        vertex.tangent.w *= -1.0f;
+    }
 
     switch (coordSystem)
     {
@@ -156,23 +181,15 @@ static void TransformVertex(Vertex& vertex, f32 scale, CoordSystem coordSystem,
             break;
         }
     }
-
-    vertex.position *= scale;
-    if (flipForward)
-    {
-        vertex.position.z *= -1.0f;
-        vertex.normal.z *= -1.0f;
-        vertex.tangent.z *= -1.0f;
-        vertex.tangent.w *= -1.0f;
-    }
 }
 
-void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipForward,
-                       Geometry& geometry)
+void TransformGeometry(f32 scale, CoordSystem coordSystem, bool flipRight,
+                       bool flipUp, bool flipForward, Geometry& geometry)
 {
     for (u32 i = 0; i < geometry.vertexCount; i++)
     {
-        TransformVertex(geometry.vertices[i], scale, coordSystem, flipForward);
+        TransformVertex(geometry.vertices[i], scale, coordSystem, flipRight,
+                        flipUp, flipForward);
     }
 }
 
@@ -578,13 +595,13 @@ bool ImportGeometriesGltf(const cgltf_data* data, Geometry** ppGeometries,
 
 void FlipGeometryWindingOrder(Geometry& geometry)
 {
-    for (u32 i = 0; i < geometry.vertexCount / 3; i++)
+    for (u32 i = 0; i < geometry.indexCount / 3; i++)
     {
-        Vertex& v0 = geometry.vertices[3 * i];
-        Vertex& v1 = geometry.vertices[3 * i + 1];
-        Vertex tmp = v0;
-        v0 = v1;
-        v1 = tmp;
+        u32& i0 = geometry.indices[3 * i];
+        u32& i1 = geometry.indices[3 * i + 1];
+        const u32 tmp = i0;
+        i0 = i1;
+        i1 = tmp;
     }
 }
 

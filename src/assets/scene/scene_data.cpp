@@ -268,6 +268,7 @@ static void CookMaterialsGltf(const cgltf_data* data,
 }
 
 static void TransformSerializedNode(f32 scale, CoordSystem coordSystem,
+                                    bool flipRight, bool flipUp,
                                     bool flipForward, SerializedSceneNode& node)
 {
     switch (coordSystem)
@@ -339,6 +340,18 @@ static void TransformSerializedNode(f32 scale, CoordSystem coordSystem,
     }
 
     node.localPosition *= scale;
+    if (flipRight)
+    {
+        node.localPosition.x *= -1.0f;
+        node.localRotation.x *= -1.0f;
+    }
+
+    if (flipUp)
+    {
+        node.localPosition.y *= -1.0f;
+        node.localRotation.y *= -1.0f;
+    }
+
     if (flipForward)
     {
         node.localPosition.z *= -1.0f;
@@ -350,7 +363,8 @@ static void CookNodesGltf(const cgltf_data* data,
                           const SceneExportOptions& options,
                           SceneData& sceneData)
 {
-    if (!data->nodes_count || !options.exportNodes)
+    const cgltf_scene* scene = data->scene ? data->scene : &data->scenes[0];
+    if (!scene || !scene->nodes_count || !options.exportNodes)
     {
         sceneData.nodes = nullptr;
         sceneData.nodeCount = 0;
@@ -360,9 +374,9 @@ static void CookNodesGltf(const cgltf_data* data,
     DynamicArray<NodeTraverseData> stack;
     DynamicArray<SerializedSceneNode> sceneNodes;
 
-    for (u32 i = 0; i < data->nodes_count; i++)
+    for (u32 i = 0; i < scene->nodes_count; i++)
     {
-        stack.Add({&data->nodes[i], -1});
+        stack.Add({scene->nodes[i], -1});
     }
 
     while (stack.Count() != 0)
@@ -430,11 +444,12 @@ static void CookNodesGltf(const cgltf_data* data,
            sizeof(SerializedSceneNode) * sceneNodes.Count());
 
     if (options.scale != 1.0f || options.coordSystem != CoordSystem::XYZ ||
-        options.flipForward)
+        options.flipRight || options.flipUp || options.flipForward)
     {
         for (u32 i = 0; i < sceneData.nodeCount; i++)
         {
             TransformSerializedNode(options.scale, options.coordSystem,
+                                    options.flipRight, options.flipUp,
                                     options.flipForward, sceneData.nodes[i]);
         }
     }
@@ -456,9 +471,10 @@ static bool CookSceneObj(String8 path, const fastObjMesh* mesh,
     for (u32 i = 0; i < sceneData.geometryCount; i++)
     {
         if (options.scale != 1.0f || options.coordSystem != CoordSystem::XYZ ||
-            options.flipForward)
+            options.flipRight || options.flipUp || options.flipForward)
         {
             TransformGeometry(options.scale, options.coordSystem,
+                              options.flipRight, options.flipUp,
                               options.flipForward, sceneData.geometries[i]);
         }
         if (options.flipWindingOrder)
@@ -492,9 +508,10 @@ static bool CookSceneGltf(String8 path, const cgltf_data* data,
     for (u32 i = 0; i < sceneData.geometryCount; i++)
     {
         if (options.scale != 1.0f || options.coordSystem != CoordSystem::XYZ ||
-            options.flipForward)
+            options.flipRight || options.flipUp || options.flipForward)
         {
             TransformGeometry(options.scale, options.coordSystem,
+                              options.flipRight, options.flipUp,
                               options.flipForward, sceneData.geometries[i]);
         }
         if (options.flipWindingOrder)
