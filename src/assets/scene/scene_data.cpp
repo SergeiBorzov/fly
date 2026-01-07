@@ -688,10 +688,12 @@ bool ExportSceneData(String8 path, const SceneData& sceneData)
 
     u64 totalSize =
         sizeof(SceneFileHeader) + sizeof(ImageHeader) * sceneData.imageCount +
+        sizeof(SerializedPBRMaterial) * sceneData.materialCount +
         sizeof(MeshHeader) * sceneData.geometryCount +
         sizeof(SerializedSceneNode) * sceneData.nodeCount +
-        sizeof(LOD) * totalLodCount + sizeof(QVertex) * totalVertexCount +
-        sizeof(u32) * totalIndexCount + totalImageSize;
+        sizeof(LOD) * totalLodCount + sizeof(i32) * totalSubmeshCount +
+        sizeof(QVertex) * totalVertexCount + +sizeof(u32) * totalIndexCount +
+        totalImageSize;
 
     u64 offset = 0;
     u8* data = static_cast<u8*>(Alloc(totalSize));
