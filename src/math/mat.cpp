@@ -276,6 +276,19 @@ Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
     return res;
 }
 
+Mat4 Transpose(const Mat4& mat)
+{
+    Mat4 res(0.0f);
+    for (u32 i = 0; i < 4; i++)
+    {
+        for (u32 j = 0; j < 4; j++)
+        {
+            res[j][i] = mat[i][j];
+        }
+    }
+    return res;
+}
+
 Mat4 Inverse(const Mat4& mat)
 {
     f32 inv[16];

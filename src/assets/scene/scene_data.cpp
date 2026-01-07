@@ -394,13 +394,35 @@ static void CookNodesGltf(const cgltf_data* data,
             Math::Vec3 y = Math::Vec3(localMatrix[1]);
             Math::Vec3 z = Math::Vec3(localMatrix[2]);
 
-            sceneNode.localScale =
-                Math::Vec3(Math::Length(x), Math::Length(y), Math::Length(z));
+            float sx = Math::Length(x);
+            float sy = Math::Length(y);
+            float sz = Math::Length(z);
+
+            if (sx > 0.0f)
+            {
+                x /= sx;
+            }
+            if (sy > 0.0f)
+            {
+                y /= sy;
+            }
+            if (sz > 0.0f)
+            {
+                z /= sz;
+            }
+
+            sceneNode.localScale = Math::Vec3(sx, sy, sz);
+
+            if (Math::Dot(Math::Cross(x, y), z) < 0.0f)
+            {
+                x = -x;
+                sceneNode.localScale.x = -sceneNode.localScale.x;
+            }
 
             Math::Mat4 rotMat(1.0f);
-            rotMat[0] = Math::Vec4(x / sceneNode.localScale.x, 0.0f);
-            rotMat[1] = Math::Vec4(y / sceneNode.localScale.y, 0.0f);
-            rotMat[2] = Math::Vec4(z / sceneNode.localScale.z, 0.0f);
+            rotMat[0] = Math::Vec4(x, 0.0f);
+            rotMat[1] = Math::Vec4(y, 0.0f);
+            rotMat[2] = Math::Vec4(z, 0.0f);
             sceneNode.localRotation = Math::Quat(rotMat);
 
             sceneNode.localPosition = Math::Vec3(localMatrix[3]);
