@@ -185,13 +185,20 @@ static bool CookImagesGltf(String8 path, const cgltf_data* data,
                                    desiredChannelCount))
             {
                 return false;
-            };
+            }
         }
         else
         {
-            FLY_ENSURE(false, "Not supported, image mime type is %s",
-                       texture.image->mime_type);
-            return false;
+            cgltf_buffer_view* bv = texture.image->buffer_view;
+            cgltf_buffer* buf = bv->buffer;
+            u8* buffer = static_cast<u8*>(buf->data) + bv->offset;
+            u64 size = bv->size;
+
+            if (!LoadImageFromMemory(buffer, size, sceneData.images[i],
+                                     desiredChannelCount))
+            {
+                return false;
+            }
         }
         ArenaPopToMarker(arena, marker);
 

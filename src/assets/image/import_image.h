@@ -9,6 +9,8 @@ namespace Fly
 
 struct Image;
 
+bool LoadImageFromMemory(u8* buffer, u64 size, Image& image,
+                         u8 desiredChannelCount = 4);
 bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount = 4);
 void DestroyImage(Image& image);
 

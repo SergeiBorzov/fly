@@ -149,6 +149,33 @@ bool LoadExrImageFromFile(String8 path, Image& image)
     return true;
 }
 
+bool LoadImageFromMemory(u8* buffer, u64 size, Image& image,
+                         u8 desiredChannelCount)
+{
+    int x = 0;
+    int y = 0;
+    int n = 0;
+
+    image.data =
+        stbi_load_from_memory(buffer, size, &x, &y, &n, desiredChannelCount);
+    image.storageType = ImageStorageType::Byte;
+    image.mipCount = 1;
+    image.layerCount = 1;
+    image.width = static_cast<u32>(x);
+    image.height = static_cast<u32>(y);
+
+    if (desiredChannelCount != 0)
+    {
+        image.channelCount = desiredChannelCount;
+    }
+    else
+    {
+        image.channelCount = static_cast<u8>(n);
+    }
+
+    return image.data;
+}
+
 bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
 {
     FLY_ASSERT(path);
@@ -188,7 +215,7 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
 
     if (desiredChannelCount != 0)
     {
-        image.channelCount = static_cast<u8>(desiredChannelCount);
+        image.channelCount = desiredChannelCount;
     }
     else
     {

@@ -97,8 +97,6 @@ private:
 static void TransformVertex(Vertex& vertex, f32 scale, CoordSystem coordSystem,
                             bool flipRight, bool flipUp, bool flipForward)
 {
-    FLY_ASSERT(userData);
-
     vertex.position *= scale;
     if (flipRight)
     {

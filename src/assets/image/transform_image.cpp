@@ -492,7 +492,6 @@ bool CompressImage(ImageStorageType codec, Image& image)
     FLY_ASSERT(image.data);
     FLY_ASSERT(image.width);
     FLY_ASSERT(image.height);
-    FLY_ASSERT(image.channelCount == 4);
     FLY_ASSERT(image.layerCount);
     FLY_ASSERT(image.mipCount);
     FLY_ASSERT(image.storageType == ImageStorageType::Byte);
