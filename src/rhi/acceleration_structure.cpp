@@ -156,10 +156,12 @@ bool CreateAccelerationStructure(
     ArenaPopToMarker(arena, marker);
 
     RHI::Buffer scratchBuffer;
-    if (!CreateBuffer(device, false,
-                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                          VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                      nullptr, sizeInfo.buildScratchSize, scratchBuffer))
+    if (!CreateBuffer(
+            device, false,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+            nullptr, sizeInfo.buildScratchSize, scratchBuffer))
     {
         return false;
     }
@@ -241,9 +243,9 @@ bool CreateAccelerationStructure(
             (device.bindlessAccelerationStructureHandleCount)++;
     }
 
-    FLY_DEBUG_LOG("Acc Structure [%lu] created with bindless handle %u",
-                  accelerationStructure.handle,
-                  accelerationStructure.bindlessHandle);
+    // FLY_DEBUG_LOG("Acc Structure [%lu] created with bindless handle %u",
+    //               accelerationStructure.handle,
+    //               accelerationStructure.bindlessHandle);
 
     return true;
 }
@@ -256,8 +258,8 @@ void DestroyAccelerationStructure(Device& device,
                                       GetVulkanAllocationCallbacks());
     accelerationStructure.handle = VK_NULL_HANDLE;
     DestroyBuffer(device, accelerationStructure.buffer);
-    FLY_DEBUG_LOG("Acceleration structure [%lu] destroyed",
-                  accelerationStructure.handle);
+    // FLY_DEBUG_LOG("Acceleration structure [%lu] destroyed",
+    //               accelerationStructure.handle);
 }
 
 } // namespace RHI
