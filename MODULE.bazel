@@ -1,11 +1,11 @@
 module(name = "fly", version = "0.1")
 
-bazel_dep(name = "apple_support", version = "1.23.1", repo_name = "build_bazel_apple_support")
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
-bazel_dep(name = "platforms", version = "0.0.11")
-bazel_dep(name = "rules_cc", version = "0.1.1")
-bazel_dep(name = "rules_python", version = "1.2.0")
-bazel_dep(name = "googletest", version = "1.16.0")
+bazel_dep(name = "apple_support", version = "1.24.2", repo_name = "build_bazel_apple_support")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.14")
+bazel_dep(name = "rules_python", version = "1.7.0")
+bazel_dep(name = "googletest", version = "1.17.0")
 
 python = use_extension(
     "@rules_python//python/extensions:python.bzl",
@@ -133,6 +133,14 @@ external_git_repository.base(
     remote = "https://github.com/KhronosGroup/glslang.git",
 )
 use_repo(external_git_repository, "glslang")
+
+external_git_repository.base(
+    name = "ktx_software",
+    build_file = "//scripts/bazel/target:BUILD.ktx_software.bazel",
+    commit = "1499a5534b19afd7cd5cf1d5e5c1296ce36d1f14",
+    remote = "https://github.com/KhronosGroup/KTX-Software.git",
+)
+use_repo(external_git_repository, "ktx_software")
 
 
 ################################################################
