@@ -1,5 +1,5 @@
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary")
 load("@fly//scripts/bazel/rules:glslang.bzl",
     "glslang_build_info",
     "glslang_gen_extension_headers",
