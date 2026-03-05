@@ -31,6 +31,7 @@ cc_library(
         "//src/core:core",
         "@stb//:stb_image",
         "@tinyexr//:tinyexr",
+        "@ktx_software//:ktx2",
     ],
     visibility = ["//visibility:public"],
 )

@@ -16,6 +16,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <ktx.h>
 #include <tinyexr.h>
 
 #include "assets/image/dds_image.h"
@@ -25,7 +26,7 @@
 namespace Fly
 {
 
-bool LoadCompressedImageFromFile(String8 path, Image& image)
+static bool LoadCompressedImageFromFile(String8 path, Image& image)
 {
     FLY_ASSERT(path);
 
@@ -50,7 +51,61 @@ bool LoadCompressedImageFromFile(String8 path, Image& image)
     return true;
 }
 
-bool LoadExrImageFromFile(String8 path, Image& image)
+static bool LoadKtx2ImageFromFile(String8 path, Image& image)
+{
+    ktxTexture2* texture = nullptr;
+    KTX_error_code result = ktxTexture2_CreateFromNamedFile(
+        path.Data(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
+
+    if (result != KTX_SUCCESS)
+    {
+        return false;
+    }
+
+    image.channelCount = ktxTexture2_GetNumComponents(texture);
+    if (ktxTexture2_NeedsTranscoding(texture))
+    {
+        result = ktxTexture2_TranscodeBasis(texture, KTX_TTF_RGBA32, 0);
+        image.channelCount = 4;
+        if (result != KTX_SUCCESS)
+        {
+            ktxTexture2_Destroy(texture);
+            return false;
+        }
+    }
+
+    image.width = texture->baseWidth;
+    image.height = texture->baseHeight;
+    image.layerCount = texture->numLayers;
+    image.storageType = ImageStorageType::Byte;
+
+    // TODO: Load mips too
+    image.mipCount = 1;
+
+    u64 size =
+        ktxTexture_GetLevelSize(reinterpret_cast<ktxTexture*>(texture), 0);
+    ktx_size_t offset = 0;
+    ktxTexture2_GetImageOffset(texture, 0, 0, 0, &offset);
+    image.data = static_cast<u8*>(Alloc(size));
+
+    memcpy(image.data, texture->pData + offset, size);
+    u8* tmpRow = static_cast<u8*>(Alloc(image.width * image.channelCount));
+    for (u32 y = 0; y < image.height / 2; y++)
+    {
+        u8* rowTop = image.data + y * image.width * image.channelCount;
+        u8* rowBottom =
+            image.data + (image.height - 1 - y) * image.width * image.channelCount;
+        memcpy(tmpRow, rowTop, image.width * image.channelCount);
+        memcpy(rowTop, rowBottom, image.width * image.channelCount);
+        memcpy(rowBottom, tmpRow, image.width * image.channelCount);
+    }
+    Free(tmpRow);
+
+    ktxTexture2_Destroy(texture);
+    return true;
+}
+
+static bool LoadExrImageFromFile(String8 path, Image& image)
 {
     FLY_ASSERT(path);
 
@@ -185,6 +240,10 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc")))
     {
         return LoadCompressedImageFromFile(path, image);
+    }
+    if (extension.StartsWith(FLY_STRING8_LITERAL(".ktx2")))
+    {
+        return LoadKtx2ImageFromFile(path, image);
     }
     else if (extension.StartsWith(FLY_STRING8_LITERAL(".exr")))
     {
