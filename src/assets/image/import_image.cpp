@@ -51,12 +51,12 @@ static bool LoadCompressedImageFromFile(String8 path, Image& image)
     return true;
 }
 
-static bool LoadKtx2ImageFromFile(String8 path, Image& image)
+static bool LoadKtx2ImageFromFile(String8 path, Image& image,
+                                  u8 desiredChannelCount)
 {
     ktxTexture2* texture = nullptr;
     KTX_error_code result = ktxTexture2_CreateFromNamedFile(
         path.Data(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
-
     if (result != KTX_SUCCESS)
     {
         return false;
@@ -78,28 +78,73 @@ static bool LoadKtx2ImageFromFile(String8 path, Image& image)
     image.height = texture->baseHeight;
     image.layerCount = texture->numLayers;
     image.storageType = ImageStorageType::Byte;
-
     // TODO: Load mips too
     image.mipCount = 1;
 
-    u64 size =
+    u64 imageSize =
         ktxTexture_GetLevelSize(reinterpret_cast<ktxTexture*>(texture), 0);
     ktx_size_t offset = 0;
     ktxTexture2_GetImageOffset(texture, 0, 0, 0, &offset);
-    image.data = static_cast<u8*>(Alloc(size));
 
-    memcpy(image.data, texture->pData + offset, size);
-    u8* tmpRow = static_cast<u8*>(Alloc(image.width * image.channelCount));
-    for (u32 y = 0; y < image.height / 2; y++)
+    u8* imageData = static_cast<u8*>(Alloc(imageSize));
+    memcpy(imageData, texture->pData + offset, imageSize);
+
+    // Flip image
     {
-        u8* rowTop = image.data + y * image.width * image.channelCount;
-        u8* rowBottom =
-            image.data + (image.height - 1 - y) * image.width * image.channelCount;
-        memcpy(tmpRow, rowTop, image.width * image.channelCount);
-        memcpy(rowTop, rowBottom, image.width * image.channelCount);
-        memcpy(rowBottom, tmpRow, image.width * image.channelCount);
+        u8* tmpRow = static_cast<u8*>(Alloc(image.width * image.channelCount));
+        for (u32 y = 0; y < image.height / 2; y++)
+        {
+            u8* rowTop = imageData + y * image.width * image.channelCount;
+            u8* rowBottom = imageData + (image.height - 1 - y) * image.width *
+                                            image.channelCount;
+            memcpy(tmpRow, rowTop, image.width * image.channelCount);
+            memcpy(rowTop, rowBottom, image.width * image.channelCount);
+            memcpy(rowBottom, tmpRow, image.width * image.channelCount);
+        }
+        Free(tmpRow);
     }
-    Free(tmpRow);
+
+    // Fix channel counts
+    if (desiredChannelCount == 0 || desiredChannelCount == image.channelCount)
+    {
+        image.data = imageData;
+    }
+    else if (desiredChannelCount < image.channelCount)
+    {
+        image.data = static_cast<u8*>(
+            Alloc(image.width * image.height * desiredChannelCount));
+        for (u32 i = 0; i < image.width * image.height; i++)
+        {
+            for (u32 j = 0; j < desiredChannelCount; j++)
+            {
+                image.data[desiredChannelCount * i + j] =
+                    imageData[image.channelCount * i + j];
+            }
+        }
+    }
+    else
+    {
+        image.data = static_cast<u8*>(
+            Alloc(image.width * image.height * desiredChannelCount));
+        for (u32 i = 0; i < image.width * image.height; i++)
+        {
+            for (u32 j = 0; j < image.channelCount; j++)
+            {
+                image.data[desiredChannelCount * i + j] =
+                    imageData[image.channelCount * i + j];
+            }
+            for (u32 j = image.channelCount; j < desiredChannelCount; j++)
+            {
+                image.data[desiredChannelCount * i + j] = (j == 3) ? 255 : 0;
+            }
+        }
+    }
+
+    if (desiredChannelCount != 0 && desiredChannelCount != image.channelCount)
+    {
+        image.channelCount = desiredChannelCount;
+        Free(imageData);
+    }
 
     ktxTexture2_Destroy(texture);
     return true;
@@ -243,7 +288,7 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     }
     if (extension.StartsWith(FLY_STRING8_LITERAL(".ktx2")))
     {
-        return LoadKtx2ImageFromFile(path, image);
+        return LoadKtx2ImageFromFile(path, image, desiredChannelCount);
     }
     else if (extension.StartsWith(FLY_STRING8_LITERAL(".exr")))
     {
