@@ -259,6 +259,14 @@ external_git_repository.base(
 )
 use_repo(external_git_repository, "splat_sample_scenes")
 
+external_git_repository.base(
+    name = "bistro_scene",
+    build_file = "//scripts/bazel/target:BUILD.bistro_scene.bazel",
+    commit = "fe246291ecdf04ba0bdc85cc4f3649f3a65af8dd",
+    remote = "https://github.com/gpx1000/bistro.git",
+)
+use_repo(external_git_repository, "bistro_scene")
+
 ################################################################
 # AMBIENTCG
 ################################################################

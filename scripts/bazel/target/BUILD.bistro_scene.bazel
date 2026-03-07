@@ -1,0 +1,11 @@
+filegroup(
+    name = "bistro_scene",
+    srcs = [
+        "bistro.bin",
+        "bistro.gltf"
+    ] + glob([
+        "objects/**",
+        "textures/**",
+    ]),
+    visibility = ["//visibility:public"],
+)
