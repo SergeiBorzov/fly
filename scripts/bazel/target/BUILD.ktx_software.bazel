@@ -1,6 +1,18 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
+    name = "zstd",
+    srcs = [
+        "external/basis_universal/zstd/zstd.c",
+        #"external/basis_universal/zstd/zstddeclib.c",
+    ],
+    hdrs = [
+        "external/basis_universal/zstd/zstd.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "basisu_encoder",
     srcs = [
         "external/basis_universal/encoder/basisu_backend.cpp",
@@ -26,8 +38,6 @@ cc_library(
         "external/basis_universal/encoder/3rdparty/android_astc_decomp.cpp",
         "external/basis_universal/encoder/3rdparty/tinyexr.cpp",
         "external/basis_universal/transcoder/basisu_transcoder.cpp",
-        "external/basis_universal/zstd/zstd.c",
-        "external/basis_universal/zstd/zstddeclib.c",
     ],
     hdrs = [
         "external/basis_universal/encoder/basisu_astc_hdr_6x6_enc.h",
@@ -82,10 +92,12 @@ cc_library(
         "external/basis_universal/transcoder/basisu_transcoder_tables_dxt1_5.inc",
         "external/basis_universal/transcoder/basisu_transcoder_tables_pvrtc2_45.inc",
         "external/basis_universal/transcoder/basisu_transcoder_tables_pvrtc2_alpha_33.inc",
-        "external/basis_universal/zstd/zstd.h",
     ],
     includes = [
         "external/basis_universal/encoder",
+    ],
+    deps = [
+        ":zstd",
     ],
     copts = select({
         "@platforms//os:linux": [
@@ -93,6 +105,7 @@ cc_library(
             "-Wno-unused-variable",
             "-Wno-misleading-indentation",
             "-Wno-class-memaccess",
+            "-Wno-maybe-uninitialized",
         ],
         "//conditions:default": [],
     }),
