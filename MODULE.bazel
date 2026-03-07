@@ -262,8 +262,8 @@ use_repo(external_git_repository, "splat_sample_scenes")
 external_git_repository.base(
     name = "bistro_scene",
     build_file = "//scripts/bazel/target:BUILD.bistro_scene.bazel",
-    commit = "fe246291ecdf04ba0bdc85cc4f3649f3a65af8dd",
-    remote = "https://github.com/gpx1000/bistro.git",
+    commit = "6d4520b6b3764cd2eb21ac2924b4cc67953185b9",
+    remote = "https://github.com/SergeiBorzov/bistro.git",
 )
 use_repo(external_git_repository, "bistro_scene")
 
