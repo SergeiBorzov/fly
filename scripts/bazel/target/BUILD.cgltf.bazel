@@ -8,3 +8,13 @@ cc_library(
     includes = ["."],
     visibility = ["//visibility:public"],
 )
+
+cc_library(
+    name = "cgltf_write",
+    hdrs = [
+        "cgltf_write.h",
+    ],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
