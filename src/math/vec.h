@@ -404,7 +404,22 @@ inline Vec4 Exp(Vec4 a) { return Vec4(Exp(a.x), Exp(a.y), Exp(a.z), Exp(a.w)); }
 
 inline Vec2 Lerp(Vec2 a, Vec2 b, f32 t) { return a * (1.0f - t) + b * t; }
 inline Vec3 Lerp(Vec3 a, Vec3 b, f32 t) { return a * (1.0f - t) + b * t; }
-inline Vec4 Lerp(Vec4 a, Vec4 b, f32 t) { return a * (1.0f - t) + b * t; } 
+inline Vec4 Lerp(Vec4 a, Vec4 b, f32 t) { return a * (1.0f - t) + b * t; }
+
+inline Vec2 Clamp(Vec2 value, f32 min, f32 max)
+{
+    return Max(Vec2(min), Min(value, Vec2(max)));
+}
+
+inline Vec3 Clamp(Vec3 value, f32 min, f32 max)
+{
+    return Max(Vec3(min), Min(value, Vec3(max)));
+}
+
+inline Vec4 Clamp(Vec4 value, f32 min, f32 max)
+{
+    return Max(Vec4(min), Min(value, Vec4(max)));
+}
 
 } // namespace Math
 } // namespace Fly
