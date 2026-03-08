@@ -37,6 +37,8 @@ inline u32 Clamp(u32 value, u32 min, u32 max)
     return Max(min, Min(value, max));
 }
 
+inline f32 Lerp(f32 a, f32 b, f32 t) { return a * (1.0f - t) + b * t; }
+
 f32 Ceil(f32 value);
 f32 Floor(f32 value);
 

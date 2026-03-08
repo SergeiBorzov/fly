@@ -402,6 +402,10 @@ inline Vec2 Exp(Vec2 a) { return Vec2(Exp(a.x), Exp(a.y)); }
 inline Vec3 Exp(Vec3 a) { return Vec3(Exp(a.x), Exp(a.y), Exp(a.z)); }
 inline Vec4 Exp(Vec4 a) { return Vec4(Exp(a.x), Exp(a.y), Exp(a.z), Exp(a.w)); }
 
+inline Vec2 Lerp(Vec2 a, Vec2 b, f32 t) { return a * (1.0f - t) + b * t; }
+inline Vec3 Lerp(Vec3 a, Vec3 b, f32 t) { return a * (1.0f - t) + b * t; }
+inline Vec4 Lerp(Vec4 a, Vec4 b, f32 t) { return a * (1.0f - t) + b * t; } 
+
 } // namespace Math
 } // namespace Fly
 
