@@ -52,3 +52,20 @@ cc_binary(
     ],
     visibility = ["//visibility:public"],
 )
+
+cc_binary(
+    name = "gltf_sg_to_rm_converter",
+    srcs = [
+        "gltf_sg_to_rm_converter.cpp",
+    ],
+    includes = ["../.."],
+    deps = [
+        "//src/core:filesystem",
+        "//src/math:math",
+        "//src/assets/image:import_image",
+        "//src/assets/image:export_image",
+        "@cgltf//:cgltf",
+        "@cgltf//:cgltf_write",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -192,20 +192,20 @@ bool ExportImage(String8 path, const Image& image)
     {
         case ImageStorageType::Byte:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".png")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".png")))
             {
                 return ExportPNG(path, image);
             }
-            else if (path.EndsWith(FLY_STRING8_LITERAL(".jpg")) ||
-                     path.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
+            else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".jpg")) ||
+                     String8::EndsWith(path, FLY_STRING8_LITERAL(".jpeg")))
             {
                 return ExportJPG(path, image);
             }
-            else if (path.EndsWith(FLY_STRING8_LITERAL(".bmp")))
+            else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".bmp")))
             {
                 return ExportBMP(path, image);
             }
-            else if (path.EndsWith(FLY_STRING8_LITERAL(".tga")))
+            else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".tga")))
             {
                 return ExportTGA(path, image);
             }
@@ -213,7 +213,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::Half:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".exr")))
             {
                 return ExportEXR(path, image);
             }
@@ -221,11 +221,11 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::Float:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".exr")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".exr")))
             {
                 return ExportEXR(path, image);
             }
-            else if (path.EndsWith(FLY_STRING8_LITERAL(".hdr")))
+            else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".hdr")))
             {
                 return ExportHDR(path, image);
             }
@@ -233,7 +233,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::BC1:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc1")))
             {
                 return ExportCookedImage(path, image);
             }
@@ -241,7 +241,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::BC3:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc3")))
             {
                 return ExportCookedImage(path, image);
             }
@@ -249,7 +249,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::BC4:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc4")))
             {
                 return ExportCookedImage(path, image);
             }
@@ -257,7 +257,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::BC5:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc5")))
             {
                 ExportCookedImage(path, image);
             }
@@ -265,7 +265,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::BC6:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc6")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc6")))
             {
                 return ExportCookedImage(path, image);
             }
@@ -273,7 +273,7 @@ bool ExportImage(String8 path, const Image& image)
         }
         case ImageStorageType::BC7:
         {
-            if (path.EndsWith(FLY_STRING8_LITERAL(".fbc7")))
+            if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc7")))
             {
                 return ExportCookedImage(path, image);
             }

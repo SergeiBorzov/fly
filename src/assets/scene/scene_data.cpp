@@ -656,11 +656,10 @@ static void SerializeMeshes(const SceneData& sceneData,
 bool CookSceneData(String8 path, const SceneExportOptions& cookOptions,
                    SceneData& sceneData)
 {
-
-    if (path.EndsWith(FLY_STRING8_LITERAL(".gltf")) ||
-        path.EndsWith(FLY_STRING8_LITERAL(".GLTF")) ||
-        path.EndsWith(FLY_STRING8_LITERAL(".glb")) ||
-        path.EndsWith(FLY_STRING8_LITERAL(".GLB")))
+    if (String8::EndsWith(path, FLY_STRING8_LITERAL(".gltf")) ||
+        String8::EndsWith(path, FLY_STRING8_LITERAL(".GLTF")) ||
+        String8::EndsWith(path, FLY_STRING8_LITERAL(".glb")) ||
+        String8::EndsWith(path, FLY_STRING8_LITERAL(".GLB")))
     {
         const cgltf_options options{};
         cgltf_data* data = nullptr;
@@ -682,8 +681,8 @@ bool CookSceneData(String8 path, const SceneExportOptions& cookOptions,
         cgltf_free(data);
         return res;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".obj")) ||
-             path.EndsWith(FLY_STRING8_LITERAL(".OBJ")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".obj")) ||
+             String8::EndsWith(path, FLY_STRING8_LITERAL(".OBJ")))
     {
         fastObjMesh* mesh = fast_obj_read(path.Data());
         bool res = CookSceneObj(path, mesh, cookOptions, sceneData);

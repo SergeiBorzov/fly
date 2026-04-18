@@ -195,27 +195,27 @@ static u8 GetImageChannelCount(const char* inputPath, const char* outputPath)
     String8 inputPathStr = Fly::String8(inputPath, strlen(inputPath));
     String8 outputPathStr = Fly::String8(outputPath, strlen(outputPath));
 
-    if (outputPathStr.EndsWith(FLY_STRING8_LITERAL(".fbc1")))
+    if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc1")))
     {
         return 4;
     }
-    else if (outputPathStr.EndsWith(FLY_STRING8_LITERAL(".fbc3")))
+    else if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc3")))
     {
         return 4;
     }
-    else if (outputPathStr.EndsWith(FLY_STRING8_LITERAL(".fbc4")))
+    else if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc4")))
     {
         return 1;
     }
-    else if (outputPathStr.EndsWith(FLY_STRING8_LITERAL(".fbc5")))
+    else if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc5")))
     {
         return 2;
     }
-    else if (inputPathStr.EndsWith(FLY_STRING8_LITERAL(".jpg")))
+    else if (String8::EndsWith(inputPathStr, FLY_STRING8_LITERAL(".jpg")))
     {
         return 4;
     }
-    else if (inputPathStr.EndsWith(FLY_STRING8_LITERAL(".jpeg")))
+    else if (String8::EndsWith(inputPathStr, FLY_STRING8_LITERAL(".jpeg")))
     {
         return 4;
     }
@@ -284,33 +284,32 @@ static bool CreateEq2CubePipeline(RHI::Device& device,
 
 static bool CompressOutputImage(String8 path, Image& image)
 {
-    String8 extension = String8::FindLast(path, '.');
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc1")) &&
+    if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc1")) &&
         image.storageType != ImageStorageType::BC1)
     {
         return CompressImage(ImageStorageType::BC1, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc3")) &&
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc3")) &&
              image.storageType != ImageStorageType::BC3)
     {
         return CompressImage(ImageStorageType::BC3, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc4")) &&
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc4")) &&
              image.storageType != ImageStorageType::BC4)
     {
         return CompressImage(ImageStorageType::BC4, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc5")) &&
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc5")) &&
              image.storageType != ImageStorageType::BC5)
     {
         return CompressImage(ImageStorageType::BC5, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc6")) &&
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc6")) &&
              image.storageType != ImageStorageType::BC6)
     {
         return false;
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc7")) &&
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".fbc7")) &&
              image.storageType != ImageStorageType::BC7)
     {
         return false;

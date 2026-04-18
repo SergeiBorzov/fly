@@ -34,9 +34,9 @@ struct String8
 
     inline const char* Data() const { return data_; }
     inline u64 Size() const { return size_; }
-    bool StartsWith(String8 str);
-    bool EndsWith(String8 str);
 
+    static bool StartsWith(String8 str, String8 pattern);
+    static bool EndsWith(String8 str, String8 pattern);
     static bool Cut(String8, char sep, String8CutPair& cut);
     static String8 TrimLeft(String8 str);
     static String8 TrimRight(String8 str);

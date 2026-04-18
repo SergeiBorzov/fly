@@ -26,16 +26,16 @@ bool String8::operator==(String8 rhs)
 
 bool String8::operator!=(String8 rhs) { return !(*this == rhs); }
 
-bool String8::StartsWith(String8 str)
+bool String8::StartsWith(String8 str, String8 pattern)
 {
-    if (str.Size() > size_)
+    if (pattern.size_ > str.size_)
     {
         return false;
     }
 
-    for (u64 i = 0; i < str.Size(); i++)
+    for (u64 i = 0; i < pattern.size_; i++)
     {
-        if (data_[i] != str[i])
+        if (str.data_[i] != pattern.data_[i])
         {
             return false;
         }
@@ -44,16 +44,16 @@ bool String8::StartsWith(String8 str)
     return true;
 }
 
-bool String8::EndsWith(String8 str)
+bool String8::EndsWith(String8 str, String8 pattern)
 {
-    if (str.Size() > size_)
+    if (pattern.size_ > str.size_)
     {
         return false;
     }
 
-    for (u64 i = 0; i < str.Size(); i++)
+    for (u64 i = 0; i < pattern.size_; i++)
     {
-        if (data_[size_ - str.Size() + i] != str[i])
+        if (str.data_[str.size_ - pattern.size_ + i] != pattern.data_[i])
         {
             return false;
         }

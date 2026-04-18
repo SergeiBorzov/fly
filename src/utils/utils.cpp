@@ -167,55 +167,55 @@ bool LoadCompressedTexture2D(RHI::Device& device, VkImageUsageFlags usage,
 
 static RHI::Shader::Type GetShaderType(String8 path)
 {
-    if (path.EndsWith(FLY_STRING8_LITERAL(".vert.spv")))
+    if (String8::EndsWith(path, FLY_STRING8_LITERAL(".vert.spv")))
     {
         return RHI::Shader::Type::Vertex;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".frag.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".frag.spv")))
     {
         return RHI::Shader::Type::Fragment;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".tesc.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".tesc.spv")))
     {
         return RHI::Shader::Type::TesselationControl;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".tese.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".tese.spv")))
     {
         return RHI::Shader::Type::TesselationEvaluation;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".task.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".task.spv")))
     {
         return RHI::Shader::Type::Task;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".mesh.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".mesh.spv")))
     {
         return RHI::Shader::Type::Mesh;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".comp.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".comp.spv")))
     {
         return RHI::Shader::Type::Compute;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".rgen.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".rgen.spv")))
     {
         return RHI::Shader::Type::RayGeneration;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".rint.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".rint.spv")))
     {
         return RHI::Shader::Type::RayIntersection;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".rahit.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".rahit.spv")))
     {
         return RHI::Shader::Type::RayAnyHit;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".rchit.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".rchit.spv")))
     {
         return RHI::Shader::Type::RayClosestHit;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".rmiss.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".rmiss.spv")))
     {
         return RHI::Shader::Type::RayMiss;
     }
-    else if (path.EndsWith(FLY_STRING8_LITERAL(".rcall.spv")))
+    else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".rcall.spv")))
     {
         return RHI::Shader::Type::RayCall;
     }

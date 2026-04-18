@@ -281,20 +281,19 @@ bool LoadImageFromFile(String8 path, Image& image, u8 desiredChannelCount)
     FLY_ASSERT(path);
 
     String8 extension = String8::FindLast(path, '.');
-
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".fbc")))
+    if (String8::StartsWith(extension, FLY_STRING8_LITERAL(".fbc")))
     {
         return LoadCompressedImageFromFile(path, image);
     }
-    if (extension.StartsWith(FLY_STRING8_LITERAL(".ktx2")))
+    else if (String8::StartsWith(extension, FLY_STRING8_LITERAL(".ktx2")))
     {
         return LoadKtx2ImageFromFile(path, image, desiredChannelCount);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".exr")))
+    else if (String8::StartsWith(extension, FLY_STRING8_LITERAL(".exr")))
     {
         return LoadExrImageFromFile(path, image);
     }
-    else if (extension.StartsWith(FLY_STRING8_LITERAL(".dds")))
+    else if (String8::StartsWith(extension, FLY_STRING8_LITERAL(".dds")))
     {
         return LoadDDSImage(path, image);
     }

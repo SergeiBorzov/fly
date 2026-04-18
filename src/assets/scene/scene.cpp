@@ -323,8 +323,7 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
         return false;
     }
 
-    String8 extension = String8::FindLast(path, '.');
-    if (!extension.StartsWith(FLY_STRING8_LITERAL(".fscene")))
+    if (!String8::EndsWith(path, FLY_STRING8_LITERAL(".fscene")))
     {
         return false;
     }

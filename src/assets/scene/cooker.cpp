@@ -77,7 +77,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
 {
     for (u32 i = 0; i < argc; i++)
     {
-        if (argv[i].StartsWith(FLY_STRING8_LITERAL("-i")))
+        if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-i")))
         {
             data.inputCount = ParseArray(argc, argv, i + 1, nullptr);
             if (data.inputCount == 0)
@@ -88,7 +88,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
             data.inputs = FLY_PUSH_ARENA(arena, String8, data.inputCount);
             ParseArray(argc, argv, i + 1, data.inputs);
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-o")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-o")))
         {
             data.outputCount = ParseArray(argc, argv, i + 1, nullptr);
             if (data.outputCount == 0)
@@ -99,7 +99,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
             data.outputs = FLY_PUSH_ARENA(arena, String8, data.outputCount);
             ParseArray(argc, argv, i + 1, data.outputs);
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-s")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-s")))
         {
             if (!String8::ParseF32(argv[++i], data.options.scale))
             {
@@ -107,7 +107,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
                 exit(-3);
             }
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-c")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-c")))
         {
             if (!ParseCoordSystem(argv[++i], data.options.coordSystem))
             {
@@ -115,27 +115,27 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
                 exit(-4);
             }
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-fr")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-fr")))
         {
             data.options.flipRight = true;
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-fu")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-fu")))
         {
             data.options.flipUp = true;
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-ff")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-ff")))
         {
             data.options.flipForward = true;
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-fw")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-fw")))
         {
             data.options.flipWindingOrder = true;
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-nn")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-nn")))
         {
             data.options.exportNodes = false;
         }
-        else if (argv[i].StartsWith(FLY_STRING8_LITERAL("-nm")))
+        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-nm")))
         {
             data.options.exportMaterials = false;
         }
