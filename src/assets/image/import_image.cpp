@@ -5,6 +5,7 @@
 
 #include "core/assert.h"
 #include "core/filesystem.h"
+#include "core/thread_context.h"
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/string8.h"
@@ -30,10 +31,13 @@ static bool LoadCompressedImageFromFile(String8 path, Image& image)
 {
     FLY_ASSERT(path);
 
-    u64 size = 0;
-    u8* data = ReadFileToByteArray(path, size);
-    const ImageHeader* header = reinterpret_cast<const ImageHeader*>(data);
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
 
+    u64 size = 0;
+    char* data = ReadFileToCStr(scratch, path, size);
+
+    const ImageHeader* header = reinterpret_cast<const ImageHeader*>(data);
     image.width = header->width;
     image.height = header->height;
     image.channelCount = header->channelCount;
@@ -45,7 +49,7 @@ static bool LoadCompressedImageFromFile(String8 path, Image& image)
     u8* imageData = static_cast<u8*>(Alloc(imageSize));
     memcpy(imageData, data + sizeof(ImageHeader), imageSize);
 
-    Free(data);
+    ArenaPopToMarker(scratch, marker);
     image.data = imageData;
 
     return true;

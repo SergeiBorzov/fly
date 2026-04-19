@@ -52,7 +52,7 @@ static VkFormat CompressedStorageToVkFormat(ImageStorageType storageType)
 static bool ImportTextures(RHI::Device& device,
                            const SceneFileHeader* fileHeader,
                            const ImageHeader* imageHeaderStart,
-                           const u8* imageDataStart, Scene& scene)
+                           const char* imageDataStart, Scene& scene)
 {
     if (!fileHeader->textureCount)
     {
@@ -328,13 +328,13 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
         return false;
     }
 
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    bool result = false;
+
     u64 totalSize = 0;
     u64 offset = 0;
-    u8* data = ReadFileToByteArray(path, totalSize);
-    if (!data)
-    {
-        return false;
-    }
+    char* data = ReadFileToCStr(scratch, path, totalSize);
 
     const SceneFileHeader* fileHeader =
         reinterpret_cast<const SceneFileHeader*>(data);
@@ -370,33 +370,32 @@ bool ImportScene(String8 path, RHI::Device& device, Scene& scene)
     const u32* indexStart = reinterpret_cast<const u32*>(data + offset);
     offset += sizeof(u32) * fileHeader->totalIndexCount;
 
-    const u8* imageDataStart = data + offset;
+    const char* imageDataStart = data + offset;
 
     if (!ImportTextures(device, fileHeader, imageHeaderStart, imageDataStart,
                         scene))
     {
-        Free(data);
-        return false;
+        goto exit;
     }
 
     if (!ImportBuffers(device, fileHeader, vertexStart, indexStart, scene))
     {
-        Free(data);
-        return false;
+        goto exit;
     }
 
     if (!ImportMaterials(device, fileHeader, pbrMaterialStart, scene))
     {
-        Free(data);
-        return false;
+        goto exit;
     }
 
     ImportMeshes(fileHeader, meshHeaderStart, lodStart,
                  submeshMaterialIndexStart, scene);
     ImportNodes(fileHeader, sceneNodeStart, scene);
 
-    Free(data);
-    return true;
+    result = true;
+exit:
+    ArenaPopToMarker(scratch, marker);
+    return result;
 }
 
 void DestroyScene(RHI::Device& device, Scene& scene)

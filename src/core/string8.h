@@ -48,7 +48,9 @@ struct String8
 
     static String8 Find(String8 str, i32 character);
     static String8 FindLast(String8 str, i32 character);
-    static char* CopyNullTerminate(Arena& arena, String8 str);
+
+    static char* PushCStr(Arena&, String8 str);
+    static char* PushCStr(Arena&, String8 str, u64& size);
 
 private:
     const char* data_ = nullptr;

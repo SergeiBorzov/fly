@@ -139,17 +139,21 @@ String8 String8::FindLast(String8 str, i32 character)
     return String8();
 }
 
-char* String8::CopyNullTerminate(Arena& arena, String8 str)
+char* String8::PushCStr(Arena& arena, String8 str)
 {
-    bool isNullTerminated = str[str.Size() - 1] == '\0';
-    char* copyData =
-        FLY_PUSH_ARENA(arena, char, str.Size() + !isNullTerminated);
-    memcpy(copyData, str.Data(), str.Size());
-    if (!isNullTerminated)
-    {
-        copyData[str.Size()] = '\0';
-    }
-    return copyData;
+    char* buffer = FLY_PUSH_ARENA(arena, char, str.size_ + 1);
+    memcpy(buffer, str.data_, str.size_);
+    buffer[str.size_] = 0;
+    return buffer;
+}
+
+char* String8::PushCStr(Arena& arena, String8 str, u64& size)
+{
+    char* buffer = FLY_PUSH_ARENA(arena, char, str.size_ + 1);
+    memcpy(buffer, str.data_, str.size_);
+    buffer[str.size_] = 0;
+    size = str.size_;
+    return buffer;
 }
 
 bool String8::ParseF64(String8 str, f64& res)

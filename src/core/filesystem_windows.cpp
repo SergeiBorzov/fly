@@ -18,9 +18,11 @@ namespace Fly
 
 bool CreateDirectories(String8 path)
 {
-    char tmp[1024];
-    strncpy(tmp, path.Data(), sizeof(tmp));
-    tmp[sizeof(tmp) - 1] = '\0';
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+
+    char* tmp = String8::PushCStr(scratch, path);
+    bool result = true;
 
     for (char* p = tmp + 1; *p; p++)
     {
@@ -32,14 +34,15 @@ bool CreateDirectories(String8 path)
                 DWORD err = GetLastError();
                 if (err != ERROR_ALREADY_EXISTS)
                 {
-                    return false;
+                    result = false;
                 }
             }
             *p = '\\';
         }
     }
 
-    return true;
+    ArenaPopToMarker(scratch, marker);
+    return result;
 }
 
 } // namespace Fly

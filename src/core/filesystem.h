@@ -8,7 +8,7 @@ namespace Fly
 struct Arena;
 
 bool CreateDirectories(String8 path);
-u8* ReadFileToByteArray(String8 path, u64& size, u32 align = 1);
+char* ReadFileToCStr(Arena&, String8 path, u64& size, u32 align = 1);
 String8 ReadFileToString(Arena& arena, String8 filename, u32 align = 1);
 bool WriteStringToFile(String8 str, String8 path, bool append = false);
 
