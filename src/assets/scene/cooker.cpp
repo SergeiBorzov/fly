@@ -20,7 +20,7 @@ struct Input
 
 static bool IsOption(String8 str) { return str[0] == '-'; }
 
-static u32 ParseArray(u32 argc, String8* argv, i32 start, String8* arr)
+static u32 ParseArray(u32 argc, String8* argv, u32 start, String8* arr)
 {
     u32 count = 0;
     for (u32 i = start; i < argc; i++)
@@ -77,7 +77,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
 {
     for (u32 i = 0; i < argc; i++)
     {
-        if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-i")))
+        if (argv[i] == FLY_STRING8_LITERAL("-i"))
         {
             data.inputCount = ParseArray(argc, argv, i + 1, nullptr);
             if (data.inputCount == 0)
@@ -88,7 +88,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
             data.inputs = FLY_PUSH_ARENA(arena, String8, data.inputCount);
             ParseArray(argc, argv, i + 1, data.inputs);
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-o")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-o"))
         {
             data.outputCount = ParseArray(argc, argv, i + 1, nullptr);
             if (data.outputCount == 0)
@@ -99,7 +99,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
             data.outputs = FLY_PUSH_ARENA(arena, String8, data.outputCount);
             ParseArray(argc, argv, i + 1, data.outputs);
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-s")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-s"))
         {
             if (!String8::ParseF32(argv[++i], data.options.scale))
             {
@@ -107,7 +107,7 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
                 exit(-3);
             }
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-c")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-c"))
         {
             if (!ParseCoordSystem(argv[++i], data.options.coordSystem))
             {
@@ -115,27 +115,27 @@ static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
                 exit(-4);
             }
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-fr")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-fr"))
         {
             data.options.flipRight = true;
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-fu")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-fu"))
         {
             data.options.flipUp = true;
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-ff")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-ff"))
         {
             data.options.flipForward = true;
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-fw")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-fw"))
         {
             data.options.flipWindingOrder = true;
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-nn")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-nn"))
         {
             data.options.exportNodes = false;
         }
-        else if (String8::StartsWith(argv[i], FLY_STRING8_LITERAL("-nm")))
+        else if (argv[i] == FLY_STRING8_LITERAL("-nm"))
         {
             data.options.exportMaterials = false;
         }
@@ -171,15 +171,13 @@ static void FillOutputs(Arena& arena, Input& input)
 
     for (u32 i = input.outputCount; i < input.inputCount; i++)
     {
-        u64 len = input.inputs[i].Size();
+        String8List strList{};
+        String8Node strNodes[2] = {};
 
-        char* buffer = FLY_PUSH_ARENA(arena, char, len + 8);
-        buffer[0] = '\0';
-        strncat(buffer, input.inputs[i].Data(), input.inputs[i].Size());
-        strncat(buffer, ".fscene", 7);
+        strList.PushExplicit(&strNodes[0], input.inputs[i]);
+        strList.PushExplicit(&strNodes[1], FLY_STRING8_LITERAL(".fscene"));
 
-        outputs[i] = String8(buffer, len + 7);
-
+        outputs[i] = strList.Join(arena);
         if (!outputs[i])
         {
             fprintf(stderr, "Failed to autofill output path\n");

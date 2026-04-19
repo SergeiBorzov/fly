@@ -328,4 +328,64 @@ bool String8::ParseU64(String8 str, u64& res)
     return true;
 }
 
+void String8List::PushExplicit(String8Node* node, String8 str)
+{
+    FLY_ASSERT(node);
+
+    node->str = str;
+    node->next = nullptr;
+    if (!last_)
+    {
+        first_ = last_ = node;
+    }
+    else
+    {
+        last_->next = node;
+        last_ = node;
+    }
+
+    ++strCount_;
+    totalSize_ += str.Size();
+}
+
+void String8List::Push(Arena& arena, String8 str)
+{
+    String8Node* node = FLY_PUSH_ARENA(arena, String8Node, 1);
+    PushExplicit(node, str);
+}
+
+String8 String8List::Join(Arena& arena, String8 separator, String8 prefix,
+                          String8 postfix)
+{
+    u64 separatorCount = 0;
+    if (strCount_ > 0)
+    {
+        separatorCount = strCount_ - 1;
+    }
+
+    u64 resultSize = prefix.Size() + postfix.Size() +
+                     separatorCount * separator.Size() + totalSize_;
+    char* buffer = FLY_PUSH_ARENA(arena, char, resultSize + 1);
+    char* ptr = buffer;
+
+    memcpy(ptr, prefix.Data(), prefix.Size());
+    ptr += prefix.Size();
+
+    for (String8Node* node = first_; node != nullptr; node = node->next)
+    {
+        memcpy(ptr, node->str.Data(), node->str.Size());
+        ptr += node->str.Size();
+        if (node->next)
+        {
+            memcpy(ptr, separator.Data(), separator.Size());
+            ptr += separator.Size();
+        }
+    }
+    memcpy(ptr, postfix.Data(), postfix.Size());
+    ptr += postfix.Size();
+    *ptr = 0;
+
+    return String8(buffer, resultSize);
+}
+
 } // namespace Fly

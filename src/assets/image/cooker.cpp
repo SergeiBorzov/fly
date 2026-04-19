@@ -29,8 +29,8 @@ enum class TransformType
 
 struct Input
 {
-    char** inputs = nullptr;
-    char** outputs = nullptr;
+    String8* inputs = nullptr;
+    String8* outputs = nullptr;
     u32 inputCount = 0;
     u32 outputCount = 0;
     i32 resizeX = 0;
@@ -40,12 +40,12 @@ struct Input
     bool eq2cube = false;
 };
 
-static bool IsOption(const char* str) { return str[0] == '-'; }
+static bool IsOption(String8 str) { return str[0] == '-'; }
 
-static i32 ParseArray(int argc, char* argv[], i32 start, char* arr[])
+static i32 ParseArray(u32 argc, String8* argv, u32 start, String8* arr)
 {
-    i32 count = 0;
-    for (i32 i = start; i < argc; i++)
+    u32 count = 0;
+    for (u32 i = start; i < argc; i++)
     {
         if (IsOption(argv[i]))
         {
@@ -61,11 +61,11 @@ static i32 ParseArray(int argc, char* argv[], i32 start, char* arr[])
     return count;
 }
 
-static void ParseCommandLine(int argc, char* argv[], Input& data)
+static void ParseCommandLine(Arena& arena, u32 argc, String8* argv, Input& data)
 {
-    for (i32 i = 0; i < argc; i++)
+    for (u32 i = 0; i < argc; i++)
     {
-        if (strcmp(argv[i], "-i") == 0)
+        if (argv[i] == FLY_STRING8_LITERAL("-i"))
         {
             data.inputCount = ParseArray(argc, argv, i + 1, nullptr);
             if (data.inputCount == 0)
@@ -73,11 +73,10 @@ static void ParseCommandLine(int argc, char* argv[], Input& data)
                 fprintf(stderr, "Parse error: no input specified\n");
                 exit(-1);
             }
-            data.inputs = static_cast<char**>(
-                Fly::Alloc(sizeof(char*) * data.inputCount));
+            data.inputs = FLY_PUSH_ARENA(arena, String8, data.inputCount);
             ParseArray(argc, argv, i + 1, data.inputs);
         }
-        else if (strcmp(argv[i], "-o") == 0)
+        else if (argv[i] == FLY_STRING8_LITERAL("-o"))
         {
             data.outputCount = ParseArray(argc, argv, i + 1, nullptr);
             if (data.outputCount == 0)
@@ -85,36 +84,30 @@ static void ParseCommandLine(int argc, char* argv[], Input& data)
                 fprintf(stderr, "Parse error: no output specified\n");
                 exit(-2);
             }
-            data.outputs = static_cast<char**>(
-                Fly::Alloc(sizeof(char*) * data.outputCount));
+            data.outputs = FLY_PUSH_ARENA(arena, String8, data.outputCount);
             ParseArray(argc, argv, i + 1, data.outputs);
         }
-        else if (strcmp(argv[i], "-r") == 0)
+        else if (argv[i] == FLY_STRING8_LITERAL("-r"))
         {
             data.resize = true;
 
-            const char* argX = argv[++i];
-            String8 strX(argX, strlen(argX));
-
-            if (!String8::ParseI32(strX, data.resizeX))
+            if (!String8::ParseI32(argv[++i], data.resizeX))
             {
                 fprintf(stderr, "Parse error: no size for resize specified\n");
                 exit(-4);
             }
 
-            const char* argY = argv[++i];
-            String8 strY(argY, strlen(argY));
-            if (!String8::ParseI32(strY, data.resizeY))
+            if (!String8::ParseI32(argv[++i], data.resizeY))
             {
                 fprintf(stderr, "Parse error: no size for resize specified\n");
                 exit(-4);
             }
         }
-        else if (strcmp(argv[i], "-m") == 0)
+        else if (argv[i] == FLY_STRING8_LITERAL("-m"))
         {
             data.generateMips = true;
         }
-        else if (strcmp(argv[i], "-eq2cube") == 0)
+        else if (argv[i] == FLY_STRING8_LITERAL("-eq2cube"))
         {
             data.eq2cube = true;
         }
@@ -141,33 +134,14 @@ static void CheckSemantic(const Input& input)
     }
 }
 
-static void Shutdown(Input& input)
-{
-    for (u32 i = input.outputCount; i < input.inputCount; i++)
-    {
-        Fly::Free(input.outputs[i]);
-    }
-
-    if (input.inputs)
-    {
-        Fly::Free(input.inputs);
-    }
-
-    if (input.outputs)
-    {
-        Fly::Free(input.outputs);
-    }
-}
-
-static void FillOutputs(Input& input)
+static void FillOutputs(Arena& arena, Input& input)
 {
     if (input.outputCount == input.inputCount)
     {
         return;
     }
 
-    char** outputs =
-        static_cast<char**>(Fly::Alloc(sizeof(char*) * input.inputCount));
+    String8* outputs = FLY_PUSH_ARENA(arena, String8, input.inputCount);
     for (u32 i = 0; i < input.outputCount; i++)
     {
         outputs[i] = input.outputs[i];
@@ -175,12 +149,13 @@ static void FillOutputs(Input& input)
 
     for (u32 i = input.outputCount; i < input.inputCount; i++)
     {
-        size_t len = strlen(input.inputs[i]);
-        outputs[i] = static_cast<char*>(Fly::Alloc(sizeof(char) * (len + 5)));
-        outputs[i][0] = '\0';
-        strcat(outputs[i], "out_");
-        strcat(outputs[i], input.inputs[i]);
+        String8List strList{};
+        String8Node strNodes[2] = {};
 
+        strList.PushExplicit(&strNodes[0], FLY_STRING8_LITERAL("out_"));
+        strList.PushExplicit(&strNodes[1], input.inputs[i]);
+
+        outputs[i] = strList.Join(arena);
         if (!outputs[i])
         {
             fprintf(stderr, "Failed to autofill output path");
@@ -190,32 +165,29 @@ static void FillOutputs(Input& input)
     input.outputs = outputs;
 }
 
-static u8 GetImageChannelCount(const char* inputPath, const char* outputPath)
+static u8 GetImageChannelCount(String8 inputPath, String8 outputPath)
 {
-    String8 inputPathStr = Fly::String8(inputPath, strlen(inputPath));
-    String8 outputPathStr = Fly::String8(outputPath, strlen(outputPath));
-
-    if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc1")))
+    if (String8::EndsWith(outputPath, FLY_STRING8_LITERAL(".fbc1")))
     {
         return 4;
     }
-    else if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc3")))
+    else if (String8::EndsWith(outputPath, FLY_STRING8_LITERAL(".fbc3")))
     {
         return 4;
     }
-    else if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc4")))
+    else if (String8::EndsWith(outputPath, FLY_STRING8_LITERAL(".fbc4")))
     {
         return 1;
     }
-    else if (String8::EndsWith(outputPathStr, FLY_STRING8_LITERAL(".fbc5")))
+    else if (String8::EndsWith(outputPath, FLY_STRING8_LITERAL(".fbc5")))
     {
         return 2;
     }
-    else if (String8::EndsWith(inputPathStr, FLY_STRING8_LITERAL(".jpg")))
+    else if (String8::EndsWith(inputPath, FLY_STRING8_LITERAL(".jpg")))
     {
         return 4;
     }
-    else if (String8::EndsWith(inputPathStr, FLY_STRING8_LITERAL(".jpeg")))
+    else if (String8::EndsWith(inputPath, FLY_STRING8_LITERAL(".jpeg")))
     {
         return 4;
     }
@@ -351,12 +323,11 @@ void ProcessInput(Input& input)
             exit(-11);
         }
 
-        if (!LoadImageFromFile(
-                String8(input.inputs[i], strlen(input.inputs[i])), image,
-                channelCount))
+        if (!LoadImageFromFile(input.inputs[i], image, channelCount))
         {
-            fprintf(stderr, "Import error: failed to load image %s\n",
-                    input.inputs[i]);
+            fprintf(stderr, "Import error: failed to load image %.*s\n",
+                    static_cast<int>(input.inputs[i].Size()),
+                    input.inputs[i].Data());
             exit(-7);
         }
 
@@ -366,8 +337,9 @@ void ProcessInput(Input& input)
             if (!ResizeImageSRGB(input.resizeX, input.resizeY, image))
             {
                 Free(image.data);
-                fprintf(stderr, "Transform error: Failed to resize %s\n",
-                        input.inputs[i]);
+                fprintf(stderr, "Transform error: Failed to resize %.*s\n",
+                        static_cast<int>(input.inputs[i].Size()),
+                        input.inputs[i].Data());
                 exit(-10);
             }
         }
@@ -379,8 +351,9 @@ void ProcessInput(Input& input)
                 Free(image.data);
                 fprintf(stderr,
                         "Transform error: failed to transform "
-                        "equirectangular to cube %s\n",
-                        input.inputs[i]);
+                        "equirectangular to cube %.*s\n",
+                        static_cast<int>(input.inputs[i].Size()),
+                        input.inputs[i].Data());
                 exit(-32);
             }
         }
@@ -391,24 +364,26 @@ void ProcessInput(Input& input)
             if (!GenerateMips(image, false))
             {
                 fprintf(stderr,
-                        "Transform error: Failed to generate mipmaps %s\n",
-                        input.inputs[i]);
+                        "Transform error: Failed to generate mipmaps %.*s\n",
+                        static_cast<int>(input.inputs[i].Size()),
+                        input.inputs[i].Data());
                 exit(-12);
             }
         }
 
-        String8 outStr = String8(input.outputs[i], strlen(input.outputs[i]));
-        if (!CompressOutputImage(outStr, image))
+        if (!CompressOutputImage(input.outputs[i], image))
         {
-            fprintf(stderr, "Transform error: Failed to compress %s\n",
-                    input.outputs[i]);
+            fprintf(stderr, "Transform error: Failed to compress %.*s\n",
+                    static_cast<int>(input.outputs[i].Size()),
+                    input.outputs[i].Data());
             exit(-13);
         }
 
-        if (!ExportImage(outStr, image))
+        if (!ExportImage(input.outputs[i], image))
         {
-            fprintf(stderr, "Export error: failed to write image %s\n",
-                    input.outputs[i]);
+            fprintf(stderr, "Export error: failed to write image %.*s\n",
+                    static_cast<int>(input.outputs[i].Size()),
+                    input.outputs[i].Data());
             exit(-8);
         }
 
@@ -427,12 +402,18 @@ int main(int argc, char* argv[])
 {
     InitArenas();
 
+    Arena& arena = GetScratchArena();
+    String8* argvStrings = FLY_PUSH_ARENA(arena, String8, argc);
+    for (i32 i = 0; i < argc; i++)
+    {
+        argvStrings[i] = String8(argv[i], strlen(argv[i]));
+    }
+
     Input input;
-    ParseCommandLine(argc, argv, input);
+    ParseCommandLine(arena, argc, argvStrings, input);
     CheckSemantic(input);
-    FillOutputs(input);
+    FillOutputs(arena, input);
     ProcessInput(input);
-    Shutdown(input);
 
     ReleaseThreadContext();
     return 0;

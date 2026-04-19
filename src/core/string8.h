@@ -69,6 +69,26 @@ struct String8CutPair
     String8 tail = {};
 };
 
+struct String8Node
+{
+    String8 str = {};
+    String8Node* next = nullptr;
+};
+
+struct String8List
+{
+    void PushExplicit(String8Node* node, String8 str);
+    void Push(Arena& arena, String8 str);
+    String8 Join(Arena& arena, String8 separator = {}, String8 prefix = {},
+                 String8 postfix = {});
+
+private:
+    String8Node* first_ = nullptr;
+    String8Node* last_ = nullptr;
+    u64 strCount_ = 0;
+    u64 totalSize_ = 0;
+};
+
 #define FLY_STRING8_LITERAL(str) Fly::String8(str, sizeof(str) - 1)
 
 } // namespace Fly
