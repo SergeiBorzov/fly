@@ -1,10 +1,19 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@fly//scripts/bazel/rules:generate_ktx2_version.bzl",
+    "generate_ktx2_version"
+)
+
+generate_ktx2_version(
+    name = "ktx2_version",
+    version = "v5.0.0-rc1",
+    default_version = "v4.0.0",
+    output_file = "version.h",
+)
 
 cc_library(
     name = "zstd",
     srcs = [
         "external/basis_universal/zstd/zstd.c",
-        #"external/basis_universal/zstd/zstddeclib.c",
     ],
     hdrs = [
         "external/basis_universal/zstd/zstd.h",
@@ -95,9 +104,14 @@ cc_library(
     ],
     includes = [
         "external/basis_universal/encoder",
+        "external/basis_universal",
     ],
     deps = [
         ":zstd",
+    ],
+    defines = [
+         "BASISU_SUPPORT_OPENCL=0",
+    #     "BASISU_ZSTD=1",
     ],
     copts = select({
         "@platforms//os:linux": [
@@ -137,11 +151,22 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+#TODO: make a proper patch
+genrule(
+    name = "dfdutils_patched",
+    srcs = ["lib/src/basis_encode.cpp"],
+    outs = ["basis_encode_patched.cpp"],
+    cmd = "sed '31,32d' $(location lib/src/basis_encode.cpp) > $@",
+)
+
 cc_library(
     name = "ktx2",
     srcs = [
         "lib/src/astc_codec.cpp",
         "lib/src/basis_transcode.cpp",
+        "basis_encode_patched.cpp",
+        "lib/src/writer1.c",
+        "lib/src/writer2.c",
         "lib/src/miniz_wrapper.cpp",
         "lib/src/checkheader.c",
         "lib/src/etcunpack.cxx",
@@ -175,13 +200,14 @@ cc_library(
         "lib/src/texture2.h",
         "lib/src/uthash.h",
         "lib/src/vk2gl.h",
+        "lib/src/vkformat_enum.h",
         "lib/src/vk_format.h",
         "lib/src/vkFormat2glFormat.inl",
         "lib/src/vkFormat2glInternalFormat.inl",
         "lib/src/vkFormat2glType.inl",
-        "lib/src/vkformat_enum.h",
         "utils/unused.h",
         "external/astc-encoder/Source/astcenc.h",
+        ":version.h",
     ],
     deps = [
        ":basisu_encoder",
@@ -189,11 +215,11 @@ cc_library(
     ],
     defines = [
         "KTX_FEATURE_KTX2",
+        "KTX_FEATURE_WRITE",
     ],
     includes = [
         "lib/include",
-        "external/dfdutils",
-        "external/basis_universal",
+        "lib/src",
         "external",
         "utils",
     ],

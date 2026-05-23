@@ -360,7 +360,7 @@ static void SpecularGlossinessToRoughnessMetallicFile(
         String8List strList{};
         String8Node strNodes[2] = {};
         strList.PushExplicit(&strNodes[0], diffusePath);
-        strList.PushExplicit(&strNodes[1], FLY_STRING8_LITERAL("_bc.png"));
+        strList.PushExplicit(&strNodes[1], FLY_STRING8_LITERAL("_bc.ktx2"));
         String8 baseColorOutputPath = strList.Join(arena);
 
         bool res = ExportImage(baseColorOutputPath, baseColorImage);
@@ -398,7 +398,7 @@ static void SpecularGlossinessToRoughnessMetallicFile(
             String8List strList{};
             String8Node strNodes[2] = {};
             strList.PushExplicit(&strNodes[0], specularPath);
-            strList.PushExplicit(&strNodes[1], FLY_STRING8_LITERAL("_rm.png"));
+            strList.PushExplicit(&strNodes[1], FLY_STRING8_LITERAL("_rm.ktx2"));
             String8 rmOutputPath = strList.Join(arena);
 
             bool res = ExportImage(rmOutputPath, roughnessMetallicImage);

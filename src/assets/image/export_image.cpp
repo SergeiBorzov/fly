@@ -4,6 +4,7 @@
 #include "core/filesystem.h"
 #include "core/log.h"
 #include "core/memory.h"
+#include "core/thread_context.h"
 
 #include "export_image.h"
 #include "image.h"
@@ -15,6 +16,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#include <ktx.h>
 #include <tinyexr.h>
 
 namespace Fly
@@ -84,6 +86,112 @@ static bool ExportCookedImage(String8 path, const Image& image)
 
     Free(data);
     return true;
+}
+
+static bool ExportKTX2(String8 path, const Image& image)
+{
+    FLY_ASSERT(image.storageType == ImageStorageType::Byte);
+
+    ktxTextureCreateInfo createInfo = {};
+    createInfo.vkFormat = 0; // VK_FORMAT_UNDEFINED;
+    switch (image.channelCount)
+    {
+        case 1:
+        {
+            createInfo.vkFormat = 9; // VK_FORMAT_R8_UNORM;
+            break;
+        }
+        case 2:
+        {
+            createInfo.vkFormat = 16; // VK_FORMAT_R8G8_UNORM;
+            break;
+        }
+        case 3:
+        {
+            createInfo.vkFormat = 23; // VK_FORMAT_R8G8B8_UNORM;
+            break;
+        }
+        case 4:
+        {
+            createInfo.vkFormat = 37; // VK_FORMAT_R8G8B8A8_UNORM;
+            break;
+        }
+        default:
+        {
+            return false;
+        }
+    }
+
+    createInfo.baseWidth = image.width;
+    createInfo.baseHeight = image.height;
+    createInfo.baseDepth = 1;
+    createInfo.numDimensions = 2;
+    createInfo.numLayers = image.layerCount;
+    createInfo.numFaces = 1;
+    createInfo.isArray = KTX_FALSE;
+    createInfo.numLevels = 1;
+    createInfo.generateMipmaps = KTX_FALSE;
+
+    ktxTexture2* texture = nullptr;
+    KTX_error_code result = ktxTexture2_Create(
+        &createInfo, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &texture);
+
+    if (result != KTX_SUCCESS)
+    {
+        return false;
+    }
+
+    const ktx_size_t imageSize =
+        image.width * image.height * image.channelCount;
+    {
+        u8* tmpRow = static_cast<u8*>(Alloc(image.width * image.channelCount));
+        for (u32 y = 0; y < image.height / 2; y++)
+        {
+            u8* rowTop = image.data + y * image.width * image.channelCount;
+            u8* rowBottom = image.data + (image.height - 1 - y) * image.width *
+                                             image.channelCount;
+            memcpy(tmpRow, rowTop, image.width * image.channelCount);
+            memcpy(rowTop, rowBottom, image.width * image.channelCount);
+            memcpy(rowBottom, tmpRow, image.width * image.channelCount);
+        }
+        Free(tmpRow);
+    }
+
+    result =
+        ktxTexture_SetImageFromMemory(reinterpret_cast<ktxTexture*>(texture),
+                                      0, // mip level
+                                      0, // layer
+                                      0, // faceSlice
+                                      image.data, imageSize);
+    if (result != KTX_SUCCESS)
+    {
+        ktxTexture2_Destroy(texture);
+        return false;
+    }
+
+    ktxBasisParams params = {};
+    params.structSize = sizeof(params);
+    params.etc1sCompressionLevel = KTX_ETC1S_DEFAULT_COMPRESSION_LEVEL;
+    params.qualityLevel = KTX_PACK_ASTC_QUALITY_LEVEL_MEDIUM;
+    params.threadCount = 0;
+
+    result = ktxTexture2_CompressBasisEx(texture, &params);
+
+    if (result != KTX_SUCCESS)
+    {
+        ktxTexture2_Destroy(texture);
+        return false;
+    }
+
+    Arena& scratch = GetScratchArena();
+    ArenaMarker marker = ArenaGetMarker(scratch);
+    const char* pathCStr = String8::PushCStr(scratch, path);
+    result = ktxTexture_WriteToNamedFile(reinterpret_cast<ktxTexture*>(texture),
+                                         pathCStr);
+    ArenaPopToMarker(scratch, marker);
+
+    ktxTexture2_Destroy(texture);
+    return result == KTX_SUCCESS;
 }
 
 static bool ExportEXR(String8 path, const Image& image)
@@ -208,6 +316,10 @@ bool ExportImage(String8 path, const Image& image)
             else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".tga")))
             {
                 return ExportTGA(path, image);
+            }
+            else if (String8::EndsWith(path, FLY_STRING8_LITERAL(".ktx2")))
+            {
+                return ExportKTX2(path, image);
             }
             break;
         }

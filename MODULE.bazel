@@ -137,7 +137,7 @@ use_repo(external_git_repository, "glslang")
 external_git_repository.base(
     name = "ktx_software",
     build_file = "//scripts/bazel/target:BUILD.ktx_software.bazel",
-    commit = "1499a5534b19afd7cd5cf1d5e5c1296ce36d1f14",
+    commit = "6269d2752ed04446c2d4749f54f3aad4f94555b5",
     remote = "https://github.com/KhronosGroup/KTX-Software.git",
 )
 use_repo(external_git_repository, "ktx_software")

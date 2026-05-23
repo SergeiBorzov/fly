@@ -16,3 +16,11 @@ py_binary(
     visibility = ["//visibility:public"],
 )
 
+py_binary(
+    name = "generate_ktx2_version",
+    srcs = [
+        "generate_ktx2_version.py",
+    ],
+    visibility = ["//visibility:public"],
+)
+
