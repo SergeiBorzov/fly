@@ -7,17 +7,29 @@ cc_library(
         "mat.h",
         "quat.h",
         "functions.h",
-        "transform.h",
     ],
     srcs = [
         "functions.cpp",
         "quat.cpp",
         "mat.cpp",
-        "transform.cpp",
     ],
     includes = [".."],
     deps = [
         "//src/core:assert",
     ],
     visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "transform",
+    hdrs = [
+        "transform.h",
+    ],
+    srcs = [
+        "transform.cpp",
+    ],
+    includes = [".."],
+    deps = [
+        ":math",
+    ],
 )

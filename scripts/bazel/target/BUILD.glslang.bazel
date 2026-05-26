@@ -176,6 +176,7 @@ cc_library(
         ],
         "@platforms//os:linux": [
             "-Wno-maybe-uninitialized",
+            "-Wno-array-bounds",
         ],
         "//conditions:default": [],
     }),
