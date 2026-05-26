@@ -55,6 +55,7 @@ Mat4 RotateY(f32 degrees);
 Mat4 RotateZ(f32 degrees);
 
 Mat4 Perspective(f32 fovx, f32 aspect, f32 near, f32 far);
+Mat4 Ortho(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far);
 Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp);
 Mat4 Transpose(const Mat4& mat);
 

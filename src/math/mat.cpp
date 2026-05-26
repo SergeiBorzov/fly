@@ -247,6 +247,23 @@ Mat4 Perspective(f32 fovxDegrees, f32 aspect, float near, float far)
     return res;
 }
 
+Mat4 Ortho(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
+{
+    float rNear = far;
+    float rFar = near;
+
+    Mat4 res(0.0f);
+    res[0][0] = 2.0f / (right - left);
+    res[1][1] = -2.0f / (top - bottom);
+    res[2][2] = 1.0f / (rFar - rNear);
+    res[3][0] = -((right + left) / (right - left));
+    res[3][1] = ((top + bottom) / (top - bottom));
+    res[3][2] = -rNear / (rFar - rNear);
+    res[3][3] = 1.0f;
+
+    return Mat4(res);
+}
+
 Mat4 LookAt(Vec3 eye, Vec3 target, Vec3 worldUp)
 {
     Mat4 res(0.0f);
