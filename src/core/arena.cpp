@@ -75,7 +75,10 @@ void ArenaPopToMarker(Arena& arena, ArenaMarker marker)
 
 void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
 {
-    FLY_ASSERT(size > 0);
+    if (size == 0)
+    {
+        return nullptr;
+    }
 
     u64 allocSize = size + align + sizeof(ArenaAllocHeader);
 
