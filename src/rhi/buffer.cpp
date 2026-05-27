@@ -59,7 +59,10 @@ bool CopyDataToBuffer(Device& device, const void* data, u64 size, u64 offset,
 {
     FLY_ASSERT(buffer.handle != VK_NULL_HANDLE);
     FLY_ASSERT(data);
-    FLY_ASSERT(size > 0);
+    if (size == 0)
+    {
+        return true;
+    }
 
     if (buffer.allocationInfo.pMappedData)
     {
