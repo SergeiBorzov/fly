@@ -14,6 +14,7 @@ cc_library(
     deps = [
         "//src/core:core",
         "//src/math:math",
+        "//src/math:transform",
         "//src/assets/image:import_image",
         "//src/assets/image:export_image",
         "@cgltf//:cgltf",
@@ -36,6 +37,7 @@ cc_library(
     deps = [
         "//src/core:filesystem",
         "//src/math:math",
+        "//src/math:transform",
         "//src/rhi:context",
         "//src/assets/image:import_image",
     ],

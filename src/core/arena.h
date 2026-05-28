@@ -7,6 +7,8 @@
     static_cast<T*>(ArenaPushAligned(arena, sizeof(T) * count, alignof(T)))
 #define FLY_PUSH_ARENA_ALIGNED(arena, T, count, align)                         \
     static_cast<T*>(ArenaPushAligned(arena, sizeof(T) * count, align))
+#define FLY_PUSH_NODE_ARENA(arena, T)                                          \
+    static_cast<T*>(ArenaPush(arena, sizeof(T)))
 
 #define FLY_SIZE_KB(i) (1024ull * i)
 #define FLY_SIZE_MB(i) (1024ull * 1024ull * i)
@@ -22,28 +24,25 @@ struct ArenaMarker
     u64 value;
 };
 
-struct ArenaAllocHeader
-{
-    u64 prevAllocSize = 0;
-};
-
 struct Arena
 {
     u8* ptr = nullptr;
     u64 lastAllocSize = 0;
     u64 size = 0;
     u64 capacity = 0;
+    u64 minCapacity = 0;
     u64 reservedCapacity = 0;
 };
 
 Arena ArenaCreate(u64 reservedSize, u64 commitedSize);
 void ArenaDestroy(Arena& arena);
+void* ArenaPush(Arena& arena, u64 size);
 void* ArenaPushAligned(Arena& arena, u64 size, u32 align);
 ArenaMarker ArenaGetMarker(const Arena& arena);
 void ArenaPopToMarker(Arena& arena, ArenaMarker marker);
 void ArenaReset(Arena& arena);
 void* ArenaUnwrapPtr(void* ptr);
 
-} // namespace FLy
+} // namespace Fly
 
 #endif /* FLY_MEMORY_ARENA_H */

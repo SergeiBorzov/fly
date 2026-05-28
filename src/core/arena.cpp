@@ -24,7 +24,7 @@ void* ArenaUnwrapPtr(void* alignedPtr)
     {
         shift = 256;
     }
-    return byteAlignedPtr - shift - sizeof(ArenaAllocHeader);
+    return byteAlignedPtr - shift;
 }
 
 Arena ArenaCreate(u64 reservedSize, u64 commitedSize)
@@ -41,6 +41,7 @@ Arena ArenaCreate(u64 reservedSize, u64 commitedSize)
 
     arena.reservedCapacity = reservedSize;
     arena.capacity = commitedSize;
+    arena.minCapacity = commitedSize;
     arena.size = 0;
     arena.lastAllocSize = 0;
 
@@ -63,14 +64,43 @@ void ArenaPopToMarker(Arena& arena, ArenaMarker marker)
 {
     arena.size = marker.value;
 
-    if (arena.capacity > FLY_ARENA_MIN_CAPACITY &&
-        arena.size < arena.capacity / 4)
+    if (arena.capacity > arena.minCapacity && arena.size < arena.capacity / 4)
     {
         u64 newCapacity = arena.capacity / 2;
         Fly::PlatformDecommitMemory(arena.ptr + newCapacity,
                                     arena.capacity - newCapacity);
         arena.capacity = newCapacity;
     }
+}
+
+void* ArenaPush(Arena& arena, u64 size)
+{
+    if (size == 0)
+    {
+        return nullptr;
+    }
+
+    void* ptr = arena.ptr + arena.size;
+    u64 total = arena.size + size;
+    while (total > arena.capacity)
+    {
+        u64 newCapacity = 2 * arena.capacity;
+        if (newCapacity <= arena.reservedCapacity)
+        {
+            void* res = Fly::PlatformCommitMemory(arena.ptr + arena.capacity,
+                                                  arena.capacity);
+            (void)res;
+            FLY_ASSERT(res);
+            arena.capacity = newCapacity;
+        }
+        else
+        {
+            // Out of reserved space of addresses
+            FLY_ASSERT(false);
+        }
+    }
+
+    return ptr;
 }
 
 void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
@@ -80,7 +110,7 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
         return nullptr;
     }
 
-    u64 allocSize = size + align + sizeof(ArenaAllocHeader);
+    u64 allocSize = size + align;
 
     u64 total = arena.size + allocSize;
     while (total > arena.capacity)
@@ -102,23 +132,19 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
     }
 
     u8* unalignedPtr = arena.ptr + arena.size;
-    ArenaAllocHeader* header =
-        reinterpret_cast<ArenaAllocHeader*>(unalignedPtr);
-    header->prevAllocSize = arena.lastAllocSize;
 
-    u8* alignedPtr = static_cast<u8*>(
-        AlignPtr(unalignedPtr + sizeof(ArenaAllocHeader), align));
-    if (alignedPtr == unalignedPtr + sizeof(ArenaAllocHeader))
+    u8* alignedPtr = static_cast<u8*>(AlignPtr(unalignedPtr, align));
+    if (alignedPtr == unalignedPtr)
     {
         alignedPtr += align;
     }
 
-    ptrdiff_t shift = alignedPtr - (unalignedPtr + sizeof(ArenaAllocHeader));
+    ptrdiff_t shift = alignedPtr - (unalignedPtr);
     FLY_ASSERT(shift > 0 && shift <= 256, "Supported alignment is up to 256");
 
     alignedPtr[-1] = static_cast<u8>(shift & 0xFF);
 
-    arena.lastAllocSize = size + shift + sizeof(ArenaAllocHeader);
+    arena.lastAllocSize = size + shift;
     arena.size += arena.lastAllocSize;
     return alignedPtr;
 }
@@ -126,9 +152,9 @@ void* ArenaPushAligned(Arena& arena, u64 size, u32 align)
 void ArenaReset(Arena& arena)
 {
     arena.size = 0;
-    Fly::PlatformDecommitMemory(arena.ptr + FLY_ARENA_MIN_CAPACITY,
-                                arena.capacity - FLY_ARENA_MIN_CAPACITY);
-    arena.capacity = FLY_ARENA_MIN_CAPACITY;
+    Fly::PlatformDecommitMemory(arena.ptr + arena.minCapacity,
+                                arena.capacity - arena.minCapacity);
+    arena.capacity = arena.minCapacity;
 }
 
 } // namespace Fly

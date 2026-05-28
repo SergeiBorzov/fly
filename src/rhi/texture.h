@@ -3,8 +3,8 @@
 
 #include "core/types.h"
 
-#include "vma.h"
 #include <volk.h>
+#include "vma.h"
 
 namespace Fly
 {

@@ -690,9 +690,9 @@ void DestroyGeometry(Geometry& geometry)
 
 static u32 HeuristicDetermineLODCount(Geometry& geometry)
 {
-    return Math::Clamp(static_cast<u32>(Math::Ceil(
-                           Math::Log2((geometry.indexCount / 3) / 4000.0f))),
-                       0u, FLY_MAX_LOD_COUNT - 1) +
+    return Math::Clamp(static_cast<i32>(Math::Ceil(static_cast<i32>(
+                           Math::Log2((geometry.indexCount / 3) / 4000.0f)))),
+                       static_cast<i32>(0u), static_cast<i32>(FLY_MAX_LOD_COUNT - 1)) +
            1;
 }
 
