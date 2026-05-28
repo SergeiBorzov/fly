@@ -32,15 +32,11 @@ inline i32 Clamp(i32 value, i32 min, i32 max)
     return Max(min, Min(value, max));
 }
 
-inline u32 Clamp(u32 value, u32 min, u32 max)
-{
-    return Max(min, Min(value, max));
-}
-
 inline f32 Lerp(f32 a, f32 b, f32 t) { return a * (1.0f - t) + b * t; }
 
 f32 Ceil(f32 value);
 f32 Floor(f32 value);
+f32 Fmod(f32 value, f32 modulus);
 
 f32 Abs(f32 value);
 f32 Sqrt(f32 value);
