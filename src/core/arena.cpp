@@ -100,6 +100,9 @@ void* ArenaPush(Arena& arena, u64 size)
         }
     }
 
+    arena.lastAllocSize = size;
+    arena.size += arena.lastAllocSize;
+
     return ptr;
 }
 
