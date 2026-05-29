@@ -36,6 +36,7 @@ inline f32 Lerp(f32 a, f32 b, f32 t) { return a * (1.0f - t) + b * t; }
 
 f32 Ceil(f32 value);
 f32 Floor(f32 value);
+f32 Round(f32 value);
 f32 Fmod(f32 value, f32 modulus);
 
 f32 Abs(f32 value);

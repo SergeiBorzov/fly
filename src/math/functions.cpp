@@ -15,6 +15,7 @@ namespace Math
 
 f32 Ceil(f32 value) { return ceilf(value); }
 f32 Floor(f32 value) { return floorf(value); }
+f32 Round(f32 value) { return roundf(value); }
 f32 Fmod(f32 value, f32 modulus) { return fmodf(value, modulus); }
 
 f32 Abs(f32 value) { return fabsf(value); }
